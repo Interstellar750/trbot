@@ -1,0 +1,52 @@
+name: ♿otto
+
+voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
+  - ID:       otto-self
+    Title:    说的道理の自我介绍
+    Caption:  我是说的道理~
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wssddl.mp3
+
+  - ID:       otto-wq
+    Title:    没受过这么大委屈，从小到大
+    Caption:  没受过这么大委屈，从小到大
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/msgzmdwqcxdd.mp3
+
+  - ID:       otto-jtld
+    Title:    今天来点大家想看的东西啊
+    Caption:  今天来点大家想看的东西啊
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/jtld.mp3
+
+  - ID:       otto-miyu
+    Title:    啊米浴说的道理~
+    Caption:  啊米浴说的道理~
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/miyu.mp3
+
+  - ID:       otto-dream
+    Title:    我阐述你的梦
+    Caption:  我阐述你的梦
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wcsndm.mp3
+
+  - ID:       otto-waoo
+    Title:    哇袄
+    Caption:  哇袄
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wao.mp3
+
+  - ID:       otto-hahaha
+    Title:    发病
+    Caption:  发病
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/kxfbx.mp3
+
+  - ID:       otto-nxhw
+    Title:    试探
+    Caption:  你喜欢我
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/nxhw.mp3
+
+  - ID:       otto-wxhn
+    Title:    表白
+    Caption:  我喜欢你
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wxhn.mp3
+
+  - ID:       otto-rush
+    Title:    冲刺
+    Caption:  冲刺
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/cc.mp3
