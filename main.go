@@ -3,14 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 
 	"github.com/go-telegram/bot"
+	"github.com/joho/godotenv"
 )
 
 
 func main() {
+	err := godotenv.Load()
+	if err != nil { log.Printf("Can't loading .env file") }
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
