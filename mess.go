@@ -9,7 +9,7 @@ import (
 )
 
 func echoSticker(filePath string) (*io.PipeReader) {
-	fmt.Printf("https://api.telegram.org/file/bot%s/%s", os.Getenv("TELEGRAM_BOT_TOKEN"), filePath)
+	fmt.Printf("https://api.telegram.org/file/bot%s/%s\n", os.Getenv("TELEGRAM_BOT_TOKEN"), filePath)
 	resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", os.Getenv("TELEGRAM_BOT_TOKEN"), filePath))
 	if err != nil { log.Printf("error downloading file: %v", err) }
 	// defer resp.Body.Close()

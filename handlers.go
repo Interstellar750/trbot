@@ -33,10 +33,28 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	if update.Message.Sticker != nil {
 		file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
 		if err != nil { log.Printf("Error getting file: %v", err) }
-		thebot.SendDocument(ctx, &bot.SendDocumentParams{
-			ChatID:   update.Message.Chat.ID,
-			Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
-		})
+		if update.Message.Sticker.IsVideo {
+			thebot.SendDocument(ctx, &bot.SendDocumentParams{
+				ChatID:   update.Message.Chat.ID,
+				Caption: "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)",
+				Document: &models.InputFileUpload{Filename: "sticker.webm", Data: echoSticker(file.FilePath)},
+				ParseMode: models.ParseModeMarkdownV1,
+			})
+		} else if update.Message.Sticker.IsAnimated {
+			thebot.SendDocument(ctx, &bot.SendDocumentParams{
+				ChatID:   update.Message.Chat.ID,
+				Caption: "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)",
+				Document: &models.InputFileUpload{Filename: "sticker.tgs.file", Data: echoSticker(file.FilePath)},
+				ParseMode: models.ParseModeMarkdownV1,
+			})
+		} else {
+			thebot.SendDocument(ctx, &bot.SendDocumentParams{
+				ChatID:   update.Message.Chat.ID,
+				Caption: "see [wikipedia/WebP](https://wikipedia.org/wiki/WebP)",
+				Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
+				ParseMode: models.ParseModeMarkdownV1,
+			})
+		}
 		return
 	}
 
@@ -49,7 +67,7 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		})
 		thebot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    2074319561,
-			Text:      fmt.Sprintf("[%d:%s](t.me/@id%d) using a worng command: `%s`", update.Message.Chat.ID, update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
+			Text:      fmt.Sprintf("[%s](t.me/@id%d) using a wrong command: `%s`", update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
 			ParseMode: models.ParseModeMarkdownV1,
 		})
 	} else {
@@ -60,7 +78,7 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		})
 		thebot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    2074319561,
-			Text:      fmt.Sprintf("[%d:%s](t.me/@id%d) say: \n%s", update.Message.Chat.ID, update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
+			Text:      fmt.Sprintf("[%s](t.me/@id%d) say: \n%s", update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
 			ParseMode: models.ParseModeMarkdownV1,
 		})
 	}
