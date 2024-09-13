@@ -29,22 +29,44 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	// 	})
 	// }
 
-	// if update.Message.Sticker != nil {
-	// 	thebot.SendSticker(ctx, &bot.SendStickerParams{
-	// 		ChatID:  update.Message.Chat.ID,
-	// 		Sticker: &models.InputFileString{update.Message.Sticker.FileID},
-	// 	})
-	// }
+	// 下载 webp 格式的贴纸
+	if update.Message.Sticker != nil {
+		file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
+		if err != nil { log.Printf("Error getting file: %v", err) }
+		thebot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID:   update.Message.Chat.ID,
+			Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
+		})
+		return
+	}
 
 
-	thebot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    update.Message.Chat.ID,
-		Text:      "No operations available",
-		ParseMode: models.ParseModeMarkdown,
-	})
+	// 不匹配上面项目的则提示不可用
+	if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      "No this command",
+		})
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    2074319561,
+			Text:      fmt.Sprintf("[%d:%s](t.me/@id%d) using a worng command: `%s`", update.Message.Chat.ID, update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	} else {
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      "No operations available",
+			ParseMode: models.ParseModeMarkdown,
+		})
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    2074319561,
+			Text:      fmt.Sprintf("[%d:%s](t.me/@id%d) say: \n%s", update.Message.Chat.ID, update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	}
 	
+	// 等待五秒删除请求信息和回复信息
 	time.Sleep(time.Second * 5)
-
 	thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
 		ChatID:     update.Message.Chat.ID,
 		MessageIDs: []int{
