@@ -50,3 +50,13 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
     Title:    冲刺
     Caption:  冲刺
     VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/cc.mp3
+
+  - ID:       otto-move
+    Title:    迫不及待
+    Caption:  兄弟你动啊
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/xdnda.mp3
+
+  - ID:       otto-vegetable
+    Title:    品鉴蔬菜
+    Caption:  你怎么这么菜啊
+    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/nzmzmca.mp3
