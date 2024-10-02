@@ -23,6 +23,7 @@ func main() {
 		// bot.WithMiddlewares(),
 		bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
 		bot.WithMessageTextHandler("/start", bot.MatchTypeExact, startHandler),
+		bot.WithMessageTextHandler("/forwardonly", bot.MatchTypePrefix, addToWriteListHandler),
 		bot.WithMessageTextHandler("", bot.MatchTypeContains, defaulthandler),
 		bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
 		// bot.
@@ -36,5 +37,8 @@ func main() {
 
 	fmt.Printf("running %.10s\n", os.Getenv("TELEGRAM_BOT_TOKEN"))
 
+	if data, _ := readMetadataFile("./forwardonly/metadata.yaml"); data != nil {
+		forwardonlylist = data
+	}
 	thebot.Start(ctx)
 }

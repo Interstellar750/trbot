@@ -11,6 +11,8 @@ import (
 )
 
 var currentOptions = []bool{false, false, false}
+var forwardonlylist = &Metadata{}
+
 
 func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	thebot.SendMessage(ctx, &bot.SendMessageParams{
@@ -29,69 +31,119 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	// 	})
 	// }
 
-	// 下载 webp 格式的贴纸
-	if update.Message.Sticker != nil {
-		file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
-		if err != nil { log.Printf("Error getting file: %v", err) }
-		if update.Message.Sticker.IsVideo {
-			thebot.SendDocument(ctx, &bot.SendDocumentParams{
-				ChatID:   update.Message.Chat.ID,
-				Caption: "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)",
-				Document: &models.InputFileUpload{Filename: "sticker.webm", Data: echoSticker(file.FilePath)},
-				ParseMode: models.ParseModeMarkdownV1,
+	// fmt.Println(update.Message.Chat.ID)
+	if forwardonlylist != nil {
+		// 处理消息删除逻辑，只有当群组启用该功能时才处理
+		if isGroupEnabled(update.Message.Chat.ID, forwardonlylist) && (
+			GetMessageType(update.Message) == MessageTypeText ||
+			GetMessageType(update.Message) == MessageTypeVoice ||
+			GetMessageType(update.Message) == MessageTypeSticker) {
+			_, err := thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				MessageID: update.Message.ID,
 			})
-		} else if update.Message.Sticker.IsAnimated {
-			thebot.SendDocument(ctx, &bot.SendDocumentParams{
-				ChatID:   update.Message.Chat.ID,
-				Caption: "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)",
-				Document: &models.InputFileUpload{Filename: "sticker.tgs.file", Data: echoSticker(file.FilePath)},
+			if err != nil {
+				log.Printf("Failed to delete message: %v", err)
+			} else {
+				fmt.Printf("Deleted message from %d in %d: %s\n", update.Message.From.ID, update.Message.Chat.ID, update.Message.Text)
+			}
+		}
+	}
+
+	// if update.Message.Chat.ID == -1002395200524 {
+	// 	if update.Message != nil {
+	// 		// 获取消息内容
+	// 		message := update.Message
+	// 		// fmt.Printf("Received message from %d: %s\n", message.Chat.ID, message.Text)
+
+	// 		// fmt.Println(update.Message.ForwardOrigin)
+
+	// 		// 判断消息类型是否是普通文本消息，并且不是转发的消息
+	// 		if GetMessageType(message) == MessageTypeText {
+	// 			// 删除消息
+	// 			thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+	// 				ChatID:    message.Chat.ID,
+	// 				MessageID: message.ID,
+	// 			})
+	// 			fmt.Printf("Deleted message from %d: %s\n", message.Chat.ID, message.Text)
+	// 		}
+	// 		return
+	// 	}
+	// }
+
+	if update.Message.Chat.Type != "supergroup" {
+		// 下载 webp 格式的贴纸
+		if update.Message.Sticker != nil {
+			file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
+			if err != nil { log.Printf("Error getting file: %v", err) }
+			if update.Message.Sticker.IsVideo {
+				thebot.SendDocument(ctx, &bot.SendDocumentParams{
+					ChatID:   update.Message.Chat.ID,
+					Caption: "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)",
+					Document: &models.InputFileUpload{Filename: "sticker.webm", Data: echoSticker(file.FilePath)},
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			} else if update.Message.Sticker.IsAnimated {
+				thebot.SendDocument(ctx, &bot.SendDocumentParams{
+					ChatID:   update.Message.Chat.ID,
+					Caption: "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)",
+					Document: &models.InputFileUpload{Filename: "sticker.tgs.file", Data: echoSticker(file.FilePath)},
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			} else {
+				thebot.SendDocument(ctx, &bot.SendDocumentParams{
+					ChatID:   update.Message.Chat.ID,
+					Caption: "see [wikipedia/WebP](https://wikipedia.org/wiki/WebP)",
+					Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			}
+			return
+		}
+
+
+		// 不匹配上面项目的则提示不可用
+		if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
+			thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      "No this command",
+			})
+			thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    2074319561,
+				Text:      fmt.Sprintf("[%s](t.me/@id%d) using a wrong command: `%s`", update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
 				ParseMode: models.ParseModeMarkdownV1,
 			})
 		} else {
-			thebot.SendDocument(ctx, &bot.SendDocumentParams{
-				ChatID:   update.Message.Chat.ID,
-				Caption: "see [wikipedia/WebP](https://wikipedia.org/wiki/WebP)",
-				Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
+			thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      "No operations available",
+				ParseMode: models.ParseModeMarkdown,
+			})
+			thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    2074319561,
+				Text:      fmt.Sprintf("[%s](t.me/@id%d) say: \n%s", update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
 				ParseMode: models.ParseModeMarkdownV1,
 			})
+			// fmt.Println(thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
+			// 	ChatID:    2074319561,
+			// 	FromChatID: string(update.Message.Chat.ID),
+			// 	MessageIDs: []int{
+			// 		update.Message.ID - 1,
+			// 		update.Message.ID,
+			// 	},
+			// }))
 		}
-		return
-	}
-
-
-	// 不匹配上面项目的则提示不可用
-	if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
-		thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    update.Message.Chat.ID,
-			Text:      "No this command",
-		})
-		thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    2074319561,
-			Text:      fmt.Sprintf("[%s](t.me/@id%d) using a wrong command: `%s`", update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
-			ParseMode: models.ParseModeMarkdownV1,
-		})
-	} else {
-		thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    update.Message.Chat.ID,
-			Text:      "No operations available",
-			ParseMode: models.ParseModeMarkdown,
-		})
-		thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    2074319561,
-			Text:      fmt.Sprintf("[%s](t.me/@id%d) say: \n%s", update.Message.From.FirstName, update.Message.Chat.ID, update.Message.Text),
-			ParseMode: models.ParseModeMarkdownV1,
+		
+		// 等待五秒删除请求信息和回复信息
+		time.Sleep(time.Second * 5)
+		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     update.Message.Chat.ID,
+			MessageIDs: []int{
+				update.Message.ID,
+				update.Message.ID + 1,
+			},
 		})
 	}
-	
-	// 等待五秒删除请求信息和回复信息
-	time.Sleep(time.Second * 5)
-	thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-		ChatID:     update.Message.Chat.ID,
-		MessageIDs: []int{
-			update.Message.ID,
-			update.Message.ID + 1,
-		},
-	})
 }
 
 
@@ -123,7 +175,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		for _, voice := range metadata.Voices {
 			result := &models.InlineQueryResultVoice{
 				ID:       voice.ID,
-				Title:    metadata.Name + ": " + voice.Title,
+				Title:    metadata.VoicesName + ": " + voice.Title,
 				Caption:  voice.Caption,
 				VoiceURL: voice.VoiceURL,
 			}
@@ -206,4 +258,87 @@ func commandHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		Text:        "Select multiple options",
 		ReplyMarkup: buildKeyboard(),
 	})
+}
+
+func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+	if checkIfAdmin(ctx, thebot, update.Message.Chat.ID, update.Message.From.ID) {
+		var isInlist  bool = false
+		var isEnabled bool = false
+
+		if forwardonlylist != nil {
+			for _, data := range forwardonlylist.EnabledForwardGroupID {
+				if data.ID == update.Message.Chat.ID {
+					isInlist = true
+					if data.Enable {
+						isEnabled = true
+					}
+				}
+			}
+		}
+
+		// fmt.Println(update.Message.Text)
+
+		if !isInlist && update.Message.Text == "/forwardonly" {
+			addGroupID(update.Message.Chat.ID, forwardonlylist)
+			if err := saveMetadata("./forwardonly/", "metadata.yaml", forwardonlylist); err != nil {
+				log.Printf("Failed to save group config: %v", err)
+			} else {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   fmt.Sprintf("群组 ID 已添加到列表，继续发送 `/forwardonly %d` 以启用仅限转发模式", update.Message.Chat.ID),
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			}
+		} else if !isEnabled && update.Message.Text == fmt.Sprintf("/forwardonly %d", update.Message.Chat.ID) {
+			if err := setForwardOnly(update.Message.Chat.ID, forwardonlylist, true); err != nil {
+				log.Println(err)
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "未知的群组 ID，初次使用请发送 `/forwardonly` 记录群组 ID",
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+				return
+			}
+			if err := saveMetadata("./forwardonly/", "metadata.yaml", forwardonlylist); err != nil {
+				log.Printf("Failed to save group config: %v", err)
+			} else {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "仅限转发模式已启用，若要关闭，请发送 `/forwardonly disable` 来关闭它",
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			}
+		} else if update.Message.Text == "/forwardonly disable" {
+			if err := setForwardOnly(update.Message.Chat.ID, forwardonlylist, false); err != nil {
+				log.Println(err)
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "未知的群组 ID，初次使用请发送 `/forwardonly` 记录群组 ID",
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+				return
+			}
+			if err := saveMetadata("./forwardonly/", "metadata.yaml", forwardonlylist); err != nil {
+				log.Printf("Failed to save group config: %v", err)
+			} else {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   fmt.Sprintf("仅限转发模式已关闭，重新启用请发送 `/forwardonly %d`", update.Message.Chat.ID),
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			}
+		}
+	} else {
+		botmessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
+		})
+		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     update.Message.Chat.ID,
+			MessageIDs: []int{
+				update.Message.ID,
+				botmessage.ID,
+			},
+		})
+	}
 }
