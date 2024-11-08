@@ -24,6 +24,8 @@ func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 
 
 func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+
+	var botmessage *models.Message
 	// if update.Message != nil {
 	// 	thebot.SendMessage(ctx, &bot.SendMessageParams{
 	// 		ChatID: update.Message.Chat.ID,
@@ -71,7 +73,7 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	// 	}
 	// }
 
-	if update.Message.Chat.Type != "supergroup" {
+	if update.Message.Chat.Type != "group" && update.Message.Chat.Type != "supergroup" {
 		// 下载 webp 格式的贴纸
 		if update.Message.Sticker != nil {
 			file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
@@ -104,7 +106,7 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 		// 不匹配上面项目的则提示不可用
 		if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
-			thebot.SendMessage(ctx, &bot.SendMessageParams{
+			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "No this command",
 			})
@@ -114,7 +116,7 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				ParseMode: models.ParseModeMarkdownV1,
 			})
 		} else {
-			thebot.SendMessage(ctx, &bot.SendMessageParams{
+			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "No operations available",
 				ParseMode: models.ParseModeMarkdown,
@@ -140,7 +142,7 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			ChatID:     update.Message.Chat.ID,
 			MessageIDs: []int{
 				update.Message.ID,
-				update.Message.ID + 1,
+				botmessage.ID,
 			},
 		})
 	}
@@ -261,7 +263,20 @@ func commandHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 }
 
 func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
-	if checkIfAdmin(ctx, thebot, update.Message.Chat.ID, update.Message.From.ID) {
+	if update.Message.Chat.Type == "private" {
+		botmessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   "仅限转发模式被设计为仅在群组或频道中可用",
+		})
+		time.Sleep(time.Second * 5)
+		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     update.Message.Chat.ID,
+			MessageIDs: []int{
+				update.Message.ID,
+				botmessage.ID,
+			},
+		})
+	} else if checkIfAdmin(ctx, thebot, update.Message.Chat.ID, update.Message.From.ID) {
 		var isInlist  bool = false
 		var isEnabled bool = false
 
@@ -333,6 +348,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 			ChatID: update.Message.Chat.ID,
 			Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
 		})
+		time.Sleep(time.Second * 2)
 		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
 			ChatID:     update.Message.Chat.ID,
 			MessageIDs: []int{

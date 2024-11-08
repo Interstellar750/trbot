@@ -71,6 +71,8 @@ func GetMessageType(message *models.Message) MessageType {
 
 
 // 检查用户是否是管理员
+// chat type: “private”, “group”, “supergroup”, or “channel”
+// not work for "private" chats
 func checkIfAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID int64) bool {
 	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
 		ChatID: chatID,
