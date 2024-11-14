@@ -9,17 +9,17 @@ import (
 )
 
 type Metadata struct {
-	VoicesName string `yaml:"name"` // 语音包名称
+	VoicesName string `yaml:"name,omitempty"` // 语音包名称
 	Voices []struct {
-		ID       string `yaml:"ID"`       // 语音 ID
-		Title    string `yaml:"Title"`    // 行内模式时显示的标题
-		Caption  string `yaml:"Caption"`  // 发送后在语音下方的文字
-		VoiceURL string `yaml:"VoiceURL"` // 音频文件网络链接
-	} `yaml:"voices"`
+		ID       string `yaml:"ID,omitempty"`       // 语音 ID
+		Title    string `yaml:"Title,omitempty"`    // 行内模式时显示的标题
+		Caption  string `yaml:"Caption,omitempty"`  // 发送后在语音下方的文字
+		VoiceURL string `yaml:"VoiceURL,omitempty"` // 音频文件网络链接
+	} `yaml:"voices,omitempty"`
 	EnabledForwardGroupID []struct {
-		ID     int64 `yaml:"id"`
-		Enable bool  `yaml:"enable"`
-	} `yaml:"GroupID"`
+		ID     int64 `yaml:"id,omitempty"`
+		Enable bool  `yaml:"enable,omitempty"`
+	} `yaml:"GroupID,omitempty"`
 }
 
 func readMetadataFile(path string) (*Metadata, error) {

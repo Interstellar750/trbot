@@ -24,8 +24,8 @@ func addGroupID(groupID int64, config *Metadata) {
 	if !isGroupEnabled(groupID, config) {
 		config.EnabledForwardGroupID = append(
 			config.EnabledForwardGroupID, struct {
-				ID     int64 `yaml:"id"`
-				Enable bool  `yaml:"enable"`
+				ID     int64 `yaml:"id,omitempty"`
+				Enable bool  `yaml:"enable,omitempty"`
 			}{
 				ID:     groupID,
 				Enable: false,
