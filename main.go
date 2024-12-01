@@ -2,30 +2,16 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
 	"github.com/go-telegram/bot"
-	"github.com/joho/godotenv"
 )
 
-var botToken string
 
 func main() {
-	botToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-	if botToken == "" {
-		log.Println("No bot token in environment, trying to read it from the .env file")
-		if godotenv.Load() != nil { log.Fatalln("Can't loading .env file") }
-		botToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-		if botToken == "" {
-			log.Fatalln("No bot token in .env file, try create a bot from @botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token")
-		}
-		log.Printf("Get token from .env file: %.10s", botToken)
-	} else {
-		log.Printf("Get token from environment: %.10s", botToken)
-	}
+	botToken = whereIsBotToken()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -43,20 +29,15 @@ func main() {
 	thebot, err := bot.New(botToken, opts...)
 	if err != nil { panic(err) }
 
-	fmt.Printf("running %.10s\n", botToken)
+	log.Printf("running %s\n", showBotID())
+	log.Printf("logChat_ID: %v", logChat_ID)
 
-	data, err := readMetadataFile("./forwardonly/metadata.yaml");
-	if data != nil {
-		forwardonlylist = data
-	}
+	err = fwdonly_ReadMetadata()
 	if err != nil {
 		log.Println(err)
-		err = saveMetadata("./forwardonly/", "metadata.yaml", &Metadata{})
-		if err != nil {
-			log.Println(err)
-		}
-		// os.Mkdir("forwardonly", 7777)
-
 	}
+
 	thebot.Start(ctx)
+	// go thebot.StartWebhook(ctx)
+	// http.ListenAndServe(":2000", thebot.WebhookHandler())
 }

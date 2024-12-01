@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -22,15 +24,22 @@ type Metadata struct {
 	} `yaml:"GroupID,omitempty"`
 }
 
+var (
+    ErrFileOpen   = errors.New("error opening file")
+    ErrYamlDecode = errors.New("error decoding yaml")
+	ErrDirectoryCreate = errors.New("failed to create directory")
+	ErrFileCreate = errors.New("failed to create file")
+)
+
 func readMetadataFile(path string) (*Metadata, error) {
 	file, err := os.Open(path)
-	if err != nil { return nil, fmt.Errorf("error opening file: %v", err) }
+	if err != nil { return nil, fmt.Errorf("%w: %v", ErrFileOpen, err) }
 	defer file.Close()
 
 	var metadata Metadata
 	decoder := yaml.NewDecoder(file)
 	err = decoder.Decode(&metadata)
-	if err != nil { return nil, fmt.Errorf("error decoding yaml: %v", err) }
+	if err != nil { return nil, fmt.Errorf("%w: %v", ErrYamlDecode, err) }
 
 	return &metadata, nil
 }
@@ -38,9 +47,16 @@ func readMetadataFile(path string) (*Metadata, error) {
 func readMetadataFromDir(dir string) ([]*Metadata, error) {
 	var metadataList []*Metadata
 
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		log.Printf("No voices dir, create a new one: %s", voice_path)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrDirectoryCreate, err)
+		}
+	}
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil { return err }
-		if info.Name() == "metadata.yaml" {
+		if info.Name() == metadatafile_name {
 			metadata, err := readMetadataFile(path)
 			if err != nil { return err }
 			metadataList = append(metadataList, metadata)
@@ -61,14 +77,14 @@ func saveMetadata(path string, name string, Metadata *Metadata) error {
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if err := os.MkdirAll(path, 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %v", err)
+			return fmt.Errorf("%w: %v", ErrDirectoryCreate, err)
 		}
 	}
 
 	if _, err := os.Stat(path + name); os.IsNotExist(err) {
 		_, err := os.Create(path + name)
 		if err != nil {
-			return fmt.Errorf("failed to create file: %v", err)
+			return fmt.Errorf("%w: %v", ErrFileCreate, err)
 		}
 	}
 
