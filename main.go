@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -29,7 +30,10 @@ func main() {
 	thebot, err := bot.New(botToken, opts...)
 	if err != nil { panic(err) }
 
-	log.Printf("running %s\n", showBotID())
+	// me, _ := thebot.GetMe()
+	// log.Println(me.)
+
+	log.Printf("starting %s\n", showBotID())
 	log.Printf("logChat_ID: %v", logChat_ID)
 
 	err = fwdonly_ReadMetadata()
@@ -37,7 +41,16 @@ func main() {
 		log.Println(err)
 	}
 
-	thebot.Start(ctx)
-	// go thebot.StartWebhook(ctx)
-	// http.ListenAndServe(":2000", thebot.WebhookHandler())
+	if usingWebhook() { // Webhook
+		setUpWebhook(ctx, thebot, webhookURL)
+		log.Println("Working at Webhook Mode")
+		go thebot.StartWebhook(ctx)
+		err := http.ListenAndServe(webhookPort, thebot.WebhookHandler())
+		if err != nil { log.Panicln(err) }
+	} else { // getUpdate, eg Long Polling
+		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
+		saveAndCleanRemoteWebhookURL(ctx, thebot)
+		log.Println("Working at Long Polling Mode")
+		thebot.Start(ctx)
+	}
 }

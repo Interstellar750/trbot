@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 	"unicode"
 
 	"github.com/go-telegram/bot"
@@ -44,7 +45,7 @@ const (
 	MessageTypeForwarded
 	MessageTypeSticker
 	MessageTypeUnknown
-	
+
 )
 
 // 判断消息的类型
@@ -98,15 +99,17 @@ func userIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID int64) boo
 
 // 查找 bot token，优先级为 环境变量 > .env 文件
 func whereIsBotToken() string {
-	botToken = os.Getenv("TELEGRAM_BOT_TOKEN")
+	botToken = os.Getenv("BOT_TOKEN")
 	if botToken == "" {
-		log.Printf("No bot token in environment, trying to read it from the .env file")
-		if godotenv.Load() != nil { log.Fatalln("Can't loading .env file") }
-		botToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-		if botToken == "" { log.Fatalln("No bot token in .env file, try create a bot from @botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token") }
+		// log.Printf("No bot token in environment, trying to read it from the .env file")
+		godotenv.Load()
+		botToken = os.Getenv("BOT_TOKEN")
+		if botToken == "" {
+			log.Fatalln("No bot token in environment and .env file, try create a bot from @botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token")
+		}
 		log.Printf("Get token from .env file: %s", showBotID())
 	} else {
-		log.Printf("Get token from environment: %.10s", botToken)
+		log.Printf("Get token from environment: %s", showBotID())
 	}
 	return botToken
 }
@@ -122,4 +125,77 @@ func showBotID() string {
 		}
 	}
 	return botID
+}
+
+func usingWebhook() bool {
+	webhookURL = os.Getenv("WEBHOOK_URL")
+	if webhookURL == "" {
+		// 到这里可能变量没在环境里，试着读一下 .env 文件
+		godotenv.Load()
+		webhookURL = os.Getenv("WEBHOOK_URL")
+		if webhookURL == "" {
+			// 到这里就是 .env 文件里也没有，不启用
+			log.Printf("No Webhook URL in environment and .env file, using getUpdate")
+			
+			return false
+		}
+		// 从 .env 文件中获取到了 URL，启用 Webhook
+		log.Printf("Get Webhook URL from .env file: %s", webhookURL)
+		return true
+	} else {
+		// 从环境变量中获取到了 URL，启用 Webhook
+		log.Printf("Get Webhook URL from environment: %s", webhookURL)
+		return true
+	}
+}
+
+func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
+	webHookInfo, err := thebot.GetWebhookInfo(ctx)
+	if err != nil { log.Println(err) }
+	if webHookInfo.URL != url {
+		if webHookInfo.URL == "" {
+			log.Println("Webhook is not set up, setting up now...")
+		} else {
+			log.Printf("unsame Webhook URL [%s], save it and setting up new URL...", webHookInfo.URL)
+			logToFile(time.Now().String() + " (unsame) old Webhook URL: " + webHookInfo.URL)
+		}
+		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{
+			URL: url,
+		})
+		if err != nil { log.Println(err) }
+		if success { log.Println("Webhook is set up successfully") }
+
+	} else {
+		log.Println("Webhook is already set up")
+	}
+}
+
+func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) {
+	webHookInfo, err := thebot.GetWebhookInfo(ctx)
+	if err != nil { log.Println(err) }
+	if webHookInfo.URL != "" {
+		log.Printf("found Webhook URL [%s] set at api server, save and clean it...", webHookInfo.URL)
+		logToFile(time.Now().String() + " (remote) old Webhook URL: " + webHookInfo.URL)
+		thebot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{
+				DropPendingUpdates: true,
+		})
+	}
+}
+
+
+func logToFile(message string) {
+	// 打开日志文件，如果不存在则创建
+	file, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer file.Close()
+
+	// 将文本写入日志文件
+	_, err = file.WriteString(message + "\n")
+	if err != nil {
+		log.Println(err)
+		return
+	}
 }

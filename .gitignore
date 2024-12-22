@@ -22,3 +22,4 @@ go.work
 
 # Private environment variables
 .env
+log.txt
