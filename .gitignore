@@ -23,3 +23,5 @@ go.work
 # Private environment variables
 .env
 log.txt
+trbot
+__debug_bin*

@@ -134,6 +134,38 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	if update.InlineQuery == nil { return }
 
+	log.Printf("inline from: %s, query: %s", update.InlineQuery.From.Username, update.InlineQuery.Query)
+
+	if update.InlineQuery.Query == "log" && update.InlineQuery.From.ID == 1086395364 {
+		logs := readLog()
+		if logs != nil {
+			var results []models.InlineQueryResult
+			for index, log := range logs {
+				result := &models.InlineQueryResultArticle{
+					ID:        fmt.Sprintln(index),
+					Title:     log,
+					InputMessageContent: &models.InputTextMessageContent{
+					    MessageText: log,
+					},
+				}
+				// 倒序将日志添加到结果中
+				results = append([]models.InlineQueryResult{result}, results...)
+				// results = append(results, result)
+			}
+			_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: update.InlineQuery.ID,
+				Results:       results,
+				CacheTime:     0,
+			})
+			if err != nil {
+				log.Println("Error when answering inline query", err)
+			}
+		} else {
+			log.Println("Error when reading log file")
+		}
+		return
+	}
+
 	metadataList, err := readMetadataFromDir(voice_path)
 	if err != nil {
 		// if errors.Is(e)

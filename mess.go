@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -15,7 +16,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func echoSticker(filePath string) (*io.PipeReader) {
+func echoSticker(filePath string) *io.PipeReader {
 	log.Printf("https://api.telegram.org/file/bot%s/%s\n", botToken, filePath)
 	resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, filePath))
 	if err != nil { log.Printf("error downloading file: %v", err) }
@@ -45,7 +46,6 @@ const (
 	MessageTypeForwarded
 	MessageTypeSticker
 	MessageTypeUnknown
-
 )
 
 // 判断消息的类型
@@ -71,7 +71,6 @@ func getMessageType(message *models.Message) MessageType {
 		return MessageTypeUnknown
 	}
 }
-
 
 // 检查用户是否是管理员
 // chat type: "private", "group", "supergroup", or "channel"
@@ -136,7 +135,7 @@ func usingWebhook() bool {
 		if webhookURL == "" {
 			// 到这里就是 .env 文件里也没有，不启用
 			log.Printf("No Webhook URL in environment and .env file, using getUpdate")
-			
+
 			return false
 		}
 		// 从 .env 文件中获取到了 URL，启用 Webhook
@@ -175,13 +174,12 @@ func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) {
 	if err != nil { log.Println(err) }
 	if webHookInfo.URL != "" {
 		log.Printf("found Webhook URL [%s] set at api server, save and clean it...", webHookInfo.URL)
-		logToFile(time.Now().String() + " (remote) old Webhook URL: " + webHookInfo.URL)
+		logToFile(time.Now().Format("2006/01/02 15:04:05") + " (remote) old Webhook URL: " + webHookInfo.URL)
 		thebot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{
-				DropPendingUpdates: true,
+			DropPendingUpdates: true,
 		})
 	}
 }
-
 
 func logToFile(message string) {
 	// 打开日志文件，如果不存在则创建
@@ -198,4 +196,27 @@ func logToFile(message string) {
 		log.Println(err)
 		return
 	}
+}
+
+func readLog() []string {
+	// 打开日志文件
+	file, err := os.Open(logfile_path)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	defer file.Close()
+
+	// 读取文件内容
+	scanner := bufio.NewScanner(file)
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return lines
 }
