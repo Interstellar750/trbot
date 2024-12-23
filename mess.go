@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 	"unicode"
 
@@ -153,10 +154,10 @@ func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
 	if err != nil { log.Println(err) }
 	if webHookInfo.URL != url {
 		if webHookInfo.URL == "" {
-			log.Println("Webhook is not set up, setting up now...")
+			log.Println("Webhook is not setup, setting up now...")
 		} else {
 			log.Printf("unsame Webhook URL [%s], save it and setting up new URL...", webHookInfo.URL)
-			logToFile(time.Now().String() + " (unsame) old Webhook URL: " + webHookInfo.URL)
+			logToFile(time.Now().Format("2006/01/02 15:04:05") + " (unsame) old Webhook URL: " + webHookInfo.URL)
 		}
 		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL: url,
@@ -165,7 +166,7 @@ func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
 		if success { log.Println("Webhook is set up successfully") }
 
 	} else {
-		log.Println("Webhook is already set up")
+		log.Println("Webhook is already setup")
 	}
 }
 
@@ -219,4 +220,21 @@ func readLog() []string {
 		return nil
 	}
 	return lines
+}
+
+func privateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+	thebot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    logChat_ID,
+		Text:      fmt.Sprintf("[%s %s](t.me/@id%d) say: \n%s", update.Message.From.FirstName, update.Message.From.LastName, update.Message.Chat.ID, update.Message.Text),
+		ParseMode: models.ParseModeMarkdownV1,
+	})
+}
+
+func AnyContains(query string, chars ...string) bool {
+	for _, char := range chars {
+		if strings.Contains(char, query) {
+			return true
+		}
+	}
+	return false
 }

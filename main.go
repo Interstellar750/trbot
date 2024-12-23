@@ -20,20 +20,20 @@ func main() {
 	opts := []bot.Option{
 		bot.WithDefaultHandler(inlinehandler),
 		// bot.WithMiddlewares(),
-		bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
-		bot.WithMessageTextHandler("/start", bot.MatchTypeExact, startHandler),
-		bot.WithMessageTextHandler("/forwardonly", bot.MatchTypePrefix, addToWriteListHandler),
+		// bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
+		// bot.WithMessageTextHandler("/start", bot.MatchTypeExact, startHandler),
+		// bot.WithMessageTextHandler("/forwardonly", bot.MatchTypePrefix, addToWriteListHandler),
 		bot.WithMessageTextHandler("", bot.MatchTypeContains, defaulthandler),
-		bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
+		// bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
 	}
 
 	thebot, err := bot.New(botToken, opts...)
 	if err != nil { panic(err) }
 
-	// me, _ := thebot.GetMe()
-	// log.Println(me.)
+	me, _ := thebot.GetMe(ctx)
+	log.Printf("name[%s %s] [@%s] id[%d]", me.FirstName, me.LastName, me.Username, me.ID)
 
-	log.Printf("starting %s\n", showBotID())
+	log.Printf("starting %d\n", me.ID)
 	log.Printf("logChat_ID: %v", logChat_ID)
 
 	err = fwdonly_ReadMetadata()
@@ -41,6 +41,7 @@ func main() {
 		log.Println(err)
 	}
 
+	// 检查是否设定了 webhookURL 环境变量
 	if usingWebhook() { // Webhook
 		setUpWebhook(ctx, thebot, webhookURL)
 		log.Println("Working at Webhook Mode")

@@ -13,3 +13,5 @@ var db_path      string = "./db_yaml/"
 var voice_path   string = db_path + "voices/"
 var fwdonly_path string = db_path + "forwardonly/"
 var logfile_path string = "./log.txt"
+
+var private_log bool = true

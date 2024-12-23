@@ -25,8 +25,8 @@ type Metadata struct {
 }
 
 var (
-    ErrFileOpen   = errors.New("error opening file")
-    ErrYamlDecode = errors.New("error decoding yaml")
+	ErrFileOpen   = errors.New("error opening file")
+	ErrYamlDecode = errors.New("error decoding yaml")
 	ErrDirectoryCreate = errors.New("failed to create directory")
 	ErrFileCreate = errors.New("failed to create file")
 )

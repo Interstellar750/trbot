@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -22,6 +23,36 @@ func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	})
 }
 
+func echoStickerHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+	// 下载 webp 格式的贴纸
+	file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
+	if err != nil { log.Printf("Error getting file: %v", err) }
+	if update.Message.Sticker.IsVideo {
+		thebot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID:   update.Message.Chat.ID,
+			Caption: "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)",
+			Document: &models.InputFileUpload{Filename: "sticker.webm", Data: echoSticker(file.FilePath)},
+			// Document: &models.InputFileString{Data: file.FilePath},
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	} else if update.Message.Sticker.IsAnimated {
+		thebot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID:   update.Message.Chat.ID,
+			Caption: "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)",
+			Document: &models.InputFileUpload{Filename: "sticker.tgs.file", Data: echoSticker(file.FilePath)},
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	} else {
+		thebot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID:   update.Message.Chat.ID,
+			Caption: "see [wikipedia/WebP](https://wikipedia.org/wiki/WebP)",
+			Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
+			// Document: &models.InputFileString{ Data: update.Message.Sticker.FileID }, // 没法以文件形式发送
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	}
+}
+
 
 func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 
@@ -33,6 +64,12 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	// 	})
 	// }
 
+	log.Printf(update.Message.Text)
+
+	if strings.HasPrefix(update.Message.Text, "/start") {
+		startHandler(ctx, thebot, update)
+		return
+	}
 	// fmt.Println(update.Message.Chat.ID)
 	if forwardonlylist != nil {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
@@ -53,109 +90,80 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	}
 
 	// 下载贴纸源文件
-	if update.Message.Chat.Type != "group" && update.Message.Chat.Type != "supergroup" && update.Message.Chat.Type != "channel" {
-		// 下载 webp 格式的贴纸
-		if update.Message.Sticker != nil {
-			file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
-			if err != nil { log.Printf("Error getting file: %v", err) }
-			if update.Message.Sticker.IsVideo {
-				thebot.SendDocument(ctx, &bot.SendDocumentParams{
-					ChatID:   update.Message.Chat.ID,
-					Caption: "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)",
-					Document: &models.InputFileUpload{Filename: "sticker.webm", Data: echoSticker(file.FilePath)},
-					// Document: &models.InputFileString{Data: file.FilePath},
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-			} else if update.Message.Sticker.IsAnimated {
-				thebot.SendDocument(ctx, &bot.SendDocumentParams{
-					ChatID:   update.Message.Chat.ID,
-					Caption: "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)",
-					Document: &models.InputFileUpload{Filename: "sticker.tgs.file", Data: echoSticker(file.FilePath)},
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-			} else {
-				thebot.SendDocument(ctx, &bot.SendDocumentParams{
-					ChatID:   update.Message.Chat.ID,
-					Caption: "see [wikipedia/WebP](https://wikipedia.org/wiki/WebP)",
-					Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
-					// Document: &models.InputFileString{ Data: update.Message.Sticker.FileID }, // 没法以文件形式发送
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-			}
-			// return
-		}
-
-
-		// 不匹配上面项目的则提示不可用
-		if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
-			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-				Text:      "No this command",
-			})
-			thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    logChat_ID,
-				Text:      fmt.Sprintf("[%s %s](t.me/@id%d) using a wrong command: `%s`", update.Message.From.FirstName, update.Message.From.LastName, update.Message.Chat.ID, update.Message.Text),
-				ParseMode: models.ParseModeMarkdownV1,
-			})
-		} else {
-			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-				Text:      "No operations available",
-				ParseMode: models.ParseModeMarkdown,
-			})
-			thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    logChat_ID,
-				Text:      fmt.Sprintf("[%s %s](t.me/@id%d) say: \n%s", update.Message.From.FirstName, update.Message.From.LastName, update.Message.Chat.ID, update.Message.Text),
-				ParseMode: models.ParseModeMarkdownV1,
-			})
-			// fmt.Println(thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
-			// 	ChatID:    logChat_ID,
-			// 	FromChatID: string(update.Message.Chat.ID),
-			// 	MessageIDs: []int{
-			// 		update.Message.ID - 1,
-			// 		update.Message.ID,
-			// 	},
-			// }))
-		}
-		
-		// 等待五秒删除请求信息和回复信息
-		time.Sleep(time.Second * 5)
-		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-			ChatID:     update.Message.Chat.ID,
-			MessageIDs: []int{
-				update.Message.ID,
-				botmessage.ID,
-			},
+	if update.Message.Sticker != nil && update.Message.Chat.Type == "private" {
+		// echoStickerHandler(ctx, thebot, update)
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      "本 bot 获取贴纸文件的功能出了点问题，暂不可用",
+			ParseMode: models.ParseModeMarkdownV1,
 		})
+		return
 	}
+
+	// 不匹配上面项目的则提示不可用
+	if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
+		botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      "No this command",
+		})
+		if private_log { privateLogToChat(ctx, thebot, update) }
+	} else {
+		botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      "No operations available",
+			ParseMode: models.ParseModeMarkdown,
+		})
+		if private_log { privateLogToChat(ctx, thebot, update) }
+
+		// thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
+		// 	ChatID:     logChat_ID,
+		// 	FromChatID: update.Message.Chat.ID,
+		// 	MessageIDs: []int{
+		// 		update.Message.ID - 1,
+		// 		update.Message.ID,
+		// 	},
+		// })
+	}
+
+	// 等待五秒删除请求信息和回复信息
+	time.Sleep(time.Second * 5)
+	thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+		ChatID:     update.Message.Chat.ID,
+		MessageIDs: []int{
+			update.Message.ID,
+			botmessage.ID,
+		},
+	})
 }
 
 
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	if update.InlineQuery == nil { return }
 
-	log.Printf("inline from: %s, query: %s", update.InlineQuery.From.Username, update.InlineQuery.Query)
+	log.Printf("inline from: [%s], query: [%s]", update.InlineQuery.From.Username, update.InlineQuery.Query)
 
-	if update.InlineQuery.Query == "log" && update.InlineQuery.From.ID == 1086395364 {
+	if update.InlineQuery.Query == "log" && ( update.InlineQuery.From.ID == 2074319561 || update.InlineQuery.From.ID == 1086395364 )  {
 		logs := readLog()
 		if logs != nil {
-			var results []models.InlineQueryResult
+			log_count := len(logs)
+			var log_all string
 			for index, log := range logs {
-				result := &models.InlineQueryResultArticle{
-					ID:        fmt.Sprintln(index),
-					Title:     log,
-					InputMessageContent: &models.InputTextMessageContent{
-					    MessageText: log,
-					},
-				}
-				// 倒序将日志添加到结果中
-				results = append([]models.InlineQueryResult{result}, results...)
-				// results = append(results, result)
+				log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
+				// log_all = log_all + "\n" + index + log
 			}
 			_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: update.InlineQuery.ID,
-				Results:       results,
-				CacheTime:     0,
+				Results: []models.InlineQueryResult{
+					&models.InlineQueryResultArticle{
+						ID:    "log",
+						Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format("2006/01/02 15:04:05")),
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format("2006/01/02 15:04:05"), log_all),
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					},
+				},
+				CacheTime: 0,
 			})
 			if err != nil {
 				log.Println("Error when answering inline query", err)
@@ -212,15 +220,43 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 
 	// 将 metadata 转换为 Inline Query 结果
 	var results []models.InlineQueryResult
-	for _, metadata := range metadataList {
-		for _, voice := range metadata.Voices {
-			result := &models.InlineQueryResultVoice{
-				ID:       voice.ID,
-				Title:    metadata.VoicesName + ": " + voice.Title,
-				Caption:  voice.Caption,
-				VoiceURL: voice.VoiceURL,
+
+	if update.InlineQuery.Query == "" {
+		for _, metadata := range metadataList {
+			for _, voice := range metadata.Voices {
+				result := &models.InlineQueryResultVoice{
+					ID:       voice.ID,
+					Title:    metadata.VoicesName + ": " + voice.Title,
+					Caption:  voice.Caption,
+					VoiceURL: voice.VoiceURL,
+				}
+				results = append(results, result)
 			}
-			results = append(results, result)
+		}
+	} else {
+		for _, metadata := range metadataList {
+			for _, voice := range metadata.Voices {
+				if AnyContains(update.InlineQuery.Query, metadata.VoicesName, voice.Title, voice.Caption) {
+				// if strings.ContainsAny(metadata.VoicesName, update.InlineQuery.Query) || strings.ContainsAny(voice.Title, update.InlineQuery.Query) || strings.ContainsAny(voice.Caption, update.InlineQuery.Query) {
+					result := &models.InlineQueryResultVoice{
+						ID:       voice.ID,
+						Title:    metadata.VoicesName + ": " + voice.Title,
+						Caption:  voice.Caption,
+						VoiceURL: voice.VoiceURL,
+					}
+				results = append(results, result)
+				}
+			}
+		}
+		if len(results) == 0 {
+			results = append(results, &models.InlineQueryResultArticle{
+				ID:       "none",
+				Title:    fmt.Sprintf("🈚 没有找到包含 %s 的内容", update.InlineQuery.Query),
+				InputMessageContent: models.InputTextMessageContent{
+					MessageText: "什么都没有",
+					ParseMode: models.ParseModeMarkdownV1,
+				},
+			})
 		}
 	}
 
