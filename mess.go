@@ -307,7 +307,7 @@ func privateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 
 func AnyContains(query any, chars ...any) bool {
 	for _, char := range chars {
-		fmt.Printf("%T\n", char)
+		// fmt.Printf("%T\n", char)
 		if char == nil { continue }
 		switch v := char.(type) {
 		case []string:
@@ -317,7 +317,7 @@ func AnyContains(query any, chars ...any) bool {
 				}
 			}
 		case string:
-			return strings.Contains(query.(string), v)
+			if strings.Contains(v, query.(string)) { return true }
 		case []int:
 			for _, c := range v {
 				if c == query.(int) {
@@ -325,7 +325,7 @@ func AnyContains(query any, chars ...any) bool {
 				}
 			}
 		case int:
-			return v == query.(int)
+			if v == query.(int) { return true }
 		case []int64:
 			for _, c := range v {
 				if c == query.(int64) {
@@ -333,7 +333,7 @@ func AnyContains(query any, chars ...any) bool {
 				} 
 			}
 		case int64:
-			return v == query.(int64)
+			if v == query.(int64) { return true }
 		}
 	}
 	return false
