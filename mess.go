@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -76,7 +77,7 @@ func getMessageType(message *models.Message) MessageType {
 // 检查用户是否是管理员
 // chat type: "private", "group", "supergroup", or "channel"
 // not work for "private" chats
-func userIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID int64) bool {
+func userIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool {
 	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
 		ChatID: chatID,
 	})
@@ -84,19 +85,84 @@ func userIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID int64) boo
 		log.Printf("Failed to get chat administrators: %v", err)
 		return false
 	}
+
+	var admins_usernames []string
+	var admins_userIDs []int64
+
 	for _, admin := range admins {
-		// fmt.Println(admin.Administrator.User.ID, userID)
-		// fmt.Println(admin.Owner.User.ID, userID)
-		if admin.Administrator != nil && admin.Administrator.User.ID == userID {
-			return true
+		if admin.Owner != nil {
+		    admins_userIDs = append(admins_userIDs, admin.Owner.User.ID)
+			if admin.Owner.User.Username != "" {
+		        admins_usernames = append(admins_usernames, admin.Owner.User.Username)
+		    }
 		}
-		if admin.Owner != nil && admin.Owner.User.ID == userID {
-			return true
+		if admin.Administrator != nil {
+		    admins_userIDs = append(admins_userIDs, admin.Administrator.User.ID)
+			if admin.Administrator.User.Username != "" {
+		        admins_usernames = append(admins_usernames, admin.Administrator.User.Username)
+		    }
 		}
 	}
-	return false
-}
 
+	switch value := userID.(type) {
+	case int:
+		return AnyContains(value, admins_userIDs)
+	case int64:
+		fmt.Println(value)
+		return AnyContains(value, admins_userIDs)
+	case string:
+		fmt.Println(value)
+		if strings.ContainsAny(value, "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ_") {
+			return AnyContains(value, admins_usernames)
+		} else {
+			int_userID, _ := strconv.Atoi(value)
+			return AnyContains(int64(int_userID), admins_userIDs)
+		}
+	default:
+		log.Println("userID type not supported")
+		return false
+	}
+}
+func userHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool {
+	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
+		ChatID: chatID,
+	})
+	if err != nil {
+		log.Printf("Failed to get chat administrators: %v", err)
+		return false
+	}
+
+	var adminshavepermission_usernames []string
+	var adminshavepermission_userIDs []int64
+
+	for _, admin := range admins {
+		// owner allways have all permission
+		if admin.Administrator != nil && admin.Administrator.CanDeleteMessages {
+		    adminshavepermission_userIDs = append(adminshavepermission_userIDs, admin.Administrator.User.ID)
+			if admin.Administrator.User.Username != "" {
+		        adminshavepermission_usernames = append(adminshavepermission_usernames, admin.Administrator.User.Username)
+		    }
+		}
+	}
+	switch value := userID.(type) {
+	case int:
+		return AnyContains(value, adminshavepermission_userIDs)
+	case int64:
+		fmt.Println(value)
+		return AnyContains(value, adminshavepermission_userIDs)
+	case string:
+		fmt.Println(value)
+		if strings.ContainsAny(value, "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ_") {
+			return AnyContains(value, adminshavepermission_usernames)
+		} else {
+			int_userID, _ := strconv.Atoi(value)
+			return AnyContains(int64(int_userID), adminshavepermission_userIDs)
+		}
+	default:
+		log.Println("userID type not supported")
+		return false
+	}
+}
 // 查找 bot token，优先级为 环境变量 > .env 文件
 func whereIsBotToken() string {
 	botToken = os.Getenv("BOT_TOKEN")
@@ -162,7 +228,7 @@ func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
 		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL: url,
 		})
-		if err != nil { log.Println(err) }
+		if err != nil { log.Panicln("Set Webhook URL err:", err) }
 		if success { log.Println("Webhook is set up successfully") }
 
 	} else {
@@ -230,10 +296,44 @@ func privateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 	})
 }
 
-func AnyContains(query string, chars ...string) bool {
+// func AnyContains(query string, chars ...string) bool {
+// 	for _, char := range chars {
+// 		if strings.Contains(char, query) {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
+
+func AnyContains(query any, chars ...any) bool {
 	for _, char := range chars {
-		if strings.Contains(char, query) {
-			return true
+		fmt.Printf("%T\n", char)
+		if char == nil { continue }
+		switch v := char.(type) {
+		case []string:
+			for _, c := range v {
+				if strings.Contains(c, query.(string)) {
+					return true
+				}
+			}
+		case string:
+			return strings.Contains(query.(string), v)
+		case []int:
+			for _, c := range v {
+				if c == query.(int) {
+					return true
+				}
+			}
+		case int:
+			return v == query.(int)
+		case []int64:
+			for _, c := range v {
+				if c == query.(int64) {
+					return true
+				} 
+			}
+		case int64:
+			return v == query.(int64)
 		}
 	}
 	return false

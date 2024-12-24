@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -164,18 +165,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 
 		// fmt.Println(update.Message.Text)
 
-		if update.Message.Text == "/forwardonly" {
-			fwdonly_AddGroupID(update.Message.Chat.ID, forwardonlylist)
-			if err := fwdonly_SaveMetadata(fwdonly_path, metadatafile_name, forwardonlylist); err != nil {
-				log.Printf("Failed to save group config: %v", err)
-			} else {
-				thebot.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: update.Message.Chat.ID,
-					Text:   fmt.Sprintf("群组 ID 已添加到列表，继续发送 `/forwardonly %d` 以启用仅限转发模式", update.Message.Chat.ID),
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-			}
-		} else if !groupIsEnabled && update.Message.Text == fmt.Sprintf("/forwardonly %d", update.Message.Chat.ID) {
+		if !groupIsEnabled && update.Message.Text == fmt.Sprintf("/forwardonly %d", update.Message.Chat.ID) {
 			if err := fwdonly_SetForwardOnly(update.Message.Chat.ID, forwardonlylist, true); err != nil {
 				log.Println(err)
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
@@ -216,6 +206,24 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 					ChatID: update.Message.Chat.ID,
 					Text:   fmt.Sprintf("仅限转发模式已关闭，重新启用请发送 `/forwardonly %d`", update.Message.Chat.ID),
 					ParseMode: models.ParseModeMarkdownV1,
+				})
+			}
+		} else if strings.HasPrefix(update.Message.Text, "/forwardonly") {
+			if userIsAdmin(ctx, thebot, update.Message.Chat.ID, showBotID()) && userHavePermissionDeleteMessage(ctx, thebot, update.Message.Chat.ID, showBotID()) {
+				fwdonly_AddGroupID(update.Message.Chat.ID, forwardonlylist)
+				if err := fwdonly_SaveMetadata(fwdonly_path, metadatafile_name, forwardonlylist); err != nil {
+					log.Printf("Failed to save group config: %v", err)
+				} else {
+					thebot.SendMessage(ctx, &bot.SendMessageParams{
+						ChatID: update.Message.Chat.ID,
+						Text:   fmt.Sprintf("群组 ID 已添加到列表，继续发送 `/forwardonly %d` 以启用仅限转发模式", update.Message.Chat.ID),
+						ParseMode: models.ParseModeMarkdownV1,
+					})
+				}
+			} else {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "启用此功能前，请先将机器人设为管理员\n如果还是提示本消息，请检查机器人是否有删除消息的权限",
 				})
 			}
 		}

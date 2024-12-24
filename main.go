@@ -21,8 +21,6 @@ func main() {
 		bot.WithDefaultHandler(inlinehandler),
 		// bot.WithMiddlewares(),
 		// bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
-		// bot.WithMessageTextHandler("/start", bot.MatchTypeExact, startHandler),
-		// bot.WithMessageTextHandler("/forwardonly", bot.MatchTypePrefix, addToWriteListHandler),
 		bot.WithMessageTextHandler("", bot.MatchTypeContains, defaulthandler),
 		// bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
 	}
@@ -46,12 +44,18 @@ func main() {
 		setUpWebhook(ctx, thebot, webhookURL)
 		log.Println("Working at Webhook Mode")
 		go thebot.StartWebhook(ctx)
-		err := http.ListenAndServe(webhookPort, thebot.WebhookHandler())
-		if err != nil { log.Panicln(err) }
-	} else { // getUpdate, eg Long Polling
+		go func() {
+			err := http.ListenAndServe(webhookPort, thebot.WebhookHandler())
+			if err != nil { log.Panicln(err) }
+		}()
+		<-ctx.Done() // 等待中断信号
+		log.Println("manually stopped")
+	} else { // getUpdate, aka Long Polling
 		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
 		saveAndCleanRemoteWebhookURL(ctx, thebot)
 		log.Println("Working at Long Polling Mode")
 		thebot.Start(ctx)
+		<-ctx.Done() // 等待中断信号
+		log.Println("manually stopped")
 	}
 }

@@ -64,10 +64,15 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	// 	})
 	// }
 
-	log.Printf(update.Message.Text)
+	// log.Printf("%s send a message: [%s]", update.Message.From.Username, update.Message.Text)
 
 	if strings.HasPrefix(update.Message.Text, "/start") {
 		startHandler(ctx, thebot, update)
+		return
+	}
+
+	if strings.HasPrefix(update.Message.Text, "/forwardonly") {
+	    addToWriteListHandler(ctx, thebot, update)
 		return
 	}
 	// fmt.Println(update.Message.Chat.ID)
@@ -101,39 +106,41 @@ func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	}
 
 	// 不匹配上面项目的则提示不可用
-	if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
-		botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    update.Message.Chat.ID,
-			Text:      "No this command",
-		})
-		if private_log { privateLogToChat(ctx, thebot, update) }
-	} else {
-		botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    update.Message.Chat.ID,
-			Text:      "No operations available",
-			ParseMode: models.ParseModeMarkdown,
-		})
-		if private_log { privateLogToChat(ctx, thebot, update) }
+	if update.Message.Chat.Type == "private" {
+		if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
+			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      "No this command",
+			})
+			if private_log { privateLogToChat(ctx, thebot, update) }
+		} else {
+			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      "No operations available",
+				ParseMode: models.ParseModeMarkdown,
+			})
+			if private_log { privateLogToChat(ctx, thebot, update) }
 
-		// thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
-		// 	ChatID:     logChat_ID,
-		// 	FromChatID: update.Message.Chat.ID,
-		// 	MessageIDs: []int{
-		// 		update.Message.ID - 1,
-		// 		update.Message.ID,
-		// 	},
-		// })
-	}
+			// thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
+			// 	ChatID:     logChat_ID,
+			// 	FromChatID: update.Message.Chat.ID,
+			// 	MessageIDs: []int{
+			// 		update.Message.ID - 1,
+			// 		update.Message.ID,
+			// 	},
+			// })
+		}
 
-	// 等待五秒删除请求信息和回复信息
-	time.Sleep(time.Second * 5)
-	thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-		ChatID:     update.Message.Chat.ID,
-		MessageIDs: []int{
-			update.Message.ID,
-			botmessage.ID,
-		},
-	})
+		// 等待五秒删除请求信息和回复信息
+		time.Sleep(time.Second * 5)
+		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     update.Message.Chat.ID,
+			MessageIDs: []int{
+				update.Message.ID,
+				botmessage.ID,
+			},
+		})
+	}	
 }
 
 
