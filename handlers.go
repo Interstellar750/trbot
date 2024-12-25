@@ -14,6 +14,131 @@ import (
 var currentOptions = []bool{false, false, false}
 var forwardonlylist = &forwardMetadata{}
 
+func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+
+	var botMessage *models.Message // 存放 bot 发送的信息
+	// log.Printf("%s send a message: [%s]", update.Message.From.Username, update.Message.Text)
+	// fmt.Println(update.Message.Chat.ID)
+
+	var currentChatType = update.Message.Chat.Type // 获取发送请求的聊天类型
+	// log.Println(currentChatType)
+	if currentChatType == models.ChatTypeChannel {
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text: "get channel messages!",
+		})
+	}
+
+	if AnyContains(currentChatType, models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup) {
+		if strings.HasPrefix(update.Message.Text, "/") {
+			if strings.HasPrefix(update.Message.Text, "/start") && strings.HasSuffix(update.Message.Text, "@" + botMe.Username) {
+				startHandler(ctx, thebot, update)
+				return
+			} else if strings.HasPrefix(update.Message.Text, "/forwardonly") || strings.HasPrefix(update.Message.Text, "/forwardonly" + "@" + botMe.Username) {
+				addToWriteListHandler(ctx, thebot, update)
+				return
+			} else if strings.HasPrefix(update.Message.Text, "/chatinfo") {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+					Text: fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", update.Message.Chat.Type, update.Message.Chat.ID, update.Message.Chat.Username),
+					ParseMode: models.ParseModeHTML,
+				})
+				return
+			} else if strings.HasPrefix(update.Message.Text, "/test") {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{ { {
+						Text: "点击加入测试群组",
+						URL: "https://t.me/+BomkHuFsjqc3ZGE1",
+					}}}},
+				})
+				return
+			}
+		}
+
+		if currentChatType == models.ChatTypePrivate {
+			if strings.HasPrefix(update.Message.Text, "/start") {
+				startHandler(ctx, thebot, update)
+				return
+			}
+
+			// 下载贴纸源文件
+			if update.Message.Sticker != nil {
+				// echoStickerHandler(ctx, thebot, update)
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:    update.Message.Chat.ID,
+					Text:      "本 bot 获取贴纸文件的功能出了点问题，暂不可用",
+					ReplyParameters: &models.ReplyParameters{
+						MessageID: update.Message.ID,
+					},
+				})
+				return
+			}
+
+			// 不匹配上面项目的则提示不可用
+			if strings.HasPrefix(update.Message.Text, "/") {
+				botMessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:    update.Message.Chat.ID,
+					Text:      "不存在的命令",
+					ReplyParameters: &models.ReplyParameters{
+						MessageID: update.Message.ID,
+					},
+				})
+				if private_log { privateLogToChat(ctx, thebot, update) }
+			} else {
+				botMessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:    update.Message.Chat.ID,
+					Text:      "无操作可用",
+					ReplyParameters: &models.ReplyParameters{
+						MessageID: update.Message.ID,
+					},
+				})
+				if private_log { privateLogToChat(ctx, thebot, update) }
+
+				// thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
+				// 	ChatID:     logChat_ID,
+				// 	FromChatID: update.Message.Chat.ID,
+				// 	MessageIDs: []int{
+				// 		update.Message.ID - 1,
+				// 		update.Message.ID,
+				// 	},
+				// })
+			}
+
+			// 等待五秒删除请求信息和回复信息
+			time.Sleep(time.Second * 10)
+			thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+				ChatID:     update.Message.Chat.ID,
+				MessageIDs: []int{
+					update.Message.ID,
+					botMessage.ID,
+				},
+			})
+		} else if AnyContains(currentChatType, models.ChatTypeGroup, models.ChatTypeSupergroup) {
+			if forwardonlylist != nil {
+				// 处理消息删除逻辑，只有当群组启用该功能时才处理
+				if fwdonly_IsGroupEnabled(update.Message.Chat.ID, forwardonlylist) && (
+					getMessageType(update.Message) == MessageTypeText ||
+					getMessageType(update.Message) == MessageTypeVoice ||
+					getMessageType(update.Message) == MessageTypeSticker) {
+					_, err := thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+						ChatID:    update.Message.Chat.ID,
+						MessageID: update.Message.ID,
+					})
+					if err != nil {
+						log.Printf("Failed to delete message: %v", err)
+					} else {
+						log.Printf("Deleted message from %d in %d: %s\n", update.Message.From.ID, update.Message.Chat.ID, update.Message.Text)
+					}
+				}
+			}
+		}
+	}
+
+}
 
 func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	thebot.SendMessage(ctx, &bot.SendMessageParams{
@@ -52,97 +177,6 @@ func echoStickerHandler(ctx context.Context, thebot *bot.Bot, update *models.Upd
 		})
 	}
 }
-
-
-func defaulthandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
-
-	var botmessage *models.Message
-	// if update.Message != nil {
-	// 	thebot.SendMessage(ctx, &bot.SendMessageParams{
-	// 		ChatID: update.Message.Chat.ID,
-	// 		Text:   update.Message.Text,
-	// 	})
-	// }
-
-	// log.Printf("%s send a message: [%s]", update.Message.From.Username, update.Message.Text)
-
-	if strings.HasPrefix(update.Message.Text, "/start") {
-		startHandler(ctx, thebot, update)
-		return
-	}
-
-	if strings.HasPrefix(update.Message.Text, "/forwardonly") {
-	    addToWriteListHandler(ctx, thebot, update)
-		return
-	}
-	// fmt.Println(update.Message.Chat.ID)
-	if forwardonlylist != nil {
-		// 处理消息删除逻辑，只有当群组启用该功能时才处理
-		if fwdonly_IsGroupEnabled(update.Message.Chat.ID, forwardonlylist) && (
-			getMessageType(update.Message) == MessageTypeText ||
-			getMessageType(update.Message) == MessageTypeVoice ||
-			getMessageType(update.Message) == MessageTypeSticker) {
-			_, err := thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
-				ChatID:    update.Message.Chat.ID,
-				MessageID: update.Message.ID,
-			})
-			if err != nil {
-				log.Printf("Failed to delete message: %v", err)
-			} else {
-				log.Printf("Deleted message from %d in %d: %s\n", update.Message.From.ID, update.Message.Chat.ID, update.Message.Text)
-			}
-		}
-	}
-
-	// 下载贴纸源文件
-	if update.Message.Sticker != nil && update.Message.Chat.Type == "private" {
-		// echoStickerHandler(ctx, thebot, update)
-		thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    update.Message.Chat.ID,
-			Text:      "本 bot 获取贴纸文件的功能出了点问题，暂不可用",
-			ParseMode: models.ParseModeMarkdownV1,
-		})
-		return
-	}
-
-	// 不匹配上面项目的则提示不可用
-	if update.Message.Chat.Type == "private" {
-		if len(update.Message.Text) > 0 && update.Message.Text[0] == '/' {
-			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-				Text:      "No this command",
-			})
-			if private_log { privateLogToChat(ctx, thebot, update) }
-		} else {
-			botmessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-				Text:      "No operations available",
-				ParseMode: models.ParseModeMarkdown,
-			})
-			if private_log { privateLogToChat(ctx, thebot, update) }
-
-			// thebot.ForwardMessages(ctx, &bot.ForwardMessagesParams{
-			// 	ChatID:     logChat_ID,
-			// 	FromChatID: update.Message.Chat.ID,
-			// 	MessageIDs: []int{
-			// 		update.Message.ID - 1,
-			// 		update.Message.ID,
-			// 	},
-			// })
-		}
-
-		// 等待五秒删除请求信息和回复信息
-		time.Sleep(time.Second * 5)
-		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-			ChatID:     update.Message.Chat.ID,
-			MessageIDs: []int{
-				update.Message.ID,
-				botmessage.ID,
-			},
-		})
-	}	
-}
-
 
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	if update.InlineQuery == nil { return }

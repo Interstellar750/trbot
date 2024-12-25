@@ -1,5 +1,7 @@
 package main
 
+import "github.com/go-telegram/bot/models"
+
 var botToken string // 全局 bot token
 
 var webhookURL string // Webhook 运行模式下接受请求的 URL 地址
@@ -14,4 +16,6 @@ var voice_path   string = db_path + "voices/"
 var fwdonly_path string = db_path + "forwardonly/"
 var logfile_path string = "./log.txt"
 
-var private_log bool = true
+var private_log bool = false
+
+var botMe *models.User

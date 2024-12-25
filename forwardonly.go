@@ -128,16 +128,17 @@ func fwdonly_SaveMetadata(path string, name string, Metadata *forwardMetadata) e
 
 func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	if update.Message.Chat.Type == "private" {
-		botmessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
+		botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text:   "仅限转发模式被设计为仅在群组中可用",
+			ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
 		})
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 10)
 		thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
 			ChatID:     update.Message.Chat.ID,
 			MessageIDs: []int{
 				update.Message.ID,
-				botmessage.ID,
+				botMessage.ID,
 			},
 		})
 	} else if userIsAdmin(ctx, thebot, update.Message.Chat.ID, update.Message.From.ID) {
@@ -228,7 +229,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 			}
 		}
 	} else {
-		botmessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
+		botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
 		})
@@ -237,7 +238,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 			ChatID:     update.Message.Chat.ID,
 			MessageIDs: []int{
 				update.Message.ID,
-				botmessage.ID,
+				botMessage.ID,
 			},
 		})
 	}

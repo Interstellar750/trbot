@@ -21,17 +21,18 @@ func main() {
 		bot.WithDefaultHandler(inlinehandler),
 		// bot.WithMiddlewares(),
 		// bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
-		bot.WithMessageTextHandler("", bot.MatchTypeContains, defaulthandler),
+		bot.WithMessageTextHandler("", bot.MatchTypeContains, catchAllHandler),
 		// bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
 	}
 
 	thebot, err := bot.New(botToken, opts...)
 	if err != nil { panic(err) }
 
-	me, _ := thebot.GetMe(ctx)
-	log.Printf("name[%s %s] [@%s] id[%d]", me.FirstName, me.LastName, me.Username, me.ID)
 
-	log.Printf("starting %d\n", me.ID)
+	botMe, _ = thebot.GetMe(ctx)
+	log.Printf("name[%s] [@%s] id[%d]", botMe.FirstName, botMe.Username, botMe.ID)
+
+	log.Printf("starting %d\n", botMe.ID)
 	log.Printf("logChat_ID: %v", logChat_ID)
 
 	err = fwdonly_ReadMetadata()

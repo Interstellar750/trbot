@@ -37,7 +37,6 @@ func echoSticker(filePath string) *io.PipeReader {
 
 // 定义消息类型枚举
 type MessageType int
-
 const (
 	MessageTypeText MessageType = iota
 	MessageTypePhoto
@@ -50,7 +49,7 @@ const (
 	MessageTypeUnknown
 )
 
-// 判断消息的类型
+// 判断消息的类型 需要重写
 func getMessageType(message *models.Message) MessageType {
 	switch {
 	case message.ForwardOrigin != nil:
@@ -78,9 +77,7 @@ func getMessageType(message *models.Message) MessageType {
 // chat type: "private", "group", "supergroup", or "channel"
 // not work for "private" chats
 func userIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool {
-	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
-		ChatID: chatID,
-	})
+	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{ ChatID: chatID })
 	if err != nil {
 		log.Printf("Failed to get chat administrators: %v", err)
 		return false
@@ -148,10 +145,10 @@ func userHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatI
 	case int:
 		return AnyContains(value, adminshavepermission_userIDs)
 	case int64:
-		fmt.Println(value)
+		// fmt.Println(value)
 		return AnyContains(value, adminshavepermission_userIDs)
 	case string:
-		fmt.Println(value)
+		// fmt.Println(value)
 		if strings.ContainsAny(value, "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ_") {
 			return AnyContains(value, adminshavepermission_usernames)
 		} else {
@@ -305,6 +302,7 @@ func privateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 // 	return false
 // }
 
+// 如果 chars 中包含 query, 返回 true
 func AnyContains(query any, chars ...any) bool {
 	for _, char := range chars {
 		// fmt.Printf("%T\n", char)
@@ -330,10 +328,12 @@ func AnyContains(query any, chars ...any) bool {
 			for _, c := range v {
 				if c == query.(int64) {
 					return true
-				} 
+				}
 			}
 		case int64:
 			if v == query.(int64) { return true }
+		case models.ChatType:
+			if v == query.(models.ChatType) { return true }
 		}
 	}
 	return false
