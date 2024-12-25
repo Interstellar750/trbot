@@ -50,13 +50,14 @@ func main() {
 			if err != nil { log.Panicln(err) }
 		}()
 		<-ctx.Done() // 等待中断信号
-		log.Println("manually stopped")
+		// log.Println("manually stopped")
 	} else { // getUpdate, aka Long Polling
 		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
 		saveAndCleanRemoteWebhookURL(ctx, thebot)
 		log.Println("Working at Long Polling Mode")
 		thebot.Start(ctx)
 		<-ctx.Done() // 等待中断信号
-		log.Println("manually stopped")
 	}
+	log.Println("manually stopped")
+
 }

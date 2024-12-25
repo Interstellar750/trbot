@@ -20,6 +20,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 	// log.Printf("%s send a message: [%s]", update.Message.From.Username, update.Message.Text)
 	// fmt.Println(update.Message.Chat.ID)
 
+	var commandFields []string // 存储以 / 开头的命令字段切片，由 strings.Fields() 在后续进行分割再赋值
 	var currentChatType = update.Message.Chat.Type // 获取发送请求的聊天类型
 	// log.Println(currentChatType)
 	if currentChatType == models.ChatTypeChannel {
@@ -29,15 +30,19 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 		})
 	}
 
+	// 首先判断聊天类型，这里处理私聊、群组和超级群组的消息
 	if AnyContains(currentChatType, models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup) {
+		// 检测如果消息开头是 / 符号，作为命令来处理
 		if strings.HasPrefix(update.Message.Text, "/") {
-			if strings.HasPrefix(update.Message.Text, "/start") && strings.HasSuffix(update.Message.Text, "@" + botMe.Username) {
+			commandFields = strings.Fields(update.Message.Text) // 对消息开头是 / 符号的命令进行分割，类似命令行参数
+			// 预设的多个命令
+			if commandMaybeWithSuffixUsername(commandFields, "/start") {
 				startHandler(ctx, thebot, update)
 				return
-			} else if strings.HasPrefix(update.Message.Text, "/forwardonly") || strings.HasPrefix(update.Message.Text, "/forwardonly" + "@" + botMe.Username) {
+			} else if commandMaybeWithSuffixUsername(commandFields, "/forwardonly") {
 				addToWriteListHandler(ctx, thebot, update)
 				return
-			} else if strings.HasPrefix(update.Message.Text, "/chatinfo") {
+			} else if commandMaybeWithSuffixUsername(commandFields, "/chatinfo") {
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: update.Message.Chat.ID,
 					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
@@ -45,7 +50,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 					ParseMode: models.ParseModeHTML,
 				})
 				return
-			} else if strings.HasPrefix(update.Message.Text, "/test") {
+			} else if commandMaybeWithSuffixUsername(commandFields, "/test") {
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: update.Message.Chat.ID,
 					Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
@@ -56,16 +61,30 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 					}}}},
 				})
 				return
+			} else if strings.HasSuffix(commandFields[0], "@" + botMe.Username) {
+				// 注意，此段应该保持在此 if-else 语句的末尾，否则后续的命令将无法触发
+				// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
+				// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
+				botMessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:    update.Message.Chat.ID,
+					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+					Text:      "不存在的命令",
+				})
+				time.Sleep(time.Second * 10)
+				thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+					ChatID:     update.Message.Chat.ID,
+					MessageIDs: []int{
+						update.Message.ID,
+						botMessage.ID,
+					},
+				})
+				return
 			}
 		}
 
+		// 不符合上方条件，即消息开头不是 / 符号的信息
 		if currentChatType == models.ChatTypePrivate {
-			if strings.HasPrefix(update.Message.Text, "/start") {
-				startHandler(ctx, thebot, update)
-				return
-			}
-
-			// 下载贴纸源文件
+			// 如果用户发送的是贴纸，下载并返回贴纸源文件给用户
 			if update.Message.Sticker != nil {
 				// echoStickerHandler(ctx, thebot, update)
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
@@ -80,21 +99,20 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 
 			// 不匹配上面项目的则提示不可用
 			if strings.HasPrefix(update.Message.Text, "/") {
+				// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
+				// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
 				botMessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID:    update.Message.Chat.ID,
+					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
 					Text:      "不存在的命令",
-					ReplyParameters: &models.ReplyParameters{
-						MessageID: update.Message.ID,
-					},
 				})
 				if private_log { privateLogToChat(ctx, thebot, update) }
 			} else {
+				// 非命令消息，提示无操作可用
 				botMessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID:    update.Message.Chat.ID,
+					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
 					Text:      "无操作可用",
-					ReplyParameters: &models.ReplyParameters{
-						MessageID: update.Message.ID,
-					},
 				})
 				if private_log { privateLogToChat(ctx, thebot, update) }
 
@@ -144,6 +162,8 @@ func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	thebot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    update.Message.Chat.ID,
 		Text:      fmt.Sprintf("Hello, *%s %s*\n\nThis robot doesn't currently support chat mode, please use [inline mode](https://telegram.org/blog/inline-bots?setln=en) for interactive operations.", update.Message.From.FirstName, update.Message.From.LastName),
+		ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+		LinkPreviewOptions: &models.LinkPreviewOptions{ PreferSmallMedia: bot.True() },
 		ParseMode: models.ParseModeMarkdownV1,
 	})
 }

@@ -262,6 +262,7 @@ func logToFile(message string) {
 	}
 }
 
+// 从 log.txt 读取文件
 func readLog() []string {
 	// 打开日志文件
 	file, err := os.Open(logfile_path)
@@ -302,7 +303,7 @@ func privateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 // 	return false
 // }
 
-// 如果 chars 中包含 query, 返回 true
+// 如果 query 是 chars 的一部分, 返回 true
 func AnyContains(query any, chars ...any) bool {
 	for _, char := range chars {
 		// fmt.Printf("%T\n", char)
@@ -335,6 +336,15 @@ func AnyContains(query any, chars ...any) bool {
 		case models.ChatType:
 			if v == query.(models.ChatType) { return true }
 		}
+	}
+	return false
+}
+
+// 允许响应带有机器人用户名后缀的命令，例如 /help@examplebot
+func commandMaybeWithSuffixUsername(commandFields []string, command string) bool {
+	atBotUsername := "@" + botMe.Username
+	if commandFields[0] == command || commandFields[0] == command + atBotUsername {
+		return true
 	}
 	return false
 }
