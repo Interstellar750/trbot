@@ -105,10 +105,10 @@ func userIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool 
 	case int:
 		return AnyContains(value, admins_userIDs)
 	case int64:
-		fmt.Println(value)
+		// fmt.Println(value)
 		return AnyContains(value, admins_userIDs)
 	case string:
-		fmt.Println(value)
+		// fmt.Println(value)
 		if strings.ContainsAny(value, "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ_") {
 			return AnyContains(value, admins_usernames)
 		} else {

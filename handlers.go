@@ -37,7 +37,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 			commandFields = strings.Fields(update.Message.Text) // 对消息开头是 / 符号的命令进行分割，类似命令行参数
 			// 预设的多个命令
 			if commandMaybeWithSuffixUsername(commandFields, "/start") {
-				startHandler(ctx, thebot, update)
+				startHandler(ctx, thebot, update, commandFields)
 				return
 			} else if commandMaybeWithSuffixUsername(commandFields, "/forwardonly") {
 				addToWriteListHandler(ctx, thebot, update)
@@ -158,14 +158,28 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 
 }
 
-func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
-	thebot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    update.Message.Chat.ID,
-		Text:      fmt.Sprintf("Hello, *%s %s*\n\nThis robot doesn't currently support chat mode, please use [inline mode](https://telegram.org/blog/inline-bots?setln=en) for interactive operations.", update.Message.From.FirstName, update.Message.From.LastName),
-		ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
-		LinkPreviewOptions: &models.LinkPreviewOptions{ PreferSmallMedia: bot.True() },
-		ParseMode: models.ParseModeMarkdownV1,
-	})
+func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update, fields []string) {
+	if strings.HasPrefix(fields[1], "via-inline") {
+		if strings.HasSuffix(fields[1], "test") {
+			thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+				ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{ { {
+					Text: "点击加入测试群组",
+					URL: "https://t.me/+BomkHuFsjqc3ZGE1",
+				}}}},
+			})
+		}
+	} else {
+		thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      fmt.Sprintf("Hello, *%s %s*\n\nThis robot doesn't currently support chat mode, please use [inline mode](https://telegram.org/blog/inline-bots?setln=en) for interactive operations.", update.Message.From.FirstName, update.Message.From.LastName),
+			ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+			LinkPreviewOptions: &models.LinkPreviewOptions{ PreferSmallMedia: bot.True() },
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	}
 }
 
 func echoStickerHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
@@ -199,6 +213,7 @@ func echoStickerHandler(ctx context.Context, thebot *bot.Bot, update *models.Upd
 }
 
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+	// log.Println("inlinehandler working")
 	if update.InlineQuery == nil { return }
 
 	log.Printf("inline from: [%s], query: [%s]", update.InlineQuery.From.Username, update.InlineQuery.Query)
@@ -325,6 +340,10 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		InlineQueryID: update.InlineQuery.ID,
 		Results:       results,
 		CacheTime:     0,
+		Button: &models.InlineQueryResultsButton{
+			Text: "一个测试用的按钮",
+			StartParameter: "via-inline_test",
+		},
 	})
 	if err != nil {
 		log.Printf("Error sending inline query response: %v", err)

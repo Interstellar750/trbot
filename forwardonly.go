@@ -69,7 +69,7 @@ func fwdonly_SetForwardOnly(groupID int64, config *forwardMetadata, enable bool)
 	ID := fwdonly_FindGroupByID(groupID, config)
 	if ID != -1 {
 		config.EnabledForwardGroupID[ID].Enable = enable
-		fmt.Println(config.EnabledForwardGroupID[ID].Enable)
+		fmt.Println("[fwdonly_SetForwardOnly]", config.EnabledForwardGroupID[ID].Enable)
 	} else {
 		return fmt.Errorf("unknown groupID: %d", groupID)
 	}
