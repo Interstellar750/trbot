@@ -69,7 +69,7 @@ func fwdonly_SetForwardOnly(groupID int64, config *forwardMetadata, enable bool)
 	ID := fwdonly_FindGroupByID(groupID, config)
 	if ID != -1 {
 		config.EnabledForwardGroupID[ID].Enable = enable
-		fmt.Println("[fwdonly_SetForwardOnly]", config.EnabledForwardGroupID[ID].Enable)
+		// log.Println("[fwdonly_SetForwardOnly]", config.EnabledForwardGroupID[ID].Enable)
 	} else {
 		return fmt.Errorf("unknown groupID: %d", groupID)
 	}
@@ -176,7 +176,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 				})
 				return
 			}
-			if err := fwdonly_SaveMetadata("./forwardonly/", "metadata.yaml", forwardonlylist); err != nil {
+			if err := fwdonly_SaveMetadata(fwdonly_path, metadatafile_name, forwardonlylist); err != nil {
 				log.Printf("Failed to save group config: %v", err)
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: update.Message.Chat.ID,
@@ -184,6 +184,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 					ParseMode: models.ParseModeMarkdownV1,
 				})
 			} else {
+				log.Println("Turn forwardonly on for group", update.Message.Chat.ID)
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: update.Message.Chat.ID,
 					Text:   "仅限转发模式已启用，若要关闭，请发送 `/forwardonly disable` 来关闭它",
@@ -200,9 +201,10 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 				})
 				return
 			}
-			if err := fwdonly_SaveMetadata("./forwardonly/", "metadata.yaml", forwardonlylist); err != nil {
+			if err := fwdonly_SaveMetadata(fwdonly_path, metadatafile_name, forwardonlylist); err != nil {
 				log.Printf("Failed to save group config: %v", err)
 			} else {
+				log.Println("Turn forwardonly off for group", update.Message.Chat.ID)
 				thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: update.Message.Chat.ID,
 					Text:   fmt.Sprintf("仅限转发模式已关闭，重新启用请发送 `/forwardonly %d`", update.Message.Chat.ID),
@@ -215,6 +217,7 @@ func addToWriteListHandler(ctx context.Context, thebot *bot.Bot, update *models.
 				if err := fwdonly_SaveMetadata(fwdonly_path, metadatafile_name, forwardonlylist); err != nil {
 					log.Printf("Failed to save group config: %v", err)
 				} else {
+					log.Printf("add group [%d] in forwardonly list", update.Message.Chat.ID)
 					thebot.SendMessage(ctx, &bot.SendMessageParams{
 						ChatID: update.Message.Chat.ID,
 						Text:   fmt.Sprintf("群组 ID 已添加到列表，继续发送 `/forwardonly %d` 以启用仅限转发模式", update.Message.Chat.ID),
