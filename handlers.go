@@ -160,7 +160,8 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 
 func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update, fields []string) {
 	if strings.HasPrefix(fields[1], "via-inline") {
-		if strings.HasSuffix(fields[1], "test") {
+		inlineArgument := strings.Split(fields[1], "_")
+		if inlineArgument[1] == "test" {
 			thebot.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
 				Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
