@@ -61,6 +61,15 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 					}}}},
 				})
 				return
+			} else if AnyContains(update.Message.From.ID, logMan_IDs) &&
+				commandMaybeWithSuffixUsername(commandFields, "/version") {
+				thebot.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text: outputVersionInfo(),
+					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+				return
 			} else if strings.HasSuffix(commandFields[0], "@" + botMe.Username) {
 				// 注意，此段应该保持在此 if-else 语句的末尾，否则后续的命令将无法触发
 				// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令

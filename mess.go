@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -363,4 +365,15 @@ func commandMaybeWithSuffixUsername(commandFields []string, command string) bool
 		return true
 	}
 	return false
+}
+
+func outputVersionInfo() string {
+	// 获取 git sha 和 commit 时间
+	c, _ := exec.Command("git", "rev-parse", "HEAD").Output()
+	// 获取 git 分支
+	b, _ := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	r := runtime.Version()
+	h, _ := os.Hostname()
+	info := fmt.Sprintf("Branch: %sCommit: [%s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nHostname: %s", b, c[:10], c, r, h)
+	return info
 }
