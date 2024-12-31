@@ -168,7 +168,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 }
 
 func startHandler(ctx context.Context, thebot *bot.Bot, update *models.Update, fields []string) {
-	if strings.HasPrefix(fields[1], "via-inline") {
+	if len(fields) > 1 && strings.HasPrefix(fields[1], "via-inline") {
 		inlineArgument := strings.Split(fields[1], "_")
 		if inlineArgument[1] == "test" {
 			thebot.SendMessage(ctx, &bot.SendMessageParams{
