@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -294,47 +295,62 @@ func privateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 	})
 }
 
-// func AnyContains(query string, chars ...string) bool {
-// 	for _, char := range chars {
-// 		if strings.Contains(char, query) {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
 
-// 如果 query 是 chars 的一部分, 返回 true
-func AnyContains(query any, chars ...any) bool {
-	for _, char := range chars {
-		// fmt.Printf("%T\n", char)
-		if char == nil { continue }
-		switch v := char.(type) {
-		case []string:
-			for _, c := range v {
-				if strings.Contains(c, query.(string)) {
-					return true
-				}
-			}
+// 如果 target 是 candidates 的一部分, 返回 true
+// 常规类型会判定值是否相等，字符串如果包含也符合条件，例如 "bc" 在 "abcd" 中
+func AnyContains(target any, candidates ...any) bool {
+	for _, candidate := range candidates {
+		if candidates == nil { continue }
+		// fmt.Println(reflect.ValueOf(target).Kind(), reflect.ValueOf(candidate).Kind(), reflect.Array, reflect.Slice)
+		targetKind := reflect.ValueOf(target).Kind()
+		candidateKind := reflect.ValueOf(candidate).Kind()
+		if targetKind != candidateKind && !AnyContains(candidateKind, reflect.Slice, reflect.Array) {
+			log.Printf("[Warn] (func)AnyContains: candidate(%v) not match target(%v)", candidateKind, targetKind)
+		}
+		switch c := candidate.(type) {
 		case string:
-			if strings.Contains(v, query.(string)) { return true }
-		case []int:
-			for _, c := range v {
-				if c == query.(int) {
+			if targetKind == reflect.String && strings.Contains(c, target.(string)) {
+				return true
+			}
+		default:
+			if reflect.DeepEqual(target, c) {
+				return true
+			}
+			if reflect.ValueOf(c).Kind() == reflect.Slice || reflect.ValueOf(c).Kind() == reflect.Array {
+				if checkNested(target, reflect.ValueOf(c)) {
 					return true
 				}
 			}
-		case int:
-			if v == query.(int) { return true }
-		case []int64:
-			for _, c := range v {
-				if c == query.(int64) {
+		}
+	}
+	return false
+}
+
+// 为 AnyContains 的递归函数
+func checkNested(target any, value reflect.Value) bool {
+	// fmt.Println(reflect.ValueOf(value.Index(0).Interface()).Kind())
+	if reflect.TypeOf(target) != reflect.TypeOf(value.Index(0).Interface()) && !AnyContains(reflect.ValueOf(value.Index(0).Interface()).Kind(), reflect.Slice, reflect.Array) {
+		log.Printf("[Error] (func)AnyContains: candidates's subitem(%v) not match target(%v), skip this compare", reflect.TypeOf(value.Index(0).Interface()), reflect.TypeOf(target))
+		return false
+	}
+	for i := 0; i < value.Len(); i++ {
+		element := value.Index(i).Interface()
+		switch c := element.(type) {
+		case string:
+			if reflect.ValueOf(target).Kind() == reflect.String && strings.Contains(c, target.(string)) {
+				return true
+			}
+		default:
+			if reflect.DeepEqual(target, c) {
+				return true
+			}
+			// Check nested slices or arrays
+			elemValue := reflect.ValueOf(c)
+			if elemValue.Kind() == reflect.Slice || elemValue.Kind() == reflect.Array {
+				if checkNested(target, elemValue) {
 					return true
 				}
 			}
-		case int64:
-			if v == query.(int64) { return true }
-		case models.ChatType:
-			if v == query.(models.ChatType) { return true }
 		}
 	}
 	return false

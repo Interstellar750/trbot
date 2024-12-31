@@ -219,7 +219,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 
 	log.Printf("inline from: [%s], query: [%s]", update.InlineQuery.From.Username, update.InlineQuery.Query)
 
-	if update.InlineQuery.Query == "log" && ( update.InlineQuery.From.ID == 2074319561 || update.InlineQuery.From.ID == 1086395364 )  {
+	if update.InlineQuery.Query == "log" && AnyContains(update.InlineQuery.From.ID, logMan_IDs) {
 		logs := readLog()
 		if logs != nil {
 			log_count := len(logs)
