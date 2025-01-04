@@ -62,13 +62,13 @@ func addToWriteListHandler(opts *subHandlerOpts) {
 				return
 			} else {
 				opts.chatInfo.IsEnableForwardonly = true
-				savenow <- true
 				log.Println("Turn forwardonly on for group", opts.update.Message.Chat.ID)
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
 					Text:   "仅限转发模式已启用",
 					ParseMode: models.ParseModeMarkdownV1,
 				})
+				savenow <- true
 			}
 		} else if opts.update.Message.Text == "/forwardonly disable" {
 			if !opts.chatInfo.IsEnableForwardonly {
@@ -80,13 +80,13 @@ func addToWriteListHandler(opts *subHandlerOpts) {
 				return
 			} else {
 				opts.chatInfo.IsEnableForwardonly = false
-				savenow <- true
 				log.Println("Turn forwardonly off for group", opts.update.Message.Chat.ID)
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
 					Text:   fmt.Sprintf("仅限转发模式已关闭，重新启用请发送 `/forwardonly %d`", opts.update.Message.Chat.ID),
 					ParseMode: models.ParseModeMarkdownV1,
 				})
+				savenow <- true
 			}
 		} else if strings.HasPrefix(opts.update.Message.Text, "/forwardonly") {
 			if userIsAdmin(opts.ctx, opts.thebot, opts.update.Message.Chat.ID, botMe.ID) && userHavePermissionDeleteMessage(opts.ctx, opts.thebot, opts.update.Message.Chat.ID, botMe.ID) {
