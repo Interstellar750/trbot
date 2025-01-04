@@ -14,9 +14,12 @@ var metadatafile_name string = "metadata.yaml"
 
 var db_path      string = "./db_yaml/"
 var voice_path   string = db_path + "voices/"
-var fwdonly_path string = db_path + "forwardonly/"
 var logfile_path string = "./log.txt"
 
 var private_log bool = false
 
-var botMe *models.User
+var botMe *models.User // 用于存储 bot 信息
+
+var database DataBaseYaml
+
+var savenow = make(chan bool)

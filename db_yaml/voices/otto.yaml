@@ -60,3 +60,33 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
     Title:    品鉴蔬菜
     Caption:  你怎么这么菜啊
     VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/nzmzmca.mp3
+
+  - ID:       otto-nono
+    Title:    不可以
+    Caption:  不可以
+    VoiceURL: https://alist.trle5.xyz/d/otto/不可以.ogg
+
+  - ID:       otto-hbx
+    Title:    哈比下
+    Caption:  哈比下
+    VoiceURL: https://alist.trle5.xyz/d/otto/哈比下.ogg
+
+  - ID:       otto-wsmy
+    Title:    为什么呀
+    Caption:  为什么呀？
+    VoiceURL: https://alist.trle5.xyz/d/otto/为什么呀.ogg
+
+  - ID:       otto-ice
+    Title:    冰！
+    Caption:  冰！
+    VoiceURL: https://alist.trle5.xyz/d/otto/冰.ogg
+
+  - ID:       otto-nuke
+    Title:    原子弹
+    Caption:  原子弹
+    VoiceURL: https://alist.trle5.xyz/d/otto/原子弹.ogg
+
+  - ID:       otto-ex
+    Title:    好恶心啊
+    Caption:  好恶心啊
+    VoiceURL: https://alist.trle5.xyz/d/otto/好恶心啊.ogg

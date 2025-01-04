@@ -202,7 +202,6 @@ func usingWebhook() bool {
 		if webhookURL == "" {
 			// 到这里就是 .env 文件里也没有，不启用
 			log.Printf("No Webhook URL in environment and .env file, using getUpdate")
-
 			return false
 		}
 		// 从 .env 文件中获取到了 URL，启用 Webhook
@@ -220,32 +219,32 @@ func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
 	if err != nil { log.Println(err) }
 	if webHookInfo.URL != url {
 		if webHookInfo.URL == "" {
-			log.Println("Webhook is not setup, setting up now...")
+			log.Println("Webhook not set, setting it now...")
 		} else {
 			log.Printf("unsame Webhook URL [%s], save it and setting up new URL...", webHookInfo.URL)
-			logToFile(time.Now().Format("2006/01/02 15:04:05") + " (unsame) old Webhook URL: " + webHookInfo.URL)
+			logToFile(time.Now().Format(time.RFC3339) + " (unsame) old Webhook URL: " + webHookInfo.URL)
 		}
-		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{
-			URL: url,
-		})
+		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{ URL: url })
 		if err != nil { log.Panicln("Set Webhook URL err:", err) }
-		if success { log.Println("Webhook is set up successfully") }
+		if success { log.Println("Webhook setup successfully:", url) }
 
 	} else {
-		log.Println("Webhook is already setup")
+		log.Println("Webhook is already set:", webHookInfo.URL)
 	}
 }
 
-func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) {
+func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) *models.WebhookInfo {
 	webHookInfo, err := thebot.GetWebhookInfo(ctx)
 	if err != nil { log.Println(err) }
 	if webHookInfo.URL != "" {
 		log.Printf("found Webhook URL [%s] set at api server, save and clean it...", webHookInfo.URL)
-		logToFile(time.Now().Format("2006/01/02 15:04:05") + " (remote) old Webhook URL: " + webHookInfo.URL)
+		logToFile(time.Now().Format(time.RFC3339) + " (remote) old Webhook URL: " + webHookInfo.URL)
 		thebot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{
-			DropPendingUpdates: true,
+			DropPendingUpdates: false,
 		})
+		return webHookInfo
 	}
+	return nil
 }
 
 func logToFile(message string) {

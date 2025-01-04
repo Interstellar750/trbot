@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/go-telegram/bot"
 )
@@ -28,17 +30,36 @@ func main() {
 	thebot, err := bot.New(botToken, opts...)
 	if err != nil { panic(err) }
 
-
 	botMe, _ = thebot.GetMe(ctx)
 	log.Printf("name[%s] [@%s] id[%d]", botMe.FirstName, botMe.Username, botMe.ID)
 
 	log.Printf("starting %d\n", botMe.ID)
 	log.Printf("logChat_ID: %v", logChat_ID)
 
-	err = fwdonly_ReadMetadata()
+	database, err = ReadYamlDB(db_path + metadatafile_name)
 	if err != nil {
-		log.Println(err)
+		log.Println("read yaml db error: ", err)
 	}
+
+	go func (savenow chan bool) {
+		// 创建一个 Ticker，每隔 1 秒触发一次
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop() // 确保程序退出时释放资源
+
+		for {
+			select {
+			case <-ticker.C: // 每次 Ticker 触发时执行任务
+				fmt.Println("auto save at", time.Now().Format(time.RFC3339))
+				logToFile("auto save at " + time.Now().Format(time.RFC3339))
+				SaveYamlDB(db_path, metadatafile_name, database)
+			case <-savenow: // 收到停止信号时退出循环
+				fmt.Println("save at", time.Now().Format(time.RFC3339))
+				logToFile("save at " + time.Now().Format(time.RFC3339))
+				SaveYamlDB(db_path, metadatafile_name, database)
+				savenow <- false
+			}
+		}
+	}(savenow)
 
 	// 检查是否设定了 webhookURL 环境变量
 	if usingWebhook() { // Webhook
