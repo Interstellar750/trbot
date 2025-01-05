@@ -141,6 +141,26 @@ func AddChatID(chat models.Chat) bool {
 	return true
 }
 
+func saveDatabase(savenow chan bool) {
+		// 创建一个 Ticker，每隔 1 秒触发一次
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop() // 确保程序退出时释放资源
+
+		for {
+			select {
+			case <-ticker.C: // 每次 Ticker 触发时执行任务
+				fmt.Println("auto save at", time.Now().Format(time.RFC3339))
+				logToFile("auto save at " + time.Now().Format(time.RFC3339))
+				SaveYamlDB(db_path, metadatafile_name, database)
+			case <-savenow: // 收到停止信号时退出循环
+				fmt.Println("save at", time.Now().Format(time.RFC3339))
+				logToFile("save at " + time.Now().Format(time.RFC3339))
+				SaveYamlDB(db_path, metadatafile_name, database)
+				savenow <- false
+			}
+		}
+	}
+
 // 获取 ID 信息与在数据库中的位置
 func getIDInfoAndIndex(id int64) (*IDInfo, int) {
 	for Index, Data := range database.Data.IDs {
