@@ -107,7 +107,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 				})
 				return
 			}
-		} else if AnyContains(fields[0], "sms", "udonese") && update.Message.Chat.ID == udonGroupID {
+		} else if len(fields) > 0 && AnyContains(fields[0], "sms", "udonese") && update.Message.Chat.ID == udonGroupID {
 			udoneseHandler(&opts)
 			return
 		}
