@@ -107,8 +107,8 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 				})
 				return
 			}
-		} else if strings.HasPrefix(update.Message.Text, "sms") && update.Message.Chat.ID == -1002205667779 {
-			log.Println("todo")
+		} else if AnyContains(fields[0], "sms", "udonese") && update.Message.Chat.ID == udonGroupID {
+			udoneseHandler(&opts)
 			return
 		}
 

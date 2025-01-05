@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -48,4 +49,80 @@ func readVoicePackFromPath(path string) ([]VoicePack, error) {
 	if err != nil { return nil, err }
 	
 	return packs, nil
+}
+
+type Udonese struct {
+	Count int           `yaml:"count"`
+	List  []UdoneseList `yaml:"list"`
+}
+
+type UdoneseList struct {
+	Word    string   `yaml:"Word,omitempty"`
+	Meaning []string `yaml:"Meaning,omitempty"`
+}
+
+func readUdonese(path, name string) (*Udonese, error) {
+	var udonese *Udonese
+
+	file, err := os.Open(path + name)
+	if err != nil {
+		// 如果是找不到目录，新建一个
+		log.Println("[Udonese]: Not found database file. Created new one")
+		saveUdonese(Udonese{}, path, name)
+		return &Udonese{}, err
+	}
+	defer file.Close()
+
+	decoder := yaml.NewDecoder(file)
+	err = decoder.Decode(&udonese)
+	if err != nil { 
+		if err == io.EOF {
+			log.Println("[Udonese]: Udonese list looks empty. now format it")
+			saveUdonese(Udonese{}, path, name)
+			return &Udonese{}, nil
+		}
+		log.Println("(func)readUdonese:", err)
+		return &Udonese{}, err
+	}
+	return udonese, nil
+}
+
+func addUdonese(udonese *Udonese, params *UdoneseList) {
+	for wordIndex, savedList := range udonese.List {
+		if savedList.Word == params.Word {
+			log.Printf("发现已存在的词 %s，正在检查是否有新增的意思", savedList.Word)
+			for _, newMeaning := range params.Meaning {
+				if !AnyContains(newMeaning, savedList.Meaning) {
+					udonese.List[wordIndex].Meaning = append(udonese.List[wordIndex].Meaning, newMeaning)
+					log.Printf("正在为 %s 添加 %s 意思", udonese.List[wordIndex].Word, newMeaning)
+				} else {
+					log.Println("存在的意思，跳过", newMeaning)
+				}
+			}
+			return
+		}
+	}
+	log.Printf("发现新的词 %s，正在添加 %v", params.Word, params.Meaning)
+	udonese.List = append(udonese.List, *params)
+	udonese.Count++
+}
+
+func saveUdonese(udonese Udonese, path string, name string) error {
+	data, err := yaml.Marshal(udonese)
+	if err != nil { return err }
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+	}
+
+	if _, err := os.Stat(path + name); os.IsNotExist(err) {
+		_, err := os.Create(path + name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return os.WriteFile(path + name, data, 0644)
 }

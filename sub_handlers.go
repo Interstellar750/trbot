@@ -231,3 +231,69 @@ func commandHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		ReplyMarkup: buildKeyboard(),
 	})
 }
+
+func udoneseHandler(opts *subHandlerOpts) {
+	udon, err := readUdonese(smsUdon_path, metadatafile_name)
+	if err != nil {
+		log.Println("some error in while read udonese list: ", err)
+	}
+	if opts.fields[0] == "sms" {
+		if len(opts.fields) < 2 {
+			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID: opts.update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				Text:   "使用方法：发送 sms <词> 来查看对应的意思",
+				ParseMode: models.ParseModeMarkdownV1,
+			})
+			return
+		}
+
+		for _, word := range udon.List {
+			if word.Word == opts.fields[1] && len(word.Meaning) > 0 {
+				var pendingmessage = fmt.Sprintf("**%s** 意思有\n", word.Word)
+				for _, s := range word.Meaning {
+					pendingmessage += s + "\n"
+				}
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.Message.Chat.ID,
+					Text:   pendingmessage,
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+				return
+			}
+		}
+
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.Message.Chat.ID,
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+			Text:   "这个词还没有记录哦",
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	}
+
+	if opts.fields[0] == "udonese" {
+		if len(opts.fields) < 2 {
+			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID:    opts.update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				Text: "使用 udonese <词> <一个或多个意思> 来添加记录",
+				ParseMode: models.ParseModeMarkdownV1,
+			})
+		}
+		addUdonese(udon, &UdoneseList{
+			Word: opts.fields[1],
+			Meaning: opts.fields[2:],
+		})
+		saveUdonese(*udon, smsUdon_path, metadatafile_name)
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.Message.Chat.ID,
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+			Text:   fmt.Sprintln("已添加", opts.fields[1], ":", opts.fields[2:]),
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+		return
+	}
+
+
+}

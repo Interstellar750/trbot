@@ -15,6 +15,8 @@ var metadatafile_name string = "metadata.yaml"
 var db_path      string = "./db_yaml/"
 var voice_path   string = db_path + "voices/"
 var logfile_path string = "./log.txt"
+var smsUdon_path string = db_path + "smsudon/"
+var udonGroupID  int64  = -1002205667779
 
 var private_log bool = false
 
