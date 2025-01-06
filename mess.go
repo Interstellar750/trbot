@@ -222,7 +222,7 @@ func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
 			log.Println("Webhook not set, setting it now...")
 		} else {
 			log.Printf("unsame Webhook URL [%s], save it and setting up new URL...", webHookInfo.URL)
-			logToFile(time.Now().Format(time.RFC3339) + " (unsame) old Webhook URL: " + webHookInfo.URL)
+			printLogAndSave(time.Now().Format(time.RFC3339) + " (unsame) old Webhook URL: " + webHookInfo.URL)
 		}
 		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{ URL: url })
 		if err != nil { log.Panicln("Set Webhook URL err:", err) }
@@ -238,7 +238,7 @@ func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) *models.
 	if err != nil { log.Println(err) }
 	if webHookInfo.URL != "" {
 		log.Printf("found Webhook URL [%s] set at api server, save and clean it...", webHookInfo.URL)
-		logToFile(time.Now().Format(time.RFC3339) + " (remote) old Webhook URL: " + webHookInfo.URL)
+		printLogAndSave(time.Now().Format(time.RFC3339) + " (remote) old Webhook URL: " + webHookInfo.URL)
 		thebot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{
 			DropPendingUpdates: false,
 		})
@@ -247,7 +247,8 @@ func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) *models.
 	return nil
 }
 
-func logToFile(message string) {
+func printLogAndSave(message string) {
+	log.Println(message)
 	// 打开日志文件，如果不存在则创建
 	file, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

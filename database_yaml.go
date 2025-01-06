@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/go-telegram/bot/models"
@@ -149,14 +150,19 @@ func saveDatabase(savenow chan bool) {
 		for {
 			select {
 			case <-ticker.C: // 每次 Ticker 触发时执行任务
-				fmt.Println("auto save at", time.Now().Format(time.RFC3339))
-				logToFile("auto save at " + time.Now().Format(time.RFC3339))
-				SaveYamlDB(db_path, metadatafile_name, database)
+				savedDB, err := ReadYamlDB(db_path + metadatafile_name)
+				if err != nil {
+					log.Println("some issues happend in saveDatabase func", err)
+				}
+				if reflect.DeepEqual(savedDB, database) {
+					fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
+				} else {
+					printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
+					SaveYamlDB(db_path, metadatafile_name, database)
+				}
 			case <-savenow: // 收到停止信号时退出循环
-				fmt.Println("save at", time.Now().Format(time.RFC3339))
-				logToFile("save at " + time.Now().Format(time.RFC3339))
+				printLogAndSave("save at " + time.Now().Format(time.RFC3339))
 				SaveYamlDB(db_path, metadatafile_name, database)
-				savenow <- false
 			}
 		}
 	}
