@@ -242,7 +242,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID: opts.update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-				Text:   "使用方法：发送 sms <词> 来查看对应的意思",
+				Text:   "使用方法：发送 `sms <词>` 来查看对应的意思",
 				ParseMode: models.ParseModeMarkdownV1,
 			})
 			return
@@ -250,15 +250,15 @@ func udoneseHandler(opts *subHandlerOpts) {
 
 		for _, word := range udon.List {
 			if word.Word == opts.fields[1] && len(word.Meaning) > 0 {
-				var pendingmessage = fmt.Sprintf("**%s** 意思有\n", word.Word)
-				for _, s := range word.Meaning {
-					pendingmessage += s + "\n"
+				var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", word.Word)
+				for i, s := range word.Meaning {
+					pendingMessage += fmt.Sprintf("<code>%d</code>. %s\n", i + 1, s)
 				}
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
-					Text:   pendingmessage,
+					Text:   pendingMessage,
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-					ParseMode: models.ParseModeMarkdownV1,
+					ParseMode: models.ParseModeHTML,
 				})
 				return
 			}
@@ -277,7 +277,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID:    opts.update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-				Text: "使用 udonese <词> <一个或多个意思> 来添加记录",
+				Text: "使用 `udonese <词> <以空格分割的一个或多个意思>` 来添加记录",
 				ParseMode: models.ParseModeMarkdownV1,
 			})
 		}
@@ -286,14 +286,24 @@ func udoneseHandler(opts *subHandlerOpts) {
 			Meaning: opts.fields[2:],
 		})
 		saveUdonese(*udon, smsUdon_path, metadatafile_name)
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		pendingMessage := fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
+		for i, n := range opts.fields[2:] {
+			pendingMessage += fmt.Sprintf("<code>%d</code>. %s\n", i + 1, n)
+		}
+		botmessage, _:= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
+			Text: pendingMessage,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-			Text:   fmt.Sprintln("已添加", opts.fields[1], ":", opts.fields[2:]),
-			ParseMode: models.ParseModeMarkdownV1,
+			ParseMode: models.ParseModeHTML,
+		})
+		time.Sleep(time.Second * 10)
+		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+			ChatID: opts.update.Message.Chat.ID,
+			MessageIDs: []int{
+				opts.update.Message.ID,
+				botmessage.ID,
+			},
 		})
 		return
 	}
-
-
 }
