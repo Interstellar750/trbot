@@ -81,11 +81,19 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 				})
 				return
 			} else if commandMaybeWithSuffixUsername(fields, "/version") && AnyContains(update.Message.From.ID, logMan_IDs) {
-				    thebot.SendMessage(ctx, &bot.SendMessageParams{
+				botMessage, _ = thebot.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: update.Message.Chat.ID,
 					Text: outputVersionInfo(),
 					ReplyParameters: &models.ReplyParameters{ MessageID: update.Message.ID },
 					ParseMode: models.ParseModeMarkdownV1,
+				})
+				time.Sleep(time.Second * 20)
+				thebot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+					ChatID: update.Message.Chat.ID,
+					MessageIDs: []int{
+						update.Message.ID,
+						botMessage.ID,
+					},
 				})
 				return
 			} else if strings.HasSuffix(fields[0], "@" + botMe.Username) {
