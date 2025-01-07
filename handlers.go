@@ -229,6 +229,82 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			log.Println("Error when reading log file")
 		}
 		return
+	} else if strings.HasPrefix(update.InlineQuery.Query, ":") {
+		if strings.HasPrefix(update.InlineQuery.Query, ":uaav") {
+			queryFields := strings.Fields(update.InlineQuery.Query)
+			if len(queryFields) < 2 {
+				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:    "custom voices",
+							Title: "URL as a voice",
+							Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+								ParseMode: models.ParseModeMarkdownV1,
+							},
+						},
+					},
+				})
+				if err != nil {
+					printLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
+				}
+			} else if len(queryFields) == 2 {
+				if strings.HasPrefix(queryFields[1], "https://") {
+					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: update.InlineQuery.ID,
+						Results: []models.InlineQueryResult{
+							&models.InlineQueryResultVoice{
+								ID: "custom",
+								Title: "Custom voice",
+								VoiceURL: queryFields[1],
+							},
+						},
+					})
+					if err != nil {
+						log.Println("Error when answering inline query: ", err)
+					}
+				} else {
+					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: update.InlineQuery.ID,
+						Results: []models.InlineQueryResult{
+							&models.InlineQueryResultArticle{
+								ID:    "error",
+								Title: "音频 URL 格式错误",
+								Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
+								InputMessageContent: &models.InputTextMessageContent{
+									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+									ParseMode: models.ParseModeMarkdownV1,
+								},
+							},
+						},
+					})
+					if err != nil {
+						log.Println("Error when answering inline query", err)
+					}
+				}
+			} else {
+				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:    "error",
+							Title: "参数过多，请注意空格",
+							Description: fmt.Sprintf("使用方法：@%s :uaav <单个音频链接>", botMe.Username),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+								ParseMode: models.ParseModeMarkdownV1,
+							},
+						},
+					},
+				})
+				if err != nil {
+					log.Println("Error when answering inline query", err)
+				}
+			}
+			return
+		}
 	}
 
 	voicePacks, err := readVoicePackFromPath(voice_path)
