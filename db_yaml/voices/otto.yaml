@@ -183,7 +183,7 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
 
   - ID:       otto-kainan
     Title:    凯南の大
-    Caption:  凯南开大呀开大啊.ogg
+    Caption:  凯南开大呀开大啊
     VoiceURL: https://alist.trle5.xyz/d/otto/凯南开大呀开大啊.ogg
 
   - ID:       otto-show
