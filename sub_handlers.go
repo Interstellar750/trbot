@@ -238,6 +238,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 		log.Println("some error in while read udonese list: ", err)
 	}
 	if opts.fields[0] == "sms" {
+		// 参数过少，提示用法
 		if len(opts.fields) < 2 {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID: opts.update.Message.Chat.ID,
@@ -248,11 +249,16 @@ func udoneseHandler(opts *subHandlerOpts) {
 			return
 		}
 
+		// 在数据库循环查找这个词
 		for _, word := range udon.List {
-			if word.Word == opts.fields[1] && len(word.Meaning) > 0 {
+			if word.Word == opts.fields[1] && len(word.MeaningList) > 0 {
 				var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", word.Word)
-				for i, s := range word.Meaning {
-					pendingMessage += fmt.Sprintf("<code>%d</code>. %s\n", i + 1, s)
+				for i, s := range word.MeaningList {
+					if s.FromID == 0 && s.Name == "" {
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
+					} else {
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.Name)
+					}
 				}
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
@@ -264,12 +270,21 @@ func udoneseHandler(opts *subHandlerOpts) {
 			}
 		}
 
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		// 到这里就是没找到，提示没有
+		botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			Text:   "这个词还没有记录哦",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
+		time.Sleep(time.Second * 15)
+		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+			ChatID: opts.update.Message.Chat.ID,
+			MessageIDs: []int{
+				botMessage.ID,
+			},
+		})
+		return
 	}
 
 	if opts.fields[0] == "udonese" {
@@ -280,15 +295,23 @@ func udoneseHandler(opts *subHandlerOpts) {
 				Text: "使用 `udonese <词> <以空格分割的一个或多个意思>` 来添加记录",
 				ParseMode: models.ParseModeMarkdownV1,
 			})
+			return
 		}
-		addUdonese(udon, &UdoneseList{
-			Word: opts.fields[1],
-			Meaning: opts.fields[2:],
-		})
+		for _, n := range opts.fields[2:] {
+			addUdonese(udon, &UdoneseList{
+				Word: opts.fields[1],
+				MeaningList: []UdoneseMeaning{ {
+					Meaning: n,
+					FromID: opts.update.Message.From.ID,
+					Name: opts.update.Message.From.FirstName + " " + opts.update.Message.From.LastName,
+				}},
+			})
+		}
+		
 		saveUdonese(*udon, smsUdon_path, metadatafile_name)
 		pendingMessage := fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
 		for i, n := range opts.fields[2:] {
-			pendingMessage += fmt.Sprintf("<code>%d</code>. %s\n", i + 1, n)
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, n, opts.update.Message.From.ID, opts.update.Message.From.FirstName + " " + opts.update.Message.From.LastName)
 		}
 		botmessage, _:= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,

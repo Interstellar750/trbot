@@ -58,7 +58,13 @@ type Udonese struct {
 
 type UdoneseList struct {
 	Word    string   `yaml:"Word,omitempty"`
-	Meaning []string `yaml:"Meaning,omitempty"`
+	MeaningList []UdoneseMeaning `yaml:"MeaningList,omitempty"`
+}
+
+type UdoneseMeaning struct {
+	Meaning string `yaml:"Meaning"`
+	FromID  int64  `yaml:"FromID,omitempty"`
+	Name    string `yaml:"Name,omitempty"`
 }
 
 func readUdonese(path, name string) (*Udonese, error) {
@@ -91,10 +97,16 @@ func addUdonese(udonese *Udonese, params *UdoneseList) {
 	for wordIndex, savedList := range udonese.List {
 		if savedList.Word == params.Word {
 			log.Printf("发现已存在的词 %s，正在检查是否有新增的意思", savedList.Word)
-			for _, newMeaning := range params.Meaning {
-				if !AnyContains(newMeaning, savedList.Meaning) {
-					udonese.List[wordIndex].Meaning = append(udonese.List[wordIndex].Meaning, newMeaning)
-					log.Printf("正在为 %s 添加 %s 意思", udonese.List[wordIndex].Word, newMeaning)
+			for _, newMeaning := range params.MeaningList {
+				var isreallynew bool = true
+				for _, oldmeanlist := range savedList.MeaningList {
+					if newMeaning.Meaning == oldmeanlist.Meaning {
+						isreallynew = false
+					}
+				}
+				if isreallynew {
+					udonese.List[wordIndex].MeaningList = append(udonese.List[wordIndex].MeaningList, newMeaning)
+					log.Printf("正在为 %s 添加 %s 意思", udonese.List[wordIndex].Word, newMeaning.Meaning)
 				} else {
 					log.Println("存在的意思，跳过", newMeaning)
 				}
@@ -102,7 +114,7 @@ func addUdonese(udonese *Udonese, params *UdoneseList) {
 			return
 		}
 	}
-	log.Printf("发现新的词 %s，正在添加 %v", params.Word, params.Meaning)
+	log.Printf("发现新的词 %s，正在添加 %v", params.Word, params.MeaningList)
 	udonese.List = append(udonese.List, *params)
 	udonese.Count++
 }
