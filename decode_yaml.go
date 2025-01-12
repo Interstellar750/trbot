@@ -57,7 +57,7 @@ type Udonese struct {
 }
 
 type UdoneseList struct {
-	Word    string   `yaml:"Word,omitempty"`
+	Word        string           `yaml:"Word,omitempty"`
 	MeaningList []UdoneseMeaning `yaml:"MeaningList,omitempty"`
 }
 

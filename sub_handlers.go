@@ -271,19 +271,20 @@ func udoneseHandler(opts *subHandlerOpts) {
 		}
 
 		// 到这里就是没找到，提示没有
-		botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		// botMessage, _ := 
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			Text:   "这个词还没有记录哦",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
-		time.Sleep(time.Second * 15)
-		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
-			ChatID: opts.update.Message.Chat.ID,
-			MessageIDs: []int{
-				botMessage.ID,
-			},
-		})
+		// time.Sleep(time.Second * 15)
+		// opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+		// 	ChatID: opts.update.Message.Chat.ID,
+		// 	MessageIDs: []int{
+		// 		botMessage.ID,
+		// 	},
+		// })
 		return
 	}
 
@@ -292,27 +293,28 @@ func udoneseHandler(opts *subHandlerOpts) {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID:    opts.update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-				Text: "使用 `udonese <词> <以空格分割的一个或多个意思>` 来添加记录",
+				Text: "使用 `udonese <词> <单个意思>` 来添加记录",
 				ParseMode: models.ParseModeMarkdownV1,
 			})
 			return
 		}
-		for _, n := range opts.fields[2:] {
-			addUdonese(udon, &UdoneseList{
-				Word: opts.fields[1],
-				MeaningList: []UdoneseMeaning{ {
-					Meaning: n,
-					FromID: opts.update.Message.From.ID,
-					Name: opts.update.Message.From.FirstName + " " + opts.update.Message.From.LastName,
-				}},
-			})
-		}
+
+		meaning := strings.TrimSpace(opts.update.Message.Text[len(opts.fields[0])+len(opts.fields[1])+2:])
+		nickname := showUserNickName(opts.update)
+
+		addUdonese(udon, &UdoneseList{
+			Word: opts.fields[1],
+			MeaningList: []UdoneseMeaning{ {
+				Meaning: meaning,
+				FromID: opts.update.Message.From.ID,
+				Name: nickname,
+			}},
+		})
 		
 		SaveYamlDB(smsUdon_path, metadatafile_name, *udon)
 		pendingMessage := fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
-		for i, n := range opts.fields[2:] {
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, n, opts.update.Message.From.ID, opts.update.Message.From.FirstName + " " + opts.update.Message.From.LastName)
-		}
+		pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
+		pendingMessage += fmt.Sprintln("\n发送的消息与此消息将在十秒后删除")
 		botmessage, _:= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			Text: pendingMessage,

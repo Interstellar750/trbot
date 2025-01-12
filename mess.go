@@ -377,3 +377,11 @@ func outputVersionInfo() string {
 	info := fmt.Sprintf("Branch: %sCommit: [%s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nHostname: %s", b, c[:10], c, r, h)
 	return info
 }
+
+func showUserNickName(update *models.Update) string {
+	if update.Message.From.LastName != "" {
+		return update.Message.From.FirstName + " " + update.Message.From.LastName
+	} else {
+		return update.Message.From.FirstName
+	}
+}
