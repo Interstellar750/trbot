@@ -307,10 +307,10 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		}
 	}
 
-	voicePacks, err := readVoicePackFromPath(voice_path)
-	if err != nil {
+	
+	if AdditionalDatas.VoiceErr != nil {
 		// if errors.Is(e)
-		log.Printf("Error when reading metadata files: %v", err)
+		log.Printf("Error when reading metadata files: %v", AdditionalDatas.VoiceErr)
 		thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: update.InlineQuery.ID,
 			Results:       []models.InlineQueryResult{
@@ -329,7 +329,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			Text:      fmt.Sprintf("%s\nInline Mode: some user get error", time.Now().Format(time.RFC3339)),
 		})
 		return
-	} else if voicePacks == nil {
+	} else if AdditionalDatas.Voices == nil {
 		log.Printf("No voices file in voices_path: %s", voice_path)
 		thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: update.InlineQuery.ID,
@@ -355,7 +355,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 	var results []models.InlineQueryResult
 
 	if update.InlineQuery.Query == "" {
-		for _, voicePack := range voicePacks {
+		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
 				result := &models.InlineQueryResultVoice{
 					ID:       voice.ID,
@@ -367,7 +367,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			}
 		}
 	} else {
-		for _, voicePack := range voicePacks {
+		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
 				if AnyContains(update.InlineQuery.Query, voicePack.Name, voice.Title, voice.Caption) {
 				// if strings.ContainsAny(metadata.VoicesName, update.InlineQuery.Query) || strings.ContainsAny(voice.Title, update.InlineQuery.Query) || strings.ContainsAny(voice.Caption, update.InlineQuery.Query) {
@@ -393,14 +393,15 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		}
 	}
 
-	_, err = thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+
+	_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: update.InlineQuery.ID,
 		Results:       results,
 		CacheTime:     180,
-		Button: &models.InlineQueryResultsButton{
-			Text: "一个测试用的按钮",
-			StartParameter: "via-inline_test",
-		},
+		// Button: &models.InlineQueryResultsButton{
+		// 	Text: "一个测试用的按钮",
+		// 	StartParameter: "via-inline_test",
+		// },
 	})
 	if err != nil {
 		log.Printf("Error sending inline query response: %v", err)

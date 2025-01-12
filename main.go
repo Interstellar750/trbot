@@ -40,6 +40,11 @@ func main() {
 		log.Println("read yaml db error: ", err)
 	}
 
+	AdditionalDatas = readAdditionalDatas(&AdditionalDataPath{
+		Voice: voice_path,
+		Udonese: smsUdon_path,
+	})
+
 	go saveDatabase(savenow)
 
 	// 检查是否设定了 webhookURL 环境变量
@@ -61,6 +66,7 @@ func main() {
 		thebot.Start(ctx)
 		<-ctx.Done() // 等待中断信号
 	}
+	savenow <- true // 退出之前保存一下数据库
 	log.Println("manually stopped")
 
 }

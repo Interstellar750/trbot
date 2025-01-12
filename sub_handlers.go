@@ -233,7 +233,7 @@ func commandHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 }
 
 func udoneseHandler(opts *subHandlerOpts) {
-	udon, err := readUdonese(smsUdon_path, metadatafile_name)
+	udon, err := AdditionalDatas.Udonese, AdditionalDatas.UdoneseErr
 	if err != nil {
 		log.Println("some error in while read udonese list: ", err)
 	}

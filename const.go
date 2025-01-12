@@ -23,5 +23,6 @@ var private_log bool = false
 var botMe *models.User // 用于存储 bot 信息
 
 var database DataBaseYaml
+var AdditionalDatas AdditionalData
 
 var savenow = make(chan bool)

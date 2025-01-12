@@ -114,14 +114,6 @@ func SaveYamlDB(path string, name string, database interface{}) error {
 	return os.WriteFile(path + name, data, 0644)
 }
 
-func listdatabase(db DataBaseYaml) {
-	fmt.Println(db.Data.Admin)
-	for index, data := range db.Data.IDs {
-		// fmt.Printf("%d ID[%d]  ChatType[%s]  Admin[%v]  ForwardOnly[%v]\n", index, data.ID, data.ChatType, data.IsBotAdmin, data.IsEnableForwardonly)
-		fmt.Printf("%3d ID[%15d]  ChatType[%-10s]  Admin[%-5v]  ForwardOnly[%-5v]\n", index, data.ID, data.ChatType, data.IsBotAdmin, data.IsEnableForwardonly)
-	}
-}
-
 // 添加数据
 func addToYamlDB(params *IDInfo) {
 	database.Data.IDs = append(database.Data.IDs, *params)
@@ -144,29 +136,29 @@ func AddChatID(chat models.Chat) bool {
 }
 
 func saveDatabase(savenow chan bool) {
-		// 创建一个 Ticker，每隔 1 秒触发一次
-		ticker := time.NewTicker(10 * time.Minute)
-		defer ticker.Stop() // 确保程序退出时释放资源
+	// 创建一个 Ticker，每隔 1 秒触发一次
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop() // 确保程序退出时释放资源
 
-		for {
-			select {
-			case <-ticker.C: // 每次 Ticker 触发时执行任务
-				savedDB, err := ReadYamlDB(db_path + metadatafile_name)
-				if err != nil {
-					log.Println("some issues happend in saveDatabase func", err)
-				}
-				if reflect.DeepEqual(savedDB, database) {
-					fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
-				} else {
-					printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
-					SaveYamlDB(db_path, metadatafile_name, database)
-				}
-			case <-savenow: // 收到停止信号时退出循环
-				printLogAndSave("save at " + time.Now().Format(time.RFC3339))
+	for {
+		select {
+		case <-ticker.C: // 每次 Ticker 触发时执行任务
+			savedDB, err := ReadYamlDB(db_path + metadatafile_name)
+			if err != nil {
+				log.Println("some issues happend in saveDatabase func", err)
+			}
+			if reflect.DeepEqual(savedDB, database) {
+				fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
+			} else {
+				printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
 				SaveYamlDB(db_path, metadatafile_name, database)
 			}
+		case <-savenow: // 收到停止信号时退出循环
+			printLogAndSave("save at " + time.Now().Format(time.RFC3339))
+			SaveYamlDB(db_path, metadatafile_name, database)
 		}
 	}
+}
 
 // 获取 ID 信息与在数据库中的位置
 func getIDInfoAndIndex(id int64) (*IDInfo, int) {

@@ -10,6 +10,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type AdditionalData struct {
+	Voices    []VoicePack
+	VoiceErr error
+
+	Udonese    *Udonese
+	UdoneseErr error
+}
+type AdditionalDataPath struct {
+	Voice   string
+	Udonese string
+}
+
+func readAdditionalDatas (paths *AdditionalDataPath) AdditionalData {
+	voices, voiceErr := readVoicePackFromPath(paths.Voice)
+	udonese, udoneseErr := readUdonese(paths.Udonese, metadatafile_name)
+	return AdditionalData{
+		Voices: voices,
+		VoiceErr: voiceErr,
+		Udonese: udonese,
+		UdoneseErr: udoneseErr,
+	}
+}
+
 type VoicePack struct {
 	Name string `yaml:"name,omitempty"` // 语音包名称
 	Voices []struct {
