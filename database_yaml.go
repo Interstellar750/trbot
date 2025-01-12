@@ -93,7 +93,8 @@ func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
 	return database, nil
 }
 
-func SaveYamlDB(path string, name string, database DataBaseYaml) error {
+// 路径 文件名 YAML 数据结构体
+func SaveYamlDB(path string, name string, database interface{}) error {
 	data, err := yaml.Marshal(database)
 	if err != nil { return err }
 

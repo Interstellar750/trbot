@@ -308,7 +308,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 			})
 		}
 		
-		saveUdonese(*udon, smsUdon_path, metadatafile_name)
+		SaveYamlDB(smsUdon_path, metadatafile_name, *udon)
 		pendingMessage := fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
 		for i, n := range opts.fields[2:] {
 			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, n, opts.update.Message.From.ID, opts.update.Message.From.FirstName + " " + opts.update.Message.From.LastName)

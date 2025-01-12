@@ -74,7 +74,7 @@ func readUdonese(path, name string) (*Udonese, error) {
 	if err != nil {
 		// 如果是找不到目录，新建一个
 		log.Println("[Udonese]: Not found database file. Created new one")
-		saveUdonese(Udonese{}, path, name)
+		SaveYamlDB(path, name, Udonese{})
 		return &Udonese{}, err
 	}
 	defer file.Close()
@@ -84,7 +84,7 @@ func readUdonese(path, name string) (*Udonese, error) {
 	if err != nil { 
 		if err == io.EOF {
 			log.Println("[Udonese]: Udonese list looks empty. now format it")
-			saveUdonese(Udonese{}, path, name)
+			SaveYamlDB(path, name, Udonese{})
 			return &Udonese{}, nil
 		}
 		log.Println("(func)readUdonese:", err)
@@ -117,24 +117,4 @@ func addUdonese(udonese *Udonese, params *UdoneseList) {
 	log.Printf("发现新的词 %s，正在添加 %v", params.Word, params.MeaningList)
 	udonese.List = append(udonese.List, *params)
 	udonese.Count++
-}
-
-func saveUdonese(udonese Udonese, path string, name string) error {
-	data, err := yaml.Marshal(udonese)
-	if err != nil { return err }
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.MkdirAll(path, 0755); err != nil {
-			return err
-		}
-	}
-
-	if _, err := os.Stat(path + name); os.IsNotExist(err) {
-		_, err := os.Create(path + name)
-		if err != nil {
-			return err
-		}
-	}
-
-	return os.WriteFile(path + name, data, 0644)
 }
