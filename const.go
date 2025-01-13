@@ -25,4 +25,5 @@ var botMe *models.User // 用于存储 bot 信息
 var database DataBaseYaml
 var AdditionalDatas AdditionalData
 
-var savenow = make(chan bool)
+var DB_savenow = make(chan bool)
+var ADR_reload = make(chan bool)

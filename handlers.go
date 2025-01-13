@@ -11,6 +11,7 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+// 调用子处理函数时的传递的参数，避免重复获取
 type subHandlerOpts struct {
 	ctx      context.Context
 	thebot   *bot.Bot
@@ -20,6 +21,7 @@ type subHandlerOpts struct {
 	fields   []string
 }
 
+// 处理所有信息请求的处理函数，
 func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	var botMessage *models.Message // 存放 bot 发送的信息
 
@@ -193,77 +195,100 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 	}
 }
 
+// 默认函数，处理 inline 模式下的请求
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
-	// log.Println("inlinehandler working")
-	if update.InlineQuery == nil { return }
+	if update.InlineQuery == nil {
+		log.Println("InlineQuery is nil")
+		return
+	}
 
 	log.Printf("inline from: [%s], query: [%s]", update.InlineQuery.From.Username, update.InlineQuery.Query)
 
-	if update.InlineQuery.Query == "log" && AnyContains(update.InlineQuery.From.ID, logMan_IDs) {
-		logs := readLog()
-		if logs != nil {
-			log_count := len(logs)
-			var log_all string
-			for index, log := range logs {
-				log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
-				// log_all = log_all + "\n" + index + log
-			}
-			_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: update.InlineQuery.ID,
-				Results: []models.InlineQueryResult{
-					&models.InlineQueryResultArticle{
-						ID:    "log",
-						Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
-						InputMessageContent: &models.InputTextMessageContent{
-							MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
-							ParseMode: models.ParseModeMarkdownV1,
-						},
-					},
-				},
-				CacheTime: 0,
-			})
-			if err != nil {
-				log.Println("Error when answering inline query", err)
-			}
-		} else {
-			log.Println("Error when reading log file")
-		}
-		return
-	} else if strings.HasPrefix(update.InlineQuery.Query, ":") {
-		if strings.HasPrefix(update.InlineQuery.Query, ":uaav") {
-			queryFields := strings.Fields(update.InlineQuery.Query)
-			if len(queryFields) < 2 {
+	if AnyContains(update.InlineQuery.From.ID, logMan_IDs) {
+		if update.InlineQuery.Query == "log" {
+			logs := readLog()
+			if logs != nil {
+				log_count := len(logs)
+				var log_all string
+				for index, log := range logs {
+					log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
+					// log_all = log_all + "\n" + index + log
+				}
 				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:    "custom voices",
-							Title: "URL as a voice",
-							Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
+							ID:    "log",
+							Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
 							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+								MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
 								ParseMode: models.ParseModeMarkdownV1,
 							},
 						},
 					},
+					CacheTime: 0,
 				})
 				if err != nil {
-					printLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
+					log.Println("Error when answering inline query", err)
 				}
-			} else if len(queryFields) == 2 {
-				if strings.HasPrefix(queryFields[1], "https://") {
+			} else {
+				log.Println("Error when reading log file")
+			}
+			return
+		} else if strings.HasPrefix(update.InlineQuery.Query, ":") {
+			if strings.HasPrefix(update.InlineQuery.Query, ":uaav") {
+				queryFields := strings.Fields(update.InlineQuery.Query)
+				if len(queryFields) < 2 {
 					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: update.InlineQuery.ID,
 						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultVoice{
-								ID: "custom",
-								Title: "Custom voice",
-								VoiceURL: queryFields[1],
+							&models.InlineQueryResultArticle{
+								ID:    "custom voices",
+								Title: "URL as a voice",
+								Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
+								InputMessageContent: &models.InputTextMessageContent{
+									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+									ParseMode: models.ParseModeMarkdownV1,
+								},
 							},
 						},
 					})
 					if err != nil {
-						log.Println("Error when answering inline query: ", err)
+						printLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
+					}
+				} else if len(queryFields) == 2 {
+					if strings.HasPrefix(queryFields[1], "https://") {
+						_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+							InlineQueryID: update.InlineQuery.ID,
+							Results: []models.InlineQueryResult{
+								&models.InlineQueryResultVoice{
+									ID: "custom",
+									Title: "Custom voice",
+									VoiceURL: queryFields[1],
+								},
+							},
+						})
+						if err != nil {
+							log.Println("Error when answering inline query: ", err)
+						}
+					} else {
+						_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+							InlineQueryID: update.InlineQuery.ID,
+							Results: []models.InlineQueryResult{
+								&models.InlineQueryResultArticle{
+									ID:    "error",
+									Title: "音频 URL 格式错误",
+									Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
+									InputMessageContent: &models.InputTextMessageContent{
+										MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+										ParseMode: models.ParseModeMarkdownV1,
+									},
+								},
+							},
+						})
+						if err != nil {
+							log.Println("Error when answering inline query", err)
+						}
 					}
 				} else {
 					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
@@ -271,8 +296,8 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						Results: []models.InlineQueryResult{
 							&models.InlineQueryResultArticle{
 								ID:    "error",
-								Title: "音频 URL 格式错误",
-								Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
+								Title: "参数过多，请注意空格",
+								Description: fmt.Sprintf("使用方法：@%s :uaav <单个音频链接>", botMe.Username),
 								InputMessageContent: &models.InputTextMessageContent{
 									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 									ParseMode: models.ParseModeMarkdownV1,
@@ -284,30 +309,13 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						log.Println("Error when answering inline query", err)
 					}
 				}
-			} else {
-				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:    "error",
-							Title: "参数过多，请注意空格",
-							Description: fmt.Sprintf("使用方法：@%s :uaav <单个音频链接>", botMe.Username),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-								ParseMode: models.ParseModeMarkdownV1,
-							},
-						},
-					},
-				})
-				if err != nil {
-					log.Println("Error when answering inline query", err)
-				}
+				return
+			} else if strings.HasPrefix(update.InlineQuery.Query, ":reload") {
+				ADR_reload <- true
 			}
-			return
 		}
 	}
 
-	
 	if AdditionalDatas.VoiceErr != nil {
 		// if errors.Is(e)
 		log.Printf("Error when reading metadata files: %v", AdditionalDatas.VoiceErr)
@@ -357,13 +365,12 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 	if update.InlineQuery.Query == "" {
 		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
-				result := &models.InlineQueryResultVoice{
+				results = append(results, &models.InlineQueryResultVoice{
 					ID:       voice.ID,
 					Title:    voicePack.Name + ": " + voice.Title,
 					Caption:  voice.Caption,
 					VoiceURL: voice.VoiceURL,
-				}
-				results = append(results, result)
+				})
 			}
 		}
 	} else {

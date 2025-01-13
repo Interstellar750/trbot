@@ -13,6 +13,10 @@ import (
 )
 
 type DataBaseYaml struct {
+	// 如果运行中希望程序强制读取新数据，在 YAML 数据库文件的开头添加 FORCEOVERWRITE: true 即可
+	ForceOverwrite bool `yaml:"FORCEOVERWRITE,omitempty"`
+
+	UpdateTimestamp int64 `yaml:"UpdateTimestamp"`
 	Data struct {
 		IDs []IDInfo `yaml:"IDs"`
 		Admin []int64 `yaml:"Admin,omitempty"`
@@ -28,8 +32,8 @@ type IDInfo struct {
 	IsBotAdmin          bool `yaml:"isBotAdmin,omitempty"`
 	IsEnableForwardonly bool `yaml:"isEnableForwardonly,omitempty"`
 
-	SavedMessage SavedMessage `yaml:"savedMessage,omitempty"`
-	InlineAlias  InlineAlias  `yaml:"inlineAliases,omitempty"`
+	SavedMessage   SavedMessage `yaml:"savedMessage,omitempty"`
+	InlineAlias    InlineAlias  `yaml:"inlineAliases,omitempty"`
 	CustomCommands CustomCommands `yaml:"customCommands,omitempty"`
 }
 
@@ -131,29 +135,98 @@ func AddChatID(chat models.Chat) bool {
 		ChatType: chat.Type,
 		AddTime: time.Now().Format(time.RFC3339),
 	})
-	savenow <- true
+	DB_savenow <- true
 	return true
 }
 
-func saveDatabase(savenow chan bool) {
-	// 创建一个 Ticker，每隔 1 秒触发一次
+func mainDatabaseHandler(DB_savenow chan bool) {
 	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop() // 确保程序退出时释放资源
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C: // 每次 Ticker 触发时执行任务
-			savedDB, err := ReadYamlDB(db_path + metadatafile_name)
+			// 先读取一下数据库文件
+			savedDatabase, err := ReadYamlDB(db_path + metadatafile_name)
 			if err != nil {
-				log.Println("some issues happend in saveDatabase func", err)
+				log.Println("some issues when read database file", err)
+				// 如果读取数据库文件时发现数据库为空，使用当前的数据重建数据库文件
+				if reflect.DeepEqual(savedDatabase, DataBaseYaml{}){
+					printLogAndSave(fmt.Sprintln("The database file is empty, recovering database file using current data"))
+					err = SaveYamlDB(db_path, metadatafile_name, database)
+					if err != nil {
+						printLogAndSave(fmt.Sprintln("some issues happend when recovering empty database:", err))
+					} else {
+						printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadatafile_name))
+					}
+					return
+				}
 			}
-			if reflect.DeepEqual(savedDB, database) {
-				fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
+			// 没有修改就跳过保存
+			if reflect.DeepEqual(savedDatabase, database) {
+				log.Printf("\rno change, skip save")
 			} else {
-				printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
-				SaveYamlDB(db_path, metadatafile_name, database)
+				// 如果检测到本地的数据库更新时间比程序中的更新时间更晚
+				if savedDatabase.UpdateTimestamp > database.UpdateTimestamp {
+					log.Println("The saved database is newer than current data in the program")
+					// 如果只是更新时间有差别，更新一下时间，再保存就行
+					if reflect.DeepEqual(savedDatabase.Data, database.Data) {
+						log.Println("But current data and database is the same, updating UpdateTimestamp in the database only")
+						database.UpdateTimestamp = time.Now().Unix()
+						err := SaveYamlDB(db_path, metadatafile_name, database)
+						if err != nil {
+							printLogAndSave(fmt.Sprintln("some issues happend when update Timestamp in database:", err))
+						} else {
+							printLogAndSave("Update Timestamp in database at " + time.Now().Format(time.RFC3339))
+						}
+					} else {
+						// 数据库文件与程序中的数据不同，需要处理
+						nowtimestamp := time.Now().Unix()
+
+						log.Println("Saved database is different from the current database")
+						// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，保存程序中的数据，读取新的数据替换掉当前的数据并保存
+						if savedDatabase.ForceOverwrite {
+							printLogAndSave(fmt.Sprintf("The `FORCEOVERWRITE: true` in %s is detected", db_path + metadatafile_name))
+							oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", nowtimestamp, metadatafile_name)
+							err := SaveYamlDB(db_path, oldFileName, savedDatabase)
+							if err != nil {
+								printLogAndSave(fmt.Sprintln("some issues happend when saving the database before overwritten:", err))
+							} else {
+								printLogAndSave(fmt.Sprintf("The database before overwritten is saved to %s", db_path + oldFileName))
+							}
+							database = savedDatabase
+							err = SaveYamlDB(db_path, metadatafile_name, database)
+							if err != nil {
+								printLogAndSave(fmt.Sprintln("some issues happend when recreat database using new database:", err))
+							} else {
+								printLogAndSave(fmt.Sprintf("Success read data from the new file and saved to %s", db_path + metadatafile_name))
+							}
+						} else {
+							// 没有设定覆写标记，就将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
+							editedFileName := fmt.Sprintf("edited_%d_%s", nowtimestamp, metadatafile_name)
+
+							log.Println("Do not modify the database file while the program is running, saving modified file and recovering database file using current data")
+							err := SaveYamlDB(db_path, editedFileName, savedDatabase)
+							if err != nil {
+								printLogAndSave(fmt.Sprintln("some issues happend when saving modified database:", err))
+							} else {
+								printLogAndSave(fmt.Sprintf("The modified database is saved to %s", db_path + editedFileName))
+							}
+							err = SaveYamlDB(db_path, metadatafile_name, database)
+							if err != nil {
+								printLogAndSave(fmt.Sprintln("some issues happend when recovering database:", err))
+							} else {
+								printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadatafile_name))
+							}
+						}
+					}
+					
+				} else { // 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
+					printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
+					SaveYamlDB(db_path, metadatafile_name, database)
+				}
 			}
-		case <-savenow: // 收到停止信号时退出循环
+		case <-DB_savenow:
 			printLogAndSave("save at " + time.Now().Format(time.RFC3339))
 			SaveYamlDB(db_path, metadatafile_name, database)
 		}

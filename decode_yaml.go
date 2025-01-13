@@ -22,14 +22,27 @@ type AdditionalDataPath struct {
 	Udonese string
 }
 
-func readAdditionalDatas (paths *AdditionalDataPath) AdditionalData {
-	voices, voiceErr := readVoicePackFromPath(paths.Voice)
-	udonese, udoneseErr := readUdonese(paths.Udonese, metadatafile_name)
-	return AdditionalData{
-		Voices: voices,
-		VoiceErr: voiceErr,
-		Udonese: udonese,
-		UdoneseErr: udoneseErr,
+func readAdditionalDatas(paths *AdditionalDataPath) AdditionalData {
+	var datas AdditionalData
+	if paths.Voice != "" {
+		datas.Voices, datas.VoiceErr = readVoicePackFromPath(paths.Voice)
+	}
+	if paths.Udonese != "" {
+		datas.Udonese, datas.UdoneseErr = readUdonese(paths.Udonese, metadatafile_name)
+	}
+	return datas
+}
+
+func AdditionalDataReloader(reload chan bool, paths *AdditionalDataPath) {
+	// 第一次调用时先读取一次
+	AdditionalDatas = readAdditionalDatas(paths)
+
+	for {
+		select {
+		case <-reload:
+			AdditionalDatas = readAdditionalDatas(paths)
+			log.Println("AdditionalData reloaded")
+		}
 	}
 }
 
