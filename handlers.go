@@ -21,7 +21,7 @@ type subHandlerOpts struct {
 	fields   []string
 }
 
-// 处理所有信息请求的处理函数，
+// 处理所有信息请求的处理函数，触发条件为任何消息
 func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	var botMessage *models.Message // 存放 bot 发送的信息
 
@@ -197,6 +197,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 
 // 默认函数，处理 inline 模式下的请求
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+	// 不知道为什么用户选择 AnswerInlineQuery 列表中的参数后，还会再次触发这个函数，而且 update 中的 InlineQuery 还正好为空
 	if update.InlineQuery == nil {
 		log.Println("InlineQuery is nil")
 		return

@@ -164,7 +164,7 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 			}
 			// 没有修改就跳过保存
 			if reflect.DeepEqual(savedDatabase, database) {
-				log.Printf("\rno change, skip save")
+				fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
 			} else {
 				// 如果检测到本地的数据库更新时间比程序中的更新时间更晚
 				if savedDatabase.UpdateTimestamp > database.UpdateTimestamp {
@@ -222,15 +222,23 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 					}
 					
 				} else { // 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
-					printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
 					database.UpdateTimestamp = time.Now().Unix()
-					SaveYamlDB(db_path, metadatafile_name, database)
+					err := SaveYamlDB(db_path, metadatafile_name, database)
+					if err != nil {
+						printLogAndSave(fmt.Sprintln("some issues happend when auto saving database:", err))
+					} else {
+						printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
+					}
 				}
 			}
 		case <-DB_savenow:
-			printLogAndSave("save at " + time.Now().Format(time.RFC3339))
 			database.UpdateTimestamp = time.Now().Unix()
-			SaveYamlDB(db_path, metadatafile_name, database)
+			err := SaveYamlDB(db_path, metadatafile_name, database)
+			if err != nil {
+				printLogAndSave(fmt.Sprintln("some issues happend when some function call save database now:", err))
+			} else {
+				printLogAndSave("save at " + time.Now().Format(time.RFC3339))
+			}
 		}
 	}
 }

@@ -66,7 +66,6 @@ func main() {
 		thebot.Start(ctx)
 		<-ctx.Done() // 等待中断信号
 	}
-	DB_savenow <- true // 退出之前保存一下数据库
+	DB_savenow <- true // 退出之前保存一下数据库，似乎无效
 	log.Println("manually stopped")
-
 }
