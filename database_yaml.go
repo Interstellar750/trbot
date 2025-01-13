@@ -223,11 +223,13 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 					
 				} else { // 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
 					printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
+					database.UpdateTimestamp = time.Now().Unix()
 					SaveYamlDB(db_path, metadatafile_name, database)
 				}
 			}
 		case <-DB_savenow:
 			printLogAndSave("save at " + time.Now().Format(time.RFC3339))
+			database.UpdateTimestamp = time.Now().Unix()
 			SaveYamlDB(db_path, metadatafile_name, database)
 		}
 	}
