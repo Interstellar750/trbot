@@ -268,7 +268,7 @@ func printLogAndSave(message string) {
 // 从 log.txt 读取文件
 func readLog() []string {
 	// 打开日志文件
-	file, err := os.Open(logfile_path)
+	file, err := os.Open(logFile_path)
 	if err != nil {
 		log.Println(err)
 		return nil

@@ -77,7 +77,7 @@ func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
 	file, err := os.Open(pathToFile)
 	if err != nil {
 		log.Println("[Database]: Not found database file. Created new one")
-		SaveYamlDB(db_path, metadatafile_name, DataBaseYaml{})
+		SaveYamlDB(db_path, metadataFileName, DataBaseYaml{})
 		return DataBaseYaml{}, err
 	}
 	defer file.Close()
@@ -88,7 +88,7 @@ func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
 	if err != nil {
 		if err == io.EOF {
 			log.Println("[Database]: Database looks empty. now format it")
-			SaveYamlDB(db_path, metadatafile_name, DataBaseYaml{})
+			SaveYamlDB(db_path, metadataFileName, DataBaseYaml{})
 			return DataBaseYaml{}, nil
 		}
 		return DataBaseYaml{}, err
@@ -147,17 +147,17 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 		select {
 		case <-ticker.C: // 每次 Ticker 触发时执行任务
 			// 先读取一下数据库文件
-			savedDatabase, err := ReadYamlDB(db_path + metadatafile_name)
+			savedDatabase, err := ReadYamlDB(db_path + metadataFileName)
 			if err != nil {
 				log.Println("some issues when read database file", err)
 				// 如果读取数据库文件时发现数据库为空，使用当前的数据重建数据库文件
 				if reflect.DeepEqual(savedDatabase, DataBaseYaml{}){
 					printLogAndSave(fmt.Sprintln("The database file is empty, recovering database file using current data"))
-					err = SaveYamlDB(db_path, metadatafile_name, database)
+					err = SaveYamlDB(db_path, metadataFileName, database)
 					if err != nil {
 						printLogAndSave(fmt.Sprintln("some issues happend when recovering empty database:", err))
 					} else {
-						printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadatafile_name))
+						printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadataFileName))
 					}
 					return
 				}
@@ -173,7 +173,7 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 					if reflect.DeepEqual(savedDatabase.Data, database.Data) {
 						log.Println("But current data and database is the same, updating UpdateTimestamp in the database only")
 						database.UpdateTimestamp = time.Now().Unix()
-						err := SaveYamlDB(db_path, metadatafile_name, database)
+						err := SaveYamlDB(db_path, metadataFileName, database)
 						if err != nil {
 							printLogAndSave(fmt.Sprintln("some issues happend when update Timestamp in database:", err))
 						} else {
@@ -186,8 +186,8 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 						log.Println("Saved database is different from the current database")
 						// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，保存程序中的数据，读取新的数据替换掉当前的数据并保存
 						if savedDatabase.ForceOverwrite {
-							printLogAndSave(fmt.Sprintf("The `FORCEOVERWRITE: true` in %s is detected", db_path + metadatafile_name))
-							oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", nowtimestamp, metadatafile_name)
+							printLogAndSave(fmt.Sprintf("The `FORCEOVERWRITE: true` in %s is detected", db_path + metadataFileName))
+							oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", nowtimestamp, metadataFileName)
 							err := SaveYamlDB(db_path, oldFileName, savedDatabase)
 							if err != nil {
 								printLogAndSave(fmt.Sprintln("some issues happend when saving the database before overwritten:", err))
@@ -195,15 +195,15 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 								printLogAndSave(fmt.Sprintf("The database before overwritten is saved to %s", db_path + oldFileName))
 							}
 							database = savedDatabase
-							err = SaveYamlDB(db_path, metadatafile_name, database)
+							err = SaveYamlDB(db_path, metadataFileName, database)
 							if err != nil {
 								printLogAndSave(fmt.Sprintln("some issues happend when recreat database using new database:", err))
 							} else {
-								printLogAndSave(fmt.Sprintf("Success read data from the new file and saved to %s", db_path + metadatafile_name))
+								printLogAndSave(fmt.Sprintf("Success read data from the new file and saved to %s", db_path + metadataFileName))
 							}
 						} else {
 							// 没有设定覆写标记，就将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
-							editedFileName := fmt.Sprintf("edited_%d_%s", nowtimestamp, metadatafile_name)
+							editedFileName := fmt.Sprintf("edited_%d_%s", nowtimestamp, metadataFileName)
 
 							log.Println("Do not modify the database file while the program is running, saving modified file and recovering database file using current data")
 							err := SaveYamlDB(db_path, editedFileName, savedDatabase)
@@ -212,18 +212,18 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 							} else {
 								printLogAndSave(fmt.Sprintf("The modified database is saved to %s", db_path + editedFileName))
 							}
-							err = SaveYamlDB(db_path, metadatafile_name, database)
+							err = SaveYamlDB(db_path, metadataFileName, database)
 							if err != nil {
 								printLogAndSave(fmt.Sprintln("some issues happend when recovering database:", err))
 							} else {
-								printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadatafile_name))
+								printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadataFileName))
 							}
 						}
 					}
 					
 				} else { // 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
 					database.UpdateTimestamp = time.Now().Unix()
-					err := SaveYamlDB(db_path, metadatafile_name, database)
+					err := SaveYamlDB(db_path, metadataFileName, database)
 					if err != nil {
 						printLogAndSave(fmt.Sprintln("some issues happend when auto saving database:", err))
 					} else {
@@ -233,7 +233,7 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 			}
 		case <-DB_savenow:
 			database.UpdateTimestamp = time.Now().Unix()
-			err := SaveYamlDB(db_path, metadatafile_name, database)
+			err := SaveYamlDB(db_path, metadataFileName, database)
 			if err != nil {
 				printLogAndSave(fmt.Sprintln("some issues happend when some function call save database now:", err))
 			} else {

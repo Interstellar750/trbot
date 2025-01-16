@@ -205,91 +205,43 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 
 	log.Printf("inline from: [%s], query: [%s]", update.InlineQuery.From.Username, update.InlineQuery.Query)
 
-	if AnyContains(update.InlineQuery.From.ID, logMan_IDs) {
-		if update.InlineQuery.Query == "log" {
-			logs := readLog()
-			if logs != nil {
-				log_count := len(logs)
-				var log_all string
-				for index, log := range logs {
-					log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
-					// log_all = log_all + "\n" + index + log
-				}
+	if strings.HasPrefix(update.InlineQuery.Query, ":") {
+		queryFields := strings.Fields(update.InlineQuery.Query)
+		switch queryFields[0] {
+		// 普通命令添加到 switch 的 case 语句中，任何人都能用
+		case ":uaav":
+			if len(queryFields) < 2 {
 				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:    "log",
-							Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
+							ID:    "custom voices",
+							Title: "URL as a voice",
+							Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
 							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
+								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 								ParseMode: models.ParseModeMarkdownV1,
 							},
 						},
 					},
-					CacheTime: 0,
 				})
 				if err != nil {
-					log.Println("Error when answering inline query", err)
+					printLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
 				}
-			} else {
-				log.Println("Error when reading log file")
-			}
-			return
-		} else if strings.HasPrefix(update.InlineQuery.Query, ":") {
-			if strings.HasPrefix(update.InlineQuery.Query, ":uaav") {
-				queryFields := strings.Fields(update.InlineQuery.Query)
-				if len(queryFields) < 2 {
+			} else if len(queryFields) == 2 {
+				if strings.HasPrefix(queryFields[1], "https://") {
 					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: update.InlineQuery.ID,
 						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
-								ID:    "custom voices",
-								Title: "URL as a voice",
-								Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
-								InputMessageContent: &models.InputTextMessageContent{
-									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-									ParseMode: models.ParseModeMarkdownV1,
-								},
+							&models.InlineQueryResultVoice{
+								ID: "custom",
+								Title: "Custom voice",
+								VoiceURL: queryFields[1],
 							},
 						},
 					})
 					if err != nil {
-						printLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
-					}
-				} else if len(queryFields) == 2 {
-					if strings.HasPrefix(queryFields[1], "https://") {
-						_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
-							InlineQueryID: update.InlineQuery.ID,
-							Results: []models.InlineQueryResult{
-								&models.InlineQueryResultVoice{
-									ID: "custom",
-									Title: "Custom voice",
-									VoiceURL: queryFields[1],
-								},
-							},
-						})
-						if err != nil {
-							log.Println("Error when answering inline query: ", err)
-						}
-					} else {
-						_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
-							InlineQueryID: update.InlineQuery.ID,
-							Results: []models.InlineQueryResult{
-								&models.InlineQueryResultArticle{
-									ID:    "error",
-									Title: "音频 URL 格式错误",
-									Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
-									InputMessageContent: &models.InputTextMessageContent{
-										MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-										ParseMode: models.ParseModeMarkdownV1,
-									},
-								},
-							},
-						})
-						if err != nil {
-							log.Println("Error when answering inline query", err)
-						}
+						log.Println("Error when answering inline query: ", err)
 					}
 				} else {
 					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
@@ -297,8 +249,8 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						Results: []models.InlineQueryResult{
 							&models.InlineQueryResultArticle{
 								ID:    "error",
-								Title: "参数过多，请注意空格",
-								Description: fmt.Sprintf("使用方法：@%s :uaav <单个音频链接>", botMe.Username),
+								Title: "音频 URL 格式错误",
+								Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
 								InputMessageContent: &models.InputTextMessageContent{
 									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 									ParseMode: models.ParseModeMarkdownV1,
@@ -310,10 +262,180 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						log.Println("Error when answering inline query", err)
 					}
 				}
-				return
-			} else if strings.HasPrefix(update.InlineQuery.Query, ":reload") {
-				ADR_reload <- true
+			} else {
+				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:    "error",
+							Title: "参数过多，请注意空格",
+							Description: fmt.Sprintf("使用方法：@%s :uaav <单个音频链接>", botMe.Username),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+								ParseMode: models.ParseModeMarkdownV1,
+							},
+						},
+					},
+				})
+				if err != nil {
+					log.Println("Error when answering inline query", err)
+				}
 			}
+			return
+		case ":sms":
+			var udoneseResultList []models.InlineQueryResult
+			if len(queryFields) < 2 {
+				for _, data := range AdditionalDatas.Udonese.List {
+					var pendingmeaning string = fmt.Sprintf("[<code>%s</code>] 的意思有\n", data.Word)
+					for i, meaning := range data.MeaningList {
+						if meaning.FromID == 0 && meaning.FromName == "" {
+							pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, meaning.Meaning)
+						} else {
+							pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, meaning.Meaning, meaning.FromID, meaning.FromName)
+						}
+					}
+					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+						ID:    data.Word,
+						Title: data.Word,
+						Description: fmt.Sprintf("%s 有 %d 个意思: %s...", data.Word, len(data.MeaningList), data.MeaningList[0].Meaning),
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: pendingmeaning,
+							ParseMode: models.ParseModeHTML,
+						},
+					})
+				}
+			} else {
+				for _, data := range AdditionalDatas.Udonese.List {
+					// 通过词查找意思
+					if AnyContains(queryFields[1], data.Word) {
+						var pendingmeaning string = fmt.Sprintf("[<code>%s</code>] 的意思有\n", data.Word)
+						for i, meaning := range data.MeaningList {
+							if meaning.FromID == 0 && meaning.FromName == "" {
+								pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, meaning.Meaning)
+							} else {
+								pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, meaning.Meaning, meaning.FromID, meaning.FromName)
+							}
+						}
+						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+							ID:    data.Word,
+							Title: data.Word,
+							Description: fmt.Sprintf("%s 有 %d 个意思: %s...", data.Word, len(data.MeaningList), data.MeaningList[0].Meaning),
+							InputMessageContent: models.InputTextMessageContent{
+								MessageText: pendingmeaning,
+								ParseMode: models.ParseModeHTML,
+							},
+						})
+					}
+					// 通过意思查找词
+					if AnyContains(queryFields[1], data.OnlyMeaning()) {
+						for _, n := range data.MeaningList {
+							if AnyContains(queryFields[1], n.Meaning) {
+								udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+									ID:    n.Meaning,
+									Title: n.Meaning,
+									Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
+									InputMessageContent: models.InputTextMessageContent{
+										MessageText: fmt.Sprintf("%s 对应的词是 <code>%s</code>", n.Meaning, data.Word),
+										ParseMode: models.ParseModeHTML,
+									},
+								})
+							}
+						}
+					}
+				}
+				if len(udoneseResultList) == 0 {
+					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+						ID:       "none",
+						Title:    fmt.Sprintf("🈚 没有找到包含 %s 的词或意思", queryFields[1]),
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: "什么都没有",
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					})
+				}
+			}
+
+			_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: update.InlineQuery.ID,
+				Results:       udoneseResultList,
+				CacheTime:     0,
+			})
+			if err != nil {
+				log.Println("Error when answering inline :sms command", err)
+			}
+			return
+		default:
+			// default 中设定一些管理员命令和无命令提示
+			if AnyContains(update.InlineQuery.From.ID, logMan_IDs) {
+				if strings.HasPrefix(update.InlineQuery.Query, ":log") {
+					logs := readLog()
+					if logs != nil {
+						log_count := len(logs)
+						var log_all string
+						for index, log := range logs {
+							log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
+							// log_all = log_all + "\n" + index + log
+						}
+						_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+							InlineQueryID: update.InlineQuery.ID,
+							Results: []models.InlineQueryResult{
+								&models.InlineQueryResultArticle{
+									ID:    "log",
+									Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
+									InputMessageContent: &models.InputTextMessageContent{
+										MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
+										ParseMode: models.ParseModeMarkdownV1,
+									},
+								},
+							},
+							CacheTime: 0,
+						})
+						if err != nil {
+							log.Println("Error when answering inline query :log", err)
+						}
+					} else {
+						log.Println("Error when reading log file")
+					}
+					return
+				} else if strings.HasPrefix(update.InlineQuery.Query, ":reload") {
+					ADR_reload <- true
+					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: update.InlineQuery.ID,
+						Results: []models.InlineQueryResult{
+							&models.InlineQueryResultArticle{
+								ID:    "reload",
+								Title: "已请求更新",
+								Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
+								InputMessageContent: &models.InputTextMessageContent{
+									MessageText: "???",
+									ParseMode: models.ParseModeMarkdownV1,
+								},
+							},
+						},
+						CacheTime: 0,
+					})
+					if err != nil {
+						log.Println("Error when answering inline query :reload", err)
+					}
+					return
+				}
+			}
+			_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: update.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:    "noinlinecommand",
+					Title: fmt.Sprintf("不存在的命令 [%s]", queryFields[0]),
+					Description: "请检查命令是否正确",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+						ParseMode: models.ParseModeMarkdownV1,
+					},
+				}},
+			})
+			if err != nil {
+				log.Println("Error when answering inline no command", err)
+			}
+			return
 		}
 	}
 
@@ -378,14 +500,12 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
 				if AnyContains(update.InlineQuery.Query, voicePack.Name, voice.Title, voice.Caption) {
-				// if strings.ContainsAny(metadata.VoicesName, update.InlineQuery.Query) || strings.ContainsAny(voice.Title, update.InlineQuery.Query) || strings.ContainsAny(voice.Caption, update.InlineQuery.Query) {
-					result := &models.InlineQueryResultVoice{
+					results = append(results, &models.InlineQueryResultVoice{
 						ID:       voice.ID,
 						Title:    voicePack.Name + ": " + voice.Title,
 						Caption:  voice.Caption,
 						VoiceURL: voice.VoiceURL,
-					}
-				results = append(results, result)
+					})
 				}
 			}
 		}
@@ -400,7 +520,6 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			})
 		}
 	}
-
 
 	_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: update.InlineQuery.ID,

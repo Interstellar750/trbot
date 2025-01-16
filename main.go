@@ -35,14 +35,14 @@ func main() {
 	log.Printf("starting %d\n", botMe.ID)
 	log.Printf("logChat_ID: %v", logChat_ID)
 
-	database, err = ReadYamlDB(db_path + metadatafile_name)
+	database, err = ReadYamlDB(db_path + metadataFileName)
 	if err != nil {
 		log.Println("read yaml db error: ", err)
 	}
 
 	go AdditionalDataReloader(ADR_reload, &AdditionalDataPath{
 		Voice: voice_path,
-		Udonese: smsUdon_path,
+		Udonese: udon_path,
 	})
 
 	go mainDatabaseHandler(DB_savenow)

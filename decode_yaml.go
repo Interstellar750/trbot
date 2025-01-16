@@ -28,7 +28,7 @@ func readAdditionalDatas(paths *AdditionalDataPath) AdditionalData {
 		datas.Voices, datas.VoiceErr = readVoicePackFromPath(paths.Voice)
 	}
 	if paths.Udonese != "" {
-		datas.Udonese, datas.UdoneseErr = readUdonese(paths.Udonese, metadatafile_name)
+		datas.Udonese, datas.UdoneseErr = readUdonese(paths.Udonese, metadataFileName)
 	}
 	return datas
 }
@@ -94,13 +94,23 @@ type Udonese struct {
 
 type UdoneseList struct {
 	Word        string           `yaml:"Word,omitempty"`
-	MeaningList []UdoneseMeaning `yaml:"MeaningList,omitempty"`
+	MeaningList []UdoneseMeaningList `yaml:"MeaningList,omitempty"`
 }
 
-type UdoneseMeaning struct {
-	Meaning string `yaml:"Meaning"`
-	FromID  int64  `yaml:"FromID,omitempty"`
-	Name    string `yaml:"Name,omitempty"`
+// 从 UdoneseList 列表中提取 Meaning 切片
+func (lists UdoneseList) OnlyMeaning() []string {
+	var meanings []string
+	for _, singleMeaning := range lists.MeaningList {
+		meanings = append(meanings, singleMeaning.Meaning)
+	}
+	return meanings
+}
+
+type UdoneseMeaningList struct {
+	Meaning  string `yaml:"Meaning"`
+	Used     int    `yaml:"Used"`
+	FromID   int64  `yaml:"FromID,omitempty"`
+	FromName string `yaml:"FromName,omitempty"`
 }
 
 func readUdonese(path, name string) (*Udonese, error) {

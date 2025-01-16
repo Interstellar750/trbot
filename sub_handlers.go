@@ -254,10 +254,10 @@ func udoneseHandler(opts *subHandlerOpts) {
 			if word.Word == opts.fields[1] && len(word.MeaningList) > 0 {
 				var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", word.Word)
 				for i, s := range word.MeaningList {
-					if s.FromID == 0 && s.Name == "" {
+					if s.FromID == 0 && s.FromName == "" {
 						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
 					} else {
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.Name)
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.FromName)
 					}
 				}
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
@@ -304,14 +304,14 @@ func udoneseHandler(opts *subHandlerOpts) {
 
 		addUdonese(udon, &UdoneseList{
 			Word: opts.fields[1],
-			MeaningList: []UdoneseMeaning{ {
+			MeaningList: []UdoneseMeaningList{ {
 				Meaning: meaning,
 				FromID: opts.update.Message.From.ID,
-				Name: nickname,
+				FromName: nickname,
 			}},
 		})
 		
-		SaveYamlDB(smsUdon_path, metadatafile_name, *udon)
+		SaveYamlDB(udon_path, metadataFileName, *udon)
 		pendingMessage := fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
 		pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
 		pendingMessage += fmt.Sprintln("\n发送的消息与此消息将在十秒后删除")
