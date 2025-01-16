@@ -286,20 +286,12 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			var udoneseResultList []models.InlineQueryResult
 			if len(queryFields) < 2 {
 				for _, data := range AdditionalDatas.Udonese.List {
-					var pendingmeaning string = fmt.Sprintf("[<code>%s</code>] 的意思有\n", data.Word)
-					for i, meaning := range data.MeaningList {
-						if meaning.FromID == 0 && meaning.FromName == "" {
-							pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, meaning.Meaning)
-						} else {
-							pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, meaning.Meaning, meaning.FromID, meaning.FromName)
-						}
-					}
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 						ID:    data.Word,
 						Title: data.Word,
-						Description: fmt.Sprintf("%s 有 %d 个意思: %s...", data.Word, len(data.MeaningList), data.MeaningList[0].Meaning),
+						Description: fmt.Sprintf("有 %d 个意思: %s...", len(data.MeaningList), data.MeaningList[0].Meaning),
 						InputMessageContent: models.InputTextMessageContent{
-							MessageText: pendingmeaning,
+							MessageText: data.OutPutMeanings(),
 							ParseMode: models.ParseModeHTML,
 						},
 					})
@@ -308,20 +300,12 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 				for _, data := range AdditionalDatas.Udonese.List {
 					// 通过词查找意思
 					if AnyContains(queryFields[1], data.Word) {
-						var pendingmeaning string = fmt.Sprintf("[<code>%s</code>] 的意思有\n", data.Word)
-						for i, meaning := range data.MeaningList {
-							if meaning.FromID == 0 && meaning.FromName == "" {
-								pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, meaning.Meaning)
-							} else {
-								pendingmeaning += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, meaning.Meaning, meaning.FromID, meaning.FromName)
-							}
-						}
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 							ID:    data.Word,
 							Title: data.Word,
-							Description: fmt.Sprintf("%s 有 %d 个意思: %s...", data.Word, len(data.MeaningList), data.MeaningList[0].Meaning),
+							Description: fmt.Sprintf("有 %d 个意思: %s...", len(data.MeaningList), data.MeaningList[0].Meaning),
 							InputMessageContent: models.InputTextMessageContent{
-								MessageText: pendingmeaning,
+								MessageText: data.OutPutMeanings(),
 								ParseMode: models.ParseModeHTML,
 							},
 						})

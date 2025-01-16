@@ -252,17 +252,9 @@ func udoneseHandler(opts *subHandlerOpts) {
 		// 在数据库循环查找这个词
 		for _, word := range udon.List {
 			if word.Word == opts.fields[1] && len(word.MeaningList) > 0 {
-				var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", word.Word)
-				for i, s := range word.MeaningList {
-					if s.FromID == 0 && s.FromName == "" {
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
-					} else {
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.FromName)
-					}
-				}
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
-					Text:   pendingMessage,
+					Text:   word.OutPutMeanings(),
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 					ParseMode: models.ParseModeHTML,
 				})

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -98,14 +99,26 @@ type UdoneseList struct {
 }
 
 // 从 UdoneseList 列表中提取 Meaning 切片
-func (lists UdoneseList) OnlyMeaning() []string {
+func (list UdoneseList) OnlyMeaning() []string {
 	var meanings []string
-	for _, singleMeaning := range lists.MeaningList {
+	for _, singleMeaning := range list.MeaningList {
 		meanings = append(meanings, singleMeaning.Meaning)
 	}
 	return meanings
 }
 
+// 以 models.ParseModeHTML 的格式输出一个词和其对应的全部意思
+func (list UdoneseList) OutPutMeanings() string {
+	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", list.Word)
+	for i, s := range list.MeaningList {
+		if s.FromID == 0 && s.FromName == "" {
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
+		} else {
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.FromName)
+		}
+	}
+	return pendingMessage
+}
 type UdoneseMeaningList struct {
 	Meaning  string `yaml:"Meaning"`
 	Used     int    `yaml:"Used"`
