@@ -15,7 +15,7 @@ var metadataFileName string = "metadata.yaml"
 var db_path      string = "./db_yaml/"
 var voice_path   string = db_path + "voices/"
 var logFile_path string = "./log.txt"
-var udon_path string = db_path + "udonese/"
+var udon_path    string = db_path + "udonese/"
 var udonGroupID  int64  = -1002205667779
 
 var private_log bool = false
@@ -27,3 +27,7 @@ var AdditionalDatas AdditionalData
 
 var DB_savenow = make(chan bool)
 var ADR_reload = make(chan bool)
+
+var InlineSubCommandSymbol string = ":"
+var InlinePaginationSymbol string = "-"
+var InlineResultsPerPage   int    = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery

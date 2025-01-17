@@ -56,7 +56,7 @@ func addToWriteListHandler(opts *subHandlerOpts) {
 			if opts.chatInfo.ID != opts.update.Message.Chat.ID {
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
-					Text:   "发送的群组 ID 与当前群组的 ID 不符，请先运行 `/forwardonly`",
+					Text:   "发送的群组 ID 与当前群组的 ID 不符，请先发送 `/forwardonly`",
 					ParseMode: models.ParseModeMarkdownV1,
 				})
 				return
@@ -303,24 +303,31 @@ func udoneseHandler(opts *subHandlerOpts) {
 			}},
 		})
 		
-		SaveYamlDB(udon_path, metadataFileName, *udon)
-		pendingMessage := fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
-		pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
-		pendingMessage += fmt.Sprintln("\n发送的消息与此消息将在十秒后删除")
+		var pendingMessage string
+		err := SaveYamlDB(udon_path, metadataFileName, *udon)
+		if err != nil {
+			pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
+		} else {
+			pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
+			pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
+			pendingMessage += fmt.Sprintln("<blockquote>发送的消息与此消息将在十秒后删除</blockquote>")
+		}
 		botmessage, _:= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			Text: pendingMessage,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			ParseMode: models.ParseModeHTML,
 		})
-		time.Sleep(time.Second * 10)
-		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
-			ChatID: opts.update.Message.Chat.ID,
-			MessageIDs: []int{
-				opts.update.Message.ID,
-				botmessage.ID,
-			},
-		})
+		if err == nil {
+			time.Sleep(time.Second * 10)
+			opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+				ChatID: opts.update.Message.Chat.ID,
+				MessageIDs: []int{
+					opts.update.Message.ID,
+					botmessage.ID,
+				},
+			})
+		}
 		return
 	}
 }

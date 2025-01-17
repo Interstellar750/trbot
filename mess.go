@@ -385,3 +385,134 @@ func showUserNickName(update *models.Update) string {
 		return update.Message.From.FirstName
 	}
 }
+
+func InlineResultPagination(queryFields []string, results []models.InlineQueryResult) []models.InlineQueryResult {
+	var itemEveryPage int = 10
+
+	// 当 result 的数量超过 itemEveryPage 时，进行分页
+	fmt.Println(len(results), itemEveryPage)
+	if len(results) > itemEveryPage {
+		// 获取 update.InlineQuery.Query 末尾的 `-<数字>` 来选择输出第几页
+		var pageNow int = 1
+		var pageSize = (itemEveryPage -1)
+
+		if len(queryFields) > 0 && strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
+			var err error
+			pageNow, err = strconv.Atoi(queryFields[len(queryFields)-1][1:])
+			if err != nil {
+				if queryFields[len(queryFields)-1][1:] != "" {
+					return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID: "nothisoperation",
+						Title: "无效的操作",
+						Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", InlinePaginationSymbol),
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					}}
+				} else {
+					return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID: "keepinputnumber",
+						Title: "请继续输入数字",
+						Description: fmt.Sprintf("继续输入一个数字来查看对应的页面，当前列表有 %d 页", (len(results) + pageSize - 1) / pageSize),
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					}}
+				}
+			}
+		}
+
+		start := (pageNow - 1) * pageSize
+		end := start + pageSize
+
+		if start >= len(results) {
+			return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID: "wrongpagenum",
+				Title: "错误的页码",
+				Description: fmt.Sprintf("您输入的页码 %d 超出范围，当前列表有 %d 页", pageNow, (len(results) + pageSize - 1) / pageSize),
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					ParseMode: models.ParseModeMarkdownV1,
+				},
+			}}
+		}
+
+		if end > len(results) {
+			end = len(results)
+		}
+		pageResults := results[start:end]
+
+		// 添加翻页提示
+		if end < len(results) {
+			totalPages := (len(results) + pageSize - 1) / pageSize
+			pageResults = append(pageResults, &models.InlineQueryResultArticle{
+				ID: "the10",
+				Title: fmt.Sprintf("当前您在第 %d 页", pageNow),
+				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages - pageNow, InlinePaginationSymbol, pageNow + 1),
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					ParseMode: models.ParseModeMarkdownV1,
+				},
+			})
+		} else {
+			pageResults = append(pageResults, &models.InlineQueryResultArticle{
+				ID: "the10",
+				Title: fmt.Sprintf("当前您在第 %d 页", pageNow),
+				Description: "后面已经没有东西了",
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					ParseMode: models.ParseModeMarkdownV1,
+				},
+			})
+		}
+
+		return pageResults
+	} else if len(queryFields) > 0 && strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
+		return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+			ID: "noNeedPagination",
+			Title: "没有多余的内容",
+			Description: fmt.Sprintf("只有 %d 个条目，你想翻页也没有多的了", len(results)),
+			InputMessageContent: &models.InputTextMessageContent{
+				MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+				ParseMode: models.ParseModeMarkdownV1,
+			},
+		}}
+	} else {
+		return results
+	}
+}
+
+func InlineQueryMatchMultKeyword(queryFields []string, Keyword []string, inSubCommand bool) bool {
+	var allkeywords int
+	if strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
+		queryFields = queryFields[:len(queryFields) -1]
+	} else {
+		allkeywords = len(queryFields)
+	}
+	if inSubCommand && len(queryFields) > 0 {
+		queryFields = queryFields[1:]
+	}
+	if allkeywords == 1 {
+		if AnyContains(queryFields[0], Keyword) {
+			return true
+		}
+	} else {
+		var allMatch bool = true
+
+		for _, n := range queryFields {
+			if AnyContains(n, Keyword) {
+				// 保持 current 内容，继续过滤
+				// continue
+			} else {
+				// 只要有一个关键词未匹配，返回 false
+				allMatch = false
+			}
+		}
+		if allMatch {
+			return true
+		}
+	}
+	return false
+}

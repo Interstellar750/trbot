@@ -204,12 +204,12 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 	}
 
 	log.Printf("inline from: [%s], query: [%s]", update.InlineQuery.From.Username, update.InlineQuery.Query)
+	queryFields := strings.Fields(update.InlineQuery.Query)
 
-	if strings.HasPrefix(update.InlineQuery.Query, ":") {
-		queryFields := strings.Fields(update.InlineQuery.Query)
-		switch queryFields[0] {
+	if strings.HasPrefix(update.InlineQuery.Query, InlineSubCommandSymbol) {
+		switch queryFields[0][1:] { // 添加 [1:] 抛弃第一个字符是因为子命令需要一个触发符号
 		// 普通命令添加到 switch 的 case 语句中，任何人都能用
-		case ":uaav":
+		case "uaav":
 			if len(queryFields) < 2 {
 				_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: update.InlineQuery.ID,
@@ -239,6 +239,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 								VoiceURL: queryFields[1],
 							},
 						},
+						IsPersonal: true,
 					})
 					if err != nil {
 						log.Println("Error when answering inline query: ", err)
@@ -282,9 +283,9 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 				}
 			}
 			return
-		case ":sms":
+		case "sms":
 			var udoneseResultList []models.InlineQueryResult
-			if len(queryFields) < 2 {
+			if len(queryFields) < 2 || len(queryFields) == 2 && strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
 				for _, data := range AdditionalDatas.Udonese.List {
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 						ID:    data.Word,
@@ -299,7 +300,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			} else {
 				for _, data := range AdditionalDatas.Udonese.List {
 					// 通过词查找意思
-					if AnyContains(queryFields[1], data.Word) {
+					if InlineQueryMatchMultKeyword(queryFields, []string{data.Word}, true) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 							ID:    data.Word,
 							Title: data.Word,
@@ -311,9 +312,9 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						})
 					}
 					// 通过意思查找词
-					if AnyContains(queryFields[1], data.OnlyMeaning()) {
+					if InlineQueryMatchMultKeyword(queryFields, data.OnlyMeaning(), true) {
 						for _, n := range data.MeaningList {
-							if AnyContains(queryFields[1], n.Meaning) {
+							if InlineQueryMatchMultKeyword(queryFields, []string{n.Meaning}, true) {
 								udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 									ID:    n.Meaning,
 									Title: n.Meaning,
@@ -330,10 +331,11 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 				if len(udoneseResultList) == 0 {
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 						ID:       "none",
-						Title:    fmt.Sprintf("🈚 没有找到包含 %s 的词或意思", queryFields[1]),
+						Title:    "没有符合关键词的内容",
+						Description: fmt.Sprintf("没有找到包含 %s 的词或意思", queryFields[1:]),
 						InputMessageContent: models.InputTextMessageContent{
-							MessageText: "什么都没有",
-							ParseMode: models.ParseModeMarkdownV1,
+							MessageText: "没有这个词，使用 <code>udonese <词> <意思> </code> 来添加吧",
+							ParseMode: models.ParseModeHTML,
 						},
 					})
 				}
@@ -341,8 +343,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 
 			_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: update.InlineQuery.ID,
-				Results:       udoneseResultList,
-				CacheTime:     0,
+				Results:       InlineResultPagination(queryFields, udoneseResultList),
 			})
 			if err != nil {
 				log.Println("Error when answering inline :sms command", err)
@@ -351,14 +352,13 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		default:
 			// default 中设定一些管理员命令和无命令提示
 			if AnyContains(update.InlineQuery.From.ID, logMan_IDs) {
-				if strings.HasPrefix(update.InlineQuery.Query, ":log") {
+				if strings.HasPrefix(update.InlineQuery.Query, InlineSubCommandSymbol + "log") {
 					logs := readLog()
 					if logs != nil {
 						log_count := len(logs)
 						var log_all string
 						for index, log := range logs {
 							log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
-							// log_all = log_all + "\n" + index + log
 						}
 						_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 							InlineQueryID: update.InlineQuery.ID,
@@ -372,6 +372,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 									},
 								},
 							},
+							IsPersonal: true,
 							CacheTime: 0,
 						})
 						if err != nil {
@@ -381,7 +382,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						log.Println("Error when reading log file")
 					}
 					return
-				} else if strings.HasPrefix(update.InlineQuery.Query, ":reload") {
+				} else if strings.HasPrefix(update.InlineQuery.Query, InlineSubCommandSymbol + "reload") {
 					ADR_reload <- true
 					_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: update.InlineQuery.ID,
@@ -396,6 +397,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 								},
 							},
 						},
+						IsPersonal: true,
 						CacheTime: 0,
 					})
 					if err != nil {
@@ -424,7 +426,6 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 	}
 
 	if AdditionalDatas.VoiceErr != nil {
-		// if errors.Is(e)
 		log.Printf("Error when reading metadata files: %v", AdditionalDatas.VoiceErr)
 		thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: update.InlineQuery.ID,
@@ -440,8 +441,8 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 			CacheTime: 0,
 		})
 		thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:    logChat_ID,
-			Text:      fmt.Sprintf("%s\nInline Mode: some user get error", time.Now().Format(time.RFC3339)),
+			ChatID: logChat_ID,
+			Text:   fmt.Sprintf("%s\nInline Mode: some user get error， %v", time.Now().Format(time.RFC3339), AdditionalDatas.VoiceErr),
 		})
 		return
 	} else if AdditionalDatas.Voices == nil {
@@ -469,7 +470,8 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 	// 将 metadata 转换为 Inline Query 结果
 	var results []models.InlineQueryResult
 
-	if update.InlineQuery.Query == "" {
+	// 没有查询字符串或使用分页搜索符号，返回所有结果
+	if update.InlineQuery.Query == "" || len(queryFields) == 1 && strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
 		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
 				results = append(results, &models.InlineQueryResultVoice{
@@ -483,7 +485,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 	} else {
 		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
-				if AnyContains(update.InlineQuery.Query, voicePack.Name, voice.Title, voice.Caption) {
+				if InlineQueryMatchMultKeyword(queryFields, []string{voicePack.Name, voice.Title, voice.Caption}, false) {
 					results = append(results, &models.InlineQueryResultVoice{
 						ID:       voice.ID,
 						Title:    voicePack.Name + ": " + voice.Title,
@@ -495,20 +497,22 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 		}
 		if len(results) == 0 {
 			results = append(results, &models.InlineQueryResultArticle{
-				ID:       "none",
-				Title:    fmt.Sprintf("🈚 没有找到包含 %s 的内容", update.InlineQuery.Query),
+				ID:    "none",
+				Title: "没有符合关键词的内容",
+				Description: fmt.Sprintf("没有找到包含 %s 的内容", update.InlineQuery.Query),
 				InputMessageContent: models.InputTextMessageContent{
-					MessageText: "什么都没有",
+					MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			})
 		}
 	}
 
+	// fmt.Println(queryFields, len(results))
+
 	_, err := thebot.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: update.InlineQuery.ID,
-		Results:       results,
-		CacheTime:     180,
+		Results:       InlineResultPagination(queryFields, results),
 		// Button: &models.InlineQueryResultsButton{
 		// 	Text: "一个测试用的按钮",
 		// 	StartParameter: "via-inline_test",

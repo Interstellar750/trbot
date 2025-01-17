@@ -119,6 +119,7 @@ func (list UdoneseList) OutPutMeanings() string {
 	}
 	return pendingMessage
 }
+
 type UdoneseMeaningList struct {
 	Meaning  string `yaml:"Meaning"`
 	Used     int    `yaml:"Used"`
