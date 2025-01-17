@@ -390,7 +390,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 	var itemEveryPage int = 10
 
 	// 当 result 的数量超过 itemEveryPage 时，进行分页
-	fmt.Println(len(results), itemEveryPage)
+	// fmt.Println(len(results), itemEveryPage)
 	if len(results) > itemEveryPage {
 		// 获取 update.InlineQuery.Query 末尾的 `-<数字>` 来选择输出第几页
 		var pageNow int = 1
