@@ -90,16 +90,16 @@ func readVoicePackFromPath(path string) ([]VoicePack, error) {
 
 type Udonese struct {
 	Count int           `yaml:"count"`
-	List  []UdoneseList `yaml:"list"`
+	List  []UdoneseWord `yaml:"list"`
 }
 
-type UdoneseList struct {
+type UdoneseWord struct {
 	Word        string           `yaml:"Word,omitempty"`
-	MeaningList []UdoneseMeaningList `yaml:"MeaningList,omitempty"`
+	MeaningList []UdoneseMeaning `yaml:"MeaningList,omitempty"`
 }
 
-// 从 UdoneseList 列表中提取 Meaning 切片
-func (list UdoneseList) OnlyMeaning() []string {
+// 从 UdoneseWord 列表中提取 Meaning 切片
+func (list UdoneseWord) OnlyMeaning() []string {
 	var meanings []string
 	for _, singleMeaning := range list.MeaningList {
 		meanings = append(meanings, singleMeaning.Meaning)
@@ -108,7 +108,7 @@ func (list UdoneseList) OnlyMeaning() []string {
 }
 
 // 以 models.ParseModeHTML 的格式输出一个词和其对应的全部意思
-func (list UdoneseList) OutPutMeanings() string {
+func (list UdoneseWord) OutPutMeanings() string {
 	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", list.Word)
 	for i, s := range list.MeaningList {
 		if s.FromID == 0 && s.FromName == "" {
@@ -120,7 +120,7 @@ func (list UdoneseList) OutPutMeanings() string {
 	return pendingMessage
 }
 
-type UdoneseMeaningList struct {
+type UdoneseMeaning struct {
 	Meaning  string `yaml:"Meaning"`
 	Used     int    `yaml:"Used"`
 	FromID   int64  `yaml:"FromID,omitempty"`
@@ -153,10 +153,12 @@ func readUdonese(path, name string) (*Udonese, error) {
 	return udonese, nil
 }
 
-func addUdonese(udonese *Udonese, params *UdoneseList) {
+// 如果要添加的意思重复，返回对应意思的单个词结构体指针，否则返回空指针
+// 设计之初可以添加多个意思，但现在不推荐这样
+func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
 	for wordIndex, savedList := range udonese.List {
 		if savedList.Word == params.Word {
-			log.Printf("发现已存在的词 %s，正在检查是否有新增的意思", savedList.Word)
+			log.Printf("发现已存在的词 [%s]，正在检查是否有新增的意思", savedList.Word)
 			for _, newMeaning := range params.MeaningList {
 				var isreallynew bool = true
 				for _, oldmeanlist := range savedList.MeaningList {
@@ -166,15 +168,17 @@ func addUdonese(udonese *Udonese, params *UdoneseList) {
 				}
 				if isreallynew {
 					udonese.List[wordIndex].MeaningList = append(udonese.List[wordIndex].MeaningList, newMeaning)
-					log.Printf("正在为 %s 添加 %s 意思", udonese.List[wordIndex].Word, newMeaning.Meaning)
+					log.Printf("正在为 [%s] 添加 [%s] 意思", udonese.List[wordIndex].Word, newMeaning.Meaning)
 				} else {
 					log.Println("存在的意思，跳过", newMeaning)
+					return &savedList
 				}
 			}
-			return
+			return nil
 		}
 	}
-	log.Printf("发现新的词 %s，正在添加 %v", params.Word, params.MeaningList)
+	log.Printf("发现新的词 [%s]，正在添加 %v", params.Word, params.MeaningList)
 	udonese.List = append(udonese.List, *params)
 	udonese.Count++
+	return nil
 }

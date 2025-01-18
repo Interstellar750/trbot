@@ -387,14 +387,12 @@ func showUserNickName(update *models.Update) string {
 }
 
 func InlineResultPagination(queryFields []string, results []models.InlineQueryResult) []models.InlineQueryResult {
-	var itemEveryPage int = 10
-
-	// 当 result 的数量超过 itemEveryPage 时，进行分页
-	// fmt.Println(len(results), itemEveryPage)
-	if len(results) > itemEveryPage {
+	// 当 result 的数量超过 InlineResultsPerPage 时，进行分页
+	// fmt.Println(len(results), InlineResultsPerPage)
+	if len(results) > InlineResultsPerPage {
 		// 获取 update.InlineQuery.Query 末尾的 `-<数字>` 来选择输出第几页
 		var pageNow int = 1
-		var pageSize = (itemEveryPage -1)
+		var pageSize = (InlineResultsPerPage -1)
 
 		if len(queryFields) > 0 && strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
 			var err error
@@ -402,7 +400,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 			if err != nil {
 				if queryFields[len(queryFields)-1][1:] != "" {
 					return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-						ID: "nothisoperation",
+						ID: "noThisOperation",
 						Title: "无效的操作",
 						Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", InlinePaginationSymbol),
 						InputMessageContent: &models.InputTextMessageContent{
@@ -412,7 +410,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 					}}
 				} else {
 					return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-						ID: "keepinputnumber",
+						ID: "keepInputNumber",
 						Title: "请继续输入数字",
 						Description: fmt.Sprintf("继续输入一个数字来查看对应的页面，当前列表有 %d 页", (len(results) + pageSize - 1) / pageSize),
 						InputMessageContent: &models.InputTextMessageContent{
@@ -429,7 +427,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 
 		if start >= len(results) {
 			return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-				ID: "wrongpagenum",
+				ID: "wrongPageNumber",
 				Title: "错误的页码",
 				Description: fmt.Sprintf("您输入的页码 %d 超出范围，当前列表有 %d 页", pageNow, (len(results) + pageSize - 1) / pageSize),
 				InputMessageContent: &models.InputTextMessageContent{
@@ -448,7 +446,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 		if end < len(results) {
 			totalPages := (len(results) + pageSize - 1) / pageSize
 			pageResults = append(pageResults, &models.InlineQueryResultArticle{
-				ID: "the10",
+				ID: "paginationPage",
 				Title: fmt.Sprintf("当前您在第 %d 页", pageNow),
 				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages - pageNow, InlinePaginationSymbol, pageNow + 1),
 				InputMessageContent: &models.InputTextMessageContent{
@@ -458,7 +456,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 			})
 		} else {
 			pageResults = append(pageResults, &models.InlineQueryResultArticle{
-				ID: "the10",
+				ID: "paginationPage",
 				Title: fmt.Sprintf("当前您在第 %d 页", pageNow),
 				Description: "后面已经没有东西了",
 				InputMessageContent: &models.InputTextMessageContent{

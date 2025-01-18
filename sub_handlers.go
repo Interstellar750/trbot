@@ -294,25 +294,40 @@ func udoneseHandler(opts *subHandlerOpts) {
 		meaning := strings.TrimSpace(opts.update.Message.Text[len(opts.fields[0])+len(opts.fields[1])+2:])
 		nickname := showUserNickName(opts.update)
 
-		addUdonese(udon, &UdoneseList{
+		var pendingMessage string
+		var botMessage *models.Message
+
+		oldMeaning := addUdonese(udon, &UdoneseWord{
 			Word: opts.fields[1],
-			MeaningList: []UdoneseMeaningList{ {
+			MeaningList: []UdoneseMeaning{ {
 				Meaning: meaning,
 				FromID: opts.update.Message.From.ID,
 				FromName: nickname,
 			}},
 		})
-		
-		var pendingMessage string
-		err := SaveYamlDB(udon_path, metadataFileName, *udon)
-		if err != nil {
-			pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
+		if oldMeaning != nil {
+			pendingMessage += fmt.Sprintf("[%s] 意思已存在于 [%s] 中:\n", meaning, oldMeaning.Word)
+			for i, s := range oldMeaning.MeaningList {
+				if meaning == s.Meaning {
+					if s.FromID == 0 && s.FromName == "" {
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
+					} else {
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.FromName)
+					}
+				}
+			}
 		} else {
-			pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
-			pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
-			pendingMessage += fmt.Sprintln("<blockquote>发送的消息与此消息将在十秒后删除</blockquote>")
+			err = SaveYamlDB(udon_path, metadataFileName, *udon)
+			if err != nil {
+				pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
+			} else {
+				pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
+				pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
+			}
 		}
-		botmessage, _:= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+
+		pendingMessage += fmt.Sprintln("<blockquote>发送的消息与此消息将在十秒后删除</blockquote>")
+		botMessage, _= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			Text: pendingMessage,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
@@ -324,7 +339,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 				ChatID: opts.update.Message.Chat.ID,
 				MessageIDs: []int{
 					opts.update.Message.ID,
-					botmessage.ID,
+					botMessage.ID,
 				},
 			})
 		}
