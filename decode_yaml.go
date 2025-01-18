@@ -118,7 +118,7 @@ func (list UdoneseWord) OnlyMeaning() []string {
 }
 
 // 以 models.ParseModeHTML 的格式输出一个词和其对应的全部意思
-func (list UdoneseWord) OutPutMeanings() string {
+func (list UdoneseWord) OutputMeanings() string {
 	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 已使用 %d 次，它的意思有\n", list.Word, list.Used)
 	for i, s := range list.MeaningList {
 		if s.FromID == 0 && s.FromName == "" {

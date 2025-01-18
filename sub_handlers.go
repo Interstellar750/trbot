@@ -237,6 +237,18 @@ func udoneseHandler(opts *subHandlerOpts) {
 	if err != nil {
 		log.Println("some error in while read udonese list: ", err)
 	}
+
+	for i, n := range udon.OnlyWord() {
+		if n == opts.update.Message.Text || strings.HasPrefix(opts.update.Message.Text, n) {
+			udon.List[i].Used++
+			err = SaveYamlDB(udon_path, metadataFileName, *udon)
+			if err != nil {
+				log.Println("get some error when add used count:", err)
+			}
+			// fmt.Println(udon.List[i].Word, "+1", udon.List[i].Used)
+		} 
+	}
+
 	if opts.fields[0] == "sms" {
 		// 参数过少，提示用法
 		if len(opts.fields) < 2 {
@@ -254,7 +266,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 			if word.Word == opts.fields[1] && len(word.MeaningList) > 0 {
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
-					Text:   word.OutPutMeanings(),
+					Text:   word.OutputMeanings(),
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 					ParseMode: models.ParseModeHTML,
 				})
@@ -342,16 +354,5 @@ func udoneseHandler(opts *subHandlerOpts) {
 			})
 		}
 		return
-	}
-
-	for i, n := range udon.OnlyWord() {
-		if n == opts.update.Message.Text || strings.HasPrefix(opts.update.Message.Text, n) {
-			udon.List[i].Used++
-			err = SaveYamlDB(udon_path, metadataFileName, *udon)
-			if err != nil {
-				log.Println("get some error when add used count:", err)
-			}
-			// fmt.Println(udon.List[i].Word, "+1", udon.List[i].Used)
-		} 
 	}
 }

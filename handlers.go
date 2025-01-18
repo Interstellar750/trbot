@@ -293,7 +293,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 						Title: data.Word,
 						Description: fmt.Sprintf("有 %d 个意思: %s...", len(data.MeaningList), data.MeaningList[0].Meaning),
 						InputMessageContent: models.InputTextMessageContent{
-							MessageText: data.OutPutMeanings(),
+							MessageText: data.OutputMeanings(),
 							ParseMode: models.ParseModeHTML,
 						},
 					})
@@ -307,7 +307,7 @@ func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) 
 							Title: data.Word,
 							Description: fmt.Sprintf("有 %d 个意思: %s...", len(data.MeaningList), data.MeaningList[0].Meaning),
 							InputMessageContent: models.InputTextMessageContent{
-								MessageText: data.OutPutMeanings(),
+								MessageText: data.OutputMeanings(),
 								ParseMode: models.ParseModeHTML,
 							},
 						})
