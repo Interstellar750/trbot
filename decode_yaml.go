@@ -93,8 +93,18 @@ type Udonese struct {
 	List  []UdoneseWord `yaml:"list"`
 }
 
+// 获取全部的词
+func (udonese Udonese) OnlyWord() []string {
+	var Words []string
+	for _, n := range udonese.List {
+		Words = append(Words, n.Word)
+	}
+	return Words
+}
+
 type UdoneseWord struct {
 	Word        string           `yaml:"Word,omitempty"`
+	Used        int              `yaml:"Used"`
 	MeaningList []UdoneseMeaning `yaml:"MeaningList,omitempty"`
 }
 
@@ -109,7 +119,7 @@ func (list UdoneseWord) OnlyMeaning() []string {
 
 // 以 models.ParseModeHTML 的格式输出一个词和其对应的全部意思
 func (list UdoneseWord) OutPutMeanings() string {
-	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 的意思有\n", list.Word)
+	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 已使用 %d 次，它的意思有\n", list.Word, list.Used)
 	for i, s := range list.MeaningList {
 		if s.FromID == 0 && s.FromName == "" {
 			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
@@ -122,7 +132,6 @@ func (list UdoneseWord) OutPutMeanings() string {
 
 type UdoneseMeaning struct {
 	Meaning  string `yaml:"Meaning"`
-	Used     int    `yaml:"Used"`
 	FromID   int64  `yaml:"FromID,omitempty"`
 	FromName string `yaml:"FromName,omitempty"`
 }

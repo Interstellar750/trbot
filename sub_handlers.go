@@ -278,9 +278,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 		// 	},
 		// })
 		return
-	}
-
-	if opts.fields[0] == "udonese" {
+	} else if opts.fields[0] == "udonese" {
 		if len(opts.fields) < 2 {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID:    opts.update.Message.Chat.ID,
@@ -344,5 +342,16 @@ func udoneseHandler(opts *subHandlerOpts) {
 			})
 		}
 		return
+	}
+
+	for i, n := range udon.OnlyWord() {
+		if n == opts.update.Message.Text || strings.HasPrefix(opts.update.Message.Text, n) {
+			udon.List[i].Used++
+			err = SaveYamlDB(udon_path, metadataFileName, *udon)
+			if err != nil {
+				log.Println("get some error when add used count:", err)
+			}
+			// fmt.Println(udon.List[i].Word, "+1", udon.List[i].Used)
+		} 
 	}
 }

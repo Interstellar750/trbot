@@ -117,7 +117,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 				})
 				return
 			}
-		} else if len(fields) > 0 && AnyContains(fields[0], "sms", "udonese") && update.Message.Chat.ID == udonGroupID {
+		} else if update.Message.Chat.ID == udonGroupID {
 			udoneseHandler(&opts)
 			return
 		}
@@ -198,6 +198,7 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 // 默认函数，处理 inline 模式下的请求
 func inlinehandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	// 不知道为什么用户选择 AnswerInlineQuery 列表中的参数后，还会再次触发这个函数，而且 update 中的 InlineQuery 还正好为空
+	// 大概是作为 default handler 的原因，似乎群内编辑消息也会触发 default handler
 	if update.InlineQuery == nil {
 		log.Println("InlineQuery is nil")
 		return
