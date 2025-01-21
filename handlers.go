@@ -28,8 +28,8 @@ func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update
 	info, index := getIDInfoAndIndex(update.Message.Chat.ID)
 	fields := strings.Fields(update.Message.Text)
 
-	if index == -1 && AddChatID(update.Message.Chat) {
-		log.Printf("add group [%d] in database", update.Message.Chat.ID)
+	if index == -1 && AddChatInfo(update.Message.Chat) {
+		log.Printf("add chat:%s [%d] in database", update.Message.Chat.Type, update.Message.Chat.ID)
 		info, index = getIDInfoAndIndex(update.Message.Chat.ID)
 	}
 

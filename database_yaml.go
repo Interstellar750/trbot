@@ -25,52 +25,53 @@ type DataBaseYaml struct {
 
 type IDInfo struct {
 	ID       int64           `yaml:"ID"`
-	ChatType models.ChatType `yaml:"chatType"`
-	AddTime  string          `yaml:"addTime,omitempty"`
+	ChatType models.ChatType `yaml:"ChatType"`
+	ChatName string          `yaml:"ChatName"`
+	AddTime  string          `yaml:"AddTime,omitempty"`
 
-	IsBlackList         bool `yaml:"isBlackList,omitempty"`
-	IsBotAdmin          bool `yaml:"isBotAdmin,omitempty"`
-	IsEnableForwardonly bool `yaml:"isEnableForwardonly,omitempty"`
+	IsBlackList         bool `yaml:"IsBlackList,omitempty"`
+	IsBotAdmin          bool `yaml:"IsBotAdmin,omitempty"`
+	IsEnableForwardonly bool `yaml:"IsEnableForwardonly,omitempty"`
 
-	SavedMessage   SavedMessage `yaml:"savedMessage,omitempty"`
-	InlineAlias    InlineAlias  `yaml:"inlineAliases,omitempty"`
-	CustomCommands CustomCommands `yaml:"customCommands,omitempty"`
+	SavedMessage   SavedMessage   `yaml:"SavedMessage,omitempty"`
+	InlineAlias    InlineAlias    `yaml:"InlineAliases,omitempty"`
+	CustomCommands CustomCommands `yaml:"CustomCommands,omitempty"`
 }
 
 type SavedMessage struct {
-	Count int `yaml:"count"`
-	Limit int `yaml:"limit,omitempty"`
+	Count int `yaml:"Count"`
+	Limit int `yaml:"Limit,omitempty"`
 
-	Item []SavedMessageItems `yaml:"item,omitempty"`
+	Item []SavedMessageItems `yaml:"Item,omitempty"`
 }
 
 type SavedMessageItems struct {
-	Type string `yaml:"type"`
-	URL  string `yaml:"url"`
-	Text string `yaml:"text"`
-	Describe string `yaml:"describe"`
+	Type     string `yaml:"Type"`
+	URL      string `yaml:"Url"`
+	Text     string `yaml:"Text"`
+	Describe string `yaml:"Describe"`
 }
 
 type InlineAlias struct {
-	Text    string `yaml:"text,omitempty"`
-	Image   string `yaml:"image,omitempty"`
-	Voice   string `yaml:"voice,omitempty"`
-	Video   string `yaml:"video,omitempty"`
-	File    string `yaml:"file,omitempty"`
-	Sticker string `yaml:"sticker,omitempty"`
+	Text    string `yaml:"Text,omitempty"`
+	Image   string `yaml:"Image,omitempty"`
+	Voice   string `yaml:"Voice,omitempty"`
+	Video   string `yaml:"Video,omitempty"`
+	File    string `yaml:"File,omitempty"`
+	Sticker string `yaml:"Sticker,omitempty"`
 }
 
 type CustomCommands struct {
-	Count int `yaml:"count"`
-	Limit int `yaml:"limit,omitempty"`
+	Count int `yaml:"Count"`
+	Limit int `yaml:"Limit,omitempty"`
 
-	Item []CustomCommandsItems `yaml:"item,omitempty"`
+	Item []CustomCommandsItems `yaml:"Item,omitempty"`
 }
 
 type CustomCommandsItems struct {
-	Text string `yaml:"text"`
-	WithPrefix bool `yaml:"withPrefix,omitempty"`
-	Prefix string `yaml:"prefix,omitempty"`
+	Text       string `yaml:"Text"`
+	WithPrefix bool   `yaml:"WithPrefix,omitempty"`
+	Prefix     string `yaml:"Prefix,omitempty"`
 }
 
 func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
@@ -124,16 +125,17 @@ func addToYamlDB(params *IDInfo) {
 }
 
 // 初次添加群组时，获取必要信息
-func AddChatID(chat models.Chat) bool {
+func AddChatInfo(chat models.Chat) bool {
 	for _, data := range database.Data.IDs {
 		if data.ID == chat.ID {
 			return false // 群组已存在，不重复添加
 		}
 	}
 	addToYamlDB(&IDInfo{
-		ID: chat.ID,
+		ID:       chat.ID,
 		ChatType: chat.Type,
-		AddTime: time.Now().Format(time.RFC3339),
+		ChatName: showChatNickName(&chat),
+		AddTime:  time.Now().Format(time.RFC3339),
 	})
 	DB_savenow <- true
 	return true
@@ -220,7 +222,7 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 							}
 						}
 					}
-					
+
 				} else { // 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
 					database.UpdateTimestamp = time.Now().Unix()
 					err := SaveYamlDB(db_path, metadataFileName, database)

@@ -386,6 +386,14 @@ func showUserNickName(update *models.Update) string {
 	}
 }
 
+func showChatNickName(chat *models.Chat) string {
+	if chat.LastName != "" {
+		return chat.FirstName + " " + chat.LastName
+	} else {
+		return chat.FirstName
+	}
+}
+
 func InlineResultPagination(queryFields []string, results []models.InlineQueryResult) []models.InlineQueryResult {
 	// 当 result 的数量超过 InlineResultsPerPage 时，进行分页
 	// fmt.Println(len(results), InlineResultsPerPage)
