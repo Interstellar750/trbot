@@ -19,11 +19,37 @@ func main() {
 	defer cancel()
 
 	opts := []bot.Option{
-		bot.WithDefaultHandler(inlinehandler),
+		bot.WithDefaultHandler(defaultHandler),
 		// bot.WithMiddlewares(),
 		// bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
-		bot.WithMessageTextHandler("", bot.MatchTypeContains, catchAllHandler),
+		// bot.WithMessageTextHandler("", bot.MatchTypeContains, catchAllHandler),
 		// bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
+		// bot.WithWebhookSecretToken("dqwdefgertghytyjyiuy"),
+		bot.WithAllowedUpdates(bot.AllowedUpdates{
+			"message",
+			"edited_message",
+			"channel_post",
+			"edited_channel_post",
+			"inline_query",
+			"chosen_inline_result",
+			"callback_query",
+			"shipping_query",
+			"pre_checkout_query",
+			"poll",
+			"poll_answer",
+			"my_chat_member",
+			"chat_member",
+			"chat_join_request",
+			"chat_boost",
+			"removed_chat_boost",
+			"message_reaction",
+			"message_reaction_count",
+			"business_connection",
+			"business_message",
+			"edited_business_message",
+			"deleted_business_messages",
+			"purchased_paid_media",
+		}),
 	}
 
 	thebot, err := bot.New(botToken, opts...)
@@ -62,6 +88,7 @@ func main() {
 		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
 		saveAndCleanRemoteWebhookURL(ctx, thebot)
 		log.Println("Working at Long Polling Mode")
+		fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/getWebhookInfo to check infos \n", botToken)
 		fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/setWebhook?url=https://api.trle5.xyz/webhook-trbot to reset webhook\n", botToken)
 		thebot.Start(ctx)
 		<-ctx.Done() // 等待中断信号

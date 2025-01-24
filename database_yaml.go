@@ -25,9 +25,12 @@ type DataBaseYaml struct {
 
 type IDInfo struct {
 	ID       int64           `yaml:"ID"`
-	ChatType models.ChatType `yaml:"ChatType"`
 	ChatName string          `yaml:"ChatName"`
+	ChatType models.ChatType `yaml:"ChatType"`
 	AddTime  string          `yaml:"AddTime,omitempty"`
+
+	MessageCount int `yaml:"MessageCount"`
+	InlineCount  int `yaml:"InlineCount"`
 
 	IsBlackList         bool `yaml:"IsBlackList,omitempty"`
 	IsBotAdmin          bool `yaml:"IsBotAdmin,omitempty"`
