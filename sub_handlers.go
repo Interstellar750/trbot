@@ -30,8 +30,12 @@ func startHandler(opts *subHandlerOpts) {
 			ChatID:    opts.update.Message.Chat.ID,
 			Text:      fmt.Sprintf("Hello, *%s %s*\n\nThis robot doesn't currently support chat mode, please use [inline mode](https://telegram.org/blog/inline-bots?setln=en) for interactive operations.", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-			LinkPreviewOptions: &models.LinkPreviewOptions{ PreferSmallMedia: bot.True() },
+			LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
 			ParseMode: models.ParseModeMarkdownV1,
+			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				Text: "Try Inline Mode",
+				SwitchInlineQueryCurrentChat: " ",
+			}}}},
 		})
 	}
 }
