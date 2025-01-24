@@ -242,6 +242,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 		log.Println("some error in while read udonese list: ", err)
 	}
 
+	// 统计词使用次数
 	for i, n := range udon.OnlyWord() {
 		if n == opts.update.Message.Text || strings.HasPrefix(opts.update.Message.Text, n) {
 			udon.List[i].Used++
@@ -306,7 +307,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 		}
 
 		meaning := strings.TrimSpace(opts.update.Message.Text[len(opts.fields[0])+len(opts.fields[1])+2:])
-		nickname := showUserNickName(opts.update)
+		nickname := showUserName(opts.update.Message.From)
 
 		var pendingMessage string
 		var botMessage *models.Message

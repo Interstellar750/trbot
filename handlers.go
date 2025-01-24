@@ -18,19 +18,19 @@ type subHandlerOpts struct {
 	update   *models.Update
 	chatInfo *IDInfo
 	DBIndex  int
-	fields   []string
+	fields   []string // 根据请求的类型，可能是消息文本，也可能是 inline 的 query
 }
 
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func catchAllHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	var botMessage *models.Message // 存放 bot 发送的信息
 
-	info, index := getIDInfoAndIndex(update.Message.Chat.ID)
+	info, index := getIDInfoAndIndex(&update.Message.Chat.ID)
 	fields := strings.Fields(update.Message.Text)
 
-	if index == -1 && AddChatInfo(update.Message.Chat) {
+	if index == -1 && AddChatInfo(&update.Message.Chat) {
 		log.Printf("add chat:%s [%d] in database", update.Message.Chat.Type, update.Message.Chat.ID)
-		info, index = getIDInfoAndIndex(update.Message.Chat.ID)
+		info, index = getIDInfoAndIndex(&update.Message.Chat.ID)
 	}
 
 	var opts = subHandlerOpts{

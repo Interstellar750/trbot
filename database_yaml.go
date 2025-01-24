@@ -125,7 +125,7 @@ func addToYamlDB(params *IDInfo) {
 }
 
 // 初次添加群组时，获取必要信息
-func AddChatInfo(chat models.Chat) bool {
+func AddChatInfo(chat *models.Chat) bool {
 	for _, data := range database.Data.IDs {
 		if data.ID == chat.ID {
 			return false // 群组已存在，不重复添加
@@ -134,7 +134,23 @@ func AddChatInfo(chat models.Chat) bool {
 	addToYamlDB(&IDInfo{
 		ID:       chat.ID,
 		ChatType: chat.Type,
-		ChatName: showChatNickName(&chat),
+		ChatName: showChatName(chat),
+		AddTime:  time.Now().Format(time.RFC3339),
+	})
+	DB_savenow <- true
+	return true
+}
+
+func AddUserInfo(user *models.User) bool {
+	for _, data := range database.Data.IDs {
+		if data.ID == user.ID {
+			return false // 用户已存在，不重复添加
+		}
+	}
+	addToYamlDB(&IDInfo{
+		ID:       user.ID,
+		ChatType: models.ChatTypePrivate,
+		ChatName: showUserName(user),
 		AddTime:  time.Now().Format(time.RFC3339),
 	})
 	DB_savenow <- true
@@ -246,9 +262,9 @@ func mainDatabaseHandler(DB_savenow chan bool) {
 }
 
 // 获取 ID 信息与在数据库中的位置
-func getIDInfoAndIndex(id int64) (*IDInfo, int) {
+func getIDInfoAndIndex(id *int64) (*IDInfo, int) {
 	for Index, Data := range database.Data.IDs {
-		if Data.ID == id {
+		if Data.ID == *id {
 			return &database.Data.IDs[Index], Index
 		}
 	}

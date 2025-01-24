@@ -378,16 +378,18 @@ func outputVersionInfo() string {
 	return info
 }
 
-func showUserNickName(update *models.Update) string {
-	if update.Message.From.LastName != "" {
-		return update.Message.From.FirstName + " " + update.Message.From.LastName
+func showUserName(user *models.User) string {
+	if user.LastName != "" {
+		return user.FirstName + " " + user.LastName
 	} else {
-		return update.Message.From.FirstName
+		return user.LastName
 	}
 }
 
-func showChatNickName(chat *models.Chat) string {
-	if chat.LastName != "" {
+func showChatName(chat *models.Chat) string {
+	if chat.Title != "" { // 群组
+		return chat.Title
+	} else if chat.LastName != "" { // 
 		return chat.FirstName + " " + chat.LastName
 	} else {
 		return chat.FirstName
