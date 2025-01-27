@@ -382,7 +382,7 @@ func showUserName(user *models.User) string {
 	if user.LastName != "" {
 		return user.FirstName + " " + user.LastName
 	} else {
-		return user.LastName
+		return user.FirstName
 	}
 }
 
