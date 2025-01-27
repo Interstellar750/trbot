@@ -39,7 +39,11 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 
 		opts.chatInfo.MessageCount++
-		log.Printf("message from: \"%s\"(%s)[%d], message: [%s]", showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID, update.Message.Text)
+		log.Printf("message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], message: [%s]", 
+			showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
+			showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+			update.Message.Text,
+		)
 
 		messageHandler(&opts)
 	} else if update.EditedMessage != nil { // 私聊或群组消息被编辑
