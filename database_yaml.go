@@ -29,8 +29,8 @@ type IDInfo struct {
 	ChatType models.ChatType `yaml:"ChatType"`
 	AddTime  string          `yaml:"AddTime,omitempty"`
 
-	MessageCount int `yaml:"MessageCount"`
-	InlineCount  int `yaml:"InlineCount"`
+	MessageCount int `yaml:"MessageCount,omitempty"`
+	InlineCount  int `yaml:"InlineCount,omitempty"`
 
 	IsBlackList         bool `yaml:"IsBlackList,omitempty"`
 	IsBotAdmin          bool `yaml:"IsBotAdmin,omitempty"`
