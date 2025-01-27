@@ -214,19 +214,19 @@ func usingWebhook() bool {
 	}
 }
 
-func setUpWebhook(ctx context.Context, thebot *bot.Bot, url string) {
+func setUpWebhook(ctx context.Context, thebot *bot.Bot, params *bot.SetWebhookParams) {
 	webHookInfo, err := thebot.GetWebhookInfo(ctx)
 	if err != nil { log.Println(err) }
-	if webHookInfo.URL != url {
+	if webHookInfo.URL != params.URL {
 		if webHookInfo.URL == "" {
 			log.Println("Webhook not set, setting it now...")
 		} else {
 			log.Printf("unsame Webhook URL [%s], save it and setting up new URL...", webHookInfo.URL)
 			printLogAndSave(time.Now().Format(time.RFC3339) + " (unsame) old Webhook URL: " + webHookInfo.URL)
 		}
-		success, err := thebot.SetWebhook(ctx, &bot.SetWebhookParams{ URL: url })
+		success, err := thebot.SetWebhook(ctx, params)
 		if err != nil { log.Panicln("Set Webhook URL err:", err) }
-		if success { log.Println("Webhook setup successfully:", url) }
+		if success { log.Println("Webhook setup successfully:", params.URL) }
 
 	} else {
 		log.Println("Webhook is already set:", webHookInfo.URL)

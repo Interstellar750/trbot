@@ -18,6 +18,32 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	allowedUpdates := bot.AllowedUpdates{
+		"message",
+		"edited_message",
+		"channel_post",
+		"edited_channel_post",
+		"inline_query",
+		"chosen_inline_result",
+		"callback_query",
+		"shipping_query",
+		"pre_checkout_query",
+		"poll",
+		"poll_answer",
+		"my_chat_member",
+		"chat_member",
+		"chat_join_request",
+		"chat_boost",
+		"removed_chat_boost",
+		"message_reaction",
+		"message_reaction_count",
+		"business_connection",
+		"business_message",
+		"edited_business_message",
+		"deleted_business_messages",
+		"purchased_paid_media",
+	}
+
 	opts := []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),
 		// bot.WithMiddlewares(),
@@ -25,31 +51,7 @@ func main() {
 		// bot.WithMessageTextHandler("", bot.MatchTypeContains, catchAllHandler),
 		// bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
 		// bot.WithWebhookSecretToken("dqwdefgertghytyjyiuy"),
-		bot.WithAllowedUpdates(bot.AllowedUpdates{
-			"message",
-			"edited_message",
-			"channel_post",
-			"edited_channel_post",
-			"inline_query",
-			"chosen_inline_result",
-			"callback_query",
-			"shipping_query",
-			"pre_checkout_query",
-			"poll",
-			"poll_answer",
-			"my_chat_member",
-			"chat_member",
-			"chat_join_request",
-			"chat_boost",
-			"removed_chat_boost",
-			"message_reaction",
-			"message_reaction_count",
-			"business_connection",
-			"business_message",
-			"edited_business_message",
-			"deleted_business_messages",
-			"purchased_paid_media",
-		}),
+		bot.WithAllowedUpdates(allowedUpdates),
 	}
 
 	thebot, err := bot.New(botToken, opts...)
@@ -75,7 +77,10 @@ func main() {
 
 	// 检查是否设定了 webhookURL 环境变量
 	if usingWebhook() { // Webhook
-		setUpWebhook(ctx, thebot, webhookURL)
+		setUpWebhook(ctx, thebot, &bot.SetWebhookParams{
+			URL: webhookURL,
+			AllowedUpdates: allowedUpdates,
+		})
 		log.Println("Working at Webhook Mode")
 		go thebot.StartWebhook(ctx)
 		go func() {
