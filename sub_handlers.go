@@ -242,13 +242,10 @@ func udoneseHandler(opts *subHandlerOpts) {
 		log.Println("some error in while read udonese list: ", err)
 	}
 
-	var IsWordInList bool
-
 	// 统计词使用次数
 	for i, n := range udon.OnlyWord() {
 		if n == opts.update.Message.Text || strings.HasPrefix(opts.update.Message.Text, n) {
 			udon.List[i].Used++
-			IsWordInList = true
 			err = SaveYamlDB(udon_path, metadataFileName, *udon)
 			if err != nil {
 				log.Println("get some error when add used count:", err)
@@ -265,6 +262,10 @@ func udoneseHandler(opts *subHandlerOpts) {
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 				Text:   "使用方法：发送 `sms <词>` 来查看对应的意思",
 				ParseMode: models.ParseModeMarkdownV1,
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "点击浏览全部词与意思",
+					SwitchInlineQueryCurrentChat: ":sms ",
+				}}}},
 			})
 			return
 		}
@@ -286,7 +287,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-			Text:   "这个词还没有记录哦",
+			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
 		return
@@ -354,7 +355,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 			})
 		}
 		return
-	} else if IsWordInList && strings.HasSuffix(opts.update.Message.Text, "ssm") {
+	} else if len(opts.fields) > 1 && strings.HasSuffix(opts.update.Message.Text, "ssm") {
 		// 在数据库循环查找这个词
 		for _, word := range udon.List {
 			if word.Word == opts.fields[0] && len(word.MeaningList) > 0 {
@@ -372,7 +373,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-			Text:   "这个词还没有记录哦",
+			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
 	}

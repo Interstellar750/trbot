@@ -388,7 +388,7 @@ func inlineHandler(opts *subHandlerOpts) {
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 						ID:    data.Word,
 						Title: data.Word,
-						Description: fmt.Sprintf("有 %d 个意思: %s...", len(data.MeaningList), data.MeaningList[0].Meaning),
+						Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
 						InputMessageContent: models.InputTextMessageContent{
 							MessageText: data.OutputMeanings(),
 							ParseMode: models.ParseModeHTML,
@@ -402,7 +402,7 @@ func inlineHandler(opts *subHandlerOpts) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 							ID:    data.Word,
 							Title: data.Word,
-							Description: fmt.Sprintf("有 %d 个意思: %s...", len(data.MeaningList), data.MeaningList[0].Meaning),
+							Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
 							InputMessageContent: models.InputTextMessageContent{
 								MessageText: data.OutputMeanings(),
 								ParseMode: models.ParseModeHTML,
@@ -430,10 +430,10 @@ func inlineHandler(opts *subHandlerOpts) {
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 						ID:       "none",
 						Title:    "没有符合关键词的内容",
-						Description: fmt.Sprintf("没有找到包含 %s 的词或意思", opts.fields[1:]),
+						Description: fmt.Sprintf("没有找到包含 %s 的词或意思，若想查看添加方法，请点击这条内容", opts.fields[1:]),
 						InputMessageContent: models.InputTextMessageContent{
-							MessageText: "没有这个词，使用 <code>udonese <词> <意思> </code> 来添加吧",
-							ParseMode: models.ParseModeHTML,
+							MessageText: "没有这个词，使用 `udonese <词> <意思>` 来添加吧",
+							ParseMode: models.ParseModeMarkdownV1,
 						},
 					})
 				}
@@ -447,8 +447,7 @@ func inlineHandler(opts *subHandlerOpts) {
 				log.Println("Error when answering inline :sms command", err)
 			}
 			return
-		default:
-			// default 中设定一些管理员命令和无命令提示
+		default: // default 中设定一些管理员命令和无命令提示
 			if AnyContains(opts.update.InlineQuery.From.ID, logMan_IDs) {
 				if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "log") {
 					logs := readLog()
