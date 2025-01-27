@@ -242,10 +242,13 @@ func udoneseHandler(opts *subHandlerOpts) {
 		log.Println("some error in while read udonese list: ", err)
 	}
 
+	var IsWordInList bool
+
 	// 统计词使用次数
 	for i, n := range udon.OnlyWord() {
 		if n == opts.update.Message.Text || strings.HasPrefix(opts.update.Message.Text, n) {
 			udon.List[i].Used++
+			IsWordInList = true
 			err = SaveYamlDB(udon_path, metadataFileName, *udon)
 			if err != nil {
 				log.Println("get some error when add used count:", err)
@@ -280,20 +283,12 @@ func udoneseHandler(opts *subHandlerOpts) {
 		}
 
 		// 到这里就是没找到，提示没有
-		// botMessage, _ := 
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			Text:   "这个词还没有记录哦",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
-		// time.Sleep(time.Second * 15)
-		// opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
-		// 	ChatID: opts.update.Message.Chat.ID,
-		// 	MessageIDs: []int{
-		// 		botMessage.ID,
-		// 	},
-		// })
 		return
 	} else if opts.fields[0] == "udonese" {
 		if len(opts.fields) < 2 {
@@ -359,5 +354,26 @@ func udoneseHandler(opts *subHandlerOpts) {
 			})
 		}
 		return
+	} else if IsWordInList && strings.HasSuffix(opts.update.Message.Text, "ssm") {
+		// 在数据库循环查找这个词
+		for _, word := range udon.List {
+			if word.Word == opts.fields[0] && len(word.MeaningList) > 0 {
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.Message.Chat.ID,
+					Text:   word.OutputMeanings(),
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+					ParseMode: models.ParseModeHTML,
+				})
+				return
+			}
+		}
+
+		// 到这里就是没找到，提示没有
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.Message.Chat.ID,
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+			Text:   "这个词还没有记录哦",
+			ParseMode: models.ParseModeMarkdownV1,
+		})
 	}
 }
