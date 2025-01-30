@@ -1,14 +1,17 @@
 package main
 
 import (
+	"archive/zip"
 	"bufio"
 	"context"
 	"fmt"
+	"image/png"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -19,23 +22,278 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/joho/godotenv"
+	"golang.org/x/image/webp"
 )
 
-func echoSticker(filePath string) *io.PipeReader {
-	log.Printf("https://api.telegram.org/file/bot%s/%s\n", botToken, filePath)
-	resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, filePath))
-	if err != nil { log.Printf("error downloading file: %v", err) }
-	defer resp.Body.Close()
-	reader, writer := io.Pipe()
-	go func() {
-		defer writer.Close()
-		_, err := io.Copy(writer, resp.Body)
-		if err != nil {
-			log.Println("Error copying to pipe:", err)
-		}
-	}()
+func echoSticker(opts *subHandlerOpts) (io.Reader, error) {
 
-	return reader
+	stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: opts.update.Message.Sticker.SetName })
+	if err != nil { log.Printf("error getting sticker set: %v", err) }
+	var stickerindex int
+	for i, n := range stickerSet.Stickers {
+		if n.FileID == opts.update.Message.Sticker.FileID {
+			stickerindex = i
+			break
+		}
+	}
+
+	fileName := fmt.Sprintf("%s %d %s.", opts.update.Message.Sticker.SetName, stickerindex, opts.update.Message.Sticker.FileID)
+	if opts.update.Message.Sticker.IsVideo {
+		fileName += "webm"
+	} else if opts.update.Message.Sticker.IsAnimated {
+		fileName += "tgs"
+	} else {
+		fileName += "webp"
+	}
+	filePath := stickerCache_path + opts.update.Message.Sticker.SetName + "/"
+
+	
+	_, err = os.Stat(filePath + fileName) // 检查文件是否存在
+	if os.IsNotExist(err) {
+		// log.Println("file does not exist, downloading")
+
+		// 从服务器获取文件内容
+		file, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: opts.update.Message.Sticker.FileID })
+		if err != nil { log.Printf("Error getting file: %v", err) }
+
+		// 下载贴纸文件
+		resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath))
+		if err != nil { log.Printf("error downloading file: %v", err) }
+		defer resp.Body.Close()
+
+		err = os.MkdirAll(filePath, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("error creating directory %s: %w", filePath, err)
+		}
+
+
+		// 创建文件并保存
+		outFile, err := os.Create(filePath + fileName)
+		if err != nil {
+			return nil, fmt.Errorf("error creating file %s: %w", filePath + fileName, err)
+		}
+		defer outFile.Close()
+
+		// 将下载的内容写入文件
+		_, err = io.Copy(outFile, resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error writing to file: %w", err)
+		}
+	} 
+	// else {
+	// 	// 存在跳过下载过程
+	// 	log.Printf("file %s already exists", filePath + fileName)
+	// }
+
+	if !opts.update.Message.Sticker.IsAnimated && !opts.update.Message.Sticker.IsVideo {
+			filePathPNG := stickerCache_path + opts.update.Message.Sticker.SetName + "_png/"
+		err = os.MkdirAll(filePathPNG, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("error creating directory %s: %w", filePathPNG, err)
+		}
+		err = ConvertWebPToPNG(filePath + fileName, filePathPNG + strings.TrimSuffix(fileName, "webp") + "png")
+		if err != nil {
+			return nil, fmt.Errorf("error converting webp to png %s: %w", filePath + fileName, err)
+		}
+		cachedpngfile, err := os.Open(filePathPNG + strings.TrimSuffix(fileName, "webp") + "png")
+		if err != nil {
+			return nil, fmt.Errorf("error opening file: %w", err)
+		}
+		// defer cachedfile.Close()
+
+		return cachedpngfile, nil
+	}
+
+	cachedfile, err := os.Open(filePath + fileName)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	// defer cachedfile.Close()
+
+	return cachedfile, nil
+}
+
+func getStickerPack(opts *subHandlerOpts, stickerSetName string, isOnlyPNG bool) (io.Reader, error) {
+	stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: stickerSetName })
+	if err != nil { log.Printf("error getting sticker set: %v", err) }
+
+	filePath := stickerCache_path + stickerSetName + "/"
+	filePathPNG := stickerCache_path + stickerSetName + "_png/"
+
+	for i, sticker := range stickerSet.Stickers {
+		fileName := fmt.Sprintf("%s %d %s.", sticker.SetName, i, sticker.FileID)
+
+		if sticker.IsVideo {
+			fileName += "webm"
+		} else if sticker.IsAnimated {
+			fileName += "tgs"
+		} else {
+			fileName += "webp"
+		}
+
+		_, err = os.Stat(filePath + fileName) // 检查文件是否存在
+		if os.IsNotExist(err) {
+			// log.Println("file does not exist, downloading")
+
+			// 从服务器获取文件内容
+			file, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: sticker.FileID })
+			if err != nil { log.Printf("Error getting file: %v", err) }
+
+			// 下载贴纸文件
+			// fmt.Printf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath)
+			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath))
+			if err != nil { log.Printf("error downloading file: %v", err) }
+			defer resp.Body.Close()
+
+			err = os.MkdirAll(filePath, 0755)
+			if err != nil {
+				return nil, fmt.Errorf("error creating directory %s: %w", filePath, err)
+			}
+
+
+			// 创建文件并保存
+			outFile, err := os.Create(filePath + fileName)
+			if err != nil {
+				return nil, fmt.Errorf("error creating file %s: %w", filePath + fileName, err)
+			}
+			defer outFile.Close()
+
+			// 将下载的内容写入文件
+			_, err = io.Copy(outFile, resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("error writing to file: %w", err)
+			}
+		}
+		// else {
+		// 	// 存在跳过下载过程
+		// 	log.Printf("file %s already exists", filePath + fileName)
+		// }
+
+		if isOnlyPNG {
+			if !sticker.IsVideo && !sticker.IsAnimated {
+				_, err = os.Stat(filePathPNG + fileName)
+				if os.IsNotExist(err) {
+					err = os.MkdirAll(filePathPNG, 0755)
+					if err != nil {
+						return nil, fmt.Errorf("error creating directory %s: %w", filePathPNG, err)
+					}
+					err = ConvertWebPToPNG(filePath + fileName, filePathPNG + strings.TrimSuffix(fileName, "webp") + "png")
+					if err != nil {
+						return nil, fmt.Errorf("error converting webp to png %s: %w", filePath + fileName, err)
+					}
+				}
+			}
+		}
+	}
+
+	var zipFileName string
+
+	if isOnlyPNG {
+		zipFileName = stickerSetName + "_png.zip"
+		err := zipFolder(filePathPNG, stickerCache_path + zipFileName)
+		if err != nil {
+			return nil, fmt.Errorf("error zipping folder %s: %w", filePathPNG, err)
+		} else {
+			log.Println("successfully zipped folder", stickerCache_path + zipFileName)
+		}
+	} else {
+		zipFileName = stickerSetName + ".zip"
+		err := zipFolder(filePath, stickerCache_path + zipFileName)
+		if err != nil {
+			return nil, fmt.Errorf("error zipping folder %s: %w", filePathPNG, err)
+		} else {
+			log.Println("successfully zipped folder", stickerCache_path + zipFileName)
+		}
+	}
+
+	zipedSet, err := os.Open(stickerCache_path + zipFileName)
+	if err != nil {
+		return nil, fmt.Errorf("error opening zip file %s: %w", stickerCache_path + zipFileName, err)
+	}
+
+	log.Printf("sticker pack [%s] downloaded", stickerSetName)
+
+	return zipedSet, nil
+}
+
+func ConvertWebPToPNG(webpPath, pngPath string) error {
+	// 打开 WebP 文件
+	webpFile, err := os.Open(webpPath)
+	if err != nil {
+		return fmt.Errorf("打开 WebP 文件失败: %v", err)
+	}
+	defer webpFile.Close()
+
+	// 解码 WebP 图片
+	img, err := webp.Decode(webpFile)
+	if err != nil {
+		return fmt.Errorf("解码 WebP 失败: %v", err)
+	}
+
+	// 创建 PNG 文件
+	pngFile, err := os.Create(pngPath)
+	if err != nil {
+		return fmt.Errorf("创建 PNG 文件失败: %v", err)
+	}
+	defer pngFile.Close()
+
+	// 编码 PNG
+	err = png.Encode(pngFile, img)
+	if err != nil {
+		return fmt.Errorf("编码 PNG 失败: %v", err)
+	}
+
+	return nil
+}
+
+func zipFolder(srcDir, zipFile string) error {
+	// 创建 ZIP 文件
+	outFile, err := os.Create(zipFile)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	// 创建 ZIP 写入器
+	zipWriter := zip.NewWriter(outFile)
+	defer zipWriter.Close()
+
+	// 遍历文件夹并添加文件到 ZIP
+	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 计算文件在 ZIP 中的相对路径
+		relPath, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		// 如果是目录，则跳过
+		if info.IsDir() {
+			return nil
+		}
+
+		// 打开文件
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		// 创建 ZIP 内的文件
+		zipFileWriter, err := zipWriter.Create(relPath)
+		if err != nil {
+			return err
+		}
+
+		// 复制文件内容到 ZIP
+		_, err = io.Copy(zipFileWriter, file)
+		return err
+	})
+
+	return err
 }
 
 // 定义消息类型枚举

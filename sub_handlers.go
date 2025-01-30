@@ -138,34 +138,55 @@ func addToWriteListHandler(opts *subHandlerOpts) {
 	}
 }
 
-func echoStickerHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+func echoStickerHandler(opts *subHandlerOpts) {
 	// 下载 webp 格式的贴纸
-	file, err := thebot.GetFile(ctx, &bot.GetFileParams{ FileID: update.Message.Sticker.FileID })
-	if err != nil { log.Printf("Error getting file: %v", err) }
-	if update.Message.Sticker.IsVideo {
-		thebot.SendDocument(ctx, &bot.SendDocumentParams{
-			ChatID:   update.Message.Chat.ID,
-			Caption: "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)",
-			Document: &models.InputFileUpload{Filename: "sticker.webm", Data: echoSticker(file.FilePath)},
-			// Document: &models.InputFileString{Data: file.FilePath},
-			ParseMode: models.ParseModeMarkdownV1,
-		})
-	} else if update.Message.Sticker.IsAnimated {
-		thebot.SendDocument(ctx, &bot.SendDocumentParams{
-			ChatID:   update.Message.Chat.ID,
-			Caption: "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)",
-			Document: &models.InputFileUpload{Filename: "sticker.tgs.file", Data: echoSticker(file.FilePath)},
-			ParseMode: models.ParseModeMarkdownV1,
-		})
-	} else {
-		thebot.SendDocument(ctx, &bot.SendDocumentParams{
-			ChatID:   update.Message.Chat.ID,
-			Caption: "see [wikipedia/WebP](https://wikipedia.org/wiki/WebP)",
-			Document: &models.InputFileUpload{Filename: "sticker.webp.png", Data: echoSticker(file.FilePath)},
-			// Document: &models.InputFileString{ Data: update.Message.Sticker.FileID }, // 没法以文件形式发送
+	fmt.Println(opts.update.Message.Sticker)
+
+	stickerdata, err := echoSticker(opts)
+	if err != nil {
+		log.Println("Error downloading sticker:", err)
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.Message.Chat.ID,
+			Text:   "下载贴纸时发生了一些错误",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
 	}
+
+	if stickerdata == nil {
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.Message.Chat.ID,
+			Text:   "下载贴纸时发生了一些错误",
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+		return
+	}
+
+	documentParams := &bot.SendDocumentParams{
+		ChatID:   opts.update.Message.Chat.ID,
+		ParseMode: models.ParseModeMarkdownV1,
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.update.Message.Sticker.SetName)},
+			},
+			{
+				{Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.update.Message.Sticker.SetName)},
+			},
+		}},
+	}
+
+	if opts.update.Message.Sticker.IsVideo {
+		documentParams.Caption  = "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)"
+		documentParams.Document = &models.InputFileUpload{Filename: "sticker.webm", Data: stickerdata}
+	} else if opts.update.Message.Sticker.IsAnimated {
+		documentParams.Caption  = "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)"
+		documentParams.Document = &models.InputFileUpload{Filename: "sticker.tgs.file", Data: stickerdata}
+	} else {
+		documentParams.Document = &models.InputFileUpload{Filename: "sticker.png", Data: stickerdata}
+	}
+
+	opts.thebot.SendDocument(opts.ctx, documentParams)
+	
 }
 
 var currentOptions = []bool{false, false, false}

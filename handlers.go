@@ -39,19 +39,35 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 
 		opts.chatInfo.MessageCount++
-		log.Printf("message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], message: [%s]", 
-			showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
-			showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-			update.Message.Text,
-		)
+		if update.Message.Photo != nil {
+			log.Printf("photo message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], caption: [%s]", 
+				showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
+				showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+				update.Message.Caption,
+			)
+		} else {
+			log.Printf("message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], message: [%s]", 
+				showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
+				showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+				update.Message.Text,
+			)
+		}
 
 		messageHandler(&opts)
 	} else if update.EditedMessage != nil { // 私聊或群组消息被编辑
-		log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited message [%d] to [%s]", 
-			showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
-			showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
-			update.EditedMessage.ID, update.EditedMessage.Text,
-		)
+		if update.EditedMessage.Photo != nil {
+			log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited caption [%d] to [%s]", 
+				showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
+				showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
+				update.EditedMessage.ID, update.EditedMessage.Caption,
+			)
+		} else {
+			log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited message [%d] to [%s]", 
+				showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
+				showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
+				update.EditedMessage.ID, update.EditedMessage.Text,
+			)
+		}
 	} else if update.InlineQuery != nil { // inline 查询
 		opts.fields = strings.Fields(update.InlineQuery.Query)
 		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
@@ -79,12 +95,120 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			showChatName(&update.CallbackQuery.Message.Message.Chat), update.CallbackQuery.Message.Message.Chat.Username, update.CallbackQuery.Message.Message.Chat.ID,
 			update.CallbackQuery.Data,
 		)
+		thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: update.CallbackQuery.ID,
+			Text:            "已请求下载，请稍候",
+			ShowAlert:       false,
+		})
+
+		botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.CallbackQuery.Message.Message.Chat.ID,
+			Text:   "已请求下载，请稍候",
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+
+		if strings.HasPrefix(update.CallbackQuery.Data, "S_") || strings.HasPrefix(update.CallbackQuery.Data, "s_") {
+			var stickerName string
+			var isOnlyPNG bool
+			if update.CallbackQuery.Data[0:2] == "S_" {
+				stickerName = strings.TrimPrefix(update.CallbackQuery.Data, "S_")
+				isOnlyPNG = true
+			} else {
+				stickerName = strings.TrimPrefix(update.CallbackQuery.Data, "s_")
+				isOnlyPNG = false
+			}
+
+			stickerdata, err := getStickerPack(&opts, stickerName, isOnlyPNG)
+			if err != nil {
+				log.Println("Error downloading sticker:", err)
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.CallbackQuery.From.ID,
+					Text:   "下载贴纸包时发生了一些错误",
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+			}
+			if stickerdata == nil {
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.CallbackQuery.From.ID,
+					Text:   "未能获取到压缩包",
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+				return
+			}
+
+			documentParams := &bot.SendDocumentParams{
+				ChatID: opts.update.CallbackQuery.From.ID,
+				ParseMode: models.ParseModeMarkdownV1,
+			}
+
+			if isOnlyPNG {
+				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载（仅转换后的 PNG 格式）", stickerName, stickerName)
+				documentParams.Document = &models.InputFileUpload{Filename: stickerName + "_png.zip", Data: stickerdata}
+			} else {
+				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载", stickerName, stickerName)
+				documentParams.Document = &models.InputFileUpload{Filename: stickerName + ".zip", Data: stickerdata}
+			}
+
+			thebot.SendDocument(opts.ctx, documentParams)
+
+			thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+				ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: botMessage.ID,
+			})
+		}
 	} else if update.MessageReaction != nil { // 私聊或群组表情回应
-		log.Printf("reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-			showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-			showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-			update.MessageReaction.MessageID,
-		)
+		if len(update.MessageReaction.OldReaction) > 0 {
+			for i, oldReaction := range update.MessageReaction.OldReaction {
+				if oldReaction.ReactionTypeEmoji != nil {
+					log.Printf("%d remove emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+						i + 1, oldReaction.ReactionTypeEmoji.Emoji,
+						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+						update.MessageReaction.MessageID,
+					)
+				} else if oldReaction.ReactionTypeCustomEmoji != nil {
+					log.Printf("%d remove custom emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+						i + 1, oldReaction.ReactionTypeCustomEmoji.CustomEmojiID,
+						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+						update.MessageReaction.MessageID,
+					)
+				} else if oldReaction.ReactionTypePaid != nil {
+					log.Printf("%d remove paid reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+						i + 1,
+						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+						update.MessageReaction.MessageID,
+					)
+				}
+			}
+		}
+		if len(update.MessageReaction.NewReaction) > 0 {
+			for i, newReaction := range update.MessageReaction.NewReaction {
+				if newReaction.ReactionTypeEmoji != nil {
+					log.Printf("%d emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+						i + 1, newReaction.ReactionTypeEmoji.Emoji,
+						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+						update.MessageReaction.MessageID,
+					)
+				} else if newReaction.ReactionTypeCustomEmoji != nil {
+					log.Printf("%d custom emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+						i + 1, newReaction.ReactionTypeCustomEmoji.CustomEmojiID,
+						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+						update.MessageReaction.MessageID,
+					)
+				} else if newReaction.ReactionTypePaid != nil {
+					log.Printf("%d paid reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+						i + 1,
+						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+						update.MessageReaction.MessageID,
+					)
+				}
+			}
+		}
 	} else if update.MessageReactionCount != nil { // 频道消息表情回应数量
 		log.Printf("reaction count from in \"%s\"(%s)[%d], to message [%d], reactions: %v",
 			showChatName(&update.MessageReactionCount.Chat), update.MessageReactionCount.Chat.Username, update.MessageReactionCount.Chat.ID,
@@ -135,7 +259,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			showChatName(&update.EditedChannelPost.Chat), update.EditedChannelPost.Chat.Username, update.EditedChannelPost.Chat.ID,
 			update.EditedChannelPost.Text,
 		)
-	} else { // 没有加入的
+	} else { // 其他没有加入的更新类型
 		log.Printf("unknown update type: %v", update)
 		// thebot.CopyMessage(ctx, &bot.CopyMessageParams{
 		// })
@@ -233,18 +357,7 @@ func messageHandler(opts *subHandlerOpts) {
 		if opts.update.Message.Chat.Type == models.ChatTypePrivate {
 			// 如果用户发送的是贴纸，下载并返回贴纸源文件给用户
 			if opts.update.Message.Sticker != nil {
-				// echoStickerHandler(opts.ctx, thebot, update)
-
-				// opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{
-				// 	Name: opts.update.Message.Sticker.SetName,
-				// })
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID:    opts.update.Message.Chat.ID,
-					Text:      "本 bot 获取贴纸文件的功能出了点问题，暂不可用",
-					ReplyParameters: &models.ReplyParameters{
-						MessageID: opts.update.Message.ID,
-					},
-				})
+				echoStickerHandler(opts)
 				return
 			}
 
