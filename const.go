@@ -18,6 +18,7 @@ var logFile_path string = "./log.txt"
 var udon_path    string = db_path + "udonese/"
 var udonGroupID  int64  = -1002205667779
 
+var IsDebugMode bool = false
 var private_log bool = false
 
 var botMe *models.User // 用于存储 bot 信息

@@ -15,6 +15,11 @@ import (
 func main() {
 	botToken = whereIsBotToken()
 
+	IsDebugMode = os.Getenv("DEBUG") == "true"
+	if IsDebugMode {
+		log.Println("running in debug mode, all log will be printed to stdout")
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -93,8 +98,10 @@ func main() {
 		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
 		saveAndCleanRemoteWebhookURL(ctx, thebot)
 		log.Println("Working at Long Polling Mode")
-		fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/getWebhookInfo to check infos \n", botToken)
-		fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/setWebhook?url=https://api.trle5.xyz/webhook-trbot to reset webhook\n", botToken)
+		if IsDebugMode {
+			fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/getWebhookInfo to check infos \n", botToken)
+			fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/setWebhook?url=https://api.trle5.xyz/webhook-trbot to reset webhook\n", botToken)
+		}
 		thebot.Start(ctx)
 		<-ctx.Done() // 等待中断信号
 	}

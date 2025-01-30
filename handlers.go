@@ -39,34 +39,38 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 
 		opts.chatInfo.MessageCount++
-		if update.Message.Photo != nil {
-			log.Printf("photo message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], caption: [%s]", 
-				showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
-				showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-				update.Message.Caption,
-			)
-		} else {
-			log.Printf("message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], message: [%s]", 
-				showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
-				showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-				update.Message.Text,
-			)
+		if IsDebugMode {
+			if update.Message.Photo != nil {
+				log.Printf("photo message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], caption: [%s]", 
+					showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
+					showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+					update.Message.Caption,
+				)
+			} else {
+				log.Printf("message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], message: [%s]", 
+					showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
+					showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+					update.Message.Text,
+				)
+			}
 		}
 
 		messageHandler(&opts)
 	} else if update.EditedMessage != nil { // 私聊或群组消息被编辑
-		if update.EditedMessage.Photo != nil {
-			log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited caption [%d] to [%s]", 
-				showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
-				showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
-				update.EditedMessage.ID, update.EditedMessage.Caption,
-			)
-		} else {
-			log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited message [%d] to [%s]", 
-				showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
-				showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
-				update.EditedMessage.ID, update.EditedMessage.Text,
-			)
+		if IsDebugMode {
+			if update.EditedMessage.Photo != nil {
+				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited caption [%d] to [%s]", 
+					showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
+					showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
+					update.EditedMessage.ID, update.EditedMessage.Caption,
+				)
+			} else {
+				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited message [%d] to [%s]", 
+					showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
+					showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
+					update.EditedMessage.ID, update.EditedMessage.Text,
+				)
+			}
 		}
 	} else if update.InlineQuery != nil { // inline 查询
 		opts.fields = strings.Fields(update.InlineQuery.Query)
@@ -157,55 +161,57 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			})
 		}
 	} else if update.MessageReaction != nil { // 私聊或群组表情回应
-		if len(update.MessageReaction.OldReaction) > 0 {
-			for i, oldReaction := range update.MessageReaction.OldReaction {
-				if oldReaction.ReactionTypeEmoji != nil {
-					log.Printf("%d remove emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-						i + 1, oldReaction.ReactionTypeEmoji.Emoji,
-						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-						update.MessageReaction.MessageID,
-					)
-				} else if oldReaction.ReactionTypeCustomEmoji != nil {
-					log.Printf("%d remove custom emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-						i + 1, oldReaction.ReactionTypeCustomEmoji.CustomEmojiID,
-						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-						update.MessageReaction.MessageID,
-					)
-				} else if oldReaction.ReactionTypePaid != nil {
-					log.Printf("%d remove paid reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-						i + 1,
-						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-						update.MessageReaction.MessageID,
-					)
+		if IsDebugMode {
+			if len(update.MessageReaction.OldReaction) > 0 {
+				for i, oldReaction := range update.MessageReaction.OldReaction {
+					if oldReaction.ReactionTypeEmoji != nil {
+						log.Printf("%d remove emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+							i + 1, oldReaction.ReactionTypeEmoji.Emoji,
+							showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+							showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+							update.MessageReaction.MessageID,
+						)
+					} else if oldReaction.ReactionTypeCustomEmoji != nil {
+						log.Printf("%d remove custom emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+							i + 1, oldReaction.ReactionTypeCustomEmoji.CustomEmojiID,
+							showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+							showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+							update.MessageReaction.MessageID,
+						)
+					} else if oldReaction.ReactionTypePaid != nil {
+						log.Printf("%d remove paid reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+							i + 1,
+							showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+							showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+							update.MessageReaction.MessageID,
+						)
+					}
 				}
 			}
-		}
-		if len(update.MessageReaction.NewReaction) > 0 {
-			for i, newReaction := range update.MessageReaction.NewReaction {
-				if newReaction.ReactionTypeEmoji != nil {
-					log.Printf("%d emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-						i + 1, newReaction.ReactionTypeEmoji.Emoji,
-						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-						update.MessageReaction.MessageID,
-					)
-				} else if newReaction.ReactionTypeCustomEmoji != nil {
-					log.Printf("%d custom emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-						i + 1, newReaction.ReactionTypeCustomEmoji.CustomEmojiID,
-						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-						update.MessageReaction.MessageID,
-					)
-				} else if newReaction.ReactionTypePaid != nil {
-					log.Printf("%d paid reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
-						i + 1,
-						showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
-						showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
-						update.MessageReaction.MessageID,
-					)
+			if len(update.MessageReaction.NewReaction) > 0 {
+				for i, newReaction := range update.MessageReaction.NewReaction {
+					if newReaction.ReactionTypeEmoji != nil {
+						log.Printf("%d emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+							i + 1, newReaction.ReactionTypeEmoji.Emoji,
+							showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+							showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+							update.MessageReaction.MessageID,
+						)
+					} else if newReaction.ReactionTypeCustomEmoji != nil {
+						log.Printf("%d custom emoji reaction %s from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+							i + 1, newReaction.ReactionTypeCustomEmoji.CustomEmojiID,
+							showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+							showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+							update.MessageReaction.MessageID,
+						)
+					} else if newReaction.ReactionTypePaid != nil {
+						log.Printf("%d paid reaction from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], to message [%d]",
+							i + 1,
+							showUserName(update.MessageReaction.User), update.MessageReaction.User.Username, update.MessageReaction.User.ID,
+							showChatName(&update.MessageReaction.Chat), update.MessageReaction.Chat.Username, update.MessageReaction.Chat.ID,
+							update.MessageReaction.MessageID,
+						)
+					}
 				}
 			}
 		}
@@ -215,70 +221,66 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			update.MessageReactionCount.MessageID, update.MessageReactionCount.Reactions,
 		)
 	} else if update.ChannelPost != nil { // 频道信息
-		if update.ChannelPost.From != nil { // 在频道中使用户身份发送
-			log.Printf("channel post from user \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
-				showUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
-				showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-				update.ChannelPost.Text,
-			)
-		} else if update.ChannelPost.SenderBusinessBot != nil { // 在频道中由商业 bot 发送
-			log.Printf("channel post from businessbot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
-				showUserName(update.ChannelPost.SenderBusinessBot), update.ChannelPost.SenderBusinessBot.Username, update.ChannelPost.SenderBusinessBot.ID,
-				showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-				update.ChannelPost.Text,
-			)
-		} else if update.ChannelPost.ViaBot != nil { // 在频道中由 bot 发送
-			log.Printf("channel post from bot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
-				showUserName(update.ChannelPost.ViaBot), update.ChannelPost.ViaBot.Username, update.ChannelPost.ViaBot.ID,
-				showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-				update.ChannelPost.Text,
-			)
-		} else if update.ChannelPost.SenderChat != nil { // 在频道中使用其他频道身份发送
-			if update.ChannelPost.SenderChat.ID == update.ChannelPost.Chat.ID { // 在频道中由频道自己发送
-				log.Printf("channel post in \"%s\"(%s)[%d], message [%s]",
+		if IsDebugMode {
+			if update.ChannelPost.From != nil { // 在频道中使用户身份发送
+				log.Printf("channel post from user \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+					showUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
 					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
 					update.ChannelPost.Text,
 				)
-			} else {
-				log.Printf("channel post from another channel \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
-					showChatName(update.ChannelPost.SenderChat), update.ChannelPost.SenderChat.Username, update.ChannelPost.SenderChat.ID,
+			} else if update.ChannelPost.SenderBusinessBot != nil { // 在频道中由商业 bot 发送
+				log.Printf("channel post from businessbot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+					showUserName(update.ChannelPost.SenderBusinessBot), update.ChannelPost.SenderBusinessBot.Username, update.ChannelPost.SenderBusinessBot.ID,
+					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
+					update.ChannelPost.Text,
+				)
+			} else if update.ChannelPost.ViaBot != nil { // 在频道中由 bot 发送
+				log.Printf("channel post from bot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+					showUserName(update.ChannelPost.ViaBot), update.ChannelPost.ViaBot.Username, update.ChannelPost.ViaBot.ID,
+					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
+					update.ChannelPost.Text,
+				)
+			} else if update.ChannelPost.SenderChat != nil { // 在频道中使用其他频道身份发送
+				if update.ChannelPost.SenderChat.ID == update.ChannelPost.Chat.ID { // 在频道中由频道自己发送
+					log.Printf("channel post in \"%s\"(%s)[%d], message [%s]",
+						showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
+						update.ChannelPost.Text,
+					)
+				} else {
+					log.Printf("channel post from another channel \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+						showChatName(update.ChannelPost.SenderChat), update.ChannelPost.SenderChat.Username, update.ChannelPost.SenderChat.ID,
+						showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
+						update.ChannelPost.Text,
+					)
+				}
+			} else { // 没有身份信息
+				log.Printf("channel post from nobody in \"%s\"(%s)[%d], message [%s]",
+					// showUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
 					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
 					update.ChannelPost.Text,
 				)
 			}
-		} else { // 没有身份信息
-			log.Printf("channel post from nobody in \"%s\"(%s)[%d], message [%s]",
-				// showUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
-				showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-				update.ChannelPost.Text,
+			return
+		}
+	} else if update.EditedChannelPost != nil { // 频道中编辑过的消息
+		if IsDebugMode {
+			log.Printf("edited channel post in \"%s\"(%s)[%d], message [%s]",
+				showChatName(&update.EditedChannelPost.Chat), update.EditedChannelPost.Chat.Username, update.EditedChannelPost.Chat.ID,
+				update.EditedChannelPost.Text,
 			)
 		}
-		return
-	} else if update.EditedChannelPost != nil { // 频道中编辑过的消息
-		log.Printf("edited channel post in \"%s\"(%s)[%d], message [%s]",
-			showChatName(&update.EditedChannelPost.Chat), update.EditedChannelPost.Chat.Username, update.EditedChannelPost.Chat.ID,
-			update.EditedChannelPost.Text,
-		)
 	} else { // 其他没有加入的更新类型
-		log.Printf("unknown update type: %v", update)
-		// thebot.CopyMessage(ctx, &bot.CopyMessageParams{
-		// })
+		if IsDebugMode {
+			log.Printf("unknown update type: %v", update)
+			// thebot.CopyMessage(ctx, &bot.CopyMessageParams{
+			// })
+		}
 	}
 }
 
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func messageHandler(opts *subHandlerOpts) {
 	var botMessage *models.Message // 存放 bot 发送的信息
-
-	// log.Printf("%s send a message: [%s]", opts.update.Message.From.Username, opts.update.Message.Text)
-	// fmt.Println(opts.update.Message.Chat.ID)
-
-	if opts.update.Message.Chat.Type == models.ChatTypeChannel {
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID: opts.update.Message.Chat.ID,
-			Text: "get channel messages!",
-		})
-	}
 
 	// 首先判断聊天类型，这里处理私聊、群组和超级群组的消息
 	if AnyContains(opts.update.Message.Chat.Type, models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup) {

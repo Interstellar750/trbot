@@ -50,11 +50,14 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, error) {
 	
 	_, err = os.Stat(filePath + fileName) // 检查文件是否存在
 	if os.IsNotExist(err) {
-		// log.Println("file does not exist, downloading")
-
 		// 从服务器获取文件内容
 		file, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: opts.update.Message.Sticker.FileID })
 		if err != nil { log.Printf("Error getting file: %v", err) }
+
+		if IsDebugMode {
+			log.Println("file does not exist, downloading")
+			fmt.Printf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath)
+		}
 
 		// 下载贴纸文件
 		resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath))
@@ -79,14 +82,13 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error writing to file: %w", err)
 		}
-	} 
-	// else {
-	// 	// 存在跳过下载过程
-	// 	log.Printf("file %s already exists", filePath + fileName)
-	// }
+	} else if IsDebugMode {
+		// 存在跳过下载过程
+		log.Printf("file %s already exists", filePath + fileName)
+	}
 
 	if !opts.update.Message.Sticker.IsAnimated && !opts.update.Message.Sticker.IsVideo {
-			filePathPNG := stickerCache_path + opts.update.Message.Sticker.SetName + "_png/"
+		filePathPNG := stickerCache_path + opts.update.Message.Sticker.SetName + "_png/"
 		err = os.MkdirAll(filePathPNG, 0755)
 		if err != nil {
 			return nil, fmt.Errorf("error creating directory %s: %w", filePathPNG, err)
@@ -133,14 +135,17 @@ func getStickerPack(opts *subHandlerOpts, stickerSetName string, isOnlyPNG bool)
 
 		_, err = os.Stat(filePath + fileName) // 检查文件是否存在
 		if os.IsNotExist(err) {
-			// log.Println("file does not exist, downloading")
 
 			// 从服务器获取文件内容
 			file, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: sticker.FileID })
 			if err != nil { log.Printf("Error getting file: %v", err) }
 
+			if IsDebugMode {
+				log.Println("file does not exist, downloading")
+				fmt.Printf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath)
+			}
+
 			// 下载贴纸文件
-			// fmt.Printf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath)
 			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, file.FilePath))
 			if err != nil { log.Printf("error downloading file: %v", err) }
 			defer resp.Body.Close()
@@ -163,16 +168,18 @@ func getStickerPack(opts *subHandlerOpts, stickerSetName string, isOnlyPNG bool)
 			if err != nil {
 				return nil, fmt.Errorf("error writing to file: %w", err)
 			}
+		} else if IsDebugMode {
+			// 存在跳过下载过程
+			log.Printf("file %s already exists", filePath + fileName)
 		}
-		// else {
-		// 	// 存在跳过下载过程
-		// 	log.Printf("file %s already exists", filePath + fileName)
-		// }
 
 		if isOnlyPNG {
 			if !sticker.IsVideo && !sticker.IsAnimated {
 				_, err = os.Stat(filePathPNG + fileName)
 				if os.IsNotExist(err) {
+					if IsDebugMode {
+						log.Println("file does not exist, converting")
+					}
 					err = os.MkdirAll(filePathPNG, 0755)
 					if err != nil {
 						return nil, fmt.Errorf("error creating directory %s: %w", filePathPNG, err)
@@ -181,6 +188,8 @@ func getStickerPack(opts *subHandlerOpts, stickerSetName string, isOnlyPNG bool)
 					if err != nil {
 						return nil, fmt.Errorf("error converting webp to png %s: %w", filePath + fileName, err)
 					}
+				} else if IsDebugMode {
+					log.Println("file already exists")
 				}
 			}
 		}
@@ -193,7 +202,7 @@ func getStickerPack(opts *subHandlerOpts, stickerSetName string, isOnlyPNG bool)
 		err := zipFolder(filePathPNG, stickerCache_path + zipFileName)
 		if err != nil {
 			return nil, fmt.Errorf("error zipping folder %s: %w", filePathPNG, err)
-		} else {
+		} else if IsDebugMode {
 			log.Println("successfully zipped folder", stickerCache_path + zipFileName)
 		}
 	} else {
@@ -201,7 +210,7 @@ func getStickerPack(opts *subHandlerOpts, stickerSetName string, isOnlyPNG bool)
 		err := zipFolder(filePath, stickerCache_path + zipFileName)
 		if err != nil {
 			return nil, fmt.Errorf("error zipping folder %s: %w", filePathPNG, err)
-		} else {
+		} else if IsDebugMode {
 			log.Println("successfully zipped folder", stickerCache_path + zipFileName)
 		}
 	}
@@ -630,9 +639,11 @@ func outputVersionInfo() string {
 	c, _ := exec.Command("git", "rev-parse", "HEAD").Output()
 	// 获取 git 分支
 	b, _ := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	// 获取 commit 说明
+	m, _ := exec.Command("git", "log", "-1", "--pretty=%s").Output()
 	r := runtime.Version()
 	h, _ := os.Hostname()
-	info := fmt.Sprintf("Branch: %sCommit: [%s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nHostname: %s", b, c[:10], c, r, h)
+	info := fmt.Sprintf("Branch: %sCommit: [%s - %s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nHostname: %s", b, m, c[:10], c, r, h)
 	return info
 }
 
