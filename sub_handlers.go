@@ -142,37 +142,49 @@ func echoStickerHandler(opts *subHandlerOpts) {
 	// 下载 webp 格式的贴纸
 	fmt.Println(opts.update.Message.Sticker)
 
-	stickerdata, err := echoSticker(opts)
+	stickerdata, isCustomSticker, err := echoSticker(opts)
 	if err != nil {
-		log.Println("Error downloading sticker:", err)
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
-			Text:   "下载贴纸时发生了一些错误",
-			ParseMode: models.ParseModeMarkdownV1,
+			Text:   fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote>Error downloading sticker: %s</blockquote>", err),
+			ParseMode: models.ParseModeHTML,
 		})
 	}
 
 	if stickerdata == nil {
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
-			Text:   "下载贴纸时发生了一些错误",
+			Text:   "未能获取到贴纸",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
 		return
 	}
 
 	documentParams := &bot.SendDocumentParams{
-		ChatID:   opts.update.Message.Chat.ID,
+		ChatID:    opts.update.Message.Chat.ID,
 		ParseMode: models.ParseModeMarkdownV1,
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+	}
+
+	// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
+	if !isCustomSticker {
+		documentParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
 				{Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.update.Message.Sticker.SetName)},
 			},
 			{
 				{Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.update.Message.Sticker.SetName)},
 			},
-		}},
+		}}
+		// if opts.update.Message.Sticker.IsVideo {
+		// 	documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\nsee [wikipedia/WebM](https://wikipedia.org/wiki/WebM)", opts.update.Message.Sticker.Title, opts.update.Message.Sticker.SetName)
+		// 	documentParams.Document = &models.InputFileUpload{Filename: "sticker.webm", Data: stickerdata}
+		// } else if opts.update.Message.Sticker.IsAnimated {
+		// 	documentParams.Caption  = "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)"
+		// 	documentParams.Document = &models.InputFileUpload{Filename: "sticker.tgs.file", Data: stickerdata}
+		// } else {
+		// 	documentParams.Document = &models.InputFileUpload{Filename: "sticker.png", Data: stickerdata}
+		// }
 	}
 
 	if opts.update.Message.Sticker.IsVideo {
@@ -186,7 +198,6 @@ func echoStickerHandler(opts *subHandlerOpts) {
 	}
 
 	opts.thebot.SendDocument(opts.ctx, documentParams)
-	
 }
 
 var currentOptions = []bool{false, false, false}

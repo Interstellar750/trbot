@@ -36,6 +36,9 @@ type IDInfo struct {
 	IsBotAdmin          bool `yaml:"IsBotAdmin,omitempty"`
 	IsEnableForwardonly bool `yaml:"IsEnableForwardonly,omitempty"`
 
+	HasPendingCallbackQuery bool `yaml:"HasPendingCallbackQuery,omitempty"`
+	LastedCallbackQueryData string `yaml:"LastedCallbackQueryData,omitempty"`
+
 	SavedMessage   SavedMessage   `yaml:"SavedMessage,omitempty"`
 	InlineAlias    InlineAlias    `yaml:"InlineAliases,omitempty"`
 	CustomCommands CustomCommands `yaml:"CustomCommands,omitempty"`

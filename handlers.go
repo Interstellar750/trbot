@@ -34,7 +34,10 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.Message.Chat.ID)
 
 		if opts.DBIndex == -1 && AddChatInfo(&update.Message.Chat) {
-			log.Printf("add (message)%s \"%s\"[%d] in database", update.Message.Chat.Type, showChatName(&update.Message.Chat), update.Message.Chat.ID)
+			log.Printf("add (message)%s \"%s\"(%s)[%d] in database",
+				update.Message.Chat.Type,
+				showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+			)
 			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.Message.Chat.ID)
 		}
 
@@ -78,11 +81,13 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		for i := 0; i < len(opts.fields); i++ {
 			opts.fields[i] = strings.ToLower(opts.fields[i])
 		}
-		
+
 		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
 
 		if opts.DBIndex == -1 && AddUserInfo(update.InlineQuery.From) {
-			log.Printf("add (inline)private \"%s\"[%d] in database", update.InlineQuery.From.Username, update.InlineQuery.From.ID)
+			log.Printf("add (inline)private \"%s\"(%s)[%d] in database",
+				showUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
+			)
 			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
 		}
 
@@ -104,11 +109,41 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			showChatName(&update.CallbackQuery.Message.Message.Chat), update.CallbackQuery.Message.Message.Chat.Username, update.CallbackQuery.Message.Message.Chat.ID,
 			update.CallbackQuery.Data,
 		)
-		thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: update.CallbackQuery.ID,
-			Text:            "已接受请求",
-			ShowAlert:       false,
-		})
+
+		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.CallbackQuery.From.ID)
+
+		if opts.DBIndex == -1 && AddUserInfo(&update.CallbackQuery.From) {
+			log.Printf("add (callback)private \"%s\"[%d] in database", showUserName(&update.CallbackQuery.From), update.CallbackQuery.From.ID)
+			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.CallbackQuery.From.ID)
+		}
+
+		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
+		if opts.chatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.chatInfo.LastedCallbackQueryData {
+			log.Println("same callback query, ignore")
+			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "当前的请求正在处理，请等待处理完成",
+				ShowAlert:       true,
+			})
+			return
+		} else if opts.chatInfo.HasPendingCallbackQuery { // 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
+			log.Println("a callback query is pending, ignore")
+			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "请等待上一个请求处理完成再发送新的请求",
+				ShowAlert:       true,
+			})
+			return
+		} else { // 如果没有正在处理的请求，则接受新的请求
+			log.Println("accept callback query")
+			opts.chatInfo.HasPendingCallbackQuery = true
+			opts.chatInfo.LastedCallbackQueryData = update.CallbackQuery.Data
+			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "已接受请求",
+				ShowAlert:       false,
+			})
+		}
 
 		if strings.HasPrefix(update.CallbackQuery.Data, "S_") || strings.HasPrefix(update.CallbackQuery.Data, "s_") {
 			botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
@@ -116,17 +151,29 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				Text:   "已请求下载，请稍候",
 				ParseMode: models.ParseModeMarkdownV1,
 			})
-			var stickerName string
+			var packName string
 			var isOnlyPNG bool
 			if update.CallbackQuery.Data[0:2] == "S_" {
-				stickerName = strings.TrimPrefix(update.CallbackQuery.Data, "S_")
+				packName = strings.TrimPrefix(update.CallbackQuery.Data, "S_")
 				isOnlyPNG = true
 			} else {
-				stickerName = strings.TrimPrefix(update.CallbackQuery.Data, "s_")
+				packName = strings.TrimPrefix(update.CallbackQuery.Data, "s_")
 				isOnlyPNG = false
 			}
 
-			stickerdata, err := getStickerPack(&opts, stickerName, isOnlyPNG)
+			// 通过贴纸的 packName 获取贴纸集
+			stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: packName })
+			if err != nil {
+				log.Printf("error getting sticker set: %v", err)
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.CallbackQuery.From.ID,
+					Text:   "获取贴纸包时发生了一些错误",
+					ParseMode: models.ParseModeMarkdownV1,
+				})
+				return
+			}
+
+			sitckerSetPack, count, err := getStickerPack(&opts, stickerSet, isOnlyPNG)
 			if err != nil {
 				log.Println("Error downloading sticker:", err)
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
@@ -135,12 +182,13 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					ParseMode: models.ParseModeMarkdownV1,
 				})
 			}
-			if stickerdata == nil {
+			if sitckerSetPack == nil {
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.CallbackQuery.From.ID,
 					Text:   "未能获取到压缩包",
 					ParseMode: models.ParseModeMarkdownV1,
 				})
+				opts.chatInfo.HasPendingCallbackQuery = false
 				return
 			}
 
@@ -150,11 +198,11 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			}
 
 			if isOnlyPNG {
-				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载（仅转换后的 PNG 格式）", stickerName, stickerName)
-				documentParams.Document = &models.InputFileUpload{Filename: stickerName + "_png.zip", Data: stickerdata}
+				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载\n包含 %d 个贴纸（仅转换后的 PNG 格式）", stickerSet.Title, stickerSet.Name, count)
+				documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, count), Data: sitckerSetPack}
 			} else {
-				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载", stickerName, stickerName)
-				documentParams.Document = &models.InputFileUpload{Filename: stickerName + ".zip", Data: stickerdata}
+				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载\n包含 %d 个贴纸", stickerSet.Title, stickerSet.Name, count)
+				documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerSet.Name, count), Data: sitckerSetPack}
 			}
 
 			thebot.SendDocument(opts.ctx, documentParams)
@@ -163,6 +211,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: botMessage.ID,
 			})
+
+			opts.chatInfo.HasPendingCallbackQuery = false
 		}
 	} else if update.MessageReaction != nil { // 私聊或群组表情回应
 		if IsDebugMode {

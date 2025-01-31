@@ -34,4 +34,7 @@ var InlinePaginationSymbol string = "-"
 var InlineResultsPerPage   int    = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery
 
 var cache_path string = "./cache/"
-var stickerCache_path string = cache_path + "sticker/"
+
+var stickerCache_path    string = cache_path + "sticker/"
+var stickerCachePNG_path string = cache_path + "sticker_png/"
+var stickerCacheZip_path string = cache_path + "sticker_zip/"
