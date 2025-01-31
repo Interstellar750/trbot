@@ -108,11 +108,11 @@ type UdoneseWord struct {
 	MeaningList []UdoneseMeaning `yaml:"MeaningList,omitempty"`
 }
 
-// 从 UdoneseWord 列表中提取 Meaning 切片
+// 从 UdoneseWord 列表中提取 Meaning 切片, 转换为小写
 func (list UdoneseWord) OnlyMeaning() []string {
 	var meanings []string
 	for _, singleMeaning := range list.MeaningList {
-		meanings = append(meanings, singleMeaning.Meaning)
+		meanings = append(meanings, strings.ToLower(singleMeaning.Meaning))
 	}
 	return meanings
 }
@@ -121,10 +121,16 @@ func (list UdoneseWord) OnlyMeaning() []string {
 func (list UdoneseWord) OutputMeanings() string {
 	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 已使用 %d 次，它的意思有\n", list.Word, list.Used)
 	for i, s := range list.MeaningList {
-		if s.FromID == 0 && s.FromName == "" {
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
+		if s.ViaID != 0 { // 通过回复添加
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
+				i + 1, s.Meaning, s.FromID, s.FromName, s.ViaID, s.ViaName,
+			)
+		} else if s.FromID == 0 { // 有添加人信息
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
+				i + 1, s.Meaning, s.FromID, s.FromName,
+			)
 		} else {
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.FromName)
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
 		}
 	}
 	return pendingMessage
@@ -134,6 +140,8 @@ type UdoneseMeaning struct {
 	Meaning  string `yaml:"Meaning"`
 	FromID   int64  `yaml:"FromID,omitempty"`
 	FromName string `yaml:"FromName,omitempty"`
+	ViaID    int64  `yaml:"ViaID,omitempty"`
+	ViaName  string `yaml:"ViaName,omitempty"`
 }
 
 func readUdonese(path, name string) (*Udonese, error) {

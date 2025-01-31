@@ -293,7 +293,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 
 		// 在数据库循环查找这个词
 		for _, word := range udon.List {
-			if word.Word == opts.fields[1] && len(word.MeaningList) > 0 {
+			if strings.EqualFold(word.Word, opts.fields[1]) && len(word.MeaningList) > 0 {
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
 					Text:   word.OutputMeanings(),
@@ -324,7 +324,21 @@ func udoneseHandler(opts *subHandlerOpts) {
 		}
 
 		meaning := strings.TrimSpace(opts.update.Message.Text[len(opts.fields[0])+len(opts.fields[1])+2:])
-		nickname := showUserName(opts.update.Message.From)
+
+		var fromName string
+		var fromID   int64
+		var viaName  string
+		var viaID    int64
+
+		if opts.update.Message.ReplyToMessage == nil {
+			fromName = showUserName(opts.update.Message.From)
+			fromID = opts.update.Message.From.ID
+		} else {
+			fromName = showUserName(opts.update.Message.ReplyToMessage.From)
+			fromID = opts.update.Message.ReplyToMessage.From.ID
+			viaName = showUserName(opts.update.Message.From)
+			viaID = opts.update.Message.From.ID
+		}
 
 		var pendingMessage string
 		var botMessage *models.Message
@@ -333,18 +347,26 @@ func udoneseHandler(opts *subHandlerOpts) {
 			Word: opts.fields[1],
 			MeaningList: []UdoneseMeaning{ {
 				Meaning: meaning,
-				FromID: opts.update.Message.From.ID,
-				FromName: nickname,
+				FromID: fromID,
+				FromName: fromName,
+				ViaID: viaID,
+				ViaName: viaName,
 			}},
 		})
 		if oldMeaning != nil {
 			pendingMessage += fmt.Sprintf("[%s] 意思已存在于 [%s] 中:\n", meaning, oldMeaning.Word)
 			for i, s := range oldMeaning.MeaningList {
 				if meaning == s.Meaning {
-					if s.FromID == 0 && s.FromName == "" {
+					if s.ViaID != 0 { // 通过回复添加
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
+							i + 1, s.Meaning, s.FromID, s.FromName, s.ViaID, s.ViaName,
+						)
+					} else if s.FromID == 0 { // 有添加人信息
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
+							i + 1, s.Meaning, s.FromID, s.FromName,
+						)
+					} else { // 只有意思
 						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
-					} else {
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", i + 1, s.Meaning, s.FromID, s.FromName)
 					}
 				}
 			}
@@ -354,7 +376,15 @@ func udoneseHandler(opts *subHandlerOpts) {
 				pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
 			} else {
 				pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
-				pendingMessage += fmt.Sprintf("[%s] 来自 <a href=\"https://t.me/@id%d\">%s</a>\n", meaning, opts.update.Message.From.ID, nickname)
+				if viaID != 0 { // 通过回复添加
+					pendingMessage += fmt.Sprintf("[%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
+						meaning, fromID, fromName, viaID, viaName,
+					)
+				} else if fromID != 0 { // 普通命令添加
+					pendingMessage += fmt.Sprintf("[%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
+						meaning, fromID, fromName,
+					)
+				}
 			}
 		}
 
@@ -379,7 +409,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 	} else if len(opts.fields) > 1 && strings.HasSuffix(opts.update.Message.Text, "ssm") {
 		// 在数据库循环查找这个词
 		for _, word := range udon.List {
-			if word.Word == opts.fields[0] && len(word.MeaningList) > 0 {
+			if strings.EqualFold(word.Word, opts.fields[1]) && len(word.MeaningList) > 0 {
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID: opts.update.Message.Chat.ID,
 					Text:   word.OutputMeanings(),

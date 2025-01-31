@@ -74,6 +74,11 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 	} else if update.InlineQuery != nil { // inline 查询
 		opts.fields = strings.Fields(update.InlineQuery.Query)
+		// 由于 inline 请求实际上不区分大小写，全部转为小写，方便后续查询
+		for i := 0; i < len(opts.fields); i++ {
+			opts.fields[i] = strings.ToLower(opts.fields[i])
+		}
+		
 		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
 
 		if opts.DBIndex == -1 && AddUserInfo(update.InlineQuery.From) {
@@ -101,17 +106,16 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		)
 		thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: update.CallbackQuery.ID,
-			Text:            "已请求下载，请稍候",
+			Text:            "已接受请求",
 			ShowAlert:       false,
 		})
 
-		botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.CallbackQuery.Message.Message.Chat.ID,
-			Text:   "已请求下载，请稍候",
-			ParseMode: models.ParseModeMarkdownV1,
-		})
-
 		if strings.HasPrefix(update.CallbackQuery.Data, "S_") || strings.HasPrefix(update.CallbackQuery.Data, "s_") {
+			botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.CallbackQuery.Message.Message.Chat.ID,
+				Text:   "已请求下载，请稍候",
+				ParseMode: models.ParseModeMarkdownV1,
+			})
 			var stickerName string
 			var isOnlyPNG bool
 			if update.CallbackQuery.Data[0:2] == "S_" {
@@ -502,6 +506,7 @@ func inlineHandler(opts *subHandlerOpts) {
 			return
 		case "sms":
 			var udoneseResultList []models.InlineQueryResult
+			// 仅 :sms 参数，或带有分页符号，输出全部词
 			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
 				for _, data := range AdditionalDatas.Udonese.List {
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
@@ -517,7 +522,7 @@ func inlineHandler(opts *subHandlerOpts) {
 			} else {
 				for _, data := range AdditionalDatas.Udonese.List {
 					// 通过词查找意思
-					if InlineQueryMatchMultKeyword(opts.fields, []string{data.Word}, true) {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(data.Word)}, true) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 							ID:    data.Word,
 							Title: data.Word,
@@ -531,7 +536,7 @@ func inlineHandler(opts *subHandlerOpts) {
 					// 通过意思查找词
 					if InlineQueryMatchMultKeyword(opts.fields, data.OnlyMeaning(), true) {
 						for _, n := range data.MeaningList {
-							if InlineQueryMatchMultKeyword(opts.fields, []string{n.Meaning}, true) {
+							if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(n.Meaning)}, true) {
 								udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 									ID:    n.Meaning,
 									Title: n.Meaning,
