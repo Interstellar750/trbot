@@ -41,19 +41,27 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.Message.Chat.ID)
 		}
 
+		opts.chatInfo.LatestMessage = update.Message.Text
+
 		opts.chatInfo.MessageCount++
 		if IsDebugMode {
 			if update.Message.Photo != nil {
-				log.Printf("photo message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], caption: [%s]", 
+				log.Printf("photo message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) caption: [%s]", 
 					showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
 					showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-					update.Message.Caption,
+					update.Message.ID, update.Message.Caption,
+				)
+			} else if update.Message.Sticker != nil {
+				log.Printf("sticker message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) sticker: %s[%s:%s]", 
+					showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
+					showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
+					update.Message.ID, update.Message.Sticker.Emoji, update.Message.Sticker.SetName, update.Message.Sticker.FileID,
 				)
 			} else {
-				log.Printf("message from: \"%s\"(%s)[%d] in \"%s\"(%s)[%d], message: [%s]", 
+				log.Printf("message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) message: [%s]", 
 					showUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
 					showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-					update.Message.Text,
+					update.Message.ID, update.Message.Text,
 				)
 			}
 		}
@@ -62,13 +70,13 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	} else if update.EditedMessage != nil { // 私聊或群组消息被编辑
 		if IsDebugMode {
 			if update.EditedMessage.Photo != nil {
-				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited caption [%d] to [%s]", 
+				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) edited caption to [%s]", 
 					showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
 					showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
 					update.EditedMessage.ID, update.EditedMessage.Caption,
 				)
 			} else {
-				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], edited message [%d] to [%s]", 
+				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) edited message to [%s]", 
 					showUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
 					showChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
 					update.EditedMessage.ID, update.EditedMessage.Text,
@@ -91,6 +99,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
 		}
 
+		opts.chatInfo.LatestInlineQuery = update.InlineQuery.Query
+
 		opts.chatInfo.InlineCount++
 		log.Printf("inline from: \"%s\"(%s)[%d], query: [%s]", 
 			showUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
@@ -99,6 +109,16 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 		inlineHandler(&opts)
 	} else if update.ChosenInlineResult != nil { // inline 查询结果被选择
+		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.ChosenInlineResult.From.ID)
+
+		if opts.DBIndex == -1 && AddChatInfo(&update.Message.Chat) {
+			log.Printf("add (inlineResult)private \"%s\"(%s)[%d] in database",
+				showUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
+			)
+			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.ChosenInlineResult.From.ID)
+		}
+
+		opts.chatInfo.LatestInlineResult = update.ChosenInlineResult.ResultID + "," + update.ChosenInlineResult.Query
 		log.Printf("chosen inline from \"%s\"(%s)[%d], ID: [%s] query: [%s]",
 			showUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
 			update.ChosenInlineResult.ResultID, update.ChosenInlineResult.Query,
@@ -118,7 +138,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 
 		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
-		if opts.chatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.chatInfo.LastedCallbackQueryData {
+		if opts.chatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.chatInfo.LatestCallbackQueryData {
 			log.Println("same callback query, ignore")
 			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
@@ -137,7 +157,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		} else { // 如果没有正在处理的请求，则接受新的请求
 			log.Println("accept callback query")
 			opts.chatInfo.HasPendingCallbackQuery = true
-			opts.chatInfo.LastedCallbackQueryData = update.CallbackQuery.Data
+			opts.chatInfo.LatestCallbackQueryData = update.CallbackQuery.Data
 			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "已接受请求",
@@ -277,41 +297,41 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	} else if update.ChannelPost != nil { // 频道信息
 		if IsDebugMode {
 			if update.ChannelPost.From != nil { // 在频道中使用户身份发送
-				log.Printf("channel post from user \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+				log.Printf("channel post from user \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
 					showUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
 					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.Text,
+					update.ChannelPost.ID, update.ChannelPost.Text,
 				)
 			} else if update.ChannelPost.SenderBusinessBot != nil { // 在频道中由商业 bot 发送
-				log.Printf("channel post from businessbot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+				log.Printf("channel post from businessbot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
 					showUserName(update.ChannelPost.SenderBusinessBot), update.ChannelPost.SenderBusinessBot.Username, update.ChannelPost.SenderBusinessBot.ID,
 					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.Text,
+					update.ChannelPost.ID, update.ChannelPost.Text,
 				)
 			} else if update.ChannelPost.ViaBot != nil { // 在频道中由 bot 发送
-				log.Printf("channel post from bot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+				log.Printf("channel post from bot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
 					showUserName(update.ChannelPost.ViaBot), update.ChannelPost.ViaBot.Username, update.ChannelPost.ViaBot.ID,
 					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.Text,
+					update.ChannelPost.ID, update.ChannelPost.Text,
 				)
 			} else if update.ChannelPost.SenderChat != nil { // 在频道中使用其他频道身份发送
 				if update.ChannelPost.SenderChat.ID == update.ChannelPost.Chat.ID { // 在频道中由频道自己发送
-					log.Printf("channel post in \"%s\"(%s)[%d], message [%s]",
+					log.Printf("channel post in \"%s\"(%s)[%d], (%d) message [%s]",
 						showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-						update.ChannelPost.Text,
+						update.ChannelPost.ID, update.ChannelPost.Text,
 					)
 				} else {
-					log.Printf("channel post from another channel \"%s\"(%s)[%d], in \"%s\"(%s)[%d], message [%s]",
+					log.Printf("channel post from another channel \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
 						showChatName(update.ChannelPost.SenderChat), update.ChannelPost.SenderChat.Username, update.ChannelPost.SenderChat.ID,
 						showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-						update.ChannelPost.Text,
+						update.ChannelPost.ID, update.ChannelPost.Text,
 					)
 				}
 			} else { // 没有身份信息
-				log.Printf("channel post from nobody in \"%s\"(%s)[%d], message [%s]",
+				log.Printf("channel post from nobody in \"%s\"(%s)[%d], (%d) message [%s]",
 					// showUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
 					showChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.Text,
+					update.ChannelPost.ID, update.ChannelPost.Text,
 				)
 			}
 			return
@@ -541,7 +561,7 @@ func inlineHandler(opts *subHandlerOpts) {
 						&models.InlineQueryResultArticle{
 							ID:    "error",
 							Title: "参数过多，请注意空格",
-							Description: fmt.Sprintf("使用方法：@%s :uaav <单个音频链接>", botMe.Username),
+							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", botMe.Username, InlineSubCommandSymbol),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 								ParseMode: models.ParseModeMarkdownV1,
@@ -654,7 +674,7 @@ func inlineHandler(opts *subHandlerOpts) {
 					}
 					return
 				} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "reload") {
-					ADR_reload <- true
+					SignalsChannel.AdditionalDatas_reload <- true
 					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.update.InlineQuery.ID,
 						Results: []models.InlineQueryResult{
@@ -676,7 +696,7 @@ func inlineHandler(opts *subHandlerOpts) {
 					}
 					return
 				} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "savedb") {
-					DB_savenow <- true
+					SignalsChannel.Database_save <- true
 					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.update.InlineQuery.ID,
 						Results: []models.InlineQueryResult{

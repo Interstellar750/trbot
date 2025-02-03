@@ -26,10 +26,17 @@ var botMe *models.User // 用于存储 bot 信息
 var database DataBaseYaml
 var AdditionalDatas AdditionalData
 
-var DB_savenow = make(chan bool)
-var ADR_reload = make(chan bool)
+var AdditionalDatas_paths = &AdditionalDataPath{
+	Voice: voice_path,
+	Udonese: udon_path,
+}
 
-var InlineSubCommandSymbol string = ":"
+var SignalsChannel = SignalChannel{
+	Database_save:          make(chan bool),
+	AdditionalDatas_reload: make(chan bool),
+}
+
+var InlineSubCommandSymbol string = "+"
 var InlinePaginationSymbol string = "-"
 var InlineResultsPerPage   int    = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery
 

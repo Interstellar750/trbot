@@ -73,12 +73,7 @@ func main() {
 		log.Println("read yaml db error: ", err)
 	}
 
-	go AdditionalDataReloader(ADR_reload, &AdditionalDataPath{
-		Voice: voice_path,
-		Udonese: udon_path,
-	})
-
-	go mainDatabaseHandler(DB_savenow)
+	go signalsHandler(SignalsChannel)
 
 	// 检查是否设定了 webhookURL 环境变量
 	if usingWebhook() { // Webhook
@@ -105,6 +100,6 @@ func main() {
 		thebot.Start(ctx)
 		<-ctx.Done() // 等待中断信号
 	}
-	DB_savenow <- true // 退出之前保存一下数据库，似乎无效
+	SignalsChannel.Database_save <- true // 退出之前保存一下数据库，似乎无效
 	log.Println("manually stopped")
 }

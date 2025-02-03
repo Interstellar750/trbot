@@ -28,12 +28,12 @@ func startHandler(opts *subHandlerOpts) {
 	} else {
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID:    opts.update.Message.Chat.ID,
-			Text:      fmt.Sprintf("Hello, *%s %s*\n\nThis robot doesn't currently support chat mode, please use [inline mode](https://telegram.org/blog/inline-bots?setln=en) for interactive operations.", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
+			Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您可以得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
 			ParseMode: models.ParseModeMarkdownV1,
 			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "Try Inline Mode",
+				Text: "尝试 Inline 模式",
 				SwitchInlineQueryCurrentChat: " ",
 			}}}},
 		})
@@ -72,7 +72,7 @@ func addToWriteListHandler(opts *subHandlerOpts) {
 					Text:   "仅限转发模式已启用",
 					ParseMode: models.ParseModeMarkdownV1,
 				})
-				DB_savenow <- true
+				SignalsChannel.Database_save <- true
 			}
 		} else if opts.update.Message.Text == "/forwardonly disable" {
 			if !opts.chatInfo.IsEnableForwardonly {
@@ -90,7 +90,7 @@ func addToWriteListHandler(opts *subHandlerOpts) {
 					Text:   fmt.Sprintf("仅限转发模式已关闭，重新启用请发送 `/forwardonly %d`", opts.update.Message.Chat.ID),
 					ParseMode: models.ParseModeMarkdownV1,
 				})
-				DB_savenow <- true
+				SignalsChannel.Database_save <- true
 			}
 		} else if strings.HasPrefix(opts.update.Message.Text, "/forwardonly") {
 			if userIsAdmin(opts.ctx, opts.thebot, opts.update.Message.Chat.ID, botMe.ID) && userHavePermissionDeleteMessage(opts.ctx, opts.thebot, opts.update.Message.Chat.ID, botMe.ID) {
@@ -269,6 +269,11 @@ func commandHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 }
 
 func udoneseHandler(opts *subHandlerOpts) {
+	// 不响应来自转发的命令
+	if opts.update.Message.ForwardOrigin != nil {
+		return
+	}
+
 	udon, err := AdditionalDatas.Udonese, AdditionalDatas.UdoneseErr
 	if err != nil {
 		log.Println("some error in while read udonese list: ", err)
@@ -296,7 +301,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 				ParseMode: models.ParseModeMarkdownV1,
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击浏览全部词与意思",
-					SwitchInlineQueryCurrentChat: ":sms ",
+					SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "sms ",
 				}}}},
 			})
 			return
@@ -316,15 +321,24 @@ func udoneseHandler(opts *subHandlerOpts) {
 		}
 
 		// 到这里就是没找到，提示没有
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
+
+		time.Sleep(time.Second * 10)
+		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+			ChatID: opts.update.Message.Chat.ID,
+			MessageIDs: []int{
+				botMessage.ID,
+			},
+		})
+
 		return
 	} else if opts.fields[0] == "udonese" {
-		if len(opts.fields) < 2 {
+		if len(opts.fields) < 3 {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID:    opts.update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
