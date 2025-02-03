@@ -14,7 +14,7 @@ var metadataFileName string = "metadata.yaml"
 
 var db_path      string = "./db_yaml/"
 var voice_path   string = db_path + "voices/"
-var logFile_path string = "./log.txt"
+var logFile_path string = db_path + "log.txt"
 var udon_path    string = db_path + "udonese/"
 var udonGroupID  int64  = -1002205667779
 
