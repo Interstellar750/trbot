@@ -145,7 +145,7 @@ func AutoSaveDatabaseHandler() {
 		log.Println("some issues when read database file", err)
 		// 如果读取数据库文件时发现数据库为空，使用当前的数据重建数据库文件
 		if reflect.DeepEqual(savedDatabase, DataBaseYaml{}){
-			printLogAndSave(fmt.Sprintln("The database file is empty, recovering database file using current data"))
+			printLogAndSave("The database file is empty, recovering database file using current data")
 			err = SaveYamlDB(db_path, metadataFileName, database)
 			if err != nil {
 				printLogAndSave(fmt.Sprintln("some issues happend when recovering empty database:", err))
@@ -156,11 +156,28 @@ func AutoSaveDatabaseHandler() {
 		}
 	}
 	// 没有修改就跳过保存
-	if reflect.DeepEqual(savedDatabase, database) { // 这个不太管用，无法对比结构体中的更深层数据
+	if reflect.DeepEqual(savedDatabase, database) {
 		fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
 	} else {
-		// 如果检测到本地的数据库更新时间比程序中的更新时间更晚
-		if savedDatabase.UpdateTimestamp > database.UpdateTimestamp {
+		// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
+		if savedDatabase.ForceOverwrite {
+			printLogAndSave(fmt.Sprintf("The `FORCEOVERWRITE: true` in %s is detected", db_path + metadataFileName))
+			oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", time.Now().Unix(), metadataFileName)
+			err := SaveYamlDB(db_path, oldFileName, savedDatabase)
+			if err != nil {
+				printLogAndSave(fmt.Sprintln("some issues happend when saving the database before overwritten:", err))
+			} else {
+				printLogAndSave(fmt.Sprintf("The database before overwritten is saved to %s", db_path + oldFileName))
+			}
+			database = savedDatabase
+			database.ForceOverwrite = false // 移除强制覆盖标记
+			err = SaveYamlDB(db_path, metadataFileName, database)
+			if err != nil {
+				printLogAndSave(fmt.Sprintln("some issues happend when recreat database using new database:", err))
+			} else {
+				printLogAndSave(fmt.Sprintf("Success read data from the new file and saved to %s", db_path + metadataFileName))
+			}
+		} else if savedDatabase.UpdateTimestamp >= database.UpdateTimestamp { // 没有设定覆写标记，检测到本地的数据库更新时间比程序中的更新时间相等或更晚
 			log.Println("The saved database is newer than current data in the program")
 			// 如果只是更新时间有差别，更新一下时间，再保存就行
 			if reflect.DeepEqual(savedDatabase.Data, database.Data) {
@@ -173,47 +190,28 @@ func AutoSaveDatabaseHandler() {
 					printLogAndSave("Update Timestamp in database at " + time.Now().Format(time.RFC3339))
 				}
 			} else {
-				// 数据库文件与程序中的数据不同，需要处理
-				nowtimestamp := time.Now().Unix()
-
+				// 数据库文件与程序中的数据不同，将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
 				log.Println("Saved database is different from the current database")
-				// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，保存程序中的数据，读取新的数据替换掉当前的数据并保存
-				if savedDatabase.ForceOverwrite {
-					printLogAndSave(fmt.Sprintf("The `FORCEOVERWRITE: true` in %s is detected", db_path + metadataFileName))
-					oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", nowtimestamp, metadataFileName)
-					err := SaveYamlDB(db_path, oldFileName, savedDatabase)
-					if err != nil {
-						printLogAndSave(fmt.Sprintln("some issues happend when saving the database before overwritten:", err))
-					} else {
-						printLogAndSave(fmt.Sprintf("The database before overwritten is saved to %s", db_path + oldFileName))
-					}
-					database = savedDatabase
-					err = SaveYamlDB(db_path, metadataFileName, database)
-					if err != nil {
-						printLogAndSave(fmt.Sprintln("some issues happend when recreat database using new database:", err))
-					} else {
-						printLogAndSave(fmt.Sprintf("Success read data from the new file and saved to %s", db_path + metadataFileName))
-					}
-				} else {
-					// 没有设定覆写标记，就将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
-					editedFileName := fmt.Sprintf("edited_%d_%s", nowtimestamp, metadataFileName)
+				editedFileName := fmt.Sprintf("edited_%d_%s", time.Now().Unix(), metadataFileName)
 
-					log.Println("Do not modify the database file while the program is running, saving modified file and recovering database file using current data")
-					err := SaveYamlDB(db_path, editedFileName, savedDatabase)
-					if err != nil {
-						printLogAndSave(fmt.Sprintln("some issues happend when saving modified database:", err))
-					} else {
-						printLogAndSave(fmt.Sprintf("The modified database is saved to %s", db_path + editedFileName))
-					}
-					err = SaveYamlDB(db_path, metadataFileName, database)
-					if err != nil {
-						printLogAndSave(fmt.Sprintln("some issues happend when recovering database:", err))
-					} else {
-						printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadataFileName))
-					}
+				// 提示不要在程序运行的时候乱动数据库文件
+				log.Println("Do not modify the database file while the program is running, saving modified file and recovering database file using current data")
+				err := SaveYamlDB(db_path, editedFileName, savedDatabase)
+				if err != nil {
+					printLogAndSave(fmt.Sprintln("some issues happend when saving modified database:", err))
+				} else {
+					printLogAndSave(fmt.Sprintf("The modified database is saved to %s", db_path + editedFileName))
+				}
+				err = SaveYamlDB(db_path, metadataFileName, database)
+				if err != nil {
+					printLogAndSave(fmt.Sprintln("some issues happend when recovering database:", err))
+				} else {
+					printLogAndSave(fmt.Sprintf("The database is recovered to %s", db_path + metadataFileName))
 				}
 			}
 		} else { // 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
+			// 正常情况下更新时间就是会比程序内的时间晚，手动修改数据库途中如果有数据变动，而手动修改的时候没有修改时间戳，不会触发上面的保护机制，会直接覆盖手动修改的内容
+			// 所以无论如何都尽量不要手动修改数据库文件，如果必要也请在开头添加专用的 `FORCEOVERWRITE: true` 覆写标记，或停止程序后再修改
 			database.UpdateTimestamp = time.Now().Unix()
 			err := SaveYamlDB(db_path, metadataFileName, database)
 			if err != nil {
