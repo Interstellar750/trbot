@@ -12,32 +12,89 @@ import (
 )
 
 func startHandler(opts *subHandlerOpts) {
-	if len(opts.fields) > 1 && strings.HasPrefix(opts.fields[1], "via-inline") {
-		inlineArgument := strings.Split(opts.fields[1], "_")
-		if inlineArgument[1] == "test" {
-			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+	if len(opts.fields) > 1 {
+		if strings.HasPrefix(opts.fields[1], "via-inline") {
+			inlineArgument := strings.Split(opts.fields[1], "_")
+			if inlineArgument[1] == "test" {
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.Message.Chat.ID,
+					Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "点击加入测试群组",
+						URL: "https://t.me/+BomkHuFsjqc3ZGE1",
+					}}}},
+				})
+			} else if inlineArgument[1] == "noreply" {
+				return
+			}
+			return
+		} else if opts.fields[1] == "savedmessage_privacy_policy" {
+			_, err := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID: opts.update.Message.Chat.ID,
-				Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+				Text: "<blockquote>目前此机器人仍在开发阶段中，此信息可能会有更改</blockquote>\n" +
+					"本机器人提供收藏信息功能，您可以在回复一条信息时输入 /save 来收藏它，之后在 inline 模式下随时浏览您的收藏内容并发送\n\n" +
+
+					"我们会记录哪些数据？\n" +
+					"<blockquote>" +
+					"1. 您的用户信息，例如 用户昵称、用户 ID、聊天类型（当您将此机器人添加到群组或频道中时）\n" +
+					"2. 您的使用情况，例如 消息计数、inline 调用计数、inline 条目计数、最后向机器人发送的消息、callback_query、inline_query 以及选择的 inline 结果\n" +
+					"3. 收藏信息内容，您需要注意这个，因为您是为了这个而阅读此内容，例如 存储的收藏信息数量、其图片上传到 Telegram 时的文件 ID、图片下方的文本，还有您在使用添加命令时所自定义的搜索关键词" +
+					"</blockquote>\n\n" +
+
+					"我的数据安全吗？\n" +
+					"<blockquote>" +
+					"这是一个早期的项目，还有很多未发现的 bug 与漏洞，因此您不能也不应该将敏感的数据存储在此机器人中，若您觉得我们收集的信息不妥，您可以不点击底部的同意按钮，我们仅会收集一些基本的信息，防止对机器人造成滥用，基本信息为前一段的 1 至 2 条目" +
+					"</blockquote>\n\n" +
+
+					"我收藏的消息，有谁可以看到?" +
+					"<blockquote>" +
+					"此功能被设计为每个人有单独的存储空间，如果您不手动从 inline 模式下选择信息并发送，其他用户是没法查看您的收藏列表的。不过，与上一个条目一样，为了防止滥用，我们是可以也有权利查看您收藏的内容的，请不要在其中保存隐私数据" +
+					"</blockquote>\n\n" +
+
+					"内容待补充...",
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-					Text: "点击加入测试群组",
-					URL: "https://t.me/+BomkHuFsjqc3ZGE1",
+					Text: "点击同意以上内容",
+					URL: fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy_agree", botMe.Username),
+				}}}},
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				log.Println("error when send savedmessage_privacy_policy:", err)
+				return
+			}
+			return
+		} else if opts.fields[1] == "savedmessage_privacy_policy_agree" {
+			opts.chatInfo.SavedMessage.AgreePrivacyPolicy = true
+			SignalsChannel.Database_save <- true
+			_, err :=opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID: opts.update.Message.Chat.ID,
+				Text: "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "点击浏览你的收藏",
+					SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "photo ",
 				}}}},
 			})
+			if err != nil {
+				log.Println("error when send savedmessage_privacy_policy_agree:", err)
+			}
+			return
 		}
-	} else {
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID:    opts.update.Message.Chat.ID,
-			Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您将会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-			LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
-			ParseMode: models.ParseModeMarkdownV1,
-			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "尝试 Inline 模式",
-				SwitchInlineQueryCurrentChat: " ",
-			}}}},
-		})
 	}
+
+	opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		ChatID:    opts.update.Message.Chat.ID,
+		Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您将会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+		LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
+		ParseMode: models.ParseModeMarkdownV1,
+		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text: "尝试 Inline 模式",
+			SwitchInlineQueryCurrentChat: " ",
+		}}}},
+	})
 }
 
 func addToWriteListHandler(opts *subHandlerOpts) {
@@ -452,5 +509,73 @@ func udoneseHandler(opts *subHandlerOpts) {
 			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
+	}
+}
+
+func saveMessageHandler(opts *subHandlerOpts) {
+	userData, _ := getIDInfoAndIndex(&opts.update.Message.From.ID)
+
+	messageParams := &bot.SendMessageParams{
+		ChatID: opts.update.Message.Chat.ID,
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+		ParseMode: models.ParseModeHTML,
+	}
+
+	if !userData.SavedMessage.AgreePrivacyPolicy {
+		messageParams.Text = "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息"
+		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text: "点击查看",
+			URL: fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", botMe.Username),
+		}}}}
+		_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
+		if err != nil {
+			log.Printf("Error response /save command initial info: %v", err)
+		}
+		return
+	}
+
+	if userData.SavedMessage.Limit == 0 && userData.SavedMessage.Count == 0 {
+		userData.SavedMessage.Limit = 100
+	}
+	if userData.SavedMessage.Limit == 0 {
+		// 若不是初次添加，为 0 就是不限制
+	} else if userData.SavedMessage.Count >= userData.SavedMessage.Limit {
+		messageParams.Text = "已达到限制，无法保存更多图片"
+		_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
+		if err != nil {
+			log.Printf("Error response /save command: %v", err)
+		}
+		return
+	}
+
+	// var pendingMessage string
+	if opts.update.Message.ReplyToMessage != nil {
+		if opts.update.Message.ReplyToMessage.Photo != nil {
+			
+			userData.SavedMessage.Item.Photo = append(userData.SavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
+				ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.Count),
+				FileID: opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				// Title: opts.update.Message.Text[len(opts.fields[0]):],
+			})
+			userData.SavedMessage.Count++
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存图片"
+			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				Text: "点击浏览你的收藏",
+				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "photo ",
+			}}}}
+		} else {
+			messageParams.Text = "Reply to a photo to save it"
+		}
+	} else {
+		messageParams.Text = "Reply to a photo to save it"
+	}
+
+	// fmt.Println(opts.chatInfo)
+
+	_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
+	if err != nil {
+		log.Printf("Error response /save command: %v", err)
 	}
 }

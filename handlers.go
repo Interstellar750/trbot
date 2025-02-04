@@ -384,6 +384,46 @@ func messageHandler(opts *subHandlerOpts) {
 					}}}},
 				})
 				return
+			} else if commandMaybeWithSuffixUsername(opts.fields, "/fileid") {
+				var pendingMessage string
+				if opts.update.Message.ReplyToMessage != nil {
+					if opts.update.Message.ReplyToMessage.Sticker != nil {
+						pendingMessage = fmt.Sprintf("Type: [Sticker] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Sticker.FileID)
+					} else if opts.update.Message.ReplyToMessage.Document != nil {
+						pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Document.FileID)
+					} else if opts.update.Message.ReplyToMessage.Photo != nil {
+						pendingMessage = "Type: [Photo]\n"
+						if len(opts.fields) > 1 && opts.fields[1] == "all" { // 如果有 all 指示，显示图片所有分辨率的 File ID
+							for i, n := range opts.update.Message.ReplyToMessage.Photo {
+								pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d \n[<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileID)
+							}
+						} else { // 否则显示最后一个的 File ID (应该是最高分辨率的)
+							pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]\n", opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID)
+						}
+					} else if opts.update.Message.ReplyToMessage.Video != nil {
+						pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Video.FileID)
+					} else if opts.update.Message.ReplyToMessage.Voice != nil {
+						pendingMessage = fmt.Sprintf("Type: [Voice] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Voice.FileID)
+					} else if opts.update.Message.ReplyToMessage.Audio != nil {
+						pendingMessage = fmt.Sprintf("Type: [Audio] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Audio.FileID)
+					} else {
+						pendingMessage = "Unknown message type"
+					}
+				} else {
+					pendingMessage = "Reply to a Sticker, Document or Photo to get its FileID"
+				}
+				_, err := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+					ChatID: opts.update.Message.Chat.ID,
+					Text: pendingMessage,
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+					ParseMode: models.ParseModeHTML,
+				})
+				if err != nil {
+					log.Printf("Error response /fileid command: %v", err)
+				}
+			} else if commandMaybeWithSuffixUsername(opts.fields, "/save") {
+				saveMessageHandler(opts)
+				return
 			} else if commandMaybeWithSuffixUsername(opts.fields, "/version") && AnyContains(opts.update.Message.From.ID, logMan_IDs) {
 				// info, err := opts.thebot.GetWebhookInfo(ctx)
 				// fmt.Println(info)
@@ -439,7 +479,8 @@ func messageHandler(opts *subHandlerOpts) {
 			if strings.HasPrefix(opts.update.Message.Text, "/") {
 				// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
 				// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
-				botMessage, _ = opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				// botMessage, _ = 
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID:    opts.update.Message.Chat.ID,
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 					Text:      "不存在的命令",
@@ -447,7 +488,8 @@ func messageHandler(opts *subHandlerOpts) {
 				if private_log { privateLogToChat(opts.ctx, opts.thebot, opts.update) }
 			} else {
 				// 非命令消息，提示无操作可用
-				botMessage, _ = opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				// botMessage, _ = 
+				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 					ChatID:    opts.update.Message.Chat.ID,
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 					Text:      "无操作可用",
@@ -465,14 +507,14 @@ func messageHandler(opts *subHandlerOpts) {
 			}
 
 			// 等待五秒删除请求信息和回复信息
-			time.Sleep(time.Second * 10)
-			opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
-				ChatID:     opts.update.Message.Chat.ID,
-				MessageIDs: []int{
-					opts.update.Message.ID,
-					botMessage.ID,
-				},
-			})
+			// time.Sleep(time.Second * 10)
+			// opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+			// 	ChatID:     opts.update.Message.Chat.ID,
+			// 	MessageIDs: []int{
+			// 		opts.update.Message.ID,
+			// 		botMessage.ID,
+			// 	},
+			// })
 		} else if AnyContains(opts.update.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 			// 处理消息删除逻辑，只有当群组启用该功能时才处理
 			if opts.chatInfo.IsEnableForwardonly && (
@@ -571,6 +613,52 @@ func inlineHandler(opts *subHandlerOpts) {
 					log.Println("Error when answering inline query", err)
 				}
 			}
+		case "photo":
+			var InlineSavedMessageResultList []models.InlineQueryResult
+
+			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Photo {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
+						ID:    data.ID,
+						Title: data.Title,
+						Description: data.Caption,
+						Caption: data.Caption,
+						PhotoFileID: data.FileID,
+					})
+				}
+			}
+
+			if len(InlineSavedMessageResultList) == 0 {
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:    "empty",
+						Title: "没有保存内容（点击查看详细教程）",
+						Description: "对一条信息回复 /save 来保存它",
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +photo </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
+							ParseMode: models.ParseModeHTML,
+						},
+					}},
+					Button: &models.InlineQueryResultsButton{
+						Text: "点击此处快速跳转到机器人",
+						StartParameter: "via-inline_noreply",
+					},
+
+				})
+				if err != nil {
+					log.Println("Error when answering inline [photo] command", err)
+				}
+			}
+
+			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.update.InlineQuery.ID,
+				Results:       InlineResultPagination(opts.fields, InlineSavedMessageResultList),
+			})
+			if err != nil {
+				log.Println("Error when answering inline [photo] command", err)
+			}
+
 			return
 		case "sms":
 			var udoneseResultList []models.InlineQueryResult

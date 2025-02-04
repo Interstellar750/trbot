@@ -20,6 +20,7 @@ type DataBaseYaml struct {
 	Data struct {
 		IDs []IDInfo `yaml:"IDs"`
 		Admin []int64 `yaml:"Admin,omitempty"`
+		// SavedMessage []SavedMessage `yaml:"SavedMessage,omitempty"`
 	} `yaml:"Data"`
 }
 
@@ -53,17 +54,26 @@ type IDInfo struct {
 }
 
 type SavedMessage struct {
+	// ForUserID int64 `yaml:"ForUserID"`
 	Count int `yaml:"Count"`
 	Limit int `yaml:"Limit,omitempty"`
+	AgreePrivacyPolicy bool `yaml:"AgreePrivacyPolicy,omitempty"`
 
-	Item []SavedMessageItems `yaml:"Item,omitempty"`
+	Item SavedMessageItems `yaml:"Item,omitempty"`
 }
 
 type SavedMessageItems struct {
-	Type     string `yaml:"Type"`
-	URL      string `yaml:"Url"`
-	Text     string `yaml:"Text"`
-	Describe string `yaml:"Describe"`
+	Photo []SavedMessageTypeCachedPhoto `yaml:"Photo,omitempty"`
+}
+
+type SavedMessageTypeCachedPhoto struct {
+	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
+	SearchDesc  string `yaml:"SearchDesc,omitempty"`
+	ID          string `yaml:"ID"`
+	FileID      string `yaml:"FileID"`
+	Title       string `yaml:"Title,omitempty"` // inline 标题
+	Description string `yaml:"Description,omitempty"` // inline 描述
+	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
 }
 
 type InlineAlias struct {
