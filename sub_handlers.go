@@ -28,7 +28,7 @@ func startHandler(opts *subHandlerOpts) {
 	} else {
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID:    opts.update.Message.Chat.ID,
-			Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您可以得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
+			Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您将会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.update.Message.From.FirstName, opts.update.Message.From.LastName),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
 			ParseMode: models.ParseModeMarkdownV1,

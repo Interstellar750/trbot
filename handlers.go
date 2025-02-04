@@ -85,10 +85,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 	} else if update.InlineQuery != nil { // inline 查询
 		opts.fields = strings.Fields(update.InlineQuery.Query)
+
 		// 由于 inline 请求实际上不区分大小写，全部转为小写，方便后续查询
-		for i := 0; i < len(opts.fields); i++ {
-			opts.fields[i] = strings.ToLower(opts.fields[i])
-		}
 
 		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
 
@@ -576,6 +574,12 @@ func inlineHandler(opts *subHandlerOpts) {
 			return
 		case "sms":
 			var udoneseResultList []models.InlineQueryResult
+
+			// 查语句需要不区分大小写
+			for i := 0; i < len(opts.fields); i++ {
+				opts.fields[i] = strings.ToLower(opts.fields[i])
+			}
+
 			// 仅 :sms 参数，或带有分页符号，输出全部词
 			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
 				for _, data := range AdditionalDatas.Udonese.List {
@@ -756,7 +760,7 @@ func inlineHandler(opts *subHandlerOpts) {
 		})
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: logChat_ID,
-			Text:   fmt.Sprintf("%s\nInline Mode: some user get error， %v", time.Now().Format(time.RFC3339), AdditionalDatas.VoiceErr),
+			Text:   fmt.Sprintf("%s\nInline Mode: some user get error, %v", time.Now().Format(time.RFC3339), AdditionalDatas.VoiceErr),
 		})
 		return
 	} else if AdditionalDatas.Voices == nil {
