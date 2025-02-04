@@ -580,7 +580,7 @@ func inlineHandler(opts *subHandlerOpts) {
 			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
 				for _, data := range AdditionalDatas.Udonese.List {
 					udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-						ID:    data.Word,
+						ID:    data.Word + "-word",
 						Title: data.Word,
 						Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
 						InputMessageContent: models.InputTextMessageContent{
@@ -594,7 +594,7 @@ func inlineHandler(opts *subHandlerOpts) {
 					// 通过词查找意思
 					if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(data.Word)}, true) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-							ID:    data.Word,
+							ID:    data.Word + "-word",
 							Title: data.Word,
 							Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
 							InputMessageContent: models.InputTextMessageContent{
@@ -608,7 +608,7 @@ func inlineHandler(opts *subHandlerOpts) {
 						for _, n := range data.MeaningList {
 							if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(n.Meaning)}, true) {
 								udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-									ID:    n.Meaning,
+									ID:    n.Meaning + "-meaning",
 									Title: n.Meaning,
 									Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
 									InputMessageContent: models.InputTextMessageContent{

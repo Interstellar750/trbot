@@ -177,7 +177,7 @@ func AutoSaveDatabaseHandler() {
 			} else {
 				printLogAndSave(fmt.Sprintf("Success read data from the new file and saved to %s", db_path + metadataFileName))
 			}
-		} else if savedDatabase.UpdateTimestamp >= database.UpdateTimestamp { // 没有设定覆写标记，检测到本地的数据库更新时间比程序中的更新时间相等或更晚
+		} else if savedDatabase.UpdateTimestamp > database.UpdateTimestamp { // 没有设定覆写标记，检测到本地的数据库更新时间比程序中的更新时间更晚
 			log.Println("The saved database is newer than current data in the program")
 			// 如果只是更新时间有差别，更新一下时间，再保存就行
 			if reflect.DeepEqual(savedDatabase.Data, database.Data) {
