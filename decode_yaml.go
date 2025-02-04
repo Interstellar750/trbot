@@ -109,11 +109,11 @@ func (list UdoneseWord) OutputMeanings() string {
 	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 已使用 %d 次，它的意思有\n", list.Word, list.Used)
 	for i, s := range list.MeaningList {
 		if s.ViaID != 0 { // 通过回复添加
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"tg://user?id=%d\">%s</a> Via <a href=\"tg://user?id=%d\">%s</a>\n",
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
 				i + 1, s.Meaning, s.FromID, s.FromName, s.ViaID, s.ViaName,
 			)
 		} else if s.FromID != 0 { // 有添加人信息
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"tg://user?id=%d\">%s</a>\n",
+			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
 				i + 1, s.Meaning, s.FromID, s.FromName,
 			)
 		} else {
