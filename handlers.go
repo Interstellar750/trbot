@@ -109,7 +109,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	} else if update.ChosenInlineResult != nil { // inline 查询结果被选择
 		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.ChosenInlineResult.From.ID)
 
-		if opts.DBIndex == -1 && AddChatInfo(&update.Message.Chat) {
+		if opts.DBIndex == -1 && AddUserInfo(&update.ChosenInlineResult.From) {
 			log.Printf("add (inlineResult)private \"%s\"(%s)[%d] in database",
 				showUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
 			)
