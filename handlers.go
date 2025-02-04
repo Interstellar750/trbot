@@ -638,7 +638,8 @@ func inlineHandler(opts *subHandlerOpts) {
 				Results:       InlineResultPagination(opts.fields, udoneseResultList),
 			})
 			if err != nil {
-				log.Println("Error when answering inline :sms command", err)
+				log.Println("Error when answering inline [sms] command", err)
+				// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 			}
 			return
 		default: // default 中设定一些管理员命令和无命令提示

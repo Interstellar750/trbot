@@ -45,20 +45,25 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 		var stickerIndex int // 存放贴纸在贴纸包中的索引
 		// 获取贴纸包信息
 		stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: opts.update.Message.Sticker.SetName })
-		if err != nil {
-			return nil, false, fmt.Errorf("error getting sticker set: %v", err)
-		}
-		// 寻找贴纸在贴纸包中的索引并赋值
-		for i, n := range stickerSet.Stickers {
-			if n.FileID == opts.update.Message.Sticker.FileID {
-				stickerIndex = i
-				break
+		if err == nil {
+			// 寻找贴纸在贴纸包中的索引并赋值
+			for i, n := range stickerSet.Stickers {
+				if n.FileID == opts.update.Message.Sticker.FileID {
+					stickerIndex = i
+					break
+				}
 			}
-		}
 
-		// 在这个条件下，贴纸包名和贴纸索引都存在，赋值完整的贴纸文件名
-		stickerSetName = opts.update.Message.Sticker.SetName
-		stickerfileName = fmt.Sprintf("%s %d %s.", opts.update.Message.Sticker.SetName, stickerIndex, opts.update.Message.Sticker.FileID)
+			// 在这个条件下，贴纸包名和贴纸索引都存在，赋值完整的贴纸文件名
+			stickerSetName = opts.update.Message.Sticker.SetName
+			stickerfileName = fmt.Sprintf("%s %d %s.", opts.update.Message.Sticker.SetName, stickerIndex, opts.update.Message.Sticker.FileID)
+		} else {
+			// 到这里是因为用户发送的贴纸对应的贴纸包已经被删除了，但贴纸中的信息还有对应的 SetName，会触发查询，但因为贴纸包被删了就查不到，将 index 值设为 -1，缓存后当作自定义贴纸继续
+			log.Println("error getting sticker set:", err)
+			isCustomSticker = true
+			stickerSetName = opts.update.Message.Sticker.SetName
+			stickerfileName = fmt.Sprintf("%s %d %s.", opts.update.Message.Sticker.SetName, -1, opts.update.Message.Sticker.FileID)
+		}
 	} else {
 		// 自定义贴纸，防止与普通贴纸包冲突，将贴纸包名设置为 `-custom`，文件名仅有 FileID 用于辨识
 		isCustomSticker = true

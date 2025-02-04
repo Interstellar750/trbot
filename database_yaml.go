@@ -156,7 +156,7 @@ func AutoSaveDatabaseHandler() {
 		}
 	}
 	// 没有修改就跳过保存
-	if reflect.DeepEqual(savedDatabase, database) {
+	if reflect.DeepEqual(savedDatabase, database) && IsDebugMode {
 		fmt.Printf("\r%s looks database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
 	} else {
 		// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
