@@ -55,7 +55,8 @@ type IDInfo struct {
 
 type SavedMessage struct {
 	// ForUserID int64 `yaml:"ForUserID"`
-	Count int `yaml:"Count"`
+	Count int `yaml:"Count"` // 当前存储的数量
+	SavedTimes int `yaml:"SavedTimes,omitempty"` // 一共存过多少个
 	Limit int `yaml:"Limit,omitempty"`
 	AgreePrivacyPolicy bool `yaml:"AgreePrivacyPolicy,omitempty"`
 
@@ -64,11 +65,22 @@ type SavedMessage struct {
 
 type SavedMessageItems struct {
 	Photo []SavedMessageTypeCachedPhoto `yaml:"Photo,omitempty"`
+	Video []SavedMessageTypeCachedVideo `yaml:"Video,omitempty"`
 }
 
 type SavedMessageTypeCachedPhoto struct {
 	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
-	SearchDesc  string `yaml:"SearchDesc,omitempty"`
+
+	ID          string `yaml:"ID"`
+	FileID      string `yaml:"FileID"`
+	Title       string `yaml:"Title,omitempty"` // inline 标题
+	Description string `yaml:"Description,omitempty"` // inline 描述
+	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+}
+
+type SavedMessageTypeCachedVideo struct {
+	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
+
 	ID          string `yaml:"ID"`
 	FileID      string `yaml:"FileID"`
 	Title       string `yaml:"Title,omitempty"` // inline 标题
@@ -226,7 +238,7 @@ func AutoSaveDatabaseHandler() {
 			err := SaveYamlDB(db_path, metadataFileName, database)
 			if err != nil {
 				printLogAndSave(fmt.Sprintln("some issues happend when auto saving database:", err))
-			} else {
+			} else if IsDebugMode {
 				printLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
 			}
 		}

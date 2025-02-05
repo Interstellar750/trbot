@@ -27,6 +27,9 @@ func startHandler(opts *subHandlerOpts) {
 				})
 			} else if inlineArgument[1] == "noreply" {
 				return
+			} else if inlineArgument[1] == "savedmessage-help" {
+				saveMessageHandler(opts)
+				return
 			}
 			return
 		} else if opts.fields[1] == "savedmessage_privacy_policy" {
@@ -537,10 +540,10 @@ func saveMessageHandler(opts *subHandlerOpts) {
 	if userData.SavedMessage.Limit == 0 && userData.SavedMessage.Count == 0 {
 		userData.SavedMessage.Limit = 100
 	}
-	if userData.SavedMessage.Limit == 0 {
-		// 若不是初次添加，为 0 就是不限制
-	} else if userData.SavedMessage.Count >= userData.SavedMessage.Limit {
-		messageParams.Text = "已达到限制，无法保存更多图片"
+
+	// 若不是初次添加，为 0 就是不限制
+	if userData.SavedMessage.Limit != 0 && userData.SavedMessage.Count >= userData.SavedMessage.Limit {
+		messageParams.Text = "已达到限制，无法保存更多内容"
 		_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
 		if err != nil {
 			log.Printf("Error response /save command: %v", err)
@@ -550,26 +553,57 @@ func saveMessageHandler(opts *subHandlerOpts) {
 
 	// var pendingMessage string
 	if opts.update.Message.ReplyToMessage != nil {
+		var DescriptionText string
+		if len(opts.update.Message.Text) > len(opts.fields[0]) + 1 {
+			DescriptionText = opts.update.Message.Text[len(opts.fields[0]) + 1:]
+		}
+
 		if opts.update.Message.ReplyToMessage.Photo != nil {
-			
 			userData.SavedMessage.Item.Photo = append(userData.SavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
-				ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.Count),
+				ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.SavedTimes),
 				FileID: opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID,
 				Caption: opts.update.Message.ReplyToMessage.Caption,
+				Description: DescriptionText,
 				// Title: opts.update.Message.Text[len(opts.fields[0]):],
 			})
 			userData.SavedMessage.Count++
+			userData.SavedMessage.SavedTimes++
 			SignalsChannel.Database_save <- true
 			messageParams.Text = "已保存图片"
 			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "点击浏览你的收藏",
+				Text: "点击浏览你的图片收藏",
 				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "photo ",
 			}}}}
+		} else if opts.update.Message.ReplyToMessage.Video != nil {
+			if DescriptionText == "" {
+				messageParams.Text = "保存失败：\n保存视频类型消息时需要一个描述\n请以 <code>/save 描述内容</code> 格式再次回复要收藏的视频"
+				_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
+				if err != nil {
+					log.Printf("Error response /save command video no description: %v", err)
+				}
+				return
+			}
+
+			userData.SavedMessage.Item.Video = append(userData.SavedMessage.Item.Video, SavedMessageTypeCachedVideo{
+				ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.SavedTimes),
+				FileID: opts.update.Message.ReplyToMessage.Video.FileID,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				Title: DescriptionText,
+				Description: opts.update.Message.ReplyToMessage.Caption,
+			})
+			userData.SavedMessage.Count++
+			userData.SavedMessage.SavedTimes++
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存视频"
+			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				Text: "点击浏览你的视频收藏",
+				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "video ",
+			}}}}
 		} else {
-			messageParams.Text = "Reply to a photo to save it"
+			messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来添加"
 		}
 	} else {
-		messageParams.Text = "Reply to a photo to save it"
+		messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来添加"
 	}
 
 	// fmt.Println(opts.chatInfo)
