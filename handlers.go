@@ -696,6 +696,7 @@ func inlineHandler(opts *subHandlerOpts) {
 						Caption: data.Caption,
 						PhotoFileID: data.FileID,
 						Description: data.Description,
+						// CaptionEntities: ,
 					})
 				}
 			} else {

@@ -564,6 +564,7 @@ func saveMessageHandler(opts *subHandlerOpts) {
 				FileID: opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID,
 				Caption: opts.update.Message.ReplyToMessage.Caption,
 				Description: DescriptionText,
+				// Entities: opts.update.Message.ReplyToMessage.CaptionEntities,
 				// Title: opts.update.Message.Text[len(opts.fields[0]):],
 			})
 			userData.SavedMessage.Count++

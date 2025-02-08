@@ -76,6 +76,7 @@ type SavedMessageTypeCachedPhoto struct {
 	Title       string `yaml:"Title,omitempty"` // inline 标题
 	Description string `yaml:"Description,omitempty"` // inline 描述
 	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+	Entities    []models.MessageEntity `yaml:"Entities,omitempty"`
 }
 
 type SavedMessageTypeCachedVideo struct {
