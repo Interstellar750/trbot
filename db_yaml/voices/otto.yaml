@@ -4,66 +4,96 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
   - ID:       otto-self
     Title:    说的道理の自我介绍
     Caption:  我是说的道理~
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wssddl.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/我是说的道理.ogg
 
   - ID:       otto-wq
     Title:    没受过这么大委屈，从小到大
     Caption:  没受过这么大委屈，从小到大
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/msgzmdwqcxdd.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/没受过这么大委屈从小到大.ogg
 
   - ID:       otto-jtld
     Title:    今天来点大家想看的东西啊
     Caption:  今天来点大家想看的东西啊
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/jtld.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/今天来点大家想看的东西啊.ogg
 
   - ID:       otto-miyu
     Title:    啊米浴说的道理~
     Caption:  啊米浴说的道理~
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/miyu.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/啊米浴说的道理.ogg
 
   - ID:       otto-dream
     Title:    我阐述你的梦
     Caption:  我阐述你的梦
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wcsndm.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/我重拾你的梦.ogg
 
   - ID:       otto-waoo
     Title:    哇袄
     Caption:  哇袄
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wao.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/哇袄.ogg
 
   - ID:       otto-hahaha
     Title:    发病
     Caption:  发病
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/kxfbx.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/发病.ogg
 
   - ID:       otto-nxhw
     Title:    试探
     Caption:  你喜欢我
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/nxhw.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/你喜欢我.ogg
 
   - ID:       otto-wxhn
     Title:    表白
     Caption:  我喜欢你
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wxhn.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/我喜欢你.ogg
+
+  - ID:       otto-lqxy
+    Title:    两情相悦
+    Caption:  我喜欢你 你喜欢我
+    VoiceURL: https://alist.trle5.xyz/d/otto/我喜欢你你喜欢我.ogg
 
   - ID:       otto-rush
+    Title:    冲
+    Caption:  冲
+    VoiceURL: https://alist.trle5.xyz/d/otto/冲.ogg
+
+  - ID:       otto-rushrush
     Title:    冲刺
     Caption:  冲刺
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/cc.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/冲刺.ogg
+
+  - ID:       otto-rushall
+    Title:    冲刺冲刺 冲！冲！
+    Caption:  冲刺冲刺 冲！冲！
+    VoiceURL: https://alist.trle5.xyz/d/otto/冲刺冲刺冲.ogg
 
   - ID:       otto-move
     Title:    迫不及待
     Caption:  兄弟你动啊
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/xdnda.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/兄弟你动啊.ogg
 
   - ID:       otto-vegetable
     Title:    品鉴蔬菜
     Caption:  你怎么这么菜啊
-    VoiceURL: https://otto-hzys.huazhiwan.xyz/static/ysddTokens/nzmzmca.mp3
+    VoiceURL: https://alist.trle5.xyz/d/otto/你怎么这么菜啊.ogg
+
+  - ID:       otto-vegetableofpignose
+    Title:    猪鼻の菜
+    Caption:  猪鼻吧 这怎么这么菜啊
+    VoiceURL: https://alist.trle5.xyz/d/otto/猪鼻吧这怎么这么菜啊.ogg
+
+  - ID:       otto-ydglm
+    Title:    一得阁拉米
+    Caption:  一得阁拉米
+    VoiceURL: https://alist.trle5.xyz/d/otto/一得阁拉米.ogg
+
+  - ID:       otto-no
+    Title:    不！
+    Caption:  不！
+    VoiceURL: https://alist.trle5.xyz/d/otto/战嚎.ogg
 
   - ID:       otto-nono
-    Title:    不可以
-    Caption:  不可以
+    Title:    不可以！
+    Caption:  不可以！
     VoiceURL: https://alist.trle5.xyz/d/otto/不可以.ogg
 
   - ID:       otto-hbx
@@ -86,10 +116,20 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
     Caption:  原子弹
     VoiceURL: https://alist.trle5.xyz/d/otto/原子弹.ogg
 
+  - ID:       otto-nukeback
+    Title:    原子弹の归来
+    Caption:  我的原子弹回来辣
+    VoiceURL: https://alist.trle5.xyz/d/otto/我的原子弹回来辣.ogg
+
   - ID:       otto-ex
     Title:    好恶心啊
     Caption:  好恶心啊
     VoiceURL: https://alist.trle5.xyz/d/otto/好恶心啊.ogg
+
+  - ID:       otto-wocao
+    Title:    卧槽？
+    Caption:  卧槽？
+    VoiceURL: https://alist.trle5.xyz/d/otto/卧槽.ogg
 
   - ID:       otto-wcb
     Title:    卧槽！冰！
@@ -106,15 +146,15 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
     Caption:  凤鸣
     VoiceURL: https://alist.trle5.xyz/d/otto/凤鸣(完整).ogg
 
-  - ID:       otto-run4wheelchair
-    Title:    向♿奔去 伴奏
-    Caption:  向♿奔去 伴奏
-    VoiceURL: https://alist.trle5.xyz/d/otto/向♿奔去伴奏.ogg
+  - ID:       otto-songoflord
+    Title:    古神の颂歌
+    Caption:  浮夸 倒放
+    VoiceURL: https://alist.trle5.xyz/d/otto/浮夸倒放.ogg
 
   - ID:       otto-ex2
-    Title:    不是你tm恶心人你有个度啊
-    Caption:  不是你tm恶心人你有个度啊
-    VoiceURL: https://alist.trle5.xyz/d/otto/不是你tm恶心人你有个度啊
+    Title:    不是你 tm 恶心人你有个度啊
+    Caption:  不是你 tm 恶心人你有个度啊
+    VoiceURL: https://alist.trle5.xyz/d/otto/不是你tm恶心人你有个度啊.ogg
 
   - ID:       otto-teacher
     Title:    各位学到了没有
@@ -145,6 +185,11 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
     Title:    击败！
     Caption:  击败！
     VoiceURL: https://alist.trle5.xyz/d/otto/击败.ogg
+
+  - ID:       otto-daoli
+    Title:    道理~
+    Caption:  道理~
+    VoiceURL: https://alist.trle5.xyz/d/otto/道理.ogg
 
   - ID:       otto-weirdlaugh
     Title:    怪笑
@@ -181,12 +226,117 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
     Caption:  我以前很自由自在的当一个傻逼
     VoiceURL: https://alist.trle5.xyz/d/otto/我以前很自由自在的当一个傻逼.ogg
 
+  - ID:       otto-da
+    Title:    开大啊！
+    Caption:  开大啊！
+    VoiceURL: https://alist.trle5.xyz/d/otto/开大啊.ogg
+
   - ID:       otto-kainan
     Title:    凯南の大
     Caption:  凯南开大呀开大啊
     VoiceURL: https://alist.trle5.xyz/d/otto/凯南开大呀开大啊.ogg
 
-  - ID:       otto-show
+  - ID:       otto-techshows
     Title:    技术演示
     Caption:  你看你爹操作这波
-    VoiceURL: https://alist.trle5.xyz/d/otto/你看你爹操作这波.ogg
+    VoiceURL: https://alist.trle5.xyz/d/otto/你看你爹操作这波啊.ogg
+
+  - ID:       otto-ahdead
+    Title:    啊... 死！
+    Caption:  啊... 死！
+    VoiceURL: https://alist.trle5.xyz/d/otto/啊呀死.ogg
+
+  - ID:       otto-bzl
+    Title:    求饶
+    Caption:  别追啦！
+    VoiceURL: https://alist.trle5.xyz/d/otto/别追啦.ogg
+
+  - ID:       otto-cnmkd
+    Title:    草你妈开大
+    Caption:  草你妈开大
+    VoiceURL: https://alist.trle5.xyz/d/otto/草你妈开大.ogg
+
+  - ID:       otto-zouwei
+    Title:    打野の走位
+    Caption:  打野的走位我就觉得 nmb 离谱
+    VoiceURL: https://alist.trle5.xyz/d/otto/打野的走位我就觉得离谱.ogg
+
+  - ID:       otto-sorry
+    Title:    电棍の膨胀
+    Caption:  对不起我优越了，可能我膨胀了，不好意思啊
+    VoiceURL: https://alist.trle5.xyz/d/otto/对不起我优越了可能我膨胀了不好意思啊.ogg
+
+  - ID:       otto-whydead
+    Title:    诶你怎么死了？
+    Caption:  诶你怎么死了？
+    VoiceURL: https://alist.trle5.xyz/d/otto/诶你怎么死了.ogg
+
+  - ID:       otto-homeboom
+    Title:    家の爆
+    Caption:  家暴 家暴 暴 暴 暴 快爆！
+    VoiceURL: https://alist.trle5.xyz/d/otto/家暴家暴暴暴暴快爆.ogg
+
+  - ID:       otto-stuck
+    Title:    布豪，卡住了
+    Caption:  卡在这里了
+    VoiceURL: https://alist.trle5.xyz/d/otto/卡在这里了.ogg
+
+  - ID:       otto-caicaibei
+    Title:    老爷爷 我给你踩背来咯
+    Caption:  老爷爷 我给你踩背来咯(含鬼叫)
+    VoiceURL: https://alist.trle5.xyz/d/otto/老爷爷我给你踩背来咯.ogg
+
+  - ID:       otto-comeback
+    Title:    立功而反
+    Caption:  棍哥我们回来啦，我们立功啦
+    VoiceURL: https://alist.trle5.xyz/d/otto/立功而反.ogg
+
+  - ID:       otto-smileotto
+    Title:    笑の棍电
+    Caption:  笑の棍电
+    VoiceURL: https://alist.trle5.xyz/d/otto/笑の棍电.ogg
+
+  - ID:       otto-doubt
+    Title:    棍の疑问
+    Caption:  你是杠精吗请问
+    VoiceURL: https://alist.trle5.xyz/d/otto/你是杠精吗请问.ogg
+
+  - ID:       otto-handofotto
+    Title:    欧内の手
+    Caption:  欧内的手，好汉~
+    VoiceURL: https://alist.trle5.xyz/d/otto/欧内的手好汉.ogg
+
+  - ID:       otto-together
+    Title:    形影不离の棍
+    Caption:  如果盲僧在的话 为什么我不在
+    VoiceURL: https://alist.trle5.xyz/d/otto/如果盲僧在的话为什么我不在.ogg
+
+  - ID:       otto-ice3wolf
+    Title:    冰の三狼
+    Caption:  你老想着刷你那冰三狼干什么玩意
+    VoiceURL: https://alist.trle5.xyz/d/otto/你老想着刷你那冰三狼干什么玩意.ogg
+
+  - ID:       otto-fearotto
+    Title:    害怕の棍
+    Caption:  欸欸欸 oi oi 我的天哪我傻了
+    VoiceURL: https://alist.trle5.xyz/d/otto/欸欸欸oioi我的天哪我傻了.ogg
+
+  - ID:       otto-chivebox-bad
+    Title:    韭菜盒子往事-差评
+    Caption:  我昨天我要吃两个 你给我送了一个 我给了你个差评
+    VoiceURL: https://alist.trle5.xyz/d/otto/我昨天我要吃两个你给我送了一个我给了你个差评.ogg
+
+  - ID:       otto-chivebox-order
+    Title:    韭菜盒子往事-再次点单
+    Caption:  我今天又点了一个 我以为你能给我补一个 所以我没点两个
+    VoiceURL: https://alist.trle5.xyz/d/otto/我今天又点了一个我以为你能给我补一个所以我没点两个.ogg
+
+  - ID:       otto-dazzledog
+    Title:    炫狗
+    Caption:  炫狗
+    VoiceURL: https://alist.trle5.xyz/d/otto/炫狗.ogg
+
+  - ID:       otto-johnniewalker
+    Title:    约翰走路
+    Caption:  尊尼获加这个冲击波杠精你跟我说话来
+    VoiceURL: https://alist.trle5.xyz/d/otto/尊尼获加这个冲击波杠精你跟我说话来.ogg
