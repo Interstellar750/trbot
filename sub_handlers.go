@@ -516,7 +516,7 @@ func udoneseHandler(opts *subHandlerOpts) {
 }
 
 func saveMessageHandler(opts *subHandlerOpts) {
-	userData, _ := getIDInfoAndIndex(&opts.update.Message.From.ID)
+	userData := getIDInfo(&opts.update.Message.From.ID)
 
 	messageParams := &bot.SendMessageParams{
 		ChatID: opts.update.Message.Chat.ID,
@@ -546,7 +546,7 @@ func saveMessageHandler(opts *subHandlerOpts) {
 		messageParams.Text = "已达到限制，无法保存更多内容"
 		_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
 		if err != nil {
-			log.Printf("Error response /save command: %v", err)
+			log.Printf("Error response /save command reach limit: %v", err)
 		}
 		return
 	}
@@ -554,6 +554,7 @@ func saveMessageHandler(opts *subHandlerOpts) {
 	// var pendingMessage string
 	if opts.update.Message.ReplyToMessage != nil {
 		var DescriptionText string
+		// 获取使用命令保存时设定的描述
 		if len(opts.update.Message.Text) > len(opts.fields[0]) + 1 {
 			DescriptionText = opts.update.Message.Text[len(opts.fields[0]) + 1:]
 		}
@@ -562,10 +563,11 @@ func saveMessageHandler(opts *subHandlerOpts) {
 			userData.SavedMessage.Item.Photo = append(userData.SavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
 				ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.SavedTimes),
 				FileID: opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID,
-				Caption: opts.update.Message.ReplyToMessage.Caption,
-				Description: DescriptionText,
-				// Entities: opts.update.Message.ReplyToMessage.CaptionEntities,
 				// Title: opts.update.Message.Text[len(opts.fields[0]):],
+				Description: DescriptionText,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+				CaptionAboveMedia: opts.update.Message.ReplyToMessage.ShowCaptionAboveMedia,
 			})
 			userData.SavedMessage.Count++
 			userData.SavedMessage.SavedTimes++
@@ -600,8 +602,54 @@ func saveMessageHandler(opts *subHandlerOpts) {
 				Text: "点击浏览你的视频收藏",
 				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "video ",
 			}}}}
+
+		} else if opts.update.Message.ReplyToMessage.Sticker != nil {
+			stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: opts.update.Message.ReplyToMessage.Sticker.SetName })
+			if err != nil {
+				log.Printf("Error response /save command sticker no pack info: %v", err)
+			}
+			if stickerSet != nil {
+				userData.SavedMessage.Item.Sticker = append(userData.SavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+					ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.SavedTimes),
+					FileID: opts.update.Message.ReplyToMessage.Sticker.FileID,
+					SetName: stickerSet.Name,
+					SetTitle: stickerSet.Title,
+					Description: DescriptionText,
+				})
+			} else {
+				userData.SavedMessage.Item.Sticker = append(userData.SavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+					ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.SavedTimes),
+					FileID: opts.update.Message.ReplyToMessage.Sticker.FileID,
+					Description: DescriptionText,
+				})
+			}
+			userData.SavedMessage.Count++
+			userData.SavedMessage.SavedTimes++
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存贴纸"
+			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				Text: "点击浏览你的贴纸收藏",
+				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "sticker ",
+			}}}}
+		} else if opts.update.Message.ReplyToMessage.Voice != nil {
+			userData.SavedMessage.Item.Voice = append(userData.SavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
+				ID: fmt.Sprintf("%d-%d", userData.ID, userData.SavedMessage.SavedTimes),
+				FileID: opts.update.Message.ReplyToMessage.Voice.FileID,
+				Title: DescriptionText,
+				Description: opts.update.Message.ReplyToMessage.Caption,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+			})
+			userData.SavedMessage.Count++
+			userData.SavedMessage.SavedTimes++
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存语音"
+			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				Text: "点击浏览你的语音收藏",
+				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "voice ",
+			}}}}
 		} else {
-			messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来添加"
+			messageParams.Text = "暂不支持的消息类型"
 		}
 	} else {
 		messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来添加"

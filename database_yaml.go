@@ -40,15 +40,18 @@ type IDInfo struct {
 	// nil/0 voice, 1 sticker， 2 photo
 	DefaultInlineMode int `yaml:"DefaultInlineMode,omitempty"`
 
-	LatestMessage string `yaml:"LatestMessage,omitempty"`
+	LatestMessage      string `yaml:"LatestMessage,omitempty"`
+	LatestInlineQuery  string `yaml:"LatestInlineQuery,omitempty"`
+	LatestInlineResult string `yaml:"LatestInlineResult,omitempty"`
+
 
 	HasPendingCallbackQuery bool   `yaml:"HasPendingCallbackQuery,omitempty"`
 	LatestCallbackQueryData string `yaml:"LatestCallbackQueryData,omitempty"`
 
-	LatestInlineQuery  string `yaml:"LatestInlineQuery,omitempty"`
-	LatestInlineResult string `yaml:"LatestInlineResult,omitempty"`
+	SavedMessage   SavedMessage `yaml:"SavedMessage,omitempty"`
+	IsSavedChannel bool         `yaml:"IsSavedChannel,omitempty"`
+	SavedForUserID int64        `yaml:"SavedForUserID,omitempty"`
 
-	SavedMessage   SavedMessage   `yaml:"SavedMessage,omitempty"`
 	InlineAlias    InlineAlias    `yaml:"InlineAliases,omitempty"`
 	CustomCommands CustomCommands `yaml:"CustomCommands,omitempty"`
 }
@@ -64,19 +67,22 @@ type SavedMessage struct {
 }
 
 type SavedMessageItems struct {
-	Photo []SavedMessageTypeCachedPhoto `yaml:"Photo,omitempty"`
-	Video []SavedMessageTypeCachedVideo `yaml:"Video,omitempty"`
+	Photo   []SavedMessageTypeCachedPhoto   `yaml:"Photo,omitempty"`
+	Video   []SavedMessageTypeCachedVideo   `yaml:"Video,omitempty"`
+	Sticker []SavedMessageTypeCachedSticker `yaml:"Sticker,omitempty"`
+	Voice   []SavedMessageTypeCachedVoice   `yaml:"Voice,omitempty"`
 }
 
 type SavedMessageTypeCachedPhoto struct {
 	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
 
-	ID          string `yaml:"ID"`
-	FileID      string `yaml:"FileID"`
-	Title       string `yaml:"Title,omitempty"` // inline 标题
-	Description string `yaml:"Description,omitempty"` // inline 描述
-	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
-	Entities    []models.MessageEntity `yaml:"Entities,omitempty"`
+	ID                string                 `yaml:"ID"`
+	FileID            string                 `yaml:"FileID"`
+	Title             string                 `yaml:"Title,omitempty"` // inline 标题
+	Description       string                 `yaml:"Description,omitempty"` // inline 描述
+	Caption           string                 `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+	CaptionAboveMedia bool                   `yaml:"CaptionAboveMedia,omitempty"`
 }
 
 type SavedMessageTypeCachedVideo struct {
@@ -87,6 +93,32 @@ type SavedMessageTypeCachedVideo struct {
 	Title       string `yaml:"Title,omitempty"` // inline 标题
 	Description string `yaml:"Description,omitempty"` // inline 描述
 	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+}
+
+type SavedMessageTypeCachedSticker struct {
+	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
+	
+	ID          string `yaml:"ID"`
+	FileID      string `yaml:"FileID"`
+	SetName     string `yaml:"SetName,omitempty"`
+	SetTitle    string `yaml:"SetTitle,omitempty"`
+	Description string `yaml:"Description,omitempty"` // inline 描述
+	// Title       string `yaml:"Title,omitempty"` // inline 标题
+	// Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+	// CaptionEntities    []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+	// CaptionAboveMedia bool `yaml:"CaptionAboveMedia,omitempty"`
+}
+
+type SavedMessageTypeCachedVoice struct {
+	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
+	
+	ID          string `yaml:"ID"`
+	FileID      string `yaml:"FileID"`
+	Title       string `yaml:"Title,omitempty"` // inline 标题
+	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+	CaptionEntities    []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+	Description string `yaml:"Description,omitempty"` // inline 描述
+	// CaptionAboveMedia bool `yaml:"CaptionAboveMedia,omitempty"`
 }
 
 type InlineAlias struct {
@@ -309,12 +341,12 @@ func signalsHandler(SIGNAL SignalChannel) {
 	}
 }
 
-// 获取 ID 信息与在数据库中的位置
-func getIDInfoAndIndex(id *int64) (*IDInfo, int) {
+// 获取 ID 信息
+func getIDInfo(id *int64) *IDInfo {
 	for Index, Data := range database.Data.IDs {
 		if Data.ID == *id {
-			return &database.Data.IDs[Index], Index
+			return &database.Data.IDs[Index]
 		}
 	}
-	return nil, -1
+	return nil
 }

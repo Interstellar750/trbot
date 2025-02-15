@@ -29,16 +29,18 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		update:   update,
 	}
 
-	if update.Message != nil { // 消息
+	// 根据 update 类型来设定
+	if update.Message != nil {
+		// 正常消息
 		opts.fields = strings.Fields(update.Message.Text)
-		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.Message.Chat.ID)
+		opts.chatInfo = getIDInfo(&update.Message.Chat.ID)
 
-		if opts.DBIndex == -1 && AddChatInfo(&update.Message.Chat) {
+		if opts.chatInfo == nil && AddChatInfo(&update.Message.Chat) {
 			log.Printf("add (message)%s \"%s\"(%s)[%d] in database",
 				update.Message.Chat.Type,
 				showChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
 			)
-			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.Message.Chat.ID)
+			opts.chatInfo = getIDInfo(&update.Message.Chat.ID)
 		}
 
 		opts.chatInfo.LatestMessage = update.Message.Text
@@ -67,7 +69,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 
 		messageHandler(&opts)
-	} else if update.EditedMessage != nil { // 私聊或群组消息被编辑
+	} else if update.EditedMessage != nil {
+		// 私聊或群组消息被编辑
 		if IsDebugMode {
 			if update.EditedMessage.Photo != nil {
 				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) edited caption to [%s]", 
@@ -83,18 +86,19 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				)
 			}
 		}
-	} else if update.InlineQuery != nil { // inline 查询
+	} else if update.InlineQuery != nil {
+		// inline 查询
 		opts.fields = strings.Fields(update.InlineQuery.Query)
 
 		// 由于 inline 请求实际上不区分大小写，全部转为小写，方便后续查询
 
-		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
+		opts.chatInfo = getIDInfo(&update.InlineQuery.From.ID)
 
-		if opts.DBIndex == -1 && AddUserInfo(update.InlineQuery.From) {
+		if opts.chatInfo == nil && AddUserInfo(update.InlineQuery.From) {
 			log.Printf("add (inline)private \"%s\"(%s)[%d] in database",
 				showUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
 			)
-			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.InlineQuery.From.ID)
+			opts.chatInfo = getIDInfo(&update.InlineQuery.From.ID)
 		}
 
 		opts.chatInfo.LatestInlineQuery = update.InlineQuery.Query
@@ -106,14 +110,15 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		)
 
 		inlineHandler(&opts)
-	} else if update.ChosenInlineResult != nil { // inline 查询结果被选择
-		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.ChosenInlineResult.From.ID)
+	} else if update.ChosenInlineResult != nil {
+		// inline 查询结果被选择
+		opts.chatInfo = getIDInfo(&update.ChosenInlineResult.From.ID)
 
-		if opts.DBIndex == -1 && AddUserInfo(&update.ChosenInlineResult.From) {
+		if opts.chatInfo == nil && AddUserInfo(&update.ChosenInlineResult.From) {
 			log.Printf("add (inlineResult)private \"%s\"(%s)[%d] in database",
 				showUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
 			)
-			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.ChosenInlineResult.From.ID)
+			opts.chatInfo = getIDInfo(&update.ChosenInlineResult.From.ID)
 		}
 
 		opts.chatInfo.LatestInlineResult = update.ChosenInlineResult.ResultID + "," + update.ChosenInlineResult.Query
@@ -121,18 +126,19 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			showUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
 			update.ChosenInlineResult.ResultID, update.ChosenInlineResult.Query,
 		)
-	} else if update.CallbackQuery != nil { // replymarkup 回调
+	} else if update.CallbackQuery != nil {
+		// replymarkup 回调
 		log.Printf("callback from \"%s\"(%s)[%d] in \"%s\"(%s)[%d] query: [%s]",
 			showUserName(&update.CallbackQuery.From), update.CallbackQuery.From.Username, update.CallbackQuery.From.ID,
 			showChatName(&update.CallbackQuery.Message.Message.Chat), update.CallbackQuery.Message.Message.Chat.Username, update.CallbackQuery.Message.Message.Chat.ID,
 			update.CallbackQuery.Data,
 		)
 
-		opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.CallbackQuery.From.ID)
+		opts.chatInfo = getIDInfo(&update.CallbackQuery.From.ID)
 
-		if opts.DBIndex == -1 && AddUserInfo(&update.CallbackQuery.From) {
+		if opts.chatInfo == nil && AddUserInfo(&update.CallbackQuery.From) {
 			log.Printf("add (callback)private \"%s\"[%d] in database", showUserName(&update.CallbackQuery.From), update.CallbackQuery.From.ID)
-			opts.chatInfo, opts.DBIndex = getIDInfoAndIndex(&update.CallbackQuery.From.ID)
+			opts.chatInfo = getIDInfo(&update.CallbackQuery.From.ID)
 		}
 
 		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
@@ -232,7 +238,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 			opts.chatInfo.HasPendingCallbackQuery = false
 		}
-	} else if update.MessageReaction != nil { // 私聊或群组表情回应
+	} else if update.MessageReaction != nil {
+		// 私聊或群组表情回应
 		if IsDebugMode {
 			if len(update.MessageReaction.OldReaction) > 0 {
 				for i, oldReaction := range update.MessageReaction.OldReaction {
@@ -287,12 +294,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				}
 			}
 		}
-	} else if update.MessageReactionCount != nil { // 频道消息表情回应数量
+	} else if update.MessageReactionCount != nil {
+		// 频道消息表情回应数量
 		log.Printf("reaction count from in \"%s\"(%s)[%d], to message [%d], reactions: %v",
 			showChatName(&update.MessageReactionCount.Chat), update.MessageReactionCount.Chat.Username, update.MessageReactionCount.Chat.ID,
 			update.MessageReactionCount.MessageID, update.MessageReactionCount.Reactions,
 		)
-	} else if update.ChannelPost != nil { // 频道信息
+	} else if update.ChannelPost != nil {
+		// 频道信息
 		if IsDebugMode {
 			if update.ChannelPost.From != nil { // 在频道中使用户身份发送
 				log.Printf("channel post from user \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
@@ -334,14 +343,16 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			}
 			return
 		}
-	} else if update.EditedChannelPost != nil { // 频道中编辑过的消息
+	} else if update.EditedChannelPost != nil {
+		// 频道中编辑过的消息
 		if IsDebugMode {
 			log.Printf("edited channel post in \"%s\"(%s)[%d], message [%s]",
 				showChatName(&update.EditedChannelPost.Chat), update.EditedChannelPost.Chat.Username, update.EditedChannelPost.Chat.ID,
 				update.EditedChannelPost.Text,
 			)
 		}
-	} else { // 其他没有加入的更新类型
+	} else {
+		// 其他没有加入的更新类型
 		if IsDebugMode {
 			log.Printf("unknown update type: %v", update)
 			// thebot.CopyMessage(ctx, &bot.CopyMessageParams{
@@ -691,23 +702,26 @@ func inlineHandler(opts *subHandlerOpts) {
 			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
 				for _, data := range opts.chatInfo.SavedMessage.Item.Photo {
 					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
-						ID:    data.ID,
-						Title: data.Title,
-						Caption: data.Caption,
-						PhotoFileID: data.FileID,
-						Description: data.Description,
-						// CaptionEntities: ,
+						ID:                    data.ID,
+						PhotoFileID:           data.FileID,
+						Title:                 data.Title,
+						Description:           data.Description,
+						Caption:               data.Caption,
+						CaptionEntities:       data.CaptionEntities,
+						ShowCaptionAboveMedia: data.CaptionAboveMedia,
 					})
 				}
 			} else {
 				for _, data := range opts.chatInfo.SavedMessage.Item.Photo {
 					if InlineQueryMatchMultKeyword(opts.fields, []string{data.Caption, data.Description, data.Title}, true) {
 						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
-							ID:    data.ID,
-							Title: data.Title,
-							Caption: data.Caption,
-							PhotoFileID: data.FileID,
-							Description: data.Description,
+							ID:                    data.ID,
+							PhotoFileID:           data.FileID,
+							Title:                 data.Title,
+							Description:           data.Description,
+							Caption:               data.Caption,
+							CaptionEntities:       data.CaptionEntities,
+							ShowCaptionAboveMedia: data.CaptionAboveMedia,
 						})
 					}
 				}
@@ -754,6 +768,271 @@ func inlineHandler(opts *subHandlerOpts) {
 			})
 			if err != nil {
 				log.Println("Error when answering inline [photo] command", err)
+			}
+
+			return
+		case "sticker":
+			var InlineSavedMessageResultList []models.InlineQueryResult
+
+			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Sticker {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedSticker{
+						ID:            data.ID,
+						StickerFileID: data.FileID,
+					})
+				}
+			} else {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Sticker {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{data.SetName, data.SetTitle, data.Description}, true) {
+						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedSticker{
+							ID:            data.ID,
+							StickerFileID: data.FileID,
+						})
+					}
+				}
+				if len(InlineSavedMessageResultList) == 0 {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
+						ID:       "none",
+						Title:    "没有符合关键词的内容",
+						Description: fmt.Sprintf("没有找到包含 %s 的内容", opts.fields[1:]),
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					})
+				}
+			}
+
+			if len(InlineSavedMessageResultList) == 0 {
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:    "empty",
+						Title: "没有保存内容（点击查看详细教程）",
+						Description: "对一条信息回复 /save 来保存它",
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +photo </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
+							ParseMode: models.ParseModeHTML,
+						},
+					}},
+					Button: &models.InlineQueryResultsButton{
+						Text: "点击此处快速跳转到机器人",
+						StartParameter: "via-inline_noreply",
+					},
+
+				})
+				if err != nil {
+					log.Println("Error when answering inline [sticker] command", err)
+				}
+			}
+
+			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.update.InlineQuery.ID,
+				Results:       InlineResultPagination(opts.fields, InlineSavedMessageResultList),
+				IsPersonal:    true,
+			})
+			if err != nil {
+				log.Println("Error when answering inline [sticker] command", err)
+			}
+
+			return
+		case "voice":
+			var InlineSavedMessageResultList []models.InlineQueryResult
+
+			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Voice {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVoice{
+						ID:              data.ID,
+						VoiceFileID:     data.FileID,
+						Title:           data.Title,
+						Caption:         data.Caption,
+						CaptionEntities: data.CaptionEntities,
+					})
+				}
+			} else {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Voice {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{data.Title, data.Caption, data.Description}, true) {
+						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVoice{
+							ID:              data.ID,
+							VoiceFileID:     data.FileID,
+							Title:           data.Title,
+							Caption:         data.Caption,
+							CaptionEntities: data.CaptionEntities,
+						})
+					}
+				}
+				if len(InlineSavedMessageResultList) == 0 {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
+						ID:       "none",
+						Title:    "没有符合关键词的内容",
+						Description: fmt.Sprintf("没有找到包含 %s 的内容", opts.fields[1:]),
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					})
+				}
+			}
+
+			if len(InlineSavedMessageResultList) == 0 {
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:    "empty",
+						Title: "没有保存内容（点击查看详细教程）",
+						Description: "对一条信息回复 /save 来保存它",
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +photo </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
+							ParseMode: models.ParseModeHTML,
+						},
+					}},
+					Button: &models.InlineQueryResultsButton{
+						Text: "点击此处快速跳转到机器人",
+						StartParameter: "via-inline_noreply",
+					},
+
+				})
+				if err != nil {
+					log.Println("Error when answering inline [voice] command", err)
+				}
+			}
+
+			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.update.InlineQuery.ID,
+				Results:       InlineResultPagination(opts.fields, InlineSavedMessageResultList),
+				IsPersonal:    true,
+			})
+			if err != nil {
+				log.Println("Error when answering inline [voice] command", err)
+			}
+
+			return
+		case "saved":
+			var InlineSavedMessageResultList []models.InlineQueryResult
+
+			if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Photo {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
+						ID:                    data.ID,
+						PhotoFileID:           data.FileID,
+						Title:                 data.Title,
+						Description:           data.Description,
+						Caption:               data.Caption,
+						CaptionEntities:       data.CaptionEntities,
+						ShowCaptionAboveMedia: data.CaptionAboveMedia,
+					})
+				}
+				for _, data := range opts.chatInfo.SavedMessage.Item.Video {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVideo{
+						ID:    data.ID,
+						Title: data.Title,
+						Caption: data.Caption,
+						VideoFileID: data.FileID,
+						Description: data.Description,
+					})
+				}
+				for _, data := range opts.chatInfo.SavedMessage.Item.Sticker {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedSticker{
+						ID:            data.ID,
+						StickerFileID: data.FileID,
+					})
+				}
+				for _, data := range opts.chatInfo.SavedMessage.Item.Voice {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVoice{
+						ID:              data.ID,
+						VoiceFileID:     data.FileID,
+						Title:           data.Title,
+						Caption:         data.Caption,
+						CaptionEntities: data.CaptionEntities,
+					})
+				}
+			} else {
+				for _, data := range opts.chatInfo.SavedMessage.Item.Photo {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{data.Caption, data.Description, data.Title}, true) {
+						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
+							ID:                    data.ID,
+							PhotoFileID:           data.FileID,
+							Title:                 data.Title,
+							Description:           data.Description,
+							Caption:               data.Caption,
+							CaptionEntities:       data.CaptionEntities,
+							ShowCaptionAboveMedia: data.CaptionAboveMedia,
+						})
+					}
+				}
+				for _, data := range opts.chatInfo.SavedMessage.Item.Video {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{data.Caption, data.Description, data.Title}, true) {
+						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVideo{
+							ID:    data.ID,
+							Title: data.Title,
+							Caption: data.Caption,
+							VideoFileID: data.FileID,
+							Description: data.Description,
+						})
+					}
+				}
+				for _, data := range opts.chatInfo.SavedMessage.Item.Sticker {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{data.SetName, data.SetTitle, data.Description}, true) {
+						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedSticker{
+							ID:            data.ID,
+							StickerFileID: data.FileID,
+						})
+					}
+				}
+				for _, data := range opts.chatInfo.SavedMessage.Item.Voice {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{data.Title, data.Caption, data.Description}, true) {
+						InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVoice{
+							ID:              data.ID,
+							VoiceFileID:     data.FileID,
+							Title:           data.Title,
+							Caption:         data.Caption,
+							CaptionEntities: data.CaptionEntities,
+						})
+					}
+				}
+				if len(InlineSavedMessageResultList) == 0 {
+					InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
+						ID:       "none",
+						Title:    "没有符合关键词的内容",
+						Description: fmt.Sprintf("没有找到包含 %s 的内容", opts.fields[1:]),
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
+							ParseMode: models.ParseModeMarkdownV1,
+						},
+					})
+				}
+			}
+
+			if len(InlineSavedMessageResultList) == 0 {
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:    "empty",
+						Title: "没有保存内容（点击查看详细教程）",
+						Description: "对一条信息回复 /save 来保存它",
+						InputMessageContent: models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +photo </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
+							ParseMode: models.ParseModeHTML,
+						},
+					}},
+					Button: &models.InlineQueryResultsButton{
+						Text: "点击此处快速跳转到机器人",
+						StartParameter: "via-inline_noreply",
+					},
+
+				})
+				if err != nil {
+					log.Println("Error when answering inline [saved] command", err)
+				}
+			}
+
+			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.update.InlineQuery.ID,
+				Results:       InlineResultPagination(opts.fields, InlineSavedMessageResultList),
+				IsPersonal:    true,
+			})
+			if err != nil {
+				log.Println("Error when answering inline [saved] command", err)
 			}
 
 			return
