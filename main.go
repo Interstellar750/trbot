@@ -9,6 +9,7 @@ import (
 	"os/signal"
 
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 )
 
 
@@ -24,29 +25,13 @@ func main() {
 	defer cancel()
 
 	allowedUpdates := bot.AllowedUpdates{
-		"message",
-		"edited_message",
-		"channel_post",
-		"edited_channel_post",
-		"inline_query",
-		"chosen_inline_result",
-		"callback_query",
-		// "shipping_query",
-		// "pre_checkout_query",
-		// "poll",
-		// "poll_answer",
-		// "my_chat_member",
-		// "chat_member",
-		// "chat_join_request",
-		// "chat_boost",
-		// "removed_chat_boost",
-		// "message_reaction",
-		// "message_reaction_count",
-		// "business_connection",
-		// "business_message",
-		// "edited_business_message",
-		// "deleted_business_messages",
-		// "purchased_paid_media",
+		models.AllowedUpdateMessage,
+		models.AllowedUpdateEditedMessage,
+		models.AllowedUpdateChannelPost,
+		models.AllowedUpdateEditedChannelPost,
+		models.AllowedUpdateInlineQuery,
+		models.AllowedUpdateChosenInlineResult,
+		models.AllowedUpdateCallbackQuery,
 	}
 
 	opts := []bot.Option{
