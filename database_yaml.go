@@ -20,7 +20,7 @@ type DataBaseYaml struct {
 	Data struct {
 		IDs []IDInfo `yaml:"IDs"`
 		Admin []int64 `yaml:"Admin,omitempty"`
-		// SavedMessage []SavedMessage `yaml:"SavedMessage,omitempty"`
+		SavedMessage map[int64]SavedMessage `yaml:"SavedMessage,omitempty"`
 	} `yaml:"Data"`
 }
 
@@ -37,111 +37,21 @@ type IDInfo struct {
 	IsBotAdmin          bool `yaml:"IsBotAdmin,omitempty"`
 	IsEnableForwardonly bool `yaml:"IsEnableForwardonly,omitempty"`
 
-	// nil/0 voice, 1 sticker， 2 photo
+	// nil/0 voice, 1 saved
 	DefaultInlineMode int `yaml:"DefaultInlineMode,omitempty"`
 
 	LatestMessage      string `yaml:"LatestMessage,omitempty"`
 	LatestInlineQuery  string `yaml:"LatestInlineQuery,omitempty"`
 	LatestInlineResult string `yaml:"LatestInlineResult,omitempty"`
 
-
 	HasPendingCallbackQuery bool   `yaml:"HasPendingCallbackQuery,omitempty"`
 	LatestCallbackQueryData string `yaml:"LatestCallbackQueryData,omitempty"`
 
-	SavedMessage   SavedMessage `yaml:"SavedMessage,omitempty"`
+	// SavedMessage   SavedMessage `yaml:"SavedMessage,omitempty"`
 	IsSavedChannel bool         `yaml:"IsSavedChannel,omitempty"`
 	SavedForUserID int64        `yaml:"SavedForUserID,omitempty"`
-
-	InlineAlias    InlineAlias    `yaml:"InlineAliases,omitempty"`
-	CustomCommands CustomCommands `yaml:"CustomCommands,omitempty"`
 }
 
-type SavedMessage struct {
-	// ForUserID int64 `yaml:"ForUserID"`
-	Count int `yaml:"Count"` // 当前存储的数量
-	SavedTimes int `yaml:"SavedTimes,omitempty"` // 一共存过多少个
-	Limit int `yaml:"Limit,omitempty"`
-	AgreePrivacyPolicy bool `yaml:"AgreePrivacyPolicy,omitempty"`
-
-	Item SavedMessageItems `yaml:"Item,omitempty"`
-}
-
-type SavedMessageItems struct {
-	Photo   []SavedMessageTypeCachedPhoto   `yaml:"Photo,omitempty"`
-	Video   []SavedMessageTypeCachedVideo   `yaml:"Video,omitempty"`
-	Sticker []SavedMessageTypeCachedSticker `yaml:"Sticker,omitempty"`
-	Voice   []SavedMessageTypeCachedVoice   `yaml:"Voice,omitempty"`
-}
-
-type SavedMessageTypeCachedPhoto struct {
-	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
-
-	ID                string                 `yaml:"ID"`
-	FileID            string                 `yaml:"FileID"`
-	Title             string                 `yaml:"Title,omitempty"` // inline 标题
-	Description       string                 `yaml:"Description,omitempty"` // inline 描述
-	Caption           string                 `yaml:"Caption,omitempty"` // 发送后图片携带的文本
-	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
-	CaptionAboveMedia bool                   `yaml:"CaptionAboveMedia,omitempty"`
-}
-
-type SavedMessageTypeCachedVideo struct {
-	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
-
-	ID          string `yaml:"ID"`
-	FileID      string `yaml:"FileID"`
-	Title       string `yaml:"Title,omitempty"` // inline 标题
-	Description string `yaml:"Description,omitempty"` // inline 描述
-	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
-}
-
-type SavedMessageTypeCachedSticker struct {
-	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
-	
-	ID          string `yaml:"ID"`
-	FileID      string `yaml:"FileID"`
-	SetName     string `yaml:"SetName,omitempty"`
-	SetTitle    string `yaml:"SetTitle,omitempty"`
-	Description string `yaml:"Description,omitempty"` // inline 描述
-	// Title       string `yaml:"Title,omitempty"` // inline 标题
-	// Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
-	// CaptionEntities    []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
-	// CaptionAboveMedia bool `yaml:"CaptionAboveMedia,omitempty"`
-}
-
-type SavedMessageTypeCachedVoice struct {
-	IsDeleted   bool   `yaml:"IsDeleted,omitempty"`
-	
-	ID          string `yaml:"ID"`
-	FileID      string `yaml:"FileID"`
-	Title       string `yaml:"Title,omitempty"` // inline 标题
-	Caption     string `yaml:"Caption,omitempty"` // 发送后图片携带的文本
-	CaptionEntities    []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
-	Description string `yaml:"Description,omitempty"` // inline 描述
-	// CaptionAboveMedia bool `yaml:"CaptionAboveMedia,omitempty"`
-}
-
-type InlineAlias struct {
-	Text    string `yaml:"Text,omitempty"`
-	Image   string `yaml:"Image,omitempty"`
-	Voice   string `yaml:"Voice,omitempty"`
-	Video   string `yaml:"Video,omitempty"`
-	File    string `yaml:"File,omitempty"`
-	Sticker string `yaml:"Sticker,omitempty"`
-}
-
-type CustomCommands struct {
-	Count int `yaml:"Count"`
-	Limit int `yaml:"Limit,omitempty"`
-
-	Item []CustomCommandsItems `yaml:"Item,omitempty"`
-}
-
-type CustomCommandsItems struct {
-	Text       string `yaml:"Text"`
-	WithPrefix bool   `yaml:"WithPrefix,omitempty"`
-	Prefix     string `yaml:"Prefix,omitempty"`
-}
 
 func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
 	file, err := os.Open(pathToFile)
@@ -309,36 +219,6 @@ func AddUserInfo(user *models.User) bool {
 	})
 	SignalsChannel.Database_save <- true
 	return true
-}
-
-type SignalChannel struct {
-	Database_save          chan bool
-	AdditionalDatas_reload chan bool
-}
-
-func signalsHandler(SIGNAL SignalChannel) {
-	every10Min := time.NewTicker(10 * time.Minute)
-	defer every10Min.Stop()
-
-	AdditionalDatas = readAdditionalDatas(AdditionalDatas_paths)
-
-	for {
-		select {
-		case <-every10Min.C: // 每次 Ticker 触发时执行任务
-			AutoSaveDatabaseHandler()
-		case <-SIGNAL.Database_save:
-			database.UpdateTimestamp = time.Now().Unix()
-			err := SaveYamlDB(db_path, metadataFileName, database)
-			if err != nil {
-				printLogAndSave(fmt.Sprintln("some issues happend when some function call save database now:", err))
-			} else {
-				printLogAndSave("save at " + time.Now().Format(time.RFC3339))
-			}
-		case <-SIGNAL.AdditionalDatas_reload:
-			AdditionalDatas = readAdditionalDatas(AdditionalDatas_paths)
-			log.Println("AdditionalData reloaded")
-		}
-	}
 }
 
 // 获取 ID 信息

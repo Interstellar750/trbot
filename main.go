@@ -36,11 +36,6 @@ func main() {
 
 	opts := []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),
-		// bot.WithMiddlewares(),
-		// bot.WithMessageTextHandler("/select", bot.MatchTypeExact, commandHandler),
-		// bot.WithMessageTextHandler("", bot.MatchTypeContains, catchAllHandler),
-		// bot.WithCallbackQueryDataHandler("btn_", bot.MatchTypePrefix, callbackHandler),
-		// bot.WithWebhookSecretToken("dqwdefgertghytyjyiuy"),
 		bot.WithAllowedUpdates(allowedUpdates),
 	}
 
