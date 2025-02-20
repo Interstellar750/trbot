@@ -10,31 +10,20 @@ import (
 
 func startHandler(opts *subHandlerOpts) {
 	if len(opts.fields) > 1 {
-		if strings.HasPrefix(opts.fields[1], "via-inline") {
-			inlineArgument := strings.Split(opts.fields[1], "_")
-			if inlineArgument[1] == "test" {
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.Message.Chat.ID,
-					Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "点击加入测试群组",
-						URL: "https://t.me/+BomkHuFsjqc3ZGE1",
-					}}}},
-				})
-			} else if inlineArgument[1] == "noreply" {
-				return
-			} else if inlineArgument[1] == "savedmessage-help" {
-				saveMessageHandler(opts)
+		for _, n := range dashStart.withPrefixHandler {
+			if strings.HasPrefix(opts.fields[1], n.prefix) {
+				inlineArgument := strings.Split(opts.fields[1], "_")
+				if inlineArgument[1] == n.argument {
+					n.handler(opts)
+					return
+				}
+			}
+		}
+		for _, n := range dashStart.handler {
+			if opts.fields[1] == n.argument {
+				n.handler(opts)
 				return
 			}
-			return
-		} else if opts.fields[1] == "savedmessage_privacy_policy" {
-			SendPrivacyPolicy(opts)
-			return
-		} else if opts.fields[1] == "savedmessage_privacy_policy_agree" {
-			AgreePrivacyPolicy(opts)
-			return
 		}
 	}
 

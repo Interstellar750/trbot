@@ -426,3 +426,27 @@ func AgreePrivacyPolicy(opts *subHandlerOpts) {
 			log.Println("error when send savedmessage_privacy_policy_agree:", err)
 		}
 }
+
+var startCommandHandlers = []dashStartHandler{
+	{
+		"savedmessage_privacy_policy",
+		SendPrivacyPolicy,
+	},
+	{
+		"savedmessage_privacy_policy_agree",
+		AgreePrivacyPolicy,
+	},
+}
+
+var startCommandWithPrefixHandlers = []dashStartWithPrefixHandler{
+	{
+		"via-inline",
+		"noreply",
+		nil,
+	},
+	{
+		"via-inline",
+		"savedmessage-help",
+		saveMessageHandler,
+	},
+}
