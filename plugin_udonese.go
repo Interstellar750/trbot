@@ -341,7 +341,7 @@ func udoneseInlineHandler(opts *subHandlerOpts) []models.InlineQueryResult {
 	} else {
 		for _, data := range AdditionalDatas.Udonese.List {
 			// 通过词查找意思
-			if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(data.Word)}, true) {
+			if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(data.Word)}) {
 				udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 					ID:    data.Word + "-word",
 					Title: data.Word,
@@ -353,9 +353,9 @@ func udoneseInlineHandler(opts *subHandlerOpts) []models.InlineQueryResult {
 				})
 			}
 			// 通过意思查找词
-			if InlineQueryMatchMultKeyword(opts.fields, data.OnlyMeaning(), true) {
+			if InlineQueryMatchMultKeyword(opts.fields, data.OnlyMeaning()) {
 				for _, n := range data.MeaningList {
-					if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(n.Meaning)}, true) {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(n.Meaning)}) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 							ID:    n.Meaning + "-meaning",
 							Title: n.Meaning,

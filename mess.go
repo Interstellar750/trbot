@@ -475,14 +475,14 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 	}
 }
 
-func InlineQueryMatchMultKeyword(queryFields []string, Keyword []string, inSubCommand bool) bool {
+func InlineQueryMatchMultKeyword(queryFields []string, Keyword []string) bool {
 	var allkeywords int
 	if strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
 		queryFields = queryFields[:len(queryFields) -1]
 	} else {
 		allkeywords = len(queryFields)
 	}
-	if inSubCommand && len(queryFields) > 0 {
+	if strings.HasPrefix(queryFields[0], InlineSubCommandSymbol) {
 		queryFields = queryFields[1:]
 	}
 	if allkeywords == 1 {

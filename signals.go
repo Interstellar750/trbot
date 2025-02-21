@@ -12,7 +12,7 @@ type SignalChannel struct {
 }
 
 func signalsHandler(SIGNAL SignalChannel) {
-	every10Min := time.NewTicker(10 * time.Minute)
+	every10Min := time.NewTicker(10 * time.Second)
 	defer every10Min.Stop()
 
 	AdditionalDatas = readAdditionalDatas(AdditionalDatas_paths)

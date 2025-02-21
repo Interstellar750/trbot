@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -21,11 +22,184 @@ type SavedMessage struct {
 	Item SavedMessageItems `yaml:"Item,omitempty"`
 }
 
+type sortstruct struct {
+	// 存放一些标准列表里没有的数据，方便搜索
+	sharedData *SavedMessageSharedData
+
+	audio    *models.InlineQueryResultCachedAudio
+	document *models.InlineQueryResultCachedDocument
+	gif      *models.InlineQueryResultCachedGif
+	photo    *models.InlineQueryResultCachedPhoto
+	sticker  *models.InlineQueryResultCachedSticker
+	video    *models.InlineQueryResultCachedVideo
+	voice    *models.InlineQueryResultCachedVoice
+	mpeg4gif *models.InlineQueryResultCachedMpeg4Gif
+}
+
 type SavedMessageItems struct {
 	Photo   []SavedMessageTypeCachedPhoto   `yaml:"Photo,omitempty"`
 	Video   []SavedMessageTypeCachedVideo   `yaml:"Video,omitempty"`
 	Sticker []SavedMessageTypeCachedSticker `yaml:"Sticker,omitempty"`
 	Voice   []SavedMessageTypeCachedVoice   `yaml:"Voice,omitempty"`
+}
+
+
+func (s *SavedMessageItems) All() []sortstruct {
+	// var all []models.InlineQueryResult
+	var waitToSort []sortstruct
+	//  = make([]sortstruct, 100)
+	for _, v := range s.Photo {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(waitToSort) <= index {
+			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		}
+		if waitToSort[index].photo != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		waitToSort[index].photo = &models.InlineQueryResultCachedPhoto{
+			ID:                    v.ID,
+			PhotoFileID:           v.FileID,
+			Title:                 v.Title,
+			Description:           v.Description,
+			Caption:               v.Caption,
+			CaptionEntities:       v.CaptionEntities,
+			ShowCaptionAboveMedia: v.CaptionAboveMedia,
+		}
+	}
+	for _, v := range s.Video {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(waitToSort) <= index {
+			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		}
+		if waitToSort[index].video != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		waitToSort[index].video = &models.InlineQueryResultCachedVideo{
+			ID:          v.ID,
+			Title:       v.Title,
+			Caption:     v.Caption,
+			VideoFileID: v.FileID,
+			Description: v.Description,
+		}
+	}
+	for _, v := range s.Sticker {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(waitToSort) <= index {
+			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		}
+		if waitToSort[index].sticker != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		waitToSort[index].sticker = &models.InlineQueryResultCachedSticker{
+			ID:            v.ID,
+			StickerFileID: v.FileID,
+		}
+		waitToSort[index].sharedData = &SavedMessageSharedData{
+			Name: v.SetName,
+			Title: v.SetTitle,
+		}
+	}
+	for _, v := range s.Voice {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(waitToSort) <= index {
+			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		}
+		if waitToSort[index].voice != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		waitToSort[index].voice = &models.InlineQueryResultCachedVoice{
+			ID:              v.ID,
+			VoiceFileID:     v.FileID,
+			Title:           v.Title,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+		}
+		waitToSort[index].sharedData = &SavedMessageSharedData{
+			Description: v.Description,
+		}
+	}
+
+	// for _, n := range waitToSort {
+	// 	if n.audio != nil {
+	// 		all = append(all, n.audio)
+	// 	} else if n.document != nil {
+	// 		all = append(all, n.document)
+	// 	} else if n.gif != nil {
+	// 		all = append(all, n.gif)
+	// 	} else if n.photo != nil {
+	// 		all = append(all, n.photo)
+	// 	} else if n.sticker != nil {
+	// 		all = append(all, n.sticker)
+	// 	} else if n.video != nil {
+	// 		all = append(all, n.video)
+	// 	} else if n.voice != nil {
+	// 		all = append(all, n.voice)
+	// 	} else if n.mpeg4gif != nil {
+	// 		all = append(all, n.mpeg4gif)
+	// 	}
+	// }
+	return waitToSort
+
+}
+
+type SavedMessageSharedData struct {
+    Name        string
+	Title       string
+	Description string
+}
+
+type SavedMessageTypeCachedAudio struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	Description string `yaml:"Description,omitempty"`
+
+	ID                string                 `yaml:"ID"`
+	FileID            string                 `yaml:"FileID"`
+	Caption           string                 `yaml:"Caption,omitempty"`
+	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+}
+
+type SavedMessageTypeCachedDocument struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	ID                string                 `yaml:"ID"`
+	FileID            string                 `yaml:"FileID"`
+	Title             string                 `yaml:"Title"`
+	Description       string                 `yaml:"Description,omitempty"`
+	Caption           string                 `yaml:"Caption,omitempty"`
+	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+}
+
+type SavedMessageTypeCachedGif struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	Description string `yaml:"Description,omitempty"`
+
+	ID                string                 `yaml:"ID"`
+	FileID            string                 `yaml:"FileID"`
+	Title             string                 `yaml:"Title,omitempty"`
+	Caption           string                 `yaml:"Caption,omitempty"`
+	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 }
 
 type SavedMessageTypeCachedPhoto struct {
@@ -40,39 +214,60 @@ type SavedMessageTypeCachedPhoto struct {
 	CaptionAboveMedia bool                   `yaml:"CaptionAboveMedia,omitempty"`
 }
 
-type SavedMessageTypeCachedVideo struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
-
-	ID          string `yaml:"ID"`
-	FileID      string `yaml:"FileID"`
-	Title       string `yaml:"Title,omitempty"`       // inline 标题
-	Description string `yaml:"Description,omitempty"` // inline 描述
-	Caption     string `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
-}
-
 type SavedMessageTypeCachedSticker struct {
 	IsDeleted bool `yaml:"IsDeleted,omitempty"`
 
-	ID          string `yaml:"ID"`
-	FileID      string `yaml:"FileID"`
 	SetName     string `yaml:"SetName,omitempty"`
 	SetTitle    string `yaml:"SetTitle,omitempty"`
-	Description string `yaml:"Description,omitempty"` // inline 描述
+	Description string `yaml:"Description,omitempty"`
+
+	ID     string `yaml:"ID"`
+	FileID string `yaml:"FileID"`
+}
+
+type SavedMessageTypeCachedVideo struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	ID              string                 `yaml:"ID"`
+	FileID          string                 `yaml:"FileID"`
+	Title           string                 `yaml:"Title"`       // inline 标题
+	Description     string                 `yaml:"Description,omitempty"` // inline 描述
+	Caption         string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
+	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 }
 
 type SavedMessageTypeCachedVoice struct {
 	IsDeleted bool `yaml:"IsDeleted,omitempty"`
 
+	Description string `yaml:"Description,omitempty"` // inline 描述
+
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
-	Title           string                 `yaml:"Title,omitempty"`   // inline 标题
+	Title           string                 `yaml:"Title"`   // inline 标题
 	Caption         string                 `yaml:"Caption,omitempty"` // 发送后图片携带的文本
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
-	Description     string                 `yaml:"Description,omitempty"` // inline 描述
+}
+
+type SavedMessageTypeCachedMpeg4Gif struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	Description string `yaml:"Description,omitempty"` // inline 描述
+
+	ID              string                 `yaml:"ID"`
+	FileID          string                 `yaml:"FileID"`
+	Title           string                 `yaml:"Title,omitempty"`       // inline 标题
+	Caption         string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
+	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 }
 
 func saveMessageHandler(opts *subHandlerOpts) {
 	userData := getIDInfo(&opts.update.Message.From.ID)
+	if userData == nil && AddUserInfo(opts.update.Message.From) {
+		log.Printf("add (saveMessage)private \"%s\"(%s)[%d] in database",
+			showUserName(opts.update.Message.From), opts.update.Message.From.Username, opts.update.Message.From.ID,
+		)
+		userData = getIDInfo(&opts.update.Message.From.ID)
+	}
 	SavedMessage := database.Data.SavedMessage[userData.ID]
 
 	messageParams := &bot.SendMessageParams{
@@ -224,91 +419,55 @@ func saveMessageHandler(opts *subHandlerOpts) {
 	}
 }
 
-func showSavedMessageInlineHandler(opts *subHandlerOpts) []models.InlineQueryResult {
+func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryResult {
 	var InlineSavedMessageResultList []models.InlineQueryResult
 
+	SavedMessage := database.Data.SavedMessage[opts.chatInfo.ID]
 	if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
-		SavedMessage := database.Data.SavedMessage[opts.chatInfo.ID]
-		for _, data := range SavedMessage.Item.Photo {
-			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
-				ID:                    data.ID,
-				PhotoFileID:           data.FileID,
-				Title:                 data.Title,
-				Description:           data.Description,
-				Caption:               data.Caption,
-				CaptionEntities:       data.CaptionEntities,
-				ShowCaptionAboveMedia: data.CaptionAboveMedia,
-			})
+		var all []models.InlineQueryResult
+		for _, n := range SavedMessage.Item.All() {
+			if n.audio != nil {
+				all = append(all, n.audio)
+			} else if n.document != nil {
+				all = append(all, n.document)
+			} else if n.gif != nil {
+				all = append(all, n.gif)
+			} else if n.photo != nil {
+				all = append(all, n.photo)
+			} else if n.sticker != nil {
+				all = append(all, n.sticker)
+			} else if n.video != nil {
+				all = append(all, n.video)
+			} else if n.voice != nil {
+				all = append(all, n.voice)
+			} else if n.mpeg4gif != nil {
+				all = append(all, n.mpeg4gif)
+			}
 		}
-		for _, data := range SavedMessage.Item.Video {
-			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVideo{
-				ID:    data.ID,
-				Title: data.Title,
-				Caption: data.Caption,
-				VideoFileID: data.FileID,
-				Description: data.Description,
-			})
-		}
-		for _, data := range SavedMessage.Item.Sticker {
-			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedSticker{
-				ID:            data.ID,
-				StickerFileID: data.FileID,
-			})
-		}
-		for _, data := range SavedMessage.Item.Voice {
-			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVoice{
-				ID:              data.ID,
-				VoiceFileID:     data.FileID,
-				Title:           data.Title,
-				Caption:         data.Caption,
-				CaptionEntities: data.CaptionEntities,
-			})
-		}
+		InlineSavedMessageResultList = all
 	} else {
-		SavedMessage := database.Data.SavedMessage[opts.chatInfo.ID]
-		for _, data := range SavedMessage.Item.Photo {
-			if InlineQueryMatchMultKeyword(opts.fields, []string{data.Caption, data.Description, data.Title}, true) {
-				InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedPhoto{
-					ID:                    data.ID,
-					PhotoFileID:           data.FileID,
-					Title:                 data.Title,
-					Description:           data.Description,
-					Caption:               data.Caption,
-					CaptionEntities:       data.CaptionEntities,
-					ShowCaptionAboveMedia: data.CaptionAboveMedia,
-				})
+		var all []models.InlineQueryResult
+		for _, n := range SavedMessage.Item.All() {
+			if n.audio != nil {
+				all = append(all, n.audio)
+			} else if n.document != nil {
+				all = append(all, n.document)
+			} else if n.gif != nil {
+				all = append(all, n.gif)
+			} else if n.photo != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.photo.Caption, n.photo.Description, n.photo.Title}) {
+				all = append(all, n.photo)
+			} else if n.sticker != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.sharedData.Name, n.sharedData.Title, n.sharedData.Description}) {
+				all = append(all, n.sticker)
+			} else if n.video != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.video.Caption, n.video.Description, n.video.Title}) {
+				all = append(all, n.video)
+			} else if n.voice != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
+				all = append(all, n.voice)
+			} else if n.mpeg4gif != nil {
+				all = append(all, n.mpeg4gif)
 			}
 		}
-		for _, data := range SavedMessage.Item.Video {
-			if InlineQueryMatchMultKeyword(opts.fields, []string{data.Caption, data.Description, data.Title}, true) {
-				InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVideo{
-					ID:    data.ID,
-					Title: data.Title,
-					Caption: data.Caption,
-					VideoFileID: data.FileID,
-					Description: data.Description,
-				})
-			}
-		}
-		for _, data := range SavedMessage.Item.Sticker {
-			if InlineQueryMatchMultKeyword(opts.fields, []string{data.SetName, data.SetTitle, data.Description}, true) {
-				InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedSticker{
-					ID:            data.ID,
-					StickerFileID: data.FileID,
-				})
-			}
-		}
-		for _, data := range SavedMessage.Item.Voice {
-			if InlineQueryMatchMultKeyword(opts.fields, []string{data.Title, data.Caption, data.Description}, true) {
-				InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultCachedVoice{
-					ID:              data.ID,
-					VoiceFileID:     data.FileID,
-					Title:           data.Title,
-					Caption:         data.Caption,
-					CaptionEntities: data.CaptionEntities,
-				})
-			}
-		}
+		InlineSavedMessageResultList = all
+
 		if len(InlineSavedMessageResultList) == 0 {
 			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
 				ID:       "none",

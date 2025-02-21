@@ -611,7 +611,7 @@ func inlineHandler(opts *subHandlerOpts) {
 			}
 			return
 		case savedMessageInlineCommand:
-			ResultList := showSavedMessageInlineHandler(opts)
+			ResultList := InlineShowSavedMessageHandler(opts)
 			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.update.InlineQuery.ID,
 				Results:       InlineResultPagination(opts.fields, ResultList),
@@ -807,7 +807,7 @@ func inlineHandler(opts *subHandlerOpts) {
 	} else {
 		for _, voicePack := range AdditionalDatas.Voices {
 			for _, voice := range voicePack.Voices {
-				if InlineQueryMatchMultKeyword(opts.fields, []string{voicePack.Name, voice.Title, voice.Caption}, false) {
+				if InlineQueryMatchMultKeyword(opts.fields, []string{voicePack.Name, voice.Title, voice.Caption}) {
 					results = append(results, &models.InlineQueryResultVoice{
 						ID:       voice.ID,
 						Title:    voicePack.Name + ": " + voice.Title,
