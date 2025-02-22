@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -53,7 +54,7 @@ func main() {
 		log.Println("read yaml db error: ", err)
 	}
 
-	go signalsHandler(SignalsChannel)
+	go signalsHandler(ctx, SignalsChannel)
 
 	// 初始化插件
 	addPluginHandlers()
@@ -70,8 +71,6 @@ func main() {
 			err := http.ListenAndServe(webhookPort, thebot.WebhookHandler())
 			if err != nil { log.Panicln(err) }
 		}()
-		<-ctx.Done() // 等待中断信号
-		// log.Println("manually stopped")
 	} else { // getUpdate, aka Long Polling
 		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
 		saveAndCleanRemoteWebhookURL(ctx, thebot)
@@ -81,8 +80,17 @@ func main() {
 			fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/setWebhook?url=https://api.trle5.xyz/webhook-trbot to reset webhook\n", botToken)
 		}
 		thebot.Start(ctx)
-		<-ctx.Done() // 等待中断信号
 	}
-	// SignalsChannel.Database_save <- true // 退出之前保存一下数据库，似乎无效
-	log.Println("manually stopped")
+
+	for {
+		select {
+		case <- SignalsChannel.WorkDone:
+			log.Println("manually stopped")
+			return
+		default:
+			log.Println("still waiting...")
+			time.Sleep(1 * time.Second)
+		}
+	}
+
 }

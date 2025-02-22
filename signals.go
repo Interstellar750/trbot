@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -9,10 +10,17 @@ import (
 type SignalChannel struct {
 	Database_save          chan bool
 	AdditionalDatas_reload chan bool
+	WorkDone               chan bool
 }
 
-func signalsHandler(SIGNAL SignalChannel) {
-	every10Min := time.NewTicker(10 * time.Second)
+var SignalsChannel = SignalChannel{
+	Database_save:          make(chan bool),
+	AdditionalDatas_reload: make(chan bool),
+	WorkDone:               make(chan bool),
+}
+
+func signalsHandler(ctx context.Context, SIGNAL SignalChannel) {
+	every10Min := time.NewTicker(10 * time.Minute)
 	defer every10Min.Stop()
 
 	AdditionalDatas = readAdditionalDatas(AdditionalDatas_paths)
@@ -21,6 +29,12 @@ func signalsHandler(SIGNAL SignalChannel) {
 		select {
 		case <-every10Min.C: // 每次 Ticker 触发时执行任务
 			AutoSaveDatabaseHandler()
+		case <-ctx.Done():
+			log.Println("Cancle signal received")
+			AutoSaveDatabaseHandler()
+			log.Println("Database saved")
+			SIGNAL.WorkDone <- true
+			return
 		case <-SIGNAL.Database_save:
 			database.UpdateTimestamp = time.Now().Unix()
 			err := SaveYamlDB(db_path, metadataFileName, database)

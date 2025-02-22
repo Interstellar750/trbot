@@ -615,6 +615,8 @@ func inlineHandler(opts *subHandlerOpts) {
 			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.update.InlineQuery.ID,
 				Results:       InlineResultPagination(opts.fields, ResultList),
+				IsPersonal: true,
+				CacheTime: 30,
 			})
 			if err != nil {
 				log.Printf("Error when answering inline [%s] command: %v", savedMessageInlineCommand, err)
@@ -724,6 +726,19 @@ func inlineHandler(opts *subHandlerOpts) {
 					})
 					if err != nil {
 						log.Println("Error when answering inline query :savedb", err)
+					}
+					return
+				} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + savedMessageInlineCommand) {
+					ResultList := InlineShowSavedMessageHandler(opts)
+					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: opts.update.InlineQuery.ID,
+						Results:       InlineResultPagination(opts.fields, ResultList),
+						IsPersonal: true,
+						CacheTime: 30,
+					})
+					if err != nil {
+						log.Printf("Error when answering inline [%s] command: %v", savedMessageInlineCommand, err)
+						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
 				}

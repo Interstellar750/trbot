@@ -31,11 +31,6 @@ var AdditionalDatas_paths = &AdditionalDataPath{
 	Udonese: udon_path,
 }
 
-var SignalsChannel = SignalChannel{
-	Database_save:          make(chan bool),
-	AdditionalDatas_reload: make(chan bool),
-}
-
 var InlineSubCommandSymbol string = "+"
 var InlinePaginationSymbol string = "-"
 var InlineResultsPerPage   int    = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery

@@ -231,7 +231,7 @@ func saveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) *models.
 func printLogAndSave(message string) {
 	log.Println(message)
 	// 打开日志文件，如果不存在则创建
-	file, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(logFile_path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Println(err)
 		return
@@ -356,8 +356,9 @@ func outputVersionInfo() string {
 	// 获取 commit 说明
 	m, _ := exec.Command("git", "log", "-1", "--pretty=%s").Output()
 	r := runtime.Version()
+	grs := runtime.NumGoroutine()
 	h, _ := os.Hostname()
-	info := fmt.Sprintf("Branch: %sCommit: [%s - %s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nHostname: %s", b, m, c[:10], c, r, h)
+	info := fmt.Sprintf("Branch: %sCommit: [%s - %s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nGoroutine: %d\nHostname: %s", b, m, c[:10], c, r, grs, h)
 	return info
 }
 

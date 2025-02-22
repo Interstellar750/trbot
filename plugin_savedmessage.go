@@ -37,31 +37,106 @@ type sortstruct struct {
 }
 
 type SavedMessageItems struct {
-	Photo   []SavedMessageTypeCachedPhoto   `yaml:"Photo,omitempty"`
-	Video   []SavedMessageTypeCachedVideo   `yaml:"Video,omitempty"`
-	Sticker []SavedMessageTypeCachedSticker `yaml:"Sticker,omitempty"`
-	Voice   []SavedMessageTypeCachedVoice   `yaml:"Voice,omitempty"`
+	Audio    []SavedMessageTypeCachedAudio    `yaml:"Audio,omitempty"`
+	Document []SavedMessageTypeCachedDocument `yaml:"Document,omitempty"`
+	Gif      []SavedMessageTypeCachedGif      `yaml:"Gif,omitempty"`
+	Photo    []SavedMessageTypeCachedPhoto    `yaml:"Photo,omitempty"`
+	Sticker  []SavedMessageTypeCachedSticker  `yaml:"Sticker,omitempty"`
+	Video    []SavedMessageTypeCachedVideo    `yaml:"Video,omitempty"`
+	Voice    []SavedMessageTypeCachedVoice    `yaml:"Voice,omitempty"`
+	Mpeg4gif []SavedMessageTypeCachedMpeg4Gif `yaml:"Mpeg4Gif,omitempty"`
 }
 
 
 func (s *SavedMessageItems) All() []sortstruct {
 	// var all []models.InlineQueryResult
-	var waitToSort []sortstruct
+	var list []sortstruct
 	//  = make([]sortstruct, 100)
+	for _, v := range s.Audio {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].audio != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].audio = &models.InlineQueryResultCachedAudio{
+			ID:                    v.ID,
+			AudioFileID:           v.FileID,
+			Caption:               v.Caption,
+			CaptionEntities:       v.CaptionEntities,
+		}
+
+		list[index].sharedData = &SavedMessageSharedData{
+			Description: v.Description,
+		}
+	}
+	for _, v := range s.Document {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].document != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].document = &models.InlineQueryResultCachedDocument{
+			ID:                    v.ID,
+			DocumentFileID:        v.FileID,
+			Title:                 v.Title,
+			Description:           v.Description,
+			Caption:               v.Caption,
+			CaptionEntities:       v.CaptionEntities,
+		}
+	}
+	for _, v := range s.Gif {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].gif != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].gif = &models.InlineQueryResultCachedGif{
+			ID:                    v.ID,
+			GifFileID:             v.FileID,
+			Title:                 v.Title,
+			Caption:               v.Caption,
+			CaptionEntities:       v.CaptionEntities,
+		}
+
+		list[index].sharedData = &SavedMessageSharedData{
+			Description: v.Description,
+		}
+	}
 	for _, v := range s.Photo {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
 			log.Println("no an valid id", err)
 			continue
 		}
-		if len(waitToSort) <= index {
-			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
-		if waitToSort[index].photo != nil {
+		if list[index].photo != nil {
 			log.Println("duplicate id", v.ID)
 			continue
 		}
-		waitToSort[index].photo = &models.InlineQueryResultCachedPhoto{
+		list[index].photo = &models.InlineQueryResultCachedPhoto{
 			ID:                    v.ID,
 			PhotoFileID:           v.FileID,
 			Title:                 v.Title,
@@ -71,47 +146,50 @@ func (s *SavedMessageItems) All() []sortstruct {
 			ShowCaptionAboveMedia: v.CaptionAboveMedia,
 		}
 	}
-	for _, v := range s.Video {
-		index, err := strconv.Atoi(v.ID)
-		if err != nil {
-			log.Println("no an valid id", err)
-			continue
-		}
-		if len(waitToSort) <= index {
-			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
-		}
-		if waitToSort[index].video != nil {
-			log.Println("duplicate id", v.ID)
-			continue
-		}
-		waitToSort[index].video = &models.InlineQueryResultCachedVideo{
-			ID:          v.ID,
-			Title:       v.Title,
-			Caption:     v.Caption,
-			VideoFileID: v.FileID,
-			Description: v.Description,
-		}
-	}
 	for _, v := range s.Sticker {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
 			log.Println("no an valid id", err)
 			continue
 		}
-		if len(waitToSort) <= index {
-			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
-		if waitToSort[index].sticker != nil {
+		if list[index].sticker != nil {
 			log.Println("duplicate id", v.ID)
 			continue
 		}
-		waitToSort[index].sticker = &models.InlineQueryResultCachedSticker{
+		list[index].sticker = &models.InlineQueryResultCachedSticker{
 			ID:            v.ID,
 			StickerFileID: v.FileID,
 		}
-		waitToSort[index].sharedData = &SavedMessageSharedData{
+
+		list[index].sharedData = &SavedMessageSharedData{
 			Name: v.SetName,
 			Title: v.SetTitle,
+			Description: v.Description,
+		}
+	}
+	for _, v := range s.Video {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].video != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].video = &models.InlineQueryResultCachedVideo{
+			ID:              v.ID,
+			VideoFileID:     v.FileID,
+			Title:           v.Title,
+			Description:     v.Description,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
 		}
 	}
 	for _, v := range s.Voice {
@@ -120,26 +198,50 @@ func (s *SavedMessageItems) All() []sortstruct {
 			log.Println("no an valid id", err)
 			continue
 		}
-		if len(waitToSort) <= index {
-			waitToSort = append(waitToSort, make([]sortstruct, index-len(waitToSort)+1)...)
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
-		if waitToSort[index].voice != nil {
+		if list[index].voice != nil {
 			log.Println("duplicate id", v.ID)
 			continue
 		}
-		waitToSort[index].voice = &models.InlineQueryResultCachedVoice{
+		list[index].voice = &models.InlineQueryResultCachedVoice{
 			ID:              v.ID,
 			VoiceFileID:     v.FileID,
 			Title:           v.Title,
 			Caption:         v.Caption,
 			CaptionEntities: v.CaptionEntities,
 		}
-		waitToSort[index].sharedData = &SavedMessageSharedData{
+		list[index].sharedData = &SavedMessageSharedData{
 			Description: v.Description,
 		}
 	}
-
-	// for _, n := range waitToSort {
+	for _, v := range s.Mpeg4gif {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].mpeg4gif != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].mpeg4gif = &models.InlineQueryResultCachedMpeg4Gif{
+			ID:              v.ID,
+			Mpeg4FileID:     v.FileID,
+			Title:           v.Title,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+		}
+		list[index].sharedData = &SavedMessageSharedData{
+			Description: v.Description,
+		}
+	}
+	
+	// for _, n := range list {
 	// 	if n.audio != nil {
 	// 		all = append(all, n.audio)
 	// 	} else if n.document != nil {
@@ -158,7 +260,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 	// 		all = append(all, n.mpeg4gif)
 	// 	}
 	// }
-	return waitToSort
+	return list
 
 }
 
@@ -311,11 +413,67 @@ func saveMessageHandler(opts *subHandlerOpts) {
 			DescriptionText = opts.update.Message.Text[len(opts.fields[0]) + 1:]
 		}
 
-		if opts.update.Message.ReplyToMessage.Photo != nil {
+		if opts.update.Message.ReplyToMessage.Audio != nil {
+			SavedMessage.Item.Audio = append(SavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
+				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
+				FileID: opts.update.Message.ReplyToMessage.Audio.FileID,
+				Description: DescriptionText,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+			})
+			SavedMessage.Count++
+			SavedMessage.SavedTimes++
+			database.Data.SavedMessage[userData.ID] = SavedMessage
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存音乐"
+		} else if opts.update.Message.ReplyToMessage.Animation != nil {
+			SavedMessage.Item.Mpeg4gif = append(SavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
+				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
+				FileID: opts.update.Message.ReplyToMessage.Animation.FileID,
+				Title: opts.update.Message.ReplyToMessage.Caption,
+				Description: DescriptionText,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+			})
+			SavedMessage.Count++
+			SavedMessage.SavedTimes++
+			database.Data.SavedMessage[userData.ID] = SavedMessage
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存 GIF"
+		} else if opts.update.Message.ReplyToMessage.Document != nil {
+			if opts.update.Message.ReplyToMessage.Document.MimeType == "image/gif" {
+				SavedMessage.Item.Gif = append(SavedMessage.Item.Gif, SavedMessageTypeCachedGif{
+					ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
+					FileID: opts.update.Message.ReplyToMessage.Document.FileID,
+					Description: DescriptionText,
+					Caption: opts.update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+				})
+				SavedMessage.Count++
+				SavedMessage.SavedTimes++
+				database.Data.SavedMessage[userData.ID] = SavedMessage
+				SignalsChannel.Database_save <- true
+				messageParams.Text = "已保存 GIF (文件)"
+			} else {
+				SavedMessage.Item.Document = append(SavedMessage.Item.Document, SavedMessageTypeCachedDocument{
+					ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
+					FileID: opts.update.Message.ReplyToMessage.Document.FileID,
+					Title: opts.update.Message.ReplyToMessage.Document.FileName,
+					Description: opts.update.Message.ReplyToMessage.Caption,
+					Caption: opts.update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+				})
+				SavedMessage.Count++
+				SavedMessage.SavedTimes++
+				database.Data.SavedMessage[userData.ID] = SavedMessage
+				SignalsChannel.Database_save <- true
+				messageParams.Text = "已保存文件"
+			}
+		} else if opts.update.Message.ReplyToMessage.Photo != nil {
 			SavedMessage.Item.Photo = append(SavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
 				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
 				FileID: opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID,
-				// Title: opts.update.Message.Text[len(opts.fields[0]):],
+				Title: opts.update.Message.ReplyToMessage.Caption,
 				Description: DescriptionText,
 				Caption: opts.update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
@@ -326,37 +484,6 @@ func saveMessageHandler(opts *subHandlerOpts) {
 			database.Data.SavedMessage[userData.ID] = SavedMessage
 			SignalsChannel.Database_save <- true
 			messageParams.Text = "已保存图片"
-			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "点击浏览你的图片收藏",
-				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "photo ",
-			}}}}
-		} else if opts.update.Message.ReplyToMessage.Video != nil {
-			if DescriptionText == "" {
-				messageParams.Text = "保存失败：\n保存视频类型消息时需要一个描述\n请以 <code>/save 描述内容</code> 格式再次回复要收藏的视频"
-				_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
-				if err != nil {
-					log.Printf("Error response /save command video no description: %v", err)
-				}
-				return
-			}
-
-			SavedMessage.Item.Video = append(SavedMessage.Item.Video, SavedMessageTypeCachedVideo{
-				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
-				FileID: opts.update.Message.ReplyToMessage.Video.FileID,
-				Caption: opts.update.Message.ReplyToMessage.Caption,
-				Title: DescriptionText,
-				Description: opts.update.Message.ReplyToMessage.Caption,
-			})
-			SavedMessage.Count++
-			SavedMessage.SavedTimes++
-			database.Data.SavedMessage[userData.ID] = SavedMessage
-			SignalsChannel.Database_save <- true
-			messageParams.Text = "已保存视频"
-			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "点击浏览你的视频收藏",
-				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "video ",
-			}}}}
-
 		} else if opts.update.Message.ReplyToMessage.Sticker != nil {
 			stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: opts.update.Message.ReplyToMessage.Sticker.SetName })
 			if err != nil {
@@ -382,10 +509,29 @@ func saveMessageHandler(opts *subHandlerOpts) {
 			database.Data.SavedMessage[userData.ID] = SavedMessage
 			SignalsChannel.Database_save <- true
 			messageParams.Text = "已保存贴纸"
-			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "点击浏览你的贴纸收藏",
-				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "sticker ",
-			}}}}
+		} else if opts.update.Message.ReplyToMessage.Video != nil {
+			if DescriptionText == "" {
+				messageParams.Text = "保存失败：\n保存视频类型消息时需要一个描述\n请以 <code>/save 描述内容</code> 格式再次回复要收藏的视频"
+				_, err := opts.thebot.SendMessage(opts.ctx, messageParams)
+				if err != nil {
+					log.Printf("Error response /save command video no description: %v", err)
+				}
+				return
+			}
+
+			SavedMessage.Item.Video = append(SavedMessage.Item.Video, SavedMessageTypeCachedVideo{
+				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
+				FileID: opts.update.Message.ReplyToMessage.Video.FileID,
+				Title: DescriptionText,
+				Description: opts.update.Message.ReplyToMessage.Caption,
+				Caption: opts.update.Message.ReplyToMessage.Caption,
+				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
+			})
+			SavedMessage.Count++
+			SavedMessage.SavedTimes++
+			database.Data.SavedMessage[userData.ID] = SavedMessage
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存视频"
 		} else if opts.update.Message.ReplyToMessage.Voice != nil {
 			SavedMessage.Item.Voice = append(SavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
 				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
@@ -400,10 +546,6 @@ func saveMessageHandler(opts *subHandlerOpts) {
 			database.Data.SavedMessage[userData.ID] = SavedMessage
 			SignalsChannel.Database_save <- true
 			messageParams.Text = "已保存语音"
-			messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "点击浏览你的语音收藏",
-				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "voice ",
-			}}}}
 		} else {
 			messageParams.Text = "暂不支持的消息类型"
 		}
@@ -448,21 +590,21 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 	} else {
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
-			if n.audio != nil {
+			if n.audio != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.audio.Caption, n.sharedData.Description}) {
 				all = append(all, n.audio)
-			} else if n.document != nil {
+			} else if n.document != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
 				all = append(all, n.document)
-			} else if n.gif != nil {
+			} else if n.gif != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
 				all = append(all, n.gif)
-			} else if n.photo != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.photo.Caption, n.photo.Description, n.photo.Title}) {
+			} else if n.photo != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
 				all = append(all, n.photo)
-			} else if n.sticker != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.sharedData.Name, n.sharedData.Title, n.sharedData.Description}) {
+			} else if n.sticker != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description}) {
 				all = append(all, n.sticker)
-			} else if n.video != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.video.Caption, n.video.Description, n.video.Title}) {
+			} else if n.video != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
 				all = append(all, n.video)
 			} else if n.voice != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
 				all = append(all, n.voice)
-			} else if n.mpeg4gif != nil {
+			} else if n.mpeg4gif != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
 				all = append(all, n.mpeg4gif)
 			}
 		}
@@ -489,7 +631,7 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 				Title: "没有保存内容（点击查看详细教程）",
 				Description: "对一条信息回复 /save 来保存它",
 				InputMessageContent: models.InputTextMessageContent{
-					MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +photo </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
+					MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
 					ParseMode: models.ParseModeHTML,
 				},
 			}},
@@ -578,7 +720,7 @@ func AgreePrivacyPolicy(opts *subHandlerOpts) {
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 				Text: "点击浏览你的收藏",
-				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "photo ",
+				SwitchInlineQueryCurrentChat: InlineSubCommandSymbol + "saved ",
 			}}}},
 		})
 		if err != nil {
