@@ -89,8 +89,6 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// inline 查询
 		opts.fields = strings.Fields(update.InlineQuery.Query)
 
-		// 由于 inline 请求实际上不区分大小写，全部转为小写，方便后续查询
-
 		opts.chatInfo = getIDInfo(&update.InlineQuery.From.ID)
 
 		if opts.chatInfo == nil && AddUserInfo(update.InlineQuery.From) {
@@ -149,15 +147,17 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				ShowAlert:       true,
 			})
 			return
-		} else if opts.chatInfo.HasPendingCallbackQuery { // 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
+		} else if opts.chatInfo.HasPendingCallbackQuery {
+			// 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
 			log.Println("a callback query is pending, ignore")
 			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "请等待上一个请求处理完成再发送新的请求",
+				Text:            "请等待上一个请求处理完成再尝试发送新的请求",
 				ShowAlert:       true,
 			})
 			return
-		} else { // 如果没有正在处理的请求，则接受新的请求
+		} else {
+			// 如果没有正在处理的请求，则接受新的请求
 			log.Println("accept callback query")
 			opts.chatInfo.HasPendingCallbackQuery = true
 			opts.chatInfo.LatestCallbackQueryData = update.CallbackQuery.Data
@@ -168,74 +168,16 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			})
 		}
 
+		for _, n := range AllPugins.CallbackQuery {
+			
+			if strings.EqualFold(update.CallbackQuery.Data, n.commandChar) {
+				n.handler(&opts)
+				return
+			}
+		}
+
 		if strings.HasPrefix(update.CallbackQuery.Data, "S_") || strings.HasPrefix(update.CallbackQuery.Data, "s_") {
-			botMessage, _ := thebot.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.CallbackQuery.Message.Message.Chat.ID,
-				Text:   "已请求下载，请稍候",
-				ParseMode: models.ParseModeMarkdownV1,
-			})
-			var packName string
-			var isOnlyPNG bool
-			if update.CallbackQuery.Data[0:2] == "S_" {
-				packName = strings.TrimPrefix(update.CallbackQuery.Data, "S_")
-				isOnlyPNG = true
-			} else {
-				packName = strings.TrimPrefix(update.CallbackQuery.Data, "s_")
-				isOnlyPNG = false
-			}
-
-			// 通过贴纸的 packName 获取贴纸集
-			stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: packName })
-			if err != nil {
-				log.Printf("error getting sticker set: %v", err)
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.CallbackQuery.From.ID,
-					Text:   "获取贴纸包时发生了一些错误",
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-				return
-			}
-
-			sitckerSetPack, count, err := getStickerPack(&opts, stickerSet, isOnlyPNG)
-			if err != nil {
-				log.Println("Error downloading sticker:", err)
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.CallbackQuery.From.ID,
-					Text:   "下载贴纸包时发生了一些错误",
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-			}
-			if sitckerSetPack == nil {
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.CallbackQuery.From.ID,
-					Text:   "未能获取到压缩包",
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-				opts.chatInfo.HasPendingCallbackQuery = false
-				return
-			}
-
-			documentParams := &bot.SendDocumentParams{
-				ChatID: opts.update.CallbackQuery.From.ID,
-				ParseMode: models.ParseModeMarkdownV1,
-			}
-
-			if isOnlyPNG {
-				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载\n包含 %d 个贴纸（仅转换后的 PNG 格式）", stickerSet.Title, stickerSet.Name, count)
-				documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, count), Data: sitckerSetPack}
-			} else {
-				documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载\n包含 %d 个贴纸", stickerSet.Title, stickerSet.Name, count)
-				documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerSet.Name, count), Data: sitckerSetPack}
-			}
-
-			thebot.SendDocument(opts.ctx, documentParams)
-
-			thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
-				ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: botMessage.ID,
-			})
-
-			opts.chatInfo.HasPendingCallbackQuery = false
+			
 		}
 	} else if update.MessageReaction != nil {
 		// 私聊或群组表情回应

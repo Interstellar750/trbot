@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -73,7 +74,8 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 	var toPNGFullPath string = filePathPNG + stickerfileName + "png"
 
 	_, err := os.Stat(originFullPath) // 检查贴纸源文件是否已缓存
-	if os.IsNotExist(err) { // 文件不存在，进行下载
+	// 如果文件不存在，进行下载
+	if os.IsNotExist(err) {
 		// 从服务器获取文件信息
 		fileinfo, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: opts.update.Message.Sticker.FileID })
 		if err != nil {
@@ -110,7 +112,8 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 		if err != nil {
 			return nil, false, fmt.Errorf("error writing to file %s: %w", originFullPath, err)
 		}
-	} else if IsDebugMode { // 文件已存在，跳过下载
+	} else if IsDebugMode {
+		// 文件已存在，跳过下载
 		log.Printf("file %s already exists", originFullPath)
 	}
 
@@ -452,4 +455,86 @@ func echoStickerHandler(opts *subHandlerOpts) {
 	}
 
 	opts.thebot.SendDocument(opts.ctx, documentParams)
+}
+
+func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
+	botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
+		Text:   "已请求下载，请稍候",
+		ParseMode: models.ParseModeMarkdownV1,
+	})
+	var packName string
+	var isOnlyPNG bool
+	if opts.update.CallbackQuery.Data[0:2] == "S_" {
+		packName = strings.TrimPrefix(opts.update.CallbackQuery.Data, "S_")
+		isOnlyPNG = true
+	} else {
+		packName = strings.TrimPrefix(opts.update.CallbackQuery.Data, "s_")
+		isOnlyPNG = false
+	}
+
+	// 通过贴纸的 packName 获取贴纸集
+	stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: packName })
+	if err != nil {
+		log.Printf("error getting sticker set: %v", err)
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.CallbackQuery.From.ID,
+			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote>Error getting sticker set: %s</blockquote>", err),
+			ParseMode: models.ParseModeHTML,
+		})
+		opts.chatInfo.HasPendingCallbackQuery = false
+		return
+	}
+
+	sitckerSetPack, count, err := getStickerPack(opts, stickerSet, isOnlyPNG)
+	if err != nil {
+		log.Println("Error downloading sticker:", err)
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.CallbackQuery.From.ID,
+			Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote>Error download sticker set: %s</blockquote>", err),
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+	}
+	if sitckerSetPack == nil {
+		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+			ChatID: opts.update.CallbackQuery.From.ID,
+			Text:   "未能获取到压缩包",
+			ParseMode: models.ParseModeMarkdownV1,
+		})
+		opts.chatInfo.HasPendingCallbackQuery = false
+		return
+	}
+
+	documentParams := &bot.SendDocumentParams{
+		ChatID: opts.update.CallbackQuery.From.ID,
+		ParseMode: models.ParseModeMarkdownV1,
+	}
+
+	if isOnlyPNG {
+		documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载\n包含 %d 个贴纸（仅转换后的 PNG 格式）", stickerSet.Title, stickerSet.Name, count)
+		documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, count), Data: sitckerSetPack}
+	} else {
+		documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s) 已下载\n包含 %d 个贴纸", stickerSet.Title, stickerSet.Name, count)
+		documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerSet.Name, count), Data: sitckerSetPack}
+	}
+
+	opts.thebot.SendDocument(opts.ctx, documentParams)
+
+	opts.thebot.DeleteMessage(opts.ctx, &bot.DeleteMessageParams{
+		ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
+		MessageID: botMessage.ID,
+	})
+
+	opts.chatInfo.HasPendingCallbackQuery = false
+}
+
+var Sticker_CallBackQueryHandler = []Plugin_CallbackQuery{
+	{
+		commandChar: "s",
+		handler: downloadStickerPackCallBackHandler,
+	},
+	{
+		commandChar: "S",
+		handler: downloadStickerPackCallBackHandler,
+	},
 }
