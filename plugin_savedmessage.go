@@ -655,16 +655,13 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 		log.Println("Error when answering inline [saved] command", err)
 	}
 
-	// sort.Slice(InlineSavedMessageResultList, func(i, j int) bool {
-    //     numA, _ := strconv.Atoi(myList[i])
-    //     numB, _ := strconv.Atoi(myList[j])
-    //     return numA < numB
-    // })
-
 	return InlineSavedMessageResultList
 }
 
-var savedMessageInlineCommand string = "saved"
+var SavedMessage_InlineCommandHandler = Plugin_Inline{
+	command: "saved",
+	handler: InlineShowSavedMessageHandler,
+}
 
 
 func SendPrivacyPolicy(opts *subHandlerOpts) {
@@ -728,7 +725,7 @@ func AgreePrivacyPolicy(opts *subHandlerOpts) {
 		}
 }
 
-var startCommandHandlers = []dashStartHandler{
+var SavedMessage_StartCommandHandlers = []SlashStartHandler{
 	{
 		"savedmessage_privacy_policy",
 		SendPrivacyPolicy,
@@ -739,7 +736,7 @@ var startCommandHandlers = []dashStartHandler{
 	},
 }
 
-var startCommandWithPrefixHandlers = []dashStartWithPrefixHandler{
+var SavedMessage_StartCommandWithPrefixHandlers = []SlashStartWithPrefixHandler{
 	{
 		"via-inline",
 		"noreply",

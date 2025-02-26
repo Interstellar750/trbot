@@ -57,7 +57,7 @@ func main() {
 	go signalsHandler(ctx, SignalsChannel)
 
 	// 初始化插件
-	addPluginHandlers()
+	InitPlugins()
 
 	// 检查是否设定了 webhookURL 环境变量
 	if usingWebhook() { // Webhook

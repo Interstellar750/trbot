@@ -534,232 +534,121 @@ func messageHandler(opts *subHandlerOpts) {
 // 处理 inline 模式下的请求
 func inlineHandler(opts *subHandlerOpts) {
 	if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol) {
-		switch opts.fields[0][1:] { // 添加 [1:] 抛弃第一个字符是因为子命令需要一个触发符号
-		// 普通命令添加到 switch 的 case 语句中，任何人都能用
-		case "uaav":
-			if len(opts.fields) < 2 {
+		for _, plugins := range AllPugins.Inline {
+			if opts.fields[0][1:] == plugins.command {
+				ResultList := plugins.handler(opts)
 				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:    "custom voices",
-							Title: "URL as a voice",
-							Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-								ParseMode: models.ParseModeMarkdownV1,
-							},
-						},
-					},
+					Results:       InlineResultPagination(opts.fields, ResultList),
+					IsPersonal: true,
+					CacheTime: 30,
 				})
 				if err != nil {
-					printLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
+					log.Printf("Error when answering inline [%s] command: %v", plugins.command, err)
+					// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 				}
-			} else if len(opts.fields) == 2 {
-				if strings.HasPrefix(opts.fields[1], "https://") {
+				return
+			}
+		}
+		for _, plugins := range AllPugins.InlineManual {
+			if opts.fields[0][1:] == plugins.command {
+				plugins.handler(opts)
+				return
+			}
+		}
+		if AnyContains(opts.update.InlineQuery.From.ID, logMan_IDs) {
+			if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "log") {
+				logs := readLog()
+				if logs != nil {
+					log_count := len(logs)
+					var log_all string
+					for index, log := range logs {
+						log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
+					}
 					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.update.InlineQuery.ID,
 						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultVoice{
-								ID: "custom",
-								Title: "Custom voice",
-								VoiceURL: opts.fields[1],
+							&models.InlineQueryResultArticle{
+								ID:    "log",
+								Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
+								InputMessageContent: &models.InputTextMessageContent{
+									MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
+									ParseMode: models.ParseModeMarkdownV1,
+								},
 							},
 						},
 						IsPersonal: true,
+						CacheTime: 0,
 					})
 					if err != nil {
-						log.Println("Error when answering inline query: ", err)
+						log.Println("Error when answering inline query :log", err)
 					}
 				} else {
-					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.update.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
-								ID:    "error",
-								Title: "音频 URL 格式错误",
-								Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
-								InputMessageContent: &models.InputTextMessageContent{
-									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-									ParseMode: models.ParseModeMarkdownV1,
-								},
-							},
-						},
-					})
-					if err != nil {
-						log.Println("Error when answering inline query", err)
-					}
+					log.Println("Error when reading log file")
 				}
-			} else {
+				return
+			} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "reload") {
+				SignalsChannel.AdditionalDatas_reload <- true
 				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:    "error",
-							Title: "参数过多，请注意空格",
-							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", botMe.Username, InlineSubCommandSymbol),
+							ID:    "reload",
+							Title: "已请求更新",
+							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
 							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+								MessageText: "???",
 								ParseMode: models.ParseModeMarkdownV1,
 							},
 						},
 					},
+					IsPersonal: true,
+					CacheTime: 0,
 				})
 				if err != nil {
-					log.Println("Error when answering inline query", err)
+					log.Println("Error when answering inline query :reload", err)
 				}
-			}
-			return
-		case savedMessageInlineCommand:
-			ResultList := InlineShowSavedMessageHandler(opts)
-			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.update.InlineQuery.ID,
-				Results:       InlineResultPagination(opts.fields, ResultList),
-				IsPersonal: true,
-				CacheTime: 30,
-			})
-			if err != nil {
-				log.Printf("Error when answering inline [%s] command: %v", savedMessageInlineCommand, err)
-				// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
-			}
-			return
-		case udoneseInlineCommand:
-			ResultList := udoneseInlineHandler(opts)
-			// if len(ResultList) == 0 {
-			// 	_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-			// 		InlineQueryID: opts.update.InlineQuery.ID,
-			// 		Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-			// 			ID:       "none",
-			// 			Title:    "没有内容",
-			// 			Description: fmt.Sprintf("可能是没有符合关键词的内容，也可能是处理 %s 命令的组件出现了错误", opts.fields[0][1:]),
-			// 			InputMessageContent: models.InputTextMessageContent{
-			// 				MessageText: fmt.Sprintf("组件没有返回内容，可能是没有符合关键词的内容，也可能是处理 %s 命令的组件出现了错误", opts.fields[0][1:]),
-			// 				ParseMode: models.ParseModeMarkdownV1,
-			// 			},
-			// 		}},
-			// 	})
-			// 	if err != nil {
-			// 		log.Printf("Error when answering inline [%s] command plugin no result: %v", udoneseInlineSubCommand(), err)
-			// 	}
-			// }
-
-			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.update.InlineQuery.ID,
-				Results:       InlineResultPagination(opts.fields, ResultList),
-			})
-			if err != nil {
-				log.Printf("Error when answering inline [%s] command: %v", udoneseInlineCommand, err)
-				// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
-			}
-			return
-		default: // default 中设定一些管理员命令和无命令提示
-			if AnyContains(opts.update.InlineQuery.From.ID, logMan_IDs) {
-				if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "log") {
-					logs := readLog()
-					if logs != nil {
-						log_count := len(logs)
-						var log_all string
-						for index, log := range logs {
-							log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
-						}
-						_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-							InlineQueryID: opts.update.InlineQuery.ID,
-							Results: []models.InlineQueryResult{
-								&models.InlineQueryResultArticle{
-									ID:    "log",
-									Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
-									InputMessageContent: &models.InputTextMessageContent{
-										MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
-										ParseMode: models.ParseModeMarkdownV1,
-									},
-								},
-							},
-							IsPersonal: true,
-							CacheTime: 0,
-						})
-						if err != nil {
-							log.Println("Error when answering inline query :log", err)
-						}
-					} else {
-						log.Println("Error when reading log file")
-					}
-					return
-				} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "reload") {
-					SignalsChannel.AdditionalDatas_reload <- true
-					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.update.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
-								ID:    "reload",
-								Title: "已请求更新",
-								Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
-								InputMessageContent: &models.InputTextMessageContent{
-									MessageText: "???",
-									ParseMode: models.ParseModeMarkdownV1,
-								},
+				return
+			} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "savedb") {
+				SignalsChannel.Database_save <- true
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:    "savedb",
+							Title: "已请求保存",
+							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "???",
+								ParseMode: models.ParseModeMarkdownV1,
 							},
 						},
-						IsPersonal: true,
-						CacheTime: 0,
-					})
-					if err != nil {
-						log.Println("Error when answering inline query :reload", err)
-					}
-					return
-				} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "savedb") {
-					SignalsChannel.Database_save <- true
-					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.update.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
-								ID:    "savedb",
-								Title: "已请求保存",
-								Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
-								InputMessageContent: &models.InputTextMessageContent{
-									MessageText: "???",
-									ParseMode: models.ParseModeMarkdownV1,
-								},
-							},
-						},
-						IsPersonal: true,
-						CacheTime: 0,
-					})
-					if err != nil {
-						log.Println("Error when answering inline query :savedb", err)
-					}
-					return
-				} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + savedMessageInlineCommand) {
-					ResultList := InlineShowSavedMessageHandler(opts)
-					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.update.InlineQuery.ID,
-						Results:       InlineResultPagination(opts.fields, ResultList),
-						IsPersonal: true,
-						CacheTime: 30,
-					})
-					if err != nil {
-						log.Printf("Error when answering inline [%s] command: %v", savedMessageInlineCommand, err)
-						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
-					}
-					return
-				}
-			}
-			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.update.InlineQuery.ID,
-				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:    "noinlinecommand",
-					Title: fmt.Sprintf("不存在的命令 [%s]", opts.fields[0]),
-					Description: "请检查命令是否正确",
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-						ParseMode: models.ParseModeMarkdownV1,
 					},
-				}},
-			})
-			if err != nil {
-				log.Println("Error when answering inline no command", err)
+					IsPersonal: true,
+					CacheTime: 0,
+				})
+				if err != nil {
+					log.Println("Error when answering inline query :savedb", err)
+				}
+				return
 			}
-			return
 		}
+		_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+			InlineQueryID: opts.update.InlineQuery.ID,
+			Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:    "noinlinecommand",
+				Title: fmt.Sprintf("不存在的命令 [%s]", opts.fields[0]),
+				Description: "请检查命令是否正确",
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					ParseMode: models.ParseModeMarkdownV1,
+				},
+			}},
+		})
+		if err != nil {
+			log.Println("Error when answering inline no command", err)
+		}
+		return
 	}
 
 	if AdditionalDatas.VoiceErr != nil {

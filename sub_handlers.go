@@ -10,7 +10,7 @@ import (
 
 func startHandler(opts *subHandlerOpts) {
 	if len(opts.fields) > 1 {
-		for _, n := range dashStart.withPrefixHandler {
+		for _, n := range AllPugins.SlashStart.withPrefixHandler {
 			if strings.HasPrefix(opts.fields[1], n.prefix) {
 				inlineArgument := strings.Split(opts.fields[1], "_")
 				if inlineArgument[1] == n.argument {
@@ -19,7 +19,7 @@ func startHandler(opts *subHandlerOpts) {
 				}
 			}
 		}
-		for _, n := range dashStart.handler {
+		for _, n := range AllPugins.SlashStart.handler {
 			if opts.fields[1] == n.argument {
 				n.handler(opts)
 				return

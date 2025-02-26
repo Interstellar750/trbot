@@ -125,6 +125,78 @@ func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
 	return nil
 }
 
+func udoneseInlineHandler(opts *subHandlerOpts) []models.InlineQueryResult {
+	var udoneseResultList []models.InlineQueryResult
+
+	// 查语句需要不区分大小写
+	for i := 0; i < len(opts.fields); i++ {
+		opts.fields[i] = strings.ToLower(opts.fields[i])
+	}
+
+	// 仅 :sms 参数，或带有分页符号，输出全部词
+	if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
+		for _, data := range AdditionalDatas.Udonese.List {
+			udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+				ID:    data.Word + "-word",
+				Title: data.Word,
+				Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
+				InputMessageContent: models.InputTextMessageContent{
+					MessageText: data.OutputMeanings(),
+					ParseMode: models.ParseModeHTML,
+				},
+			})
+		}
+	} else {
+		for _, data := range AdditionalDatas.Udonese.List {
+			// 通过词查找意思
+			if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(data.Word)}) {
+				udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+					ID:    data.Word + "-word",
+					Title: data.Word,
+					Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
+					InputMessageContent: models.InputTextMessageContent{
+						MessageText: data.OutputMeanings(),
+						ParseMode: models.ParseModeHTML,
+					},
+				})
+			}
+			// 通过意思查找词
+			if InlineQueryMatchMultKeyword(opts.fields, data.OnlyMeaning()) {
+				for _, n := range data.MeaningList {
+					if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(n.Meaning)}) {
+						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+							ID:    n.Meaning + "-meaning",
+							Title: n.Meaning,
+							Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
+							InputMessageContent: models.InputTextMessageContent{
+								MessageText: fmt.Sprintf("%s 对应的词是 <code>%s</code>", n.Meaning, data.Word),
+								ParseMode: models.ParseModeHTML,
+							},
+						})
+					}
+				}
+			}
+		}
+		if len(udoneseResultList) == 0 {
+			udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+				ID:       "none",
+				Title:    "没有符合关键词的内容",
+				Description: fmt.Sprintf("没有找到包含 %s 的词或意思，若想查看添加方法，请点击这条内容", opts.fields[1:]),
+				InputMessageContent: models.InputTextMessageContent{
+					MessageText: "没有这个词，使用 `udonese <词> <意思>` 来添加吧",
+					ParseMode: models.ParseModeMarkdownV1,
+				},
+			})
+		}
+	}
+	return udoneseResultList
+}
+
+var Udonese_InlineCommandHandler = Plugin_Inline{
+	command: "sms",
+	handler: udoneseInlineHandler,
+}
+
 func udoneseHandler(opts *subHandlerOpts) {
 	// 不响应来自转发的命令
 	if opts.update.Message.ForwardOrigin != nil {
@@ -315,71 +387,13 @@ func udoneseHandler(opts *subHandlerOpts) {
 	}
 }
 
-var udoneseInlineCommand string = "sms"
-
-func udoneseInlineHandler(opts *subHandlerOpts) []models.InlineQueryResult {
-	var udoneseResultList []models.InlineQueryResult
-
-	// 查语句需要不区分大小写
-	for i := 0; i < len(opts.fields); i++ {
-		opts.fields[i] = strings.ToLower(opts.fields[i])
-	}
-
-	// 仅 :sms 参数，或带有分页符号，输出全部词
-	if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
-		for _, data := range AdditionalDatas.Udonese.List {
-			udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-				ID:    data.Word + "-word",
-				Title: data.Word,
-				Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
-				InputMessageContent: models.InputTextMessageContent{
-					MessageText: data.OutputMeanings(),
-					ParseMode: models.ParseModeHTML,
-				},
-			})
-		}
-	} else {
-		for _, data := range AdditionalDatas.Udonese.List {
-			// 通过词查找意思
-			if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(data.Word)}) {
-				udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-					ID:    data.Word + "-word",
-					Title: data.Word,
-					Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
-					InputMessageContent: models.InputTextMessageContent{
-						MessageText: data.OutputMeanings(),
-						ParseMode: models.ParseModeHTML,
-					},
-				})
-			}
-			// 通过意思查找词
-			if InlineQueryMatchMultKeyword(opts.fields, data.OnlyMeaning()) {
-				for _, n := range data.MeaningList {
-					if InlineQueryMatchMultKeyword(opts.fields, []string{strings.ToLower(n.Meaning)}) {
-						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-							ID:    n.Meaning + "-meaning",
-							Title: n.Meaning,
-							Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
-							InputMessageContent: models.InputTextMessageContent{
-								MessageText: fmt.Sprintf("%s 对应的词是 <code>%s</code>", n.Meaning, data.Word),
-								ParseMode: models.ParseModeHTML,
-							},
-						})
-					}
-				}
-			}
-		}
-		if len(udoneseResultList) == 0 {
-			udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-				ID:       "none",
-				Title:    "没有符合关键词的内容",
-				Description: fmt.Sprintf("没有找到包含 %s 的词或意思，若想查看添加方法，请点击这条内容", opts.fields[1:]),
-				InputMessageContent: models.InputTextMessageContent{
-					MessageText: "没有这个词，使用 `udonese <词> <意思>` 来添加吧",
-					ParseMode: models.ParseModeMarkdownV1,
-				},
-			})
-		}
-	}
-	return udoneseResultList
+var Udonese_SlashCommandHandler = []Plugin_NoSymbolCommand{
+	{
+		command: "udonese",
+		handler: udoneseHandler,
+	},
+	{
+		command: "sms",
+		handler: udoneseHandler,
+	},
 }
