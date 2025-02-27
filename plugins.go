@@ -13,15 +13,34 @@ type Plugin_All struct {
 	Inline              []Plugin_Inline
 	InlineManual        []Plugin_InlineManual
 	SlashStart           *Plugin_SlashStart
-	SlashCommand        []Plugin_SlashCommand
+	SlashSymbolCommand  []Plugin_SlashSymbolCommand
 	NoSymbolCommand     []Plugin_NoSymbolCommand
 	CustomSymbolCommand []Plugin_CustomSymbolCommand
 	CallbackQuery       []Plugin_CallbackQuery
 
-	// MessageTypeForPrivateChat *Plugin_
+	DefaultHandlerByMessageTypeForPrivate    *Plugin_HandlerByMessageType
+	DefaultHandlerByMessageTypeForGroup      *Plugin_HandlerByMessageType
+	DefaultHandlerByMessageTypeForSupergroup *Plugin_HandlerByMessageType
+	DefaultHandlerByMessageTypeForChannel    *Plugin_HandlerByMessageType
 }
 
 var AllPugins = Plugin_All{}
+
+type Plugin_HandlerByMessageType struct {
+	Photo   func(*subHandlerOpts)
+
+
+	Message func(*subHandlerOpts)
+	Sticker func(*subHandlerOpts)
+	Document func(*subHandlerOpts)
+	Audio   func(*subHandlerOpts)
+	Video   func(*subHandlerOpts)
+	VideoNote func(*subHandlerOpts)
+	Voice   func(*subHandlerOpts)
+	Contact func(*subHandlerOpts)
+	Location func(*subHandlerOpts)
+
+}
 
 // 需要返回一个列表，将由程序的分页函数来控制分页和输出
 type Plugin_Inline struct {
@@ -96,7 +115,7 @@ func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ..
 	return pluginCount
 }
 
-type Plugin_SlashCommand struct {
+type Plugin_SlashSymbolCommand struct {
 	command string
 	handler func(*subHandlerOpts)
 }

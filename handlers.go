@@ -28,6 +28,13 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		update:   update,
 	}
 
+	if update.Message != nil {
+		fmt.Println(getMessageType(update.Message))
+		if update.Message.Chat.Type == "private" {
+			// AllPugins.DefaultHandlerByMessageTypeForPrivate
+		}
+	}
+
 	// 根据 update 类型来设定
 	if update.Message != nil {
 		// 正常消息
