@@ -23,57 +23,110 @@ import (
 type MessageType struct {
 	Attribute MessageAttribute
 
-	MessageText     bool
-	MessagePhoto    bool
-	MessageVideo    bool
+	Animation bool // call gif, mpeg4 format, can save to gif, no caption
+	Audio     bool // or call music, can have caption, some music may as a document
+	Document  bool // can have caption
+	PaidMedia bool // photo or video, unknow caption
+	Sticker   bool // sticker, but some .webp file maybe will send as sticker, actual file format and resolution may not match the limitations. no caption
+	OnlyText  bool // just text message
+	Photo     bool 
+	Video     bool
 }
 
 type MessageAttribute struct {
-	IsFromAnonymous     bool // anonymous admin or owner in group/supergroup
-	IsFromLinkedChannel bool // is automatic forward message from linked channel
-	IsSenderChat        bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
-	IsChatFroum         bool // group or supergroup is enable topic
-	IsForward           bool // not a origin message, forward from somewhere
-	IsTopicMessage      bool // the message is sent to a forum topic
-	IsAutomaticForward  bool // is post from linked channel, auto forward by server
-	IsReplyToMessage    bool // message reply to a another message
-	IsExternalReply     bool // message reply from another chat
-	IsQuoteTo           bool // reply from another chat or manual quote from current chat, maybe only true for text message
-	IsManualQuote       bool // user manually select text to quote a message. if false, just use 'reply to other chat'
-	IsReplyToStory      bool // todo
-	IsViaBot            bool // message by inline mode
-	IsFromOffline       bool // eg scheduled message
+	IsFromAnonymous      bool // anonymous admin or owner in group/supergroup
+	IsFromLinkedChannel  bool // is automatic forward post from linked channel
+	IsHasSenderChat      bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
+	IsChatEnableForum    bool // group or supergroup is enable topic
+	IsForwardMessage     bool // not a origin message, forward from somewhere
+	IsTopicMessage       bool // the message is sent to a forum topic
+	IsAutomaticForward   bool // is post from linked channel, auto forward by server
+	IsReplyToMessage     bool // message reply to a another message
+	IsExternalReply      bool // message reply from another chat, or call 'quote'
+	IsQuoteToMessage     bool // reply from another chat or manual quote from current chat, maybe only true for text message
+	IsQuoteHasEntities   bool // is quote message has entities
+	IsManualQuote        bool // user manually select text to quote a message. if false, just use 'reply to other chat'
+	IsReplyToStory       bool // TODO
+	IsViaBot             bool // message by inline mode
+	IsEdited             bool // message aready edited
+	IsFromOffline        bool // eg scheduled message
+	IsGroupedMedia       bool // media group, like select more than one file or photo to send
+	IsTextHasEntities    bool // message has text entities
+	IsMessageHasEffect   bool // message has effect
+	IsCaptionHasEntities bool // message has caption entities
 }
 
 // 判断消息的类型
 func getMessageType(msg *models.Message) MessageType {
 	var msgType MessageType
 	msgType.Attribute = getMessageAttribute(msg)
-
+	if msg.Sticker != nil {
+		msgType.Sticker = true
+	}
 
 	
 	return msgType
 }
 
 func getMessageAttribute(msg *models.Message) MessageAttribute {
-    var attribute MessageAttribute
-		if msg.SenderChat != nil {
-		attribute.IsSenderChat = true
-		if msg.From.ID == 1087968824 && msg.From.IsBot && msg.SenderChat.ID == msg.Chat.ID {
+	var attribute MessageAttribute
+	if msg.SenderChat != nil {
+		attribute.IsHasSenderChat = true
+		if msg.From.ID == 1087968824 && msg.From != nil && msg.From.IsBot && msg.SenderChat.ID == msg.Chat.ID {
 			attribute.IsFromAnonymous = true
 		}
-		if msg.From.ID == 777000 && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
+		if msg.From.ID == 777000 && msg.ForwardOrigin != nil && msg.ForwardOrigin.MessageOriginChannel != nil && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
 			attribute.IsFromLinkedChannel = true
 		}
 	}
-	if msg.Chat.IsForum { attribute.IsChatFroum = true }
-	if msg.ForwardOrigin != nil { attribute.IsForward = true }
-	if msg.IsTopicMessage { attribute.IsTopicMessage = true }
-	if msg.IsAutomaticForward { attribute.IsAutomaticForward = true }
-	if msg.ReplyToMessage != nil { attribute.IsReplyToMessage = true }
-	if msg.ExternalReply != nil { attribute.IsExternalReply = true }
-	if msg.Quote != nil { attribute.IsQuoteTo = true }
-	if msg.ReplyToStore != nil {attribute.IsReplyToStory = true }
+	if msg.Chat.IsForum {
+		attribute.IsChatEnableForum = true
+	}
+	if msg.ForwardOrigin != nil {
+		attribute.IsForwardMessage = true
+	}
+	if msg.IsTopicMessage {
+		attribute.IsTopicMessage = true
+	}
+	if msg.IsAutomaticForward {
+		attribute.IsAutomaticForward = true
+	}
+	if msg.ReplyToMessage != nil {
+		attribute.IsReplyToMessage = true
+	}
+	if msg.ExternalReply != nil {
+		attribute.IsExternalReply = true
+	}
+	if msg.Quote != nil {
+		attribute.IsQuoteToMessage = true
+		if msg.Quote.Entities != nil {
+			attribute.IsQuoteHasEntities = true
+		}
+		if msg.Quote.IsManual {
+			attribute.IsManualQuote = true
+		}
+	}
+	if msg.ReplyToStore != nil {
+		attribute.IsReplyToStory = true
+	}
+	if msg.ViaBot != nil {
+		attribute.IsViaBot = true
+	}
+	if msg.EditDate != 0 {
+		attribute.IsEdited = true
+	}
+	if msg.MediaGroupID != "" {
+		attribute.IsGroupedMedia = true
+	}
+	if msg.Entities != nil {
+		attribute.IsTextHasEntities = true
+	}
+	if msg.EffectID != "" {
+		attribute.IsMessageHasEffect = true
+	}
+	if msg.CaptionEntities != nil {
+		attribute.IsCaptionHasEntities = true
+	}
 	return attribute
 }
 

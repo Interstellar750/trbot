@@ -111,10 +111,7 @@ func forwardOnlyModeHandler(opts *subHandlerOpts) {
 func deleteNotForwardMessage(opts *subHandlerOpts) {
 	if AnyContains(opts.update.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
-		if opts.chatInfo.IsEnableForwardonly && (
-			getMessageType(opts.update.Message) == MessageTypeText ||
-			getMessageType(opts.update.Message) == MessageTypeVoice ||
-			getMessageType(opts.update.Message) == MessageTypeSticker) {
+		if opts.chatInfo.IsEnableForwardonly && opts.update.Message.ForwardOrigin == nil {
 			_, err := opts.thebot.DeleteMessage(opts.ctx, &bot.DeleteMessageParams{
 				ChatID:    opts.update.Message.Chat.ID,
 				MessageID: opts.update.Message.ID,
