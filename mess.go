@@ -20,41 +20,61 @@ import (
 )
 
 // 定义消息类型枚举
-type MessageType int
-const (
-	MessageTypeText MessageType = iota
-	MessageTypePhoto
-	MessageTypeVideo
-	MessageTypeVoice
-	MessageTypeDocument
-	MessageTypeAudio
-	MessageTypeForwarded
-	MessageTypeSticker
-	MessageTypeUnknown
-)
+type MessageType struct {
+	Attribute MessageAttribute
 
-// 判断消息的类型 需要重写
-func getMessageType(message *models.Message) MessageType {
-	switch {
-	case message.ForwardOrigin != nil:
-		return MessageTypeForwarded
-	case message.Photo != nil:
-		return MessageTypePhoto
-	case message.Video != nil:
-		return MessageTypeVideo
-	case message.Voice != nil:
-		return MessageTypeVoice
-	case message.Document != nil:
-		return MessageTypeDocument
-	case message.Audio != nil:
-		return MessageTypeAudio
-	case message.Sticker != nil:
-		return MessageTypeSticker
-	case message.Text != "":
-		return MessageTypeText
-	default:
-		return MessageTypeUnknown
+	MessageText     bool
+	MessagePhoto    bool
+	MessageVideo    bool
+}
+
+type MessageAttribute struct {
+	IsFromAnonymous     bool // anonymous admin or owner in group/supergroup
+	IsFromLinkedChannel bool // is automatic forward message from linked channel
+	IsSenderChat        bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
+	IsChatFroum         bool // group or supergroup is enable topic
+	IsForward           bool // not a origin message, forward from somewhere
+	IsTopicMessage      bool // the message is sent to a forum topic
+	IsAutomaticForward  bool // is post from linked channel, auto forward by server
+	IsReplyToMessage    bool // message reply to a another message
+	IsExternalReply     bool // message reply from another chat
+	IsQuoteTo           bool // reply from another chat or manual quote from current chat, maybe only true for text message
+	IsManualQuote       bool // user manually select text to quote a message. if false, just use 'reply to other chat'
+	IsReplyToStory      bool // todo
+	IsViaBot            bool // message by inline mode
+	IsFromOffline       bool // eg scheduled message
+}
+
+// 判断消息的类型
+func getMessageType(msg *models.Message) MessageType {
+	var msgType MessageType
+	msgType.Attribute = getMessageAttribute(msg)
+
+
+	
+	return msgType
+}
+
+func getMessageAttribute(msg *models.Message) MessageAttribute {
+    var attribute MessageAttribute
+		if msg.SenderChat != nil {
+		attribute.IsSenderChat = true
+		if msg.From.ID == 1087968824 && msg.From.IsBot && msg.SenderChat.ID == msg.Chat.ID {
+			attribute.IsFromAnonymous = true
+		}
+		if msg.From.ID == 777000 && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
+			attribute.IsFromLinkedChannel = true
+		}
 	}
+	if msg.Chat.IsForum { attribute.IsChatFroum = true }
+	if msg.ForwardOrigin != nil { attribute.IsForward = true }
+	if msg.IsTopicMessage { attribute.IsTopicMessage = true }
+	if msg.IsAutomaticForward { attribute.IsAutomaticForward = true }
+	if msg.ReplyToMessage != nil { attribute.IsReplyToMessage = true }
+	if msg.ExternalReply != nil { attribute.IsExternalReply = true }
+	if msg.Quote != nil { attribute.IsQuoteTo = true }
+	if msg.ReplyToStore != nil {attribute.IsReplyToStory = true }
+	return attribute
 }
 
 // 检查用户是否是管理员
