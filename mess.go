@@ -23,14 +23,27 @@ import (
 type MessageType struct {
 	Attribute MessageAttribute
 
-	Animation bool // call gif, mpeg4 format, can save to gif, no caption
+	// https://core.telegram.org/bots/api#message
+
+	Animation bool // call gif, mpeg4 format, can save to GIFs, no caption
 	Audio     bool // or call music, can have caption, some music may as a document
 	Document  bool // can have caption
 	PaidMedia bool // photo or video, unknow caption
+	Photo     bool // a list, sort by resolution
 	Sticker   bool // sticker, but some .webp file maybe will send as sticker, actual file format and resolution may not match the limitations. no caption
-	OnlyText  bool // just text message
-	Photo     bool 
+	Story     bool
 	Video     bool
+	VideoNote bool // A circular video shot in Telegram
+	Voice     bool // can have caption
+	OnlyText  bool // just text message, todo
+	Contact   bool
+	Dice      bool
+	Game      bool
+	Poll      bool
+	Venue     bool
+	Location  bool
+	Invoice   bool
+	Giveaway   bool
 }
 
 type MessageAttribute struct {
@@ -54,17 +67,69 @@ type MessageAttribute struct {
 	IsTextHasEntities    bool // message has text entities
 	IsMessageHasEffect   bool // message has effect
 	IsCaptionHasEntities bool // message has caption entities
+	IsCaptionAboveMedia  bool
+	IsMediaHasSpoiler    bool
 }
 
 // 判断消息的类型
 func getMessageType(msg *models.Message) MessageType {
 	var msgType MessageType
 	msgType.Attribute = getMessageAttribute(msg)
+	if msg.Document != nil {
+		if msg.Animation != nil && msg.Animation.FileID == msg.Document.FileID && msg.Document.MimeType == "video/mp4" {
+			msgType.Animation = true
+		} else {
+			msgType.Document = true
+		}
+	}
+	if msg.Audio != nil {
+		msgType.Audio = true
+	}
+	if msg.PaidMedia != nil {
+		msgType.PaidMedia = true
+	}
+	if msg.Photo != nil {
+		msgType.Photo = true
+	}
 	if msg.Sticker != nil {
 		msgType.Sticker = true
 	}
-
-	
+	if msg.Story != nil {
+		msgType.Story = true
+	}
+	if msg.Video != nil {
+		msgType.Video = true
+	}
+	if msg.VideoNote != nil {
+		msgType.VideoNote = true
+	}
+	if msg.Voice != nil {
+		msgType.Voice = true
+	}
+	if msg.Contact != nil {
+		msgType.Contact = true
+	}
+	if msg.Dice != nil {
+		msgType.Dice = true
+	}
+	if msg.Game != nil {
+		msgType.Game = true
+	}
+	if msg.Poll != nil {
+		msgType.Poll = true
+	}
+	if msg.Venue != nil {
+		msgType.Venue = true
+	}
+	if msg.Location != nil {
+		msgType.Location = true
+	}
+	if msg.Invoice != nil {
+		msgType.Invoice = true
+	}
+	if msg.Giveaway != nil {
+		msgType.Giveaway = true
+	}
 	return msgType
 }
 
@@ -115,6 +180,9 @@ func getMessageAttribute(msg *models.Message) MessageAttribute {
 	if msg.EditDate != 0 {
 		attribute.IsEdited = true
 	}
+	if msg.IsFromOffline {
+		attribute.IsFromOffline = true
+	}
 	if msg.MediaGroupID != "" {
 		attribute.IsGroupedMedia = true
 	}
@@ -126,6 +194,12 @@ func getMessageAttribute(msg *models.Message) MessageAttribute {
 	}
 	if msg.CaptionEntities != nil {
 		attribute.IsCaptionHasEntities = true
+	}
+	if msg.ShowCaptionAboveMedia {
+		attribute.IsCaptionAboveMedia = true
+	}
+	if msg.HasMediaSpoiler {
+		attribute.IsMediaHasSpoiler = true
 	}
 	return attribute
 }

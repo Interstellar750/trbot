@@ -26,27 +26,28 @@ type sortstruct struct {
 	// 存放一些标准列表里没有的数据，方便搜索
 	sharedData *SavedMessageSharedData
 
-	audio    *models.InlineQueryResultCachedAudio
-	document *models.InlineQueryResultCachedDocument
-	gif      *models.InlineQueryResultCachedGif
-	photo    *models.InlineQueryResultCachedPhoto
-	sticker  *models.InlineQueryResultCachedSticker
-	video    *models.InlineQueryResultCachedVideo
-	voice    *models.InlineQueryResultCachedVoice
-	mpeg4gif *models.InlineQueryResultCachedMpeg4Gif
+	audio     *models.InlineQueryResultCachedAudio
+	document  *models.InlineQueryResultCachedDocument
+	gif       *models.InlineQueryResultCachedGif
+	photo     *models.InlineQueryResultCachedPhoto
+	sticker   *models.InlineQueryResultCachedSticker
+	video     *models.InlineQueryResultCachedVideo
+	videoNote *models.InlineQueryResultCachedDocument
+	voice     *models.InlineQueryResultCachedVoice
+	mpeg4gif  *models.InlineQueryResultCachedMpeg4Gif
 }
 
 type SavedMessageItems struct {
-	Audio    []SavedMessageTypeCachedAudio    `yaml:"Audio,omitempty"`
-	Document []SavedMessageTypeCachedDocument `yaml:"Document,omitempty"`
-	Gif      []SavedMessageTypeCachedGif      `yaml:"Gif,omitempty"`
-	Photo    []SavedMessageTypeCachedPhoto    `yaml:"Photo,omitempty"`
-	Sticker  []SavedMessageTypeCachedSticker  `yaml:"Sticker,omitempty"`
-	Video    []SavedMessageTypeCachedVideo    `yaml:"Video,omitempty"`
-	Voice    []SavedMessageTypeCachedVoice    `yaml:"Voice,omitempty"`
-	Mpeg4gif []SavedMessageTypeCachedMpeg4Gif `yaml:"Mpeg4Gif,omitempty"`
+	Audio     []SavedMessageTypeCachedAudio     `yaml:"Audio,omitempty"`
+	Document  []SavedMessageTypeCachedDocument  `yaml:"Document,omitempty"`
+	Gif       []SavedMessageTypeCachedGif       `yaml:"Gif,omitempty"`
+	Photo     []SavedMessageTypeCachedPhoto     `yaml:"Photo,omitempty"`
+	Sticker   []SavedMessageTypeCachedSticker   `yaml:"Sticker,omitempty"`
+	Video     []SavedMessageTypeCachedVideo     `yaml:"Video,omitempty"`
+	VideoNote []SavedMessageTypeCachedVideoNote `yaml:"VideoNote,omitempty"`
+	Voice     []SavedMessageTypeCachedVoice     `yaml:"Voice,omitempty"`
+	Mpeg4gif  []SavedMessageTypeCachedMpeg4Gif  `yaml:"Mpeg4Gif,omitempty"`
 }
-
 
 func (s *SavedMessageItems) All() []sortstruct {
 	// var all []models.InlineQueryResult
@@ -192,6 +193,28 @@ func (s *SavedMessageItems) All() []sortstruct {
 			CaptionEntities: v.CaptionEntities,
 		}
 	}
+	for _, v := range s.VideoNote {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].document != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].document = &models.InlineQueryResultCachedDocument{
+			ID:              v.ID,
+			DocumentFileID:  v.FileID,
+			Title:           v.Title,
+			Description:     v.Description,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+		}
+	}
 	for _, v := range s.Voice {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
@@ -265,14 +288,17 @@ func (s *SavedMessageItems) All() []sortstruct {
 }
 
 type SavedMessageSharedData struct {
-    Name        string
+	Name        string
 	Title       string
+	FileName    string
 	Description string
 }
 
 type SavedMessageTypeCachedAudio struct {
 	IsDeleted bool `yaml:"IsDeleted,omitempty"`
 
+	Title       string `yaml:"Title,omitempty"`
+	FileName    string `yaml:"FileName,omitempty"`
 	Description string `yaml:"Description,omitempty"`
 
 	ID                string                 `yaml:"ID"`
@@ -332,9 +358,20 @@ type SavedMessageTypeCachedVideo struct {
 
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
-	Title           string                 `yaml:"Title"`       // inline 标题
+	Title           string                 `yaml:"Title"`                 // inline 标题
 	Description     string                 `yaml:"Description,omitempty"` // inline 描述
 	Caption         string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
+	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+}
+
+type SavedMessageTypeCachedVideoNote struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	ID              string                 `yaml:"ID"`
+	FileID          string                 `yaml:"FileID"`
+	Title           string                 `yaml:"Title"`
+	Description     string                 `yaml:"Description,omitempty"`
+	Caption         string                 `yaml:"Caption,omitempty"` // 利用 bot 修改信息可以发出带文字的圆形视频，但是发送后不带文字
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 }
 
@@ -412,11 +449,14 @@ func saveMessageHandler(opts *subHandlerOpts) {
 		if len(opts.update.Message.Text) > len(opts.fields[0]) + 1 {
 			DescriptionText = opts.update.Message.Text[len(opts.fields[0]) + 1:]
 		}
+		
 
 		if opts.update.Message.ReplyToMessage.Audio != nil {
 			SavedMessage.Item.Audio = append(SavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
 				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
 				FileID: opts.update.Message.ReplyToMessage.Audio.FileID,
+				Title: opts.update.Message.ReplyToMessage.Audio.Title,
+				FileName: opts.update.Message.ReplyToMessage.Audio.FileName,
 				Description: DescriptionText,
 				Caption: opts.update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
@@ -459,7 +499,7 @@ func saveMessageHandler(opts *subHandlerOpts) {
 					ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
 					FileID: opts.update.Message.ReplyToMessage.Document.FileID,
 					Title: opts.update.Message.ReplyToMessage.Document.FileName,
-					Description: opts.update.Message.ReplyToMessage.Caption,
+					Description: DescriptionText,
 					Caption: opts.update.Message.ReplyToMessage.Caption,
 					CaptionEntities: opts.update.Message.ReplyToMessage.CaptionEntities,
 				})
@@ -532,6 +572,18 @@ func saveMessageHandler(opts *subHandlerOpts) {
 			database.Data.SavedMessage[userData.ID] = SavedMessage
 			SignalsChannel.Database_save <- true
 			messageParams.Text = "已保存视频"
+		} else if opts.update.Message.ReplyToMessage.VideoNote != nil {
+			SavedMessage.Item.VideoNote = append(SavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
+				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
+				FileID: opts.update.Message.ReplyToMessage.VideoNote.FileID,
+				Title: opts.update.Message.ReplyToMessage.VideoNote.FileUniqueID,
+				Description: DescriptionText,
+			})
+			SavedMessage.Count++
+			SavedMessage.SavedTimes++
+			database.Data.SavedMessage[userData.ID] = SavedMessage
+			SignalsChannel.Database_save <- true
+			messageParams.Text = "已保存圆形录制视频"
 		} else if opts.update.Message.ReplyToMessage.Voice != nil {
 			SavedMessage.Item.Voice = append(SavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
 				ID: fmt.Sprintf("%d", SavedMessage.SavedTimes),
@@ -580,6 +632,8 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 				all = append(all, n.sticker)
 			} else if n.video != nil {
 				all = append(all, n.video)
+			} else if n.videoNote != nil {
+				all = append(all, n.videoNote)
 			} else if n.voice != nil {
 				all = append(all, n.voice)
 			} else if n.mpeg4gif != nil {
@@ -602,6 +656,8 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 				all = append(all, n.sticker)
 			} else if n.video != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
 				all = append(all, n.video)
+			} else if n.videoNote != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
+				all = append(all, n.videoNote)
 			} else if n.voice != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
 				all = append(all, n.voice)
 			} else if n.mpeg4gif != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {

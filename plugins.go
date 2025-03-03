@@ -51,7 +51,7 @@ type Plugin_Inline struct {
 func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
 	if AllPugins.Inline == nil { AllPugins.Inline = []Plugin_Inline{} }
 	var pluginCount int
-	for _, originPlugin := range AllPugins.Inline {
+	for _, originPlugin := range InlineHandlerPlugins {
 		AllPugins.Inline = append(AllPugins.Inline, originPlugin)
 		pluginCount++
 	}
@@ -67,7 +67,7 @@ type Plugin_InlineManual struct {
 func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineManual) int {
 	if AllPugins.InlineManual == nil { AllPugins.InlineManual = []Plugin_InlineManual{} }
 	var pluginCount int
-	for _, originPlugin := range AllPugins.InlineManual {
+	for _, originPlugin := range InlineManualHandlerPlugins {
 		AllPugins.InlineManual = append(AllPugins.InlineManual, originPlugin)
 		pluginCount++
 	}

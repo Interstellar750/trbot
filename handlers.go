@@ -483,6 +483,7 @@ func messageHandler(opts *subHandlerOpts) {
 // 处理 inline 模式下的请求
 func inlineHandler(opts *subHandlerOpts) {
 	if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol) {
+		// 插件处理完后返回全部列表，由设定好的函数进行分页
 		for _, plugins := range AllPugins.Inline {
 			if opts.fields[0][1:] == plugins.command {
 				ResultList := plugins.handler(opts)
@@ -499,6 +500,7 @@ func inlineHandler(opts *subHandlerOpts) {
 				return
 			}
 		}
+		// 完全由插件控制输出，列表数量超过 50 项会出错，无法回应用户请求
 		for _, plugins := range AllPugins.InlineManual {
 			if opts.fields[0][1:] == plugins.command {
 				plugins.handler(opts)
