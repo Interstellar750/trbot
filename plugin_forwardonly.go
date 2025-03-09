@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 	"time"
 
@@ -10,12 +11,12 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-func forwardOnlyModeHandler(opts *subHandlerOpts) {
+func SomeMessageOnlyHandler(opts *subHandlerOpts) {
 	if opts.update.Message.Chat.Type == "private" {
 		botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID:          opts.update.Message.Chat.ID,
 			Text:            "仅限转发模式被设计为仅在群组中可用",
-			ReplyParameters: &models.ReplyParameters{MessageID: opts.update.Message.ID},
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 		})
 		time.Sleep(time.Second * 10)
 		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
@@ -108,19 +109,138 @@ func forwardOnlyModeHandler(opts *subHandlerOpts) {
 	}
 }
 
-func deleteNotForwardMessage(opts *subHandlerOpts) {
+func deleteNotAllowMessage(opts *subHandlerOpts) {
+
+	var deleteMessageWhiteList   bool = true
+	var deleteAttributeWhiteList bool = true
+	
+	var deleteAction bool
 	if AnyContains(opts.update.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
-		if opts.chatInfo.IsEnableForwardonly && opts.update.Message.ForwardOrigin == nil {
-			_, err := opts.thebot.DeleteMessage(opts.ctx, &bot.DeleteMessageParams{
-				ChatID:    opts.update.Message.Chat.ID,
-				MessageID: opts.update.Message.ID,
-			})
-			if err != nil {
-				log.Printf("Failed to delete message: %v", err)
+		if opts.chatInfo.IsEnableForwardonly {
+			this := getMessageType(opts.update.Message)
+			thisattribute  := getMessageAttribute(opts.update.Message)
+
+			// 根据规则的黑白名单选择判断逻辑
+			if deleteMessageWhiteList == deleteAttributeWhiteList {
+				deleteAction = CheckMessageType(this, AllowedMessageTypeList, deleteMessageWhiteList) || CheckMessageAttribute(thisattribute, AllowedMessageAttributeList, deleteAttributeWhiteList)
 			} else {
-				log.Printf("Deleted message from %d in %d: %s\n", opts.update.Message.From.ID, opts.update.Message.Chat.ID, opts.update.Message.Text)
+				deleteAction = CheckMessageType(this, AllowedMessageTypeList, deleteMessageWhiteList) && CheckMessageAttribute(thisattribute, AllowedMessageAttributeList, deleteAttributeWhiteList)
+			}
+
+			if deleteAction {
+				_, err := opts.thebot.DeleteMessage(opts.ctx, &bot.DeleteMessageParams{
+					ChatID:    opts.update.Message.Chat.ID,
+					MessageID: opts.update.Message.ID,
+				})
+				if err != nil {
+					log.Printf("Failed to delete message: %v", err)
+				} else {
+					log.Printf("Deleted message from %d in %d: %s\n", opts.update.Message.From.ID, opts.update.Message.Chat.ID, opts.update.Message.Text)
+				}
 			}
 		}
 	}
+}
+
+func CheckMessageType(this, target MessageType, IsWhiteList bool) bool {
+	var delete bool = IsWhiteList
+
+	v1 := reflect.ValueOf(this)
+	v2 := reflect.ValueOf(target)
+	t  := reflect.TypeOf(this)
+
+	for i := 0; i < v1.NumField(); i++ {
+		field := t.Field(i)
+		val1 := v1.Field(i).Interface()
+		val2 := v2.Field(i).Interface()
+
+		if val1 == true && val1 == val2 {
+			if IsWhiteList {
+				fmt.Printf("白名单 消息类型 %s 不删除\n", field.Name)
+				delete = false
+			} else {
+				fmt.Printf("黑名单 消息类型 %s 删除\n", field.Name)
+				delete = true
+			}
+		} else if val1 == true && val1 != val2 {
+			if IsWhiteList {
+				fmt.Printf("白名单 ")
+			} else {
+				fmt.Printf("黑名单 ")
+			}
+			fmt.Printf("未命中 消息类型 %s 遵循默认规则 ", field.Name)
+			if delete {
+				fmt.Println("删除")
+			} else {
+				fmt.Println("不删除")
+			}
+		}
+	}
+	return delete
+}
+
+func CheckMessageAttribute(this, target MessageAttribute, IsWhiteList bool) bool {
+	var delete bool = IsWhiteList
+	var noAttribute bool = true // 如果没有命中任何消息属性，提示内容，根据黑白名单判断是否删除
+
+	v1 := reflect.ValueOf(this)
+	v2 := reflect.ValueOf(target)
+	t := reflect.TypeOf(this)
+
+	for i := 0; i < v1.NumField(); i++ {
+		field := t.Field(i)
+		val1 := v1.Field(i).Interface()
+		val2 := v2.Field(i).Interface()
+
+
+		if val1 == true && val1 == val2 {
+			noAttribute = false
+			if IsWhiteList {
+				fmt.Printf("白名单 消息属性 %s 不删除\n", field.Name)
+				delete = false
+			} else {
+				fmt.Printf("黑名单 消息属性 %s 删除\n", field.Name)
+				delete = true
+			}
+		} else if val1 == true && val1 != val2 {
+			noAttribute = false
+			if IsWhiteList {
+				fmt.Printf("白名单 ")
+			} else {
+				fmt.Printf("黑名单 ")
+			}
+			fmt.Printf("未命中 消息属性 %s 遵循默认规则 ", field.Name)
+			if delete {
+				fmt.Println("删除")
+			} else {
+				fmt.Println("不删除")
+			}
+		}
+	}
+	if noAttribute {
+		if IsWhiteList {
+			fmt.Printf("白名单 ")
+		} else {
+			fmt.Printf("黑名单 ")
+		}
+		fmt.Printf("未命中 消息属性 无 遵循默认规则 ")
+		if delete {
+			fmt.Println("删除")
+		} else {
+			fmt.Println("不删除")
+		}
+	}
+	return delete
+}
+
+var AllowedMessageTypeList = MessageType{
+	// default blacklist
+	OnlyText: true,
+	Sticker:  true,
+	Voice:    true,
+}
+
+var AllowedMessageAttributeList = MessageAttribute{
+	IsForwardMessage: true,
 }

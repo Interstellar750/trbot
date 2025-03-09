@@ -29,7 +29,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	}
 
 	if update.Message != nil {
-		fmt.Println(getMessageType(update.Message))
+		// fmt.Println(getMessageType(update.Message))
 		if update.Message.Chat.Type == "private" {
 			// AllPugins.DefaultHandlerByMessageTypeForPrivate
 		}
@@ -322,7 +322,7 @@ func messageHandler(opts *subHandlerOpts) {
 				startHandler(opts)
 				return
 			} else if commandMaybeWithSuffixUsername(opts.fields, "/forwardonly") {
-				forwardOnlyModeHandler(opts)
+				SomeMessageOnlyHandler(opts)
 				return
 			} else if commandMaybeWithSuffixUsername(opts.fields, "/chatinfo") {
 				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
@@ -475,7 +475,7 @@ func messageHandler(opts *subHandlerOpts) {
 			// 	},
 			// })
 		} else {
-
+			deleteNotAllowMessage(opts)
 		}
 	}
 }

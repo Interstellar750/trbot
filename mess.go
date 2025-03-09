@@ -19,10 +19,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// 定义消息类型枚举
+// 消息类型
 type MessageType struct {
-	Attribute MessageAttribute
-
 	// https://core.telegram.org/bots/api#message
 
 	Animation bool // call gif, mpeg4 format, can save to GIFs, no caption
@@ -35,7 +33,7 @@ type MessageType struct {
 	Video     bool
 	VideoNote bool // A circular video shot in Telegram
 	Voice     bool // can have caption
-	OnlyText  bool // just text message, todo
+	OnlyText  bool // just text message
 	Contact   bool
 	Dice      bool
 	Game      bool
@@ -45,36 +43,9 @@ type MessageType struct {
 	Invoice   bool
 	Giveaway   bool
 }
-
-type MessageAttribute struct {
-	IsFromAnonymous      bool // anonymous admin or owner in group/supergroup
-	IsFromLinkedChannel  bool // is automatic forward post from linked channel
-	IsHasSenderChat      bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
-	IsChatEnableForum    bool // group or supergroup is enable topic
-	IsForwardMessage     bool // not a origin message, forward from somewhere
-	IsTopicMessage       bool // the message is sent to a forum topic
-	IsAutomaticForward   bool // is post from linked channel, auto forward by server
-	IsReplyToMessage     bool // message reply to a another message
-	IsExternalReply      bool // message reply from another chat, or call 'quote'
-	IsQuoteToMessage     bool // reply from another chat or manual quote from current chat, maybe only true for text message
-	IsQuoteHasEntities   bool // is quote message has entities
-	IsManualQuote        bool // user manually select text to quote a message. if false, just use 'reply to other chat'
-	IsReplyToStory       bool // TODO
-	IsViaBot             bool // message by inline mode
-	IsEdited             bool // message aready edited
-	IsFromOffline        bool // eg scheduled message
-	IsGroupedMedia       bool // media group, like select more than one file or photo to send
-	IsTextHasEntities    bool // message has text entities
-	IsMessageHasEffect   bool // message has effect
-	IsCaptionHasEntities bool // message has caption entities
-	IsCaptionAboveMedia  bool
-	IsMediaHasSpoiler    bool
-}
-
 // 判断消息的类型
 func getMessageType(msg *models.Message) MessageType {
 	var msgType MessageType
-	msgType.Attribute = getMessageAttribute(msg)
 	if msg.Document != nil {
 		if msg.Animation != nil && msg.Animation.FileID == msg.Document.FileID && msg.Document.MimeType == "video/mp4" {
 			msgType.Animation = true
@@ -130,18 +101,49 @@ func getMessageType(msg *models.Message) MessageType {
 	if msg.Giveaway != nil {
 		msgType.Giveaway = true
 	}
+	if msg.Text != "" {
+		msgType.OnlyText = true
+	}
 	return msgType
 }
-
+// 消息属性
+type MessageAttribute struct {
+	IsFromAnonymous      bool // anonymous admin or owner in group/supergroup
+	IsFromLinkedChannel  bool // is automatic forward post from linked channel
+	IsHasSenderChat      bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
+	IsChatEnableForum    bool // group or supergroup is enable topic
+	IsForwardMessage     bool // not a origin message, forward from somewhere
+	IsTopicMessage       bool // the message is sent to a forum topic
+	IsAutomaticForward   bool // is post from linked channel, auto forward by server
+	IsReplyToMessage     bool // message reply to a another message
+	IsExternalReply      bool // message reply from another chat, or call 'quote'
+	IsQuoteToMessage     bool // reply from another chat or manual quote from current chat, maybe only true for text message
+	IsQuoteHasEntities   bool // is quote message has entities
+	IsManualQuote        bool // user manually select text to quote a message. if false, just use 'reply to other chat'
+	IsReplyToStory       bool // TODO
+	IsViaBot             bool // message by inline mode
+	IsEdited             bool // message aready edited
+	IsFromOffline        bool // eg scheduled message
+	IsGroupedMedia       bool // media group, like select more than one file or photo to send
+	IsTextHasEntities    bool // message has text entities
+	IsMessageHasEffect   bool // message has effect
+	IsCaptionHasEntities bool // message has caption entities
+	IsCaptionAboveMedia  bool // set the caption to appear before the content when sending videos or photos
+	IsMediaHasSpoiler    bool // image or video has a spoiler
+	IsHasInlineKeyboard  bool // message has inline keyboard
+}
+// 判断消息属性
 func getMessageAttribute(msg *models.Message) MessageAttribute {
 	var attribute MessageAttribute
 	if msg.SenderChat != nil {
 		attribute.IsHasSenderChat = true
-		if msg.From.ID == 1087968824 && msg.From != nil && msg.From.IsBot && msg.SenderChat.ID == msg.Chat.ID {
-			attribute.IsFromAnonymous = true
-		}
-		if msg.From.ID == 777000 && msg.ForwardOrigin != nil && msg.ForwardOrigin.MessageOriginChannel != nil && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
-			attribute.IsFromLinkedChannel = true
+		if msg.From != nil {
+			if msg.From.ID == 1087968824 && msg.From.IsBot && msg.SenderChat.ID == msg.Chat.ID {
+				attribute.IsFromAnonymous = true
+			}
+			if msg.From.ID == 777000 && msg.ForwardOrigin != nil && msg.ForwardOrigin.MessageOriginChannel != nil && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
+				attribute.IsFromLinkedChannel = true
+			}
 		}
 	}
 	if msg.Chat.IsForum {
@@ -201,9 +203,108 @@ func getMessageAttribute(msg *models.Message) MessageAttribute {
 	if msg.HasMediaSpoiler {
 		attribute.IsMediaHasSpoiler = true
 	}
+	if len(msg.ReplyMarkup.InlineKeyboard) > 0 {
+		attribute.IsHasInlineKeyboard = true
+	}
 	return attribute
 }
 
+type UpdateType struct {
+	Message                 bool // *models.Message
+	EditedMessage           bool // *models.Message
+	ChannelPost             bool // *models.Message
+	EditedChannelPost       bool // *models.Message
+	BusinessConnection      bool // *models.BusinessConnection
+	BusinessMessage         bool // *models.Message
+	EditedBusinessMessage   bool // *models.Message
+	DeletedBusinessMessages bool // *models.BusinessMessagesDeleted
+	MessageReaction         bool // *models.MessageReactionUpdated
+	MessageReactionCount    bool // *models.MessageReactionCountUpdated
+	InlineQuery             bool // *models.InlineQuery
+	ChosenInlineResult      bool // *models.ChosenInlineResult
+	CallbackQuery           bool // *models.CallbackQuery
+	ShippingQuery           bool // *models.ShippingQuery
+	PreCheckoutQuery        bool // *models.PreCheckoutQuery
+	PurchasedPaidMedia       bool // *models.PaidMediaPurchased
+	Poll                    bool // *models.Poll
+	PollAnswer              bool // *models.PollAnswer
+	MyChatMember            bool // *models.ChatMemberUpdated
+	ChatMember              bool // *models.ChatMemberUpdated
+	ChatJoinRequest         bool // *models.ChatJoinRequest
+	ChatBoost               bool // *models.ChatBoostUpdated
+	RemovedChatBoost        bool // *models.ChatBoostRemoved
+}
+
+func getUpdateType(update *models.Update) UpdateType {
+	var updateType UpdateType
+	if update.Message != nil {
+		updateType.Message = true
+	}
+	if update.EditedMessage != nil {
+		updateType.EditedMessage = true
+	}
+	if update.ChannelPost != nil {
+		updateType.ChannelPost = true
+	}
+	if update.EditedChannelPost != nil {
+		updateType.EditedChannelPost = true
+	}
+	if update.BusinessConnection != nil {
+		updateType.BusinessConnection = true
+	}
+	if update.BusinessMessage != nil {
+		updateType.BusinessMessage = true
+	}
+	if update.EditedBusinessMessage != nil {
+		updateType.EditedBusinessMessage = true
+	}
+	if update.MessageReaction != nil {
+		updateType.MessageReaction = true
+	}
+	if update.MessageReactionCount != nil {
+		updateType.MessageReactionCount = true
+	}
+	if update.InlineQuery != nil {
+		updateType.InlineQuery = true
+	}
+	if update.ChosenInlineResult != nil {
+		updateType.ChosenInlineResult = true
+	}
+	if update.CallbackQuery != nil {
+		updateType.CallbackQuery = true
+	}
+	if update.ShippingQuery != nil {
+		updateType.ShippingQuery = true
+	}
+	if update.PreCheckoutQuery != nil {
+		updateType.PreCheckoutQuery = true
+	}
+	if update.PurchasedPaidMedia != nil {
+		updateType.PurchasedPaidMedia = true
+	}
+	if update.Poll != nil {
+		updateType.Poll = true
+	}
+	if update.PollAnswer != nil {
+		updateType.PollAnswer = true
+	}
+	if update.MyChatMember != nil {
+		updateType.MyChatMember = true
+	}
+	if update.ChatMember != nil {
+		updateType.ChatMember = true
+	}
+	if update.ChatJoinRequest != nil {
+		updateType.ChatJoinRequest = true
+	}
+	if update.ChatBoost != nil {
+		updateType.ChatBoost = true
+	}
+	if update.RemovedChatBoost != nil {
+		updateType.RemovedChatBoost = true
+	}
+	return updateType
+}
 // 检查用户是否是管理员
 // chat type: "private", "group", "supergroup", or "channel"
 // not work for "private" chats
@@ -299,7 +400,7 @@ func whereIsBotToken() string {
 		godotenv.Load()
 		botToken = os.Getenv("BOT_TOKEN")
 		if botToken == "" {
-			log.Fatalln("No bot token in environment and .env file, try create a bot from @botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token")
+			log.Fatalln("No bot token in environment and .env file, try create a bot from https://t.me/@botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token")
 		}
 		log.Printf("Get token from .env file: %s", showBotID())
 	} else {
