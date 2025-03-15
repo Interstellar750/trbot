@@ -4,10 +4,16 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+type Plugin_InlineCommandList struct {
+	Command string
+	Description string
+}
+
 // 需要返回一个列表，将由程序的分页函数来控制分页和输出
 type Plugin_Inline struct {
 	command string
 	handler func(*subHandlerOpts) []models.InlineQueryResult
+	description string
 }
 
 func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
@@ -24,6 +30,7 @@ func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
 type Plugin_InlineManual struct {
 	command string
 	handler func(*subHandlerOpts)
+	description string
 }
 
 func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineManual) int {
@@ -31,6 +38,22 @@ func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineMa
 	var pluginCount int
 	for _, originPlugin := range InlineManualHandlerPlugins {
 		AllPugins.InlineManual = append(AllPugins.InlineManual, originPlugin)
+		pluginCount++
+	}
+	return pluginCount
+}
+
+type Plugin_InlinePrefix struct {
+	prefixCommand string
+	handler func(*subHandlerOpts)
+	description string
+}
+
+func AddInlinePrefixHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlinePrefix) int {
+	if AllPugins.InlinePrefix == nil { AllPugins.InlinePrefix = []Plugin_InlinePrefix{} }
+	var pluginCount int
+	for _, originPlugin := range InlineManualHandlerPlugins {
+		AllPugins.InlinePrefix = append(AllPugins.InlinePrefix, originPlugin)
 		pluginCount++
 	}
 	return pluginCount

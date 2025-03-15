@@ -21,7 +21,6 @@ type subHandlerOpts struct {
 }
 
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
-	
 	var opts = subHandlerOpts{
 		ctx:      ctx,
 		thebot:   thebot,
@@ -176,16 +175,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 
 		for _, n := range AllPugins.CallbackQuery {
-			
-			if strings.EqualFold(update.CallbackQuery.Data, n.commandChar) {
+			if strings.HasPrefix(update.CallbackQuery.Data, n.commandChar) {
 				n.handler(&opts)
-				return
+				break
 			}
 		}
 
-		if strings.HasPrefix(update.CallbackQuery.Data, "S_") || strings.HasPrefix(update.CallbackQuery.Data, "s_") {
-			
-		}
+		opts.chatInfo.HasPendingCallbackQuery = false
+		return
 	} else if update.MessageReaction != nil {
 		// 私聊或群组表情回应
 		if IsDebugMode {
@@ -319,11 +316,14 @@ func messageHandler(opts *subHandlerOpts) {
 		if strings.HasPrefix(opts.update.Message.Text, "/") {
 			for _, plugin := range AllPugins.SlashSymbolCommand {
 				if commandMaybeWithSuffixUsername(opts.fields, "/start") {
+					if IsDebugMode {
+						log.Printf("hit startcommand: /%s", plugin.slashCommand)
+					}
 					startHandler(opts)
 					return
 				} else if commandMaybeWithSuffixUsername(opts.fields, "/" + plugin.slashCommand) {
 					if IsDebugMode {
-						log.Printf("hit command: /%s", plugin.slashCommand)
+						log.Printf("hit slashcommand: /%s", plugin.slashCommand)
 					}
 					plugin.handler(opts)
 					return
@@ -331,7 +331,6 @@ func messageHandler(opts *subHandlerOpts) {
 			}
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			if strings.HasSuffix(opts.fields[0], "@" + botMe.Username) {
-				// 注意，此段应该保持在此 if-else 语句的末尾，否则后续的命令将无法触发
 				// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
 				// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
 				botMessage, _ = opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
@@ -349,20 +348,25 @@ func messageHandler(opts *subHandlerOpts) {
 				})
 				return
 			} 
-		} else {
+		} else if len(opts.update.Message.Text) > 0 {
 			for _, plugin := range AllPugins.CustomSymbolCommand {
 				if commandMaybeWithSuffixUsername(opts.fields, plugin.fullCommand) {
 					if IsDebugMode {
-						log.Printf("hit command: %s", plugin.fullCommand)
+						log.Printf("hit fullcommand: %s", plugin.fullCommand)
 					}
 					plugin.handler(opts)
 					return
 				}
 			}
-		}
-		if opts.update.Message.Chat.ID == udonGroupID && len(opts.fields) > 0 {
-			udoneseHandler(opts)
-			return
+			for _, plugin := range AllPugins.SuffixCommand {
+				if strings.HasSuffix(opts.update.Message.Text, plugin.suffixCommand) {
+					if IsDebugMode {
+						log.Printf("hit suffixcommand: %s", plugin.suffixCommand)
+					}
+					plugin.handler(opts)
+					return
+				}
+			}
 		}
 
 		// 不符合上方条件，即消息开头不是 / 符号的信息
@@ -421,7 +425,82 @@ func messageHandler(opts *subHandlerOpts) {
 
 // 处理 inline 模式下的请求
 func inlineHandler(opts *subHandlerOpts) {
-	if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol) {
+	if !strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol) {
+		if Inline_NoDefaultHandler {
+			var inlineButton *models.InlineQueryResultsButton
+			SavedMessage := database.Data.SavedMessage[opts.chatInfo.ID]
+
+			if SavedMessage.Count == 0 && !SavedMessage.AgreePrivacyPolicy {
+				inlineButton = &models.InlineQueryResultsButton{
+					Text: "点击此处来尝试保存内容",
+					StartParameter: "via-inline_savedmessage-help",
+				}
+			}
+
+			var commandList []Plugin_InlineCommandList
+
+			for _, plugin := range AllPugins.Inline {
+				var command Plugin_InlineCommandList
+				command.Command = plugin.command
+				if plugin.description != "" {
+					command.Description = plugin.description
+				} else {
+					command.Description = "此插件没有设定描述..."
+				}
+				commandList = append(commandList, command)
+			}
+
+			for _, plugin := range AllPugins.InlineManual {
+				var command Plugin_InlineCommandList
+				command.Command = plugin.command
+				if plugin.description != "" {
+					command.Description = plugin.description
+				} else {
+					command.Description = "此插件没有设定描述..."
+				}
+				commandList = append(commandList, command)
+			}
+
+			for _, plugin := range AllPugins.InlinePrefix {
+				var command Plugin_InlineCommandList
+				command.Command = plugin.prefixCommand
+				if plugin.description != "" {
+					command.Description = "仅限管理员 " + plugin.description
+				} else {
+					command.Description = "仅限管理员 " + "此插件没有设定描述..."
+				}
+				commandList = append(commandList, command)
+			}
+
+			var message string = "可用的 Inline 模式命令:\n\n"
+
+			for _, command := range commandList {
+				message += fmt.Sprintf("命令: <code>%s%s</code>\n描述: %s\n\n", InlineSubCommandSymbol, command.Command, command.Description)
+			}
+
+			_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.update.InlineQuery.ID,
+				Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:    "nodefaulthandler",
+					Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", InlineSubCommandSymbol),
+					Description: "由于管理员没有设定默认命令，您需要手动选择一个 Inline 模式下的命令，点击此处查看命令列表",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: message,
+						ParseMode: models.ParseModeHTML,
+					},
+				}},
+				Button: inlineButton,
+			})
+			if err != nil {
+				log.Printf("Error sending inline query response: %v", err)
+				return
+			}
+		} else {
+			AllPugins.Inline[0].handler(opts)
+		}
+	} else if opts.update.InlineQuery.Query == InlineSubCommandSymbol {
+		// 展示全部命令
+	} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol) {
 		// 插件处理完后返回全部列表，由设定好的函数进行分页
 		for _, plugins := range AllPugins.Inline {
 			if opts.fields[0][1:] == plugins.command {
@@ -429,8 +508,8 @@ func inlineHandler(opts *subHandlerOpts) {
 				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.update.InlineQuery.ID,
 					Results:       InlineResultPagination(opts.fields, ResultList),
-					IsPersonal: true,
-					CacheTime: 30,
+					IsPersonal:    true,
+					CacheTime:     30,
 				})
 				if err != nil {
 					log.Printf("Error when answering inline [%s] command: %v", plugins.command, err)
@@ -439,89 +518,22 @@ func inlineHandler(opts *subHandlerOpts) {
 				return
 			}
 		}
-		// 完全由插件控制输出，列表数量超过 50 项会出错，无法回应用户请求
+		// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
 		for _, plugins := range AllPugins.InlineManual {
 			if opts.fields[0][1:] == plugins.command {
 				plugins.handler(opts)
 				return
 			}
 		}
+		// 仅限管理员使用的命令
 		if AnyContains(opts.update.InlineQuery.From.ID, logMan_IDs) {
-			if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "log") {
-				logs := readLog()
-				if logs != nil {
-					log_count := len(logs)
-					var log_all string
-					for index, log := range logs {
-						log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
-					}
-					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.update.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
-								ID:    "log",
-								Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
-								InputMessageContent: &models.InputTextMessageContent{
-									MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
-									ParseMode: models.ParseModeMarkdownV1,
-								},
-							},
-						},
-						IsPersonal: true,
-						CacheTime: 0,
-					})
-					if err != nil {
-						log.Println("Error when answering inline query :log", err)
-					}
-				} else {
-					log.Println("Error when reading log file")
+			for _, plugin := range AllPugins.InlinePrefix {
+				if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + plugin.prefixCommand) {
+					plugin.handler(opts)
+					return
 				}
-				return
-			} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "reload") {
-				SignalsChannel.AdditionalDatas_reload <- true
-				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:    "reload",
-							Title: "已请求更新",
-							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "???",
-								ParseMode: models.ParseModeMarkdownV1,
-							},
-						},
-					},
-					IsPersonal: true,
-					CacheTime: 0,
-				})
-				if err != nil {
-					log.Println("Error when answering inline query :reload", err)
-				}
-				return
-			} else if strings.HasPrefix(opts.update.InlineQuery.Query, InlineSubCommandSymbol + "savedb") {
-				SignalsChannel.Database_save <- true
-				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:    "savedb",
-							Title: "已请求保存",
-							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "???",
-								ParseMode: models.ParseModeMarkdownV1,
-							},
-						},
-					},
-					IsPersonal: true,
-					CacheTime: 0,
-				})
-				if err != nil {
-					log.Println("Error when answering inline query :savedb", err)
-				}
-				return
 			}
+			
 		}
 		_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: opts.update.InlineQuery.ID,
@@ -539,111 +551,41 @@ func inlineHandler(opts *subHandlerOpts) {
 			log.Println("Error when answering inline no command", err)
 		}
 		return
-	}
-
-	if AdditionalDatas.VoiceErr != nil {
-		log.Printf("Error when reading metadata files: %v", AdditionalDatas.VoiceErr)
-		opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.update.InlineQuery.ID,
-			Results:       []models.InlineQueryResult{
-				&models.InlineQueryResultVoice{
-					ID:       "none",
-					Title:    "读取语音文件时发生错误，请联系机器人管理员",
-					Caption:  "由于无法读取到语音文件，此处被替换为预设的 `♿otto: 我是说的道理~` ",
-					VoiceURL: "https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wssddl.mp3",
-					ParseMode: models.ParseModeMarkdownV1,
-				},
-			},
-			CacheTime: 0,
-		})
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID: logChat_ID,
-			Text:   fmt.Sprintf("%s\nInline Mode: some user get error, %v", time.Now().Format(time.RFC3339), AdditionalDatas.VoiceErr),
-		})
-		return
-	} else if AdditionalDatas.Voices == nil {
-		log.Printf("No voices file in voices_path: %s", voice_path)
-		opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.update.InlineQuery.ID,
-			Results:       []models.InlineQueryResult{
-				&models.InlineQueryResultVoice{
-					ID:       "none",
-					Title:    "无法读取到语音文件，请联系机器人管理员",
-					Caption:  "由于无法读取到语音文件，此处被替换为预设的 `♿otto: 我是说的道理~` ",
-					VoiceURL: "https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wssddl.mp3",
-					ParseMode: models.ParseModeMarkdownV1,
-				},
-			},
-			CacheTime: 0,
-		})
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID:    logChat_ID,
-			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
-		})
-		return
-	}
-
-	// 将 metadata 转换为 Inline Query 结果
-	var results []models.InlineQueryResult
-
-	// 没有查询字符串或使用分页搜索符号，返回所有结果
-	if opts.update.InlineQuery.Query == "" || len(opts.fields) == 1 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
-		for _, voicePack := range AdditionalDatas.Voices {
-			for _, voice := range voicePack.Voices {
-				results = append(results, &models.InlineQueryResultVoice{
-					ID:       voice.ID,
-					Title:    voicePack.Name + ": " + voice.Title,
-					Caption:  voice.Caption,
-					VoiceURL: voice.VoiceURL,
-				})
-			}
-		}
 	} else {
-		for _, voicePack := range AdditionalDatas.Voices {
-			for _, voice := range voicePack.Voices {
-				if InlineQueryMatchMultKeyword(opts.fields, []string{voicePack.Name, voice.Title, voice.Caption}) {
-					results = append(results, &models.InlineQueryResultVoice{
-						ID:       voice.ID,
-						Title:    voicePack.Name + ": " + voice.Title,
-						Caption:  voice.Caption,
-						VoiceURL: voice.VoiceURL,
-					})
-				}
-			}
-		}
-		if len(results) == 0 {
-			results = append(results, &models.InlineQueryResultArticle{
-				ID:    "none",
-				Title: "没有符合关键词的内容",
-				Description: fmt.Sprintf("没有找到包含 %s 的内容", opts.update.InlineQuery.Query),
+		_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+			InlineQueryID: opts.update.InlineQuery.ID,
+			Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:    "empty",
+				Title: "没有保存内容（点击查看详细教程）",
+				Description: "对一条信息回复 /save 来保存它",
 				InputMessageContent: models.InputTextMessageContent{
-					MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
-					ParseMode: models.ParseModeMarkdownV1,
+					MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", botMe.Username, botMe.Username),
+					ParseMode: models.ParseModeHTML,
 				},
-			})
+			}},
+			Button: &models.InlineQueryResultsButton{
+				Text: "点击此处快速跳转到机器人",
+				StartParameter: "via-inline_noreply",
+			},
+
+		})
+		if err != nil {
+			log.Println("Error when answering inline [saved] command", err)
 		}
 	}
 
-	var inlineButton *models.InlineQueryResultsButton
 
-	SavedMessage := database.Data.SavedMessage[opts.chatInfo.ID]
-
-	if SavedMessage.Count == 0 && !SavedMessage.AgreePrivacyPolicy {
-		inlineButton = &models.InlineQueryResultsButton{
-			Text: "点击此处来尝试保存内容",
-			StartParameter: "via-inline_savedmessage-help",
-		}
-	}
+	
 
 	// fmt.Println(opts.fields, len(results))
 
-	_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
-		InlineQueryID: opts.update.InlineQuery.ID,
-		Results:       InlineResultPagination(opts.fields, results),
-		Button: inlineButton,
-	})
-	if err != nil {
-		log.Printf("Error sending inline query response: %v", err)
-		return
-	}
+	// _, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+	// 	InlineQueryID: opts.update.InlineQuery.ID,
+	// 	Results:       InlineResultPagination(opts.fields, results),
+	// 	// Button: inlineButton,
+	// })
+	// if err != nil {
+	// 	log.Printf("Error sending inline query response: %v", err)
+	// 	return
+	// }
 }

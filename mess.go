@@ -632,48 +632,49 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 	// 当 result 的数量超过 InlineResultsPerPage 时，进行分页
 	// fmt.Println(len(results), InlineResultsPerPage)
 	if len(results) > InlineResultsPerPage {
-		// 获取 update.InlineQuery.Query 末尾的 `-<数字>` 来选择输出第几页
+		// 获取 update.InlineQuery.Query 末尾的 `<分页符号><数字>` 来选择输出第几页
 		var pageNow int = 1
 		var pageSize = (InlineResultsPerPage -1)
 
-		if len(queryFields) > 0 && strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
-			var err error
-			pageNow, err = strconv.Atoi(queryFields[len(queryFields)-1][1:])
-			if err != nil {
-				if queryFields[len(queryFields)-1][1:] != "" {
-					return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-						ID: "noThisOperation",
-						Title: "无效的操作",
-						Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", InlinePaginationSymbol),
-						InputMessageContent: &models.InputTextMessageContent{
-							MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-							ParseMode: models.ParseModeMarkdownV1,
-						},
-					}}
-				} else {
-					return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-						ID: "keepInputNumber",
-						Title: "请继续输入数字",
-						Description: fmt.Sprintf("继续输入一个数字来查看对应的页面，当前列表有 %d 页", (len(results) + pageSize - 1) / pageSize),
-						InputMessageContent: &models.InputTextMessageContent{
-							MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
-							ParseMode: models.ParseModeMarkdownV1,
-						},
-					}}
-				}
+		pageNow, err := InlineExtractPageNumber(queryFields)
+		// 读取页码发生错误
+		if err != nil {
+			// 输入了分页符号没有输入数字
+			if queryFields[len(queryFields)-1][1:] == "" {
+				return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID: "keepInputNumber",
+					Title: "请继续输入数字",
+					Description: fmt.Sprintf("继续输入一个数字来查看对应的页面，当前列表有 %d 页", (len(results) + pageSize - 1) / pageSize),
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "用户在尝试进行分页时点击了分页提示...",
+						ParseMode: models.ParseModeMarkdownV1,
+					},
+				}}
+			} else {
+				// 在分页符号后输入了非数字字符
+				return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID: "noThisOperation",
+					Title: "无效的操作",
+					Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", InlinePaginationSymbol),
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "用户在尝试进行分页时输入了错误的页码并点击了分页提示...",
+						ParseMode: models.ParseModeMarkdownV1,
+					},
+				}}
 			}
 		}
+	
 
 		start := (pageNow - 1) * pageSize
 		end := start + pageSize
 
-		if start >= len(results) {
+		if start < 0 || start >= len(results) {
 			return []models.InlineQueryResult{&models.InlineQueryResultArticle{
 				ID: "wrongPageNumber",
 				Title: "错误的页码",
 				Description: fmt.Sprintf("您输入的页码 %d 超出范围，当前列表有 %d 页", pageNow, (len(results) + pageSize - 1) / pageSize),
 				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					MessageText: "用户在浏览不存在的页面时点击了错误页码提示...",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			}}
@@ -692,7 +693,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 				Title: fmt.Sprintf("当前您在第 %d 页", pageNow),
 				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages - pageNow, InlinePaginationSymbol, pageNow + 1),
 				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					MessageText: "用户在挑选内容时点击了分页提示...",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			})
@@ -702,7 +703,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 				Title: fmt.Sprintf("当前您在第 %d 页", pageNow),
 				Description: "后面已经没有东西了",
 				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					MessageText: "用户在挑选内容时点击了分页提示...",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			})
@@ -715,7 +716,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 			Title: "没有多余的内容",
 			Description: fmt.Sprintf("只有 %d 个条目，你想翻页也没有多的了", len(results)),
 			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+				MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
 				ParseMode: models.ParseModeMarkdownV1,
 			},
 		}}
@@ -724,25 +725,67 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 	}
 }
 
-func InlineQueryMatchMultKeyword(queryFields []string, Keyword []string) bool {
+// 从 inline 字段中提取子命令字符串
+func InlineExtractSubCommand(fields []string) string {
+	if len(fields) == 0 {
+		return ""
+	}
+
+	// 判断是不是子命令
+	if strings.HasPrefix(fields[0], InlineSubCommandSymbol) {
+		return strings.TrimPrefix(fields[0], InlineSubCommandSymbol)
+	}
+	return ""
+}
+
+// 从 Inline 字段中提取查询关键词，去除子命令的前缀或后缀的分页符号
+func InlineExtractKeywords(fields []string) []string {
+	if len(fields) == 0 {
+		return []string{}
+	}
+
+	// 判断是不是子命令
+	if strings.HasPrefix(fields[0], InlineSubCommandSymbol) {
+		fields = fields[1:]
+	}
+	// 判断有没有分页符号
+	if len(fields) > 0 && strings.HasPrefix(fields[len(fields)-1], InlinePaginationSymbol) {
+		fields = fields[:len(fields)-1]
+	}
+
+	return fields
+}
+
+func InlineExtractPageNumber(fields []string) (int, error) {
+	if len(fields) == 0 {
+		return 1, nil
+	}
+
+	// 判断有没有分页符号
+	if strings.HasPrefix(fields[len(fields)-1], InlinePaginationSymbol) {
+		return strconv.Atoi(fields[len(fields)-1][1:])
+	}
+	return 1, nil
+}
+
+
+func InlineQueryMatchMultKeyword(fields []string, keywords []string) bool {
 	var allkeywords int
-	if strings.HasPrefix(queryFields[len(queryFields)-1], InlinePaginationSymbol) {
-		queryFields = queryFields[:len(queryFields) -1]
-	} else {
-		allkeywords = len(queryFields)
+
+	fields = InlineExtractKeywords(fields)
+	if len(fields) != 0 {
+		allkeywords = len(fields)
 	}
-	if strings.HasPrefix(queryFields[0], InlineSubCommandSymbol) {
-		queryFields = queryFields[1:]
-	}
+	fmt.Println(allkeywords)
 	if allkeywords == 1 {
-		if AnyContains(queryFields[0], Keyword) {
+		if AnyContains(fields[0], keywords) {
 			return true
 		}
 	} else {
 		var allMatch bool = true
 
-		for _, n := range queryFields {
-			if AnyContains(n, Keyword) {
+		for _, n := range fields {
+			if AnyContains(n, keywords) {
 				// 保持 current 内容，继续过滤
 				// continue
 			} else {

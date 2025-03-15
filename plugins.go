@@ -13,10 +13,14 @@ import (
 type Plugin_All struct {
 	Inline              []Plugin_Inline              // 函数返回全部列表，由预设函数进行分页
 	InlineManual        []Plugin_InlineManual        // 函数自行处理输出
+	InlinePrefix        []Plugin_InlinePrefix	     // 例如设定命令为 abc，则 abca, abcb 等后续包含任意字符和字段都会触发
+	CallbackQuery       []Plugin_CallbackQuery       // 处理 inline query 的 callback 函数
+
+
 	SlashStart           *Plugin_SlashStart          // '/start' 命令和后面的 query
 	SlashSymbolCommand  []Plugin_SlashSymbolCommand  // 以 '/' 符号开头的命令，例如 '/help' '/test'
 	CustomSymbolCommand []Plugin_CustomSymbolCommand // 手动定义符号的命令，例如定义符号为 '!'，则命令为 '!help' 或 '!test', 也可以不用不符号，直接 help 或 test
-	CallbackQuery       []Plugin_CallbackQuery       // 处理 inline query 的 callback 函数
+	SuffixCommand       []Plugin_SuffixCommand       // 后缀命令，例如 'help' 'test'，需要以空格开头
 
 	// 根据聊天类型设定的默认处理函数
 	DefaultHandlerByMessageTypeForPrivate    *Plugin_HandlerByMessageType
@@ -85,10 +89,11 @@ func InitPlugins() {
 	})
 
 
+	// 触发：'/start'
 	AddSlashStartCommandPlugins(SavedMessage_StartCommandHandlers...)
 	AddSlashStartWithPrefixCommandPlugins(SavedMessage_StartCommandWithPrefixHandlers...)
 
-
+	// 文本消息开头的命令
 	AddSlashSymbolCommandPlugins(SavedMessage_SlashSymbolCommandHandler)
 	AddSlashSymbolCommandPlugins(Plugin_SlashSymbolCommand{
 		slashCommand: "chatinfo",
@@ -180,8 +185,16 @@ func InitPlugins() {
 	})
 	AddSlashSymbolCommandPlugins(ForwardOnly_SlashSymbolCommandHandler)
 
-	AddCustomSymbolCommandPlugins(Udonese_SlashCommandHandler...)
+	AddCustomSymbolCommandPlugins(Udonese_SlashCommandHandlers...)
 
+	AddSuffixCommandPlugins(Udonese_SuffixCommandHandler)
+
+	// inline 模式由程序输出的函数
+	AddInlineHandlerPlugins(SavedMessage_InlineCommandHandler)
+	AddInlineHandlerPlugins(Udonese_InlineCommandHandler)
+
+	// inline 模式自行处理输出的函数
+	AddInlineManualHandlerPlugins(voiceListInlineHandler)
 	AddInlineManualHandlerPlugins(Plugin_InlineManual{
 		command: "uaav",
 		handler: func(opts *subHandlerOpts) {
@@ -261,9 +274,92 @@ func InitPlugins() {
 		},
 	})
 
-	AddInlineHandlerPlugins(SavedMessage_InlineCommandHandler)
-	AddInlineHandlerPlugins(Udonese_InlineCommandHandler)
+	AddInlinePrefixHandlerPlugins([]Plugin_InlinePrefix{
+		{
+			prefixCommand: "log",
+			handler:       func(opts *subHandlerOpts) {
+				logs := readLog()
+				if logs != nil {
+					log_count := len(logs)
+					var log_all string
+					for index, log := range logs {
+						log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
+					}
+					_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: opts.update.InlineQuery.ID,
+						Results: []models.InlineQueryResult{
+							&models.InlineQueryResultArticle{
+								ID:    "log",
+								Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
+								InputMessageContent: &models.InputTextMessageContent{
+									MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
+									ParseMode: models.ParseModeMarkdownV1,
+								},
+							},
+						},
+						IsPersonal: true,
+						CacheTime: 0,
+					})
+					if err != nil {
+						log.Println("Error when answering inline query :log", err)
+					}
+				} else {
+					log.Println("Error when reading log file")
+				}
+			},
+		},
+		{
+			prefixCommand: "reload",
+			handler:       func(opts *subHandlerOpts) {
+				SignalsChannel.AdditionalDatas_reload <- true
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:    "reload",
+							Title: "已请求更新",
+							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "???",
+								ParseMode: models.ParseModeMarkdownV1,
+							},
+						},
+					},
+					IsPersonal: true,
+					CacheTime: 0,
+				})
+				if err != nil {
+					log.Println("Error when answering inline query :reload", err)
+				}
+			},
+		},
+		{
+			prefixCommand: "savedb",
+			handler:       func(opts *subHandlerOpts) {
+				SignalsChannel.Database_save <- true
+				_, err := opts.thebot.AnswerInlineQuery(opts.ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:    "savedb",
+							Title: "已请求保存",
+							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "???",
+								ParseMode: models.ParseModeMarkdownV1,
+							},
+						},
+					},
+					IsPersonal: true,
+					CacheTime: 0,
+				})
+				if err != nil {
+					log.Println("Error when answering inline query :savedb", err)
+				}
+			},
+		},
+	}...)
 
 
-	AddCallbackQueryCommandPlugins(Sticker_CallBackQueryHandler...)
+	AddCallbackQueryCommandPlugins(Sticker_CallBackQueryHandlers...)
 }

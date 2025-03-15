@@ -268,6 +268,9 @@ func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyP
 
 	// 根据要下载的类型设置压缩包的文件名和路径以及压缩包中的贴纸数量
 	if isOnlyPNG {
+		if stickerCount_webp == 0 {
+			return nil, 0, fmt.Errorf("there are no static stickers in the sticker pack")
+		}
 		stickersInZip = stickerCount_webp
 		zipFileName = fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, stickersInZip)
 		compressFolderPath = filePathPNG
@@ -482,7 +485,6 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote>Error getting sticker set: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
-		opts.chatInfo.HasPendingCallbackQuery = false
 		return
 	}
 
@@ -492,7 +494,7 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.CallbackQuery.From.ID,
 			Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote>Error download sticker set: %s</blockquote>", err),
-			ParseMode: models.ParseModeMarkdownV1,
+			ParseMode: models.ParseModeHTML,
 		})
 	}
 	if sitckerSetPack == nil {
@@ -501,7 +503,6 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 			Text:   "未能获取到压缩包",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
-		opts.chatInfo.HasPendingCallbackQuery = false
 		return
 	}
 
@@ -525,10 +526,9 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 		MessageID: botMessage.ID,
 	})
 
-	opts.chatInfo.HasPendingCallbackQuery = false
 }
 
-var Sticker_CallBackQueryHandler = []Plugin_CallbackQuery{
+var Sticker_CallBackQueryHandlers = []Plugin_CallbackQuery{
 	{
 		commandChar: "s",
 		handler: downloadStickerPackCallBackHandler,

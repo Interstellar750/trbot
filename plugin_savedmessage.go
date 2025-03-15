@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -622,7 +621,10 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 	var InlineSavedMessageResultList []models.InlineQueryResult
 
 	SavedMessage := database.Data.SavedMessage[opts.chatInfo.ID]
-	if len(opts.fields) < 2 || len(opts.fields) == 2 && strings.HasPrefix(opts.fields[len(opts.fields)-1], InlinePaginationSymbol) {
+
+	keywordFields := InlineExtractKeywords(opts.fields)
+
+	if len(keywordFields) == 0 {
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
 			if n.audio != nil {
@@ -649,23 +651,23 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 	} else {
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
-			if n.audio != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.audio.Caption, n.sharedData.Description}) {
+			if n.audio != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description}) {
 				all = append(all, n.audio)
-			} else if n.document != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
+			} else if n.document != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
 				all = append(all, n.document)
-			} else if n.gif != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
+			} else if n.gif != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
 				all = append(all, n.gif)
-			} else if n.photo != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
+			} else if n.photo != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
 				all = append(all, n.photo)
-			} else if n.sticker != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description}) {
+			} else if n.sticker != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description}) {
 				all = append(all, n.sticker)
-			} else if n.video != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
+			} else if n.video != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
 				all = append(all, n.video)
-			} else if n.videoNote != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
+			} else if n.videoNote != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
 				all = append(all, n.videoNote)
-			} else if n.voice != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
+			} else if n.voice != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
 				all = append(all, n.voice)
-			} else if n.mpeg4gif != nil && InlineQueryMatchMultKeyword(opts.fields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
+			} else if n.mpeg4gif != nil && InlineQueryMatchMultKeyword(keywordFields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
 				all = append(all, n.mpeg4gif)
 			}
 		}
@@ -675,7 +677,7 @@ func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryRes
 			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
 				ID:       "none",
 				Title:    "没有符合关键词的内容",
-				Description: fmt.Sprintf("没有找到包含 %s 的内容", opts.fields[1:]),
+				Description: fmt.Sprintf("没有找到包含 %s 的内容", keywordFields),
 				InputMessageContent: models.InputTextMessageContent{
 					MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
 					ParseMode: models.ParseModeMarkdownV1,
