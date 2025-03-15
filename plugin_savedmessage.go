@@ -613,6 +613,11 @@ func saveMessageHandler(opts *subHandlerOpts) {
 	}
 }
 
+var SavedMessage_SlashSymbolCommandHandler = Plugin_SlashSymbolCommand{
+	slashCommand: "save",
+	handler: saveMessageHandler,
+}
+
 func InlineShowSavedMessageHandler(opts *subHandlerOpts) []models.InlineQueryResult {
 	var InlineSavedMessageResultList []models.InlineQueryResult
 
@@ -783,24 +788,24 @@ func AgreePrivacyPolicy(opts *subHandlerOpts) {
 
 var SavedMessage_StartCommandHandlers = []SlashStartHandler{
 	{
-		"savedmessage_privacy_policy",
-		SendPrivacyPolicy,
+		argument: "savedmessage_privacy_policy",
+		handler:  SendPrivacyPolicy,
 	},
 	{
-		"savedmessage_privacy_policy_agree",
-		AgreePrivacyPolicy,
+		argument: "savedmessage_privacy_policy_agree",
+		handler:  AgreePrivacyPolicy,
 	},
 }
 
 var SavedMessage_StartCommandWithPrefixHandlers = []SlashStartWithPrefixHandler{
 	{
-		"via-inline",
-		"noreply",
-		nil,
+		prefix:   "via-inline",
+		argument: "noreply",
+		handler:  nil,
 	},
 	{
-		"via-inline",
-		"savedmessage-help",
-		saveMessageHandler,
+		prefix:   "via-inline",
+		argument: "savedmessage-help",
+		handler:  saveMessageHandler,
 	},
 }

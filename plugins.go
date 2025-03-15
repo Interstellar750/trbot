@@ -4,20 +4,21 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
 
 type Plugin_All struct {
-	Inline              []Plugin_Inline
-	InlineManual        []Plugin_InlineManual
-	SlashStart           *Plugin_SlashStart
-	SlashSymbolCommand  []Plugin_SlashSymbolCommand
-	NoSymbolCommand     []Plugin_NoSymbolCommand
-	CustomSymbolCommand []Plugin_CustomSymbolCommand
-	CallbackQuery       []Plugin_CallbackQuery
+	Inline              []Plugin_Inline              // 函数返回全部列表，由预设函数进行分页
+	InlineManual        []Plugin_InlineManual        // 函数自行处理输出
+	SlashStart           *Plugin_SlashStart          // '/start' 命令和后面的 query
+	SlashSymbolCommand  []Plugin_SlashSymbolCommand  // 以 '/' 符号开头的命令，例如 '/help' '/test'
+	CustomSymbolCommand []Plugin_CustomSymbolCommand // 手动定义符号的命令，例如定义符号为 '!'，则命令为 '!help' 或 '!test', 也可以不用不符号，直接 help 或 test
+	CallbackQuery       []Plugin_CallbackQuery       // 处理 inline query 的 callback 函数
 
+	// 根据聊天类型设定的默认处理函数
 	DefaultHandlerByMessageTypeForPrivate    *Plugin_HandlerByMessageType
 	DefaultHandlerByMessageTypeForGroup      *Plugin_HandlerByMessageType
 	DefaultHandlerByMessageTypeForSupergroup *Plugin_HandlerByMessageType
@@ -41,119 +42,6 @@ type Plugin_HandlerByMessageType struct {
 	Location func(*subHandlerOpts)
 
 }
-
-// 需要返回一个列表，将由程序的分页函数来控制分页和输出
-type Plugin_Inline struct {
-    command string
-    handler func(*subHandlerOpts) []models.InlineQueryResult
-}
-
-func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
-	if AllPugins.Inline == nil { AllPugins.Inline = []Plugin_Inline{} }
-	var pluginCount int
-	for _, originPlugin := range InlineHandlerPlugins {
-		AllPugins.Inline = append(AllPugins.Inline, originPlugin)
-		pluginCount++
-	}
-	return pluginCount
-}
-
-// 完全由插件自行控制输出
-type Plugin_InlineManual struct {
-    command string
-    handler func(*subHandlerOpts)
-}
-
-func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineManual) int {
-	if AllPugins.InlineManual == nil { AllPugins.InlineManual = []Plugin_InlineManual{} }
-	var pluginCount int
-	for _, originPlugin := range InlineManualHandlerPlugins {
-		AllPugins.InlineManual = append(AllPugins.InlineManual, originPlugin)
-		pluginCount++
-	}
-	return pluginCount
-}
-
-
-type Plugin_SlashStart struct {
-	handler           []SlashStartHandler
-	withPrefixHandler []SlashStartWithPrefixHandler
-}
-
-type SlashStartHandler struct {
-	argument string
-	handler  func(*subHandlerOpts)
-}
-
-type SlashStartWithPrefixHandler struct {
-	prefix   string
-	argument string
-	handler  func(*subHandlerOpts)
-}
-
-func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) int {
-	if AllPugins.SlashStart == nil { AllPugins.SlashStart = &Plugin_SlashStart{} }
-	if AllPugins.SlashStart.handler == nil { AllPugins.SlashStart.handler = []SlashStartHandler{} }
-
-	var pluginCount int
-	for _, originPlugin := range SlashStartCommandPlugins {
-		AllPugins.SlashStart.handler = append(AllPugins.SlashStart.handler, originPlugin)
-		pluginCount++
-	}
-	return pluginCount
-}
-
-func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ...SlashStartWithPrefixHandler) int {
-	if AllPugins.SlashStart == nil { AllPugins.SlashStart = &Plugin_SlashStart{} }
-	if AllPugins.SlashStart.withPrefixHandler == nil { AllPugins.SlashStart.withPrefixHandler = []SlashStartWithPrefixHandler{} }
-
-	var pluginCount int
-	for _, originPlugin := range SlashStartWithPrefixCommandPlugins {
-		AllPugins.SlashStart.withPrefixHandler = append(AllPugins.SlashStart.withPrefixHandler, originPlugin)
-		pluginCount++
-	}
-	return pluginCount
-}
-
-type Plugin_SlashSymbolCommand struct {
-	command string
-	handler func(*subHandlerOpts)
-}
-
-type Plugin_NoSymbolCommand struct {
-	command string
-	handler func(*subHandlerOpts)
-}
-
-type Plugin_CustomSymbolCommand struct {
-	symbol  string
-	command string
-	handler func(*subHandlerOpts)
-}
-
-// 为了兼容性考虑，建议仅将 commandChar 设置为单个字符（区分大小写），
-// 因为 CallbackQuery 有长度限制，为 64 个字符，而贴纸包名的长度最大为 62。
-// 再使用一个符号来隔开内容时，实际上能使用的识别字符长度只有一个字符。
-// 你也可以忽略这个提醒，但在发送消息时使用 ReplyMarkup 参数添加按钮的时候，
-// 需要评断并控制一下 CallbackData 的长度是否超过了 64 个字符，否则消息会无法发出。
-// 或许用户发送的 Callback 请求，其 Query  可能会出现大小写不同，但服务器认为是同一个请求的情况，
-// 建议为一个 handler 设定一个字符，同时捕获大小写
-type Plugin_CallbackQuery struct {
-	commandChar string
-	handler func(*subHandlerOpts)
-}
-
-func AddCallbackQueryCommandPlugins(Plugins ...Plugin_CallbackQuery) int {
-	if AllPugins.CallbackQuery == nil { AllPugins.CallbackQuery = []Plugin_CallbackQuery{} }
-
-	var pluginCount int
-	for _, originPlugin := range Plugins {
-		AllPugins.CallbackQuery = append(AllPugins.CallbackQuery, originPlugin)
-		pluginCount++
-	}
-	return pluginCount
-}
-
 
 func AddPlugins(Plugins ...interface{}) int {
 	var pluginCount int
@@ -179,10 +67,11 @@ func AddPlugins(Plugins ...interface{}) int {
 }
 
 func InitPlugins() {
+	// 触发：'/start via-inline_test'
 	AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixHandler{
-		"via-inline",
-		"test",
-		func(opts *subHandlerOpts) {
+		prefix: "via-inline",
+		argument: "test",
+		handler: func(opts *subHandlerOpts) {
 			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 				ChatID:          opts.update.Message.Chat.ID,
 				Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
@@ -195,8 +84,103 @@ func InitPlugins() {
 		},
 	})
 
+
 	AddSlashStartCommandPlugins(SavedMessage_StartCommandHandlers...)
 	AddSlashStartWithPrefixCommandPlugins(SavedMessage_StartCommandWithPrefixHandlers...)
+
+
+	AddSlashSymbolCommandPlugins(SavedMessage_SlashSymbolCommandHandler)
+	AddSlashSymbolCommandPlugins(Plugin_SlashSymbolCommand{
+		slashCommand: "chatinfo",
+		handler: func(opts *subHandlerOpts) {
+			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID: opts.update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				Text: fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", opts.update.Message.Chat.Type, opts.update.Message.Chat.ID, opts.update.Message.Chat.Username),
+				ParseMode: models.ParseModeHTML,
+			})
+		},
+	})
+	AddSlashSymbolCommandPlugins(Plugin_SlashSymbolCommand{
+		slashCommand: "test",
+		handler: func(opts *subHandlerOpts) {
+			opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID: opts.update.Message.Chat.ID,
+				Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{ { {
+					Text: "点击加入测试群组",
+					URL: "https://t.me/+BomkHuFsjqc3ZGE1",
+				}}}},
+			})
+		},
+	})
+	AddSlashSymbolCommandPlugins(Plugin_SlashSymbolCommand{
+		slashCommand: "fileid",
+		handler: func(opts *subHandlerOpts) {
+			var pendingMessage string
+			if opts.update.Message.ReplyToMessage != nil {
+				if opts.update.Message.ReplyToMessage.Sticker != nil {
+					pendingMessage = fmt.Sprintf("Type: [Sticker] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Sticker.FileID)
+				} else if opts.update.Message.ReplyToMessage.Document != nil {
+					pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Document.FileID)
+				} else if opts.update.Message.ReplyToMessage.Photo != nil {
+					pendingMessage = "Type: [Photo]\n"
+					if len(opts.fields) > 1 && opts.fields[1] == "all" { // 如果有 all 指示，显示图片所有分辨率的 File ID
+						for i, n := range opts.update.Message.ReplyToMessage.Photo {
+							pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d \n[<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileID)
+						}
+					} else { // 否则显示最后一个的 File ID (应该是最高分辨率的)
+						pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]\n", opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID)
+					}
+				} else if opts.update.Message.ReplyToMessage.Video != nil {
+					pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Video.FileID)
+				} else if opts.update.Message.ReplyToMessage.Voice != nil {
+					pendingMessage = fmt.Sprintf("Type: [Voice] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Voice.FileID)
+				} else if opts.update.Message.ReplyToMessage.Audio != nil {
+					pendingMessage = fmt.Sprintf("Type: [Audio] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Audio.FileID)
+				} else {
+					pendingMessage = "Unknown message type"
+				}
+			} else {
+				pendingMessage = "Reply to a Sticker, Document or Photo to get its FileID"
+			}
+			_, err := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID: opts.update.Message.Chat.ID,
+				Text: pendingMessage,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				log.Printf("Error response /fileid command: %v", err)
+			}
+		},
+	})
+	AddSlashSymbolCommandPlugins(Plugin_SlashSymbolCommand{
+		slashCommand: "version",
+		handler: func(opts *subHandlerOpts) {
+			// info, err := opts.thebot.GetWebhookInfo(ctx)
+			// fmt.Println(info)
+			// return
+			botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+				ChatID: opts.update.Message.Chat.ID,
+				Text: outputVersionInfo(),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
+				ParseMode: models.ParseModeMarkdownV1,
+			})
+			time.Sleep(time.Second * 20)
+			opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+				ChatID: opts.update.Message.Chat.ID,
+				MessageIDs: []int{
+					opts.update.Message.ID,
+					botMessage.ID,
+				},
+			})
+		},
+	})
+	AddSlashSymbolCommandPlugins(ForwardOnly_SlashSymbolCommandHandler)
+
+	AddCustomSymbolCommandPlugins(Udonese_SlashCommandHandler...)
 
 	AddInlineManualHandlerPlugins(Plugin_InlineManual{
 		command: "uaav",
@@ -279,6 +263,7 @@ func InitPlugins() {
 
 	AddInlineHandlerPlugins(SavedMessage_InlineCommandHandler)
 	AddInlineHandlerPlugins(Udonese_InlineCommandHandler)
+
 
 	AddCallbackQueryCommandPlugins(Sticker_CallBackQueryHandler...)
 }

@@ -317,92 +317,20 @@ func messageHandler(opts *subHandlerOpts) {
 	if AnyContains(opts.update.Message.Chat.Type, models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 检测如果消息开头是 / 符号，作为命令来处理
 		if strings.HasPrefix(opts.update.Message.Text, "/") {
-			// 预设的多个命令
-			if commandMaybeWithSuffixUsername(opts.fields, "/start") {
-				startHandler(opts)
-				return
-			} else if commandMaybeWithSuffixUsername(opts.fields, "/forwardonly") {
-				SomeMessageOnlyHandler(opts)
-				return
-			} else if commandMaybeWithSuffixUsername(opts.fields, "/chatinfo") {
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.Message.Chat.ID,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-					Text: fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", opts.update.Message.Chat.Type, opts.update.Message.Chat.ID, opts.update.Message.Chat.Username),
-					ParseMode: models.ParseModeHTML,
-				})
-				return
-			} else if commandMaybeWithSuffixUsername(opts.fields, "/test") {
-				opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.Message.Chat.ID,
-					Text: "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{ { {
-						Text: "点击加入测试群组",
-						URL: "https://t.me/+BomkHuFsjqc3ZGE1",
-					}}}},
-				})
-				return
-			} else if commandMaybeWithSuffixUsername(opts.fields, "/fileid") {
-				var pendingMessage string
-				if opts.update.Message.ReplyToMessage != nil {
-					if opts.update.Message.ReplyToMessage.Sticker != nil {
-						pendingMessage = fmt.Sprintf("Type: [Sticker] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Sticker.FileID)
-					} else if opts.update.Message.ReplyToMessage.Document != nil {
-						pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Document.FileID)
-					} else if opts.update.Message.ReplyToMessage.Photo != nil {
-						pendingMessage = "Type: [Photo]\n"
-						if len(opts.fields) > 1 && opts.fields[1] == "all" { // 如果有 all 指示，显示图片所有分辨率的 File ID
-							for i, n := range opts.update.Message.ReplyToMessage.Photo {
-								pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d \n[<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileID)
-							}
-						} else { // 否则显示最后一个的 File ID (应该是最高分辨率的)
-							pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]\n", opts.update.Message.ReplyToMessage.Photo[len(opts.update.Message.ReplyToMessage.Photo)-1].FileID)
-						}
-					} else if opts.update.Message.ReplyToMessage.Video != nil {
-						pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Video.FileID)
-					} else if opts.update.Message.ReplyToMessage.Voice != nil {
-						pendingMessage = fmt.Sprintf("Type: [Voice] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Voice.FileID)
-					} else if opts.update.Message.ReplyToMessage.Audio != nil {
-						pendingMessage = fmt.Sprintf("Type: [Audio] \nFileID: [<code>%v</code>]", opts.update.Message.ReplyToMessage.Audio.FileID)
-					} else {
-						pendingMessage = "Unknown message type"
+			for _, plugin := range AllPugins.SlashSymbolCommand {
+				if commandMaybeWithSuffixUsername(opts.fields, "/start") {
+					startHandler(opts)
+					return
+				} else if commandMaybeWithSuffixUsername(opts.fields, "/" + plugin.slashCommand) {
+					if IsDebugMode {
+						log.Printf("hit command: /%s", plugin.slashCommand)
 					}
-				} else {
-					pendingMessage = "Reply to a Sticker, Document or Photo to get its FileID"
+					plugin.handler(opts)
+					return
 				}
-				_, err := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.Message.Chat.ID,
-					Text: pendingMessage,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-					ParseMode: models.ParseModeHTML,
-				})
-				if err != nil {
-					log.Printf("Error response /fileid command: %v", err)
-				}
-			} else if commandMaybeWithSuffixUsername(opts.fields, "/save") {
-				saveMessageHandler(opts)
-				return
-			} else if commandMaybeWithSuffixUsername(opts.fields, "/version") && AnyContains(opts.update.Message.From.ID, logMan_IDs) {
-				// info, err := opts.thebot.GetWebhookInfo(ctx)
-				// fmt.Println(info)
-				// return
-				botMessage, _ = opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-					ChatID: opts.update.Message.Chat.ID,
-					Text: outputVersionInfo(),
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
-					ParseMode: models.ParseModeMarkdownV1,
-				})
-				time.Sleep(time.Second * 20)
-				opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
-					ChatID: opts.update.Message.Chat.ID,
-					MessageIDs: []int{
-						opts.update.Message.ID,
-						botMessage.ID,
-					},
-				})
-				return
-			} else if strings.HasSuffix(opts.fields[0], "@" + botMe.Username) {
+			}
+			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
+			if strings.HasSuffix(opts.fields[0], "@" + botMe.Username) {
 				// 注意，此段应该保持在此 if-else 语句的末尾，否则后续的命令将无法触发
 				// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
 				// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
@@ -420,8 +348,19 @@ func messageHandler(opts *subHandlerOpts) {
 					},
 				})
 				return
+			} 
+		} else {
+			for _, plugin := range AllPugins.CustomSymbolCommand {
+				if commandMaybeWithSuffixUsername(opts.fields, plugin.fullCommand) {
+					if IsDebugMode {
+						log.Printf("hit command: %s", plugin.fullCommand)
+					}
+					plugin.handler(opts)
+					return
+				}
 			}
-		} else if opts.update.Message.Chat.ID == udonGroupID && len(opts.fields) > 0 {
+		}
+		if opts.update.Message.Chat.ID == udonGroupID && len(opts.fields) > 0 {
 			udoneseHandler(opts)
 			return
 		}

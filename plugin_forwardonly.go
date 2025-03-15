@@ -15,7 +15,7 @@ func SomeMessageOnlyHandler(opts *subHandlerOpts) {
 	if opts.update.Message.Chat.Type == "private" {
 		botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID:          opts.update.Message.Chat.ID,
-			Text:            "仅限转发模式被设计为仅在群组中可用",
+			Text:            "此功能被设计为仅在群组中可用",
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 		})
 		time.Sleep(time.Second * 10)
@@ -110,7 +110,6 @@ func SomeMessageOnlyHandler(opts *subHandlerOpts) {
 }
 
 func deleteNotAllowMessage(opts *subHandlerOpts) {
-
 	var deleteMessageWhiteList   bool = true
 	var deleteAttributeWhiteList bool = true
 	
@@ -232,6 +231,11 @@ func CheckMessageAttribute(this, target MessageAttribute, IsWhiteList bool) bool
 		}
 	}
 	return delete
+}
+
+var ForwardOnly_SlashSymbolCommandHandler = Plugin_SlashSymbolCommand{
+	slashCommand: "forwardonly",
+	handler: SomeMessageOnlyHandler,
 }
 
 var AllowedMessageTypeList = MessageType{

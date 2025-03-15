@@ -387,13 +387,13 @@ func udoneseHandler(opts *subHandlerOpts) {
 	}
 }
 
-var Udonese_SlashCommandHandler = []Plugin_NoSymbolCommand{
+var Udonese_SlashCommandHandler = []Plugin_CustomSymbolCommand{
 	{
-		command: "udonese",
+		fullCommand: "udonese",
 		handler: udoneseHandler,
 	},
 	{
-		command: "sms",
+		fullCommand: "sms",
 		handler: udoneseHandler,
 	},
 }
