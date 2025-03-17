@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,27 +47,47 @@ func (list UdoneseWord) OnlyMeaning() []string {
 func (list UdoneseWord) OutputMeanings() string {
 	var pendingMessage = fmt.Sprintf("[<code>%s</code>] 已使用 %d 次，它的意思有\n", list.Word, list.Used)
 	for i, s := range list.MeaningList {
-		if s.ViaID != 0 { // 通过回复添加
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
-				i+1, s.Meaning, s.FromID, s.FromName, s.ViaID, s.ViaName,
-			)
-		} else if s.FromID != 0 { // 有添加人信息
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
-				i+1, s.Meaning, s.FromID, s.FromName,
-			)
-		} else {
-			pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i+1, s.Meaning)
+		// 先加意思
+		pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] ", i+1, s.Meaning)
+
+		// 来源的用户或频道
+		if s.FromUsername != "" {
+			pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", s.FromUsername, s.FromName)
+		} else if s.FromID != 0 {
+			if s.FromID < 0 {
+				pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(s.FromID, 10), "-100"), s.FromName)
+			} else {
+				pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", s.FromID, s.FromName)
+			}
 		}
+
+		// 由其他用户添加时的信息
+		if s.ViaUsername != "" {
+			pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", s.ViaUsername, s.ViaName)
+		} else if s.ViaID != 0 {
+			if s.ViaID < 0 {
+				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(s.ViaID, 10), "-100"), s.ViaName)
+			} else {
+				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", s.ViaID, s.ViaName)
+			}
+		}
+		
+		// 末尾换行
+		pendingMessage += "\n"
 	}
 	return pendingMessage
 }
 
 type UdoneseMeaning struct {
-	Meaning  string `yaml:"Meaning"`
-	FromID   int64  `yaml:"FromID,omitempty"`
-	FromName string `yaml:"FromName,omitempty"`
-	ViaID    int64  `yaml:"ViaID,omitempty"`
-	ViaName  string `yaml:"ViaName,omitempty"`
+	Meaning      string `yaml:"Meaning"`
+
+	FromID       int64  `yaml:"FromID,omitempty"`
+	FromUsername string `yaml:"FromUsername,omitempty"`
+	FromName     string `yaml:"FromName,omitempty"`
+
+	ViaID        int64  `yaml:"ViaID,omitempty"`
+	ViaUsername  string `yaml:"ViaUsername,omitempty"`
+	ViaName      string `yaml:"ViaName,omitempty"`
 }
 
 func readUdonese(path, name string) (*Udonese, error) {
@@ -284,19 +305,87 @@ func udoneseHandler(opts *subHandlerOpts) {
 
 		meaning := strings.TrimSpace(opts.update.Message.Text[len(opts.fields[0])+len(opts.fields[1])+2:])
 
-		var fromName string
-		var fromID   int64
-		var viaName  string
-		var viaID    int64
+		var fromID       int64
+		var fromUsername string
+		var fromName     string
+		var viaID        int64
+		var viaUsername  string
+		var viaName      string
 
-		if opts.update.Message.ReplyToMessage == nil {
-			fromName = showUserName(opts.update.Message.From)
-			fromID = opts.update.Message.From.ID
+		var isVia         bool
+		var isFromGroup   bool
+		var isViaGroup    bool
+		var isFromChannel bool
+		var isViaChannel  bool
+
+		if opts.update.Message.ReplyToMessage != nil {
+			// 有回复一条信息，通过回复消息添加词
+			isVia = true
+			if opts.update.Message.ReplyToMessage.From.IsBot {
+				if opts.update.Message.ReplyToMessage.From.ID == 136817688 {
+					// 频道身份信息
+					isViaChannel = true
+				} else if opts.update.Message.ReplyToMessage.From.ID == 1087968824 {
+					// 群组匿名身份
+					isViaGroup = true
+				} else {
+					// 有 bot 标识，但不是频道身份也不是群组匿名，则是普通 bot
+					isVia = false
+				}
+			}
+		}
+		// 发送命令的人信息
+		if opts.update.Message.From.IsBot {
+			if opts.update.Message.From.ID == 136817688 {
+				// 用频道身份发言
+				isFromChannel = true
+			} else if opts.update.Message.From.ID == 1087968824 {
+				// 用群组匿名身份发言
+				isFromGroup = true
+			}
+		}
+
+
+		if isVia {
+			if isViaChannel || isViaGroup {
+				// 回复给一条频道身份的信息
+				fromID = opts.update.Message.ReplyToMessage.SenderChat.ID
+				fromUsername = opts.update.Message.ReplyToMessage.SenderChat.Username
+				fromName = showChatName(opts.update.Message.ReplyToMessage.SenderChat)
+			} else {
+				// 回复给普通用户
+				fromName = showUserName(opts.update.Message.ReplyToMessage.From)
+				fromID = opts.update.Message.ReplyToMessage.From.ID
+			}
+			if isFromChannel || isFromGroup {
+				// 频道身份
+				viaID = opts.update.Message.SenderChat.ID
+				viaUsername = opts.update.Message.SenderChat.Username
+				viaName = showChatName(opts.update.Message.SenderChat)
+			} else { 
+				// 普通用户身份
+				viaID = opts.update.Message.From.ID
+				viaName = showUserName(opts.update.Message.From)
+			}
 		} else {
-			fromName = showUserName(opts.update.Message.ReplyToMessage.From)
-			fromID = opts.update.Message.ReplyToMessage.From.ID
-			viaName = showUserName(opts.update.Message.From)
-			viaID = opts.update.Message.From.ID
+			if isFromChannel || isFromGroup {
+				// 频道身份
+				fromID = opts.update.Message.SenderChat.ID
+				fromUsername = opts.update.Message.SenderChat.Username
+				fromName = showChatName(opts.update.Message.SenderChat)
+			} else {
+				// 普通用户身份
+				fromID = opts.update.Message.From.ID
+				fromName = showUserName(opts.update.Message.From)
+			}
+		}
+
+		// 来源和经过都是同一位用户，删除 via 信息
+		if fromID == viaID {
+			isVia = false
+			viaID = 0
+			viaUsername = ""
+			viaName = ""
 		}
 
 		var pendingMessage string
@@ -305,28 +394,45 @@ func udoneseHandler(opts *subHandlerOpts) {
 		oldMeaning := addUdonese(udon, &UdoneseWord{
 			Word: opts.fields[1],
 			MeaningList: []UdoneseMeaning{ {
-				Meaning: meaning,
-				FromID: fromID,
-				FromName: fromName,
-				ViaID: viaID,
-				ViaName: viaName,
+				Meaning:      meaning,
+				FromID:       fromID,
+				FromUsername: fromUsername,
+				FromName:     fromName,
+				ViaID:        viaID,
+				ViaUsername:  viaUsername,
+				ViaName:      viaName,
 			}},
 		})
 		if oldMeaning != nil {
 			pendingMessage += fmt.Sprintf("[%s] 意思已存在于 [%s] 中:\n", meaning, oldMeaning.Word)
 			for i, s := range oldMeaning.MeaningList {
 				if meaning == s.Meaning {
-					if s.ViaID != 0 { // 通过回复添加
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
-							i + 1, s.Meaning, s.FromID, s.FromName, s.ViaID, s.ViaName,
-						)
-					} else if s.FromID == 0 { // 有添加人信息
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
-							i + 1, s.Meaning, s.FromID, s.FromName,
-						)
-					} else { // 只有意思
-						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s]\n", i + 1, s.Meaning)
+					pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] ", i + 1, s.Meaning)
+
+					// 来源的用户或频道
+					if s.FromUsername != "" {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", s.FromUsername, s.FromName)
+					} else if s.FromID != 0 {
+						if s.FromID < 0 {
+							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(s.FromID, 10), "-100"), s.FromName)
+						} else {
+							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", s.FromID, s.FromName)
+						}
 					}
+
+					// 由其他用户添加时的信息
+					if s.ViaUsername != "" {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", s.ViaUsername, s.ViaName)
+					} else if s.ViaID != 0 {
+						if s.ViaID < 0 {
+							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(s.ViaID, 10), "-100"), s.ViaName)
+						} else {
+							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", s.ViaID, s.ViaName)
+						}
+					}
+					
+					// 末尾换行
+					pendingMessage += "\n"
 				}
 			}
 		} else {
@@ -335,20 +441,34 @@ func udoneseHandler(opts *subHandlerOpts) {
 				pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
 			} else {
 				pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.fields[1])
-				if viaID != 0 { // 通过回复添加
-					pendingMessage += fmt.Sprintf("[%s] From <a href=\"https://t.me/@id%d\">%s</a> Via <a href=\"https://t.me/@id%d\">%s</a>\n",
-						meaning, fromID, fromName, viaID, viaName,
-					)
-				} else if fromID != 0 { // 普通命令添加
-					pendingMessage += fmt.Sprintf("[%s] From <a href=\"https://t.me/@id%d\">%s</a>\n",
-						meaning, fromID, fromName,
-					)
+				pendingMessage += fmt.Sprintf("[%s] ", meaning)
+				
+				// 来源的用户或频道
+				if fromUsername != "" {
+					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", fromUsername, fromName)
+				} else if fromID != 0 {
+					if fromID < 0 {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(fromID, 10), "-100"), fromName)
+					} else {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", fromID, fromName)
+					}
+				}
+
+				// 由其他用户添加时的信息
+				if viaUsername != "" {
+					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", viaUsername, viaName)
+				} else if viaID != 0 {
+					if viaID < 0 {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(viaID, 10), "-100"), viaName)
+					} else {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", viaID, viaName)
+					}
 				}
 			}
 		}
 
 		pendingMessage += fmt.Sprintln("<blockquote>发送的消息与此消息将在十秒后删除</blockquote>")
-		botMessage, _= opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		botMessage, _ = opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			Text: pendingMessage,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
@@ -380,11 +500,19 @@ func udoneseHandler(opts *subHandlerOpts) {
 		}
 
 		// 到这里就是没找到，提示没有
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
+		botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
 			ChatID: opts.update.Message.Chat.ID,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.update.Message.ID },
 			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
 			ParseMode: models.ParseModeMarkdownV1,
+		})
+
+		time.Sleep(time.Second * 10)
+		opts.thebot.DeleteMessages(opts.ctx, &bot.DeleteMessagesParams{
+			ChatID: opts.update.Message.Chat.ID,
+			MessageIDs: []int{
+				botMessage.ID,
+			},
 		})
 	}
 }

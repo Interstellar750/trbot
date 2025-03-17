@@ -21,6 +21,7 @@ var udonGroupID  int64  = -1002205667779
 var IsDebugMode bool = false
 var private_log bool = false
 
+// 禁用 Inline 默认函数，启用后会提示 Inline 用法
 var Inline_NoDefaultHandler bool = false
 
 var botMe *models.User // 用于存储 bot 信息
