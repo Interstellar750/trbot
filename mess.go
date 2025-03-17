@@ -776,7 +776,7 @@ func InlineQueryMatchMultKeyword(fields []string, keywords []string) bool {
 	if len(fields) != 0 {
 		allkeywords = len(fields)
 	}
-	fmt.Println(allkeywords)
+	// fmt.Println(allkeywords)
 	if allkeywords == 1 {
 		if AnyContains(fields[0], keywords) {
 			return true
