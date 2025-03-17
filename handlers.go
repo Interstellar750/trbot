@@ -496,7 +496,7 @@ func inlineHandler(opts *subHandlerOpts) {
 				return
 			}
 		} else {
-			AllPugins.Inline[0].handler(opts)
+			AllPugins.InlineManual[0].handler(opts)
 		}
 	} else if opts.update.InlineQuery.Query == InlineSubCommandSymbol {
 		// 展示全部命令

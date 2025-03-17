@@ -88,7 +88,7 @@ func main() {
 			log.Println("manually stopped")
 			return
 		default:
-			log.Println("still waiting...")
+			// log.Println("still waiting...") // 不在调式模式下，这个日志会非常频繁
 			time.Sleep(1 * time.Second)
 		}
 	}
