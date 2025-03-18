@@ -1,4 +1,4 @@
-package main
+package plugins
 
 import (
 	"archive/zip"
@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"trbot/utils/consts"
+	"trbot/utils/handler_utils"
+	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -17,12 +20,12 @@ import (
 )
 
 
-func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
+func EchoSticker(opts *handler_utils.SubHandlerOpts) (io.Reader, bool, error) {
 	var fileSuffix string // `.webp`, `.webm`, `.tgs`, `.tgs`
 	// 根据贴纸类型设置文件扩展名
-	if opts.update.Message.Sticker.IsVideo {
+	if opts.Update.Message.Sticker.IsVideo {
 		fileSuffix = "webm"
-	} else if opts.update.Message.Sticker.IsAnimated {
+	} else if opts.Update.Message.Sticker.IsAnimated {
 		fileSuffix = "tgs"
 	} else {
 		fileSuffix = "webp"
@@ -33,43 +36,43 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 	var stickerfileName string // `CAACAgUA.` or `duck_2_video 5 CAACAgUA.`
 	var stickerSetName  string // `-custom` or `duck_2_video`
 	// 检查一下贴纸是否有 packName，没有的话就是自定义贴纸
-	if opts.update.Message.Sticker.SetName != "" {
+	if opts.Update.Message.Sticker.SetName != "" {
 		var stickerIndex int // 存放贴纸在贴纸包中的索引
 		// 获取贴纸包信息
-		stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: opts.update.Message.Sticker.SetName })
+		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: opts.Update.Message.Sticker.SetName })
 		if err == nil {
 			// 寻找贴纸在贴纸包中的索引并赋值
 			for i, n := range stickerSet.Stickers {
-				if n.FileID == opts.update.Message.Sticker.FileID {
+				if n.FileID == opts.Update.Message.Sticker.FileID {
 					stickerIndex = i
 					break
 				}
 			}
 
 			// 在这个条件下，贴纸包名和贴纸索引都存在，赋值完整的贴纸文件名
-			stickerSetName = opts.update.Message.Sticker.SetName
-			stickerfileName = fmt.Sprintf("%s %d %s.", opts.update.Message.Sticker.SetName, stickerIndex, opts.update.Message.Sticker.FileID)
+			stickerSetName = opts.Update.Message.Sticker.SetName
+			stickerfileName = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, stickerIndex, opts.Update.Message.Sticker.FileID)
 		} else {
 			// 到这里是因为用户发送的贴纸对应的贴纸包已经被删除了，但贴纸中的信息还有对应的 SetName，会触发查询，但因为贴纸包被删了就查不到，将 index 值设为 -1，缓存后当作自定义贴纸继续
 			log.Println("error getting sticker set:", err)
 			isCustomSticker = true
-			stickerSetName = opts.update.Message.Sticker.SetName
-			stickerfileName = fmt.Sprintf("%s %d %s.", opts.update.Message.Sticker.SetName, -1, opts.update.Message.Sticker.FileID)
+			stickerSetName = opts.Update.Message.Sticker.SetName
+			stickerfileName = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, -1, opts.Update.Message.Sticker.FileID)
 		}
 	} else {
 		// 自定义贴纸，防止与普通贴纸包冲突，将贴纸包名设置为 `-custom`，文件名仅有 FileID 用于辨识
 		isCustomSticker = true
 		stickerSetName = "-custom"
-		stickerfileName = fmt.Sprintf("%s.", opts.update.Message.Sticker.FileID)
+		stickerfileName = fmt.Sprintf("%s.", opts.Update.Message.Sticker.FileID)
 	}
 
 	// 保存贴纸源文件的目录 .cache/sticker/setName/
-	var filePath       string = stickerCache_path + stickerSetName + "/"
+	var filePath       string = consts.StickerCache_path + stickerSetName + "/"
 	// 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
 	var originFullPath string = filePath + stickerfileName + fileSuffix
 
 	// 转码后为 png 格式的目录 .cache/sticker_png/setName/
-	var filePathPNG   string = stickerCachePNG_path + stickerSetName + "/"
+	var filePathPNG   string = consts.StickerCachePNG_path + stickerSetName + "/"
 	// 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
 	var toPNGFullPath string = filePathPNG + stickerfileName + "png"
 
@@ -77,18 +80,18 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 	// 如果文件不存在，进行下载
 	if os.IsNotExist(err) {
 		// 从服务器获取文件信息
-		fileinfo, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: opts.update.Message.Sticker.FileID })
+		fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Update.Message.Sticker.FileID })
 		if err != nil {
-			return nil, false, fmt.Errorf("error getting fileinfo %s: %v", opts.update.Message.Sticker.FileID, err)
+			return nil, false, fmt.Errorf("error getting fileinfo %s: %v", opts.Update.Message.Sticker.FileID, err)
 		}
 
 		// 日志提示该文件没被缓存，正在下载
-		if IsDebugMode {
+		if consts.IsDebugMode {
 			log.Printf("file [%s] doesn't exist, downloading %s", originFullPath, fileinfo.FilePath)
 		}
 
 		// 组合链接下载贴纸源文件
-		resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, fileinfo.FilePath))
+		resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", consts.BotToken, fileinfo.FilePath))
 		if err != nil {
 			return nil, false, fmt.Errorf("error downloading file %s: %v", fileinfo.FilePath, err)
 		}
@@ -112,7 +115,7 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 		if err != nil {
 			return nil, false, fmt.Errorf("error writing to file %s: %w", originFullPath, err)
 		}
-	} else if IsDebugMode {
+	} else if consts.IsDebugMode {
 		// 文件已存在，跳过下载
 		log.Printf("file %s already exists", originFullPath)
 	}
@@ -121,11 +124,11 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 	var finalFullPath string
 
 	// 如果贴纸类型不是视频和矢量，进行转换
-	if !opts.update.Message.Sticker.IsVideo && !opts.update.Message.Sticker.IsAnimated {
+	if !opts.Update.Message.Sticker.IsVideo && !opts.Update.Message.Sticker.IsAnimated {
 		_, err = os.Stat(toPNGFullPath) // 使用目录提前检查一下是否已经转换过
 		if os.IsNotExist(err) { // 提示不存在，进行转换
 			// 日志提示该文件没转换，正在转换
-			if IsDebugMode {
+			if consts.IsDebugMode {
 				log.Printf("file [%s] does not exist, converting", toPNGFullPath)
 			}
 			// 创建保存贴纸的目录
@@ -138,7 +141,7 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 			if err != nil {
 				return nil, false, fmt.Errorf("error converting webp to png %s: %w", originFullPath, err)
 			}
-		} else if IsDebugMode { // 文件存在，跳过转换
+		} else if consts.IsDebugMode { // 文件存在，跳过转换
 			log.Printf("file [%s] already converted", toPNGFullPath)
 		}
 		// 处理完成，将最后要读取的目录设为转码后 png 格式贴纸的完整目录
@@ -161,10 +164,10 @@ func echoSticker(opts *subHandlerOpts) (io.Reader, bool, error) {
 	return cachedfile, isCustomSticker, nil
 }
 
-func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyPNG bool) (io.Reader, int, error) {
+func getStickerPack(opts *handler_utils.SubHandlerOpts, stickerSet *models.StickerSet, isOnlyPNG bool) (io.Reader, int, error) {
 
-	filePath    := stickerCache_path + stickerSet.Name + "/"
-	filePathPNG := stickerCachePNG_path + stickerSet.Name + "/"
+	filePath    := consts.StickerCache_path + stickerSet.Name + "/"
+	filePathPNG := consts.StickerCachePNG_path + stickerSet.Name + "/"
 
 	var allCached    bool = true
 	var allConverted bool = true
@@ -199,17 +202,17 @@ func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyP
 			allCached = false
 
 			// 从服务器获取文件内容
-			fileinfo, err := opts.thebot.GetFile(opts.ctx, &bot.GetFileParams{ FileID: sticker.FileID })
+			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: sticker.FileID })
 			if err != nil {
 				return nil, 0, fmt.Errorf("error getting file info %s: %v", sticker.FileID, err)
 			}
 
-			if IsDebugMode {
+			if consts.IsDebugMode {
 				log.Printf("file [%s] does not exist, downloading %s", originFullPath, fileinfo.FilePath)
 			}
 
 			// 下载贴纸文件
-			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", botToken, fileinfo.FilePath))
+			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", consts.BotToken, fileinfo.FilePath))
 			if err != nil {
 				return nil, 0, fmt.Errorf("error downloading file %s: %v", fileinfo.FilePath, err)
 			}
@@ -232,7 +235,7 @@ func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyP
 			if err != nil {
 				return nil, 0, fmt.Errorf("error writing to file %s: %w", originFullPath, err)
 			}
-		} else if IsDebugMode {
+		} else if consts.IsDebugMode {
 			// 存在跳过下载过程
 			log.Printf("file [%s] already exists", originFullPath)
 		}
@@ -242,7 +245,7 @@ func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyP
 			_, err = os.Stat(toPNGFullPath)
 			if os.IsNotExist(err) {
 				allConverted = false
-				if IsDebugMode {
+				if consts.IsDebugMode {
 					log.Printf("file [%s] does not exist, converting", toPNGFullPath)
 				}
 				// 创建保存贴纸的目录
@@ -255,7 +258,7 @@ func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyP
 				if err != nil {
 					return nil, 0, fmt.Errorf("error converting webp to png %s: %w", originFullPath, err)
 				}
-			} else if IsDebugMode {
+			} else if consts.IsDebugMode {
 				log.Printf("file [%s] already converted", toPNGFullPath)
 			}
 		}
@@ -280,27 +283,27 @@ func getStickerPack(opts *subHandlerOpts, stickerSet *models.StickerSet, isOnlyP
 		compressFolderPath = filePath
 	}
 
-	_, err := os.Stat(stickerCacheZip_path + zipFileName) // 检查压缩包文件是否存在
+	_, err := os.Stat(consts.StickerCacheZip_path + zipFileName) // 检查压缩包文件是否存在
 	if os.IsNotExist(err) {
 		isZiped = false
-		err = os.MkdirAll(stickerCacheZip_path, 0755)
+		err = os.MkdirAll(consts.StickerCacheZip_path, 0755)
 		if err != nil {
-			return nil, 0, fmt.Errorf("error creating directory %s: %w", stickerCacheZip_path, err)
+			return nil, 0, fmt.Errorf("error creating directory %s: %w", consts.StickerCacheZip_path, err)
 		}
-		err = zipFolder(compressFolderPath, stickerCacheZip_path + zipFileName)
+		err = zipFolder(compressFolderPath, consts.StickerCacheZip_path + zipFileName)
 		if err != nil {
 			return nil, 0, fmt.Errorf("error zipping folder %s: %w", compressFolderPath, err)
-		} else if IsDebugMode {
-			log.Println("successfully zipped folder", stickerCacheZip_path + zipFileName)
+		} else if consts.IsDebugMode {
+			log.Println("successfully zipped folder", consts.StickerCacheZip_path + zipFileName)
 		}
-	} else if IsDebugMode {
-		log.Println("zip file already exists", stickerCacheZip_path + zipFileName)
+	} else if consts.IsDebugMode {
+		log.Println("zip file already exists", consts.StickerCacheZip_path + zipFileName)
 	}
 
 	// 读取压缩后的贴纸包
-	zipedSet, err := os.Open(stickerCacheZip_path + zipFileName)
+	zipedSet, err := os.Open(consts.StickerCacheZip_path + zipFileName)
 	if err != nil {
-		return nil, 0, fmt.Errorf("error opening zip file %s: %w", stickerCacheZip_path + zipFileName, err)
+		return nil, 0, fmt.Errorf("error opening zip file %s: %w", consts.StickerCacheZip_path + zipFileName, err)
 	}
 
 	if isZiped { // 存在已经完成压缩的贴纸包
@@ -396,24 +399,24 @@ func zipFolder(srcDir, zipFile string) error {
 	return err
 }
 
-func echoStickerHandler(opts *subHandlerOpts) {
+func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
 	// 下载 webp 格式的贴纸
-	if IsDebugMode {
-		fmt.Println(opts.update.Message.Sticker)
+	if consts.IsDebugMode {
+		fmt.Println(opts.Update.Message.Sticker)
 	}
 
-	stickerdata, isCustomSticker, err := echoSticker(opts)
+	stickerdata, isCustomSticker, err := EchoSticker(opts)
 	if err != nil {
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID:    opts.update.Message.Chat.ID,
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Update.Message.Chat.ID,
 			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote>Error downloading sticker: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
 	}
 
 	if stickerdata == nil {
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID:    opts.update.Message.Chat.ID,
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Update.Message.Chat.ID,
 			Text:      "未能获取到贴纸",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
@@ -421,25 +424,25 @@ func echoStickerHandler(opts *subHandlerOpts) {
 	}
 
 	documentParams := &bot.SendDocumentParams{
-		ChatID:          opts.update.Message.Chat.ID,
+		ChatID:          opts.Update.Message.Chat.ID,
 		ParseMode:       models.ParseModeMarkdownV1,
-		ReplyParameters: &models.ReplyParameters{MessageID: opts.update.Message.ID},
+		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
 	}
 
 	// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
 	if !isCustomSticker {
 		documentParams.ReplyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.update.Message.Sticker.SetName)},
+				{Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.Update.Message.Sticker.SetName)},
 			},
 			{
-				{Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.update.Message.Sticker.SetName)},
+				{Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Update.Message.Sticker.SetName)},
 			},
 		}}
-		// if opts.update.Message.Sticker.IsVideo {
-		// 	documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\nsee [wikipedia/WebM](https://wikipedia.org/wiki/WebM)", opts.update.Message.Sticker.Title, opts.update.Message.Sticker.SetName)
+		// if opts.Update.Message.Sticker.IsVideo {
+		// 	documentParams.Caption  = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\nsee [wikipedia/WebM](https://wikipedia.org/wiki/WebM)", opts.Update.Message.Sticker.Title, opts.Update.Message.Sticker.SetName)
 		// 	documentParams.Document = &models.InputFileUpload{Filename: "sticker.webm", Data: stickerdata}
-		// } else if opts.update.Message.Sticker.IsAnimated {
+		// } else if opts.Update.Message.Sticker.IsAnimated {
 		// 	documentParams.Caption  = "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)"
 		// 	documentParams.Document = &models.InputFileUpload{Filename: "sticker.tgs.file", Data: stickerdata}
 		// } else {
@@ -447,41 +450,41 @@ func echoStickerHandler(opts *subHandlerOpts) {
 		// }
 	}
 
-	if opts.update.Message.Sticker.IsVideo {
+	if opts.Update.Message.Sticker.IsVideo {
 		documentParams.Caption = "see [wikipedia/WebM](https://wikipedia.org/wiki/WebM)"
 		documentParams.Document = &models.InputFileUpload{Filename: "sticker.webm", Data: stickerdata}
-	} else if opts.update.Message.Sticker.IsAnimated {
+	} else if opts.Update.Message.Sticker.IsAnimated {
 		documentParams.Caption = "see [stickers/animated-stickers](https://core.telegram.org/stickers#animated-stickers)"
 		documentParams.Document = &models.InputFileUpload{Filename: "sticker.tgs.file", Data: stickerdata}
 	} else {
 		documentParams.Document = &models.InputFileUpload{Filename: "sticker.png", Data: stickerdata}
 	}
 
-	opts.thebot.SendDocument(opts.ctx, documentParams)
+	opts.Thebot.SendDocument(opts.Ctx, documentParams)
 }
 
-func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
-	botMessage, _ := opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-		ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
+func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
+	botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		Text:   "已请求下载，请稍候",
 		ParseMode: models.ParseModeMarkdownV1,
 	})
 	var packName string
 	var isOnlyPNG bool
-	if opts.update.CallbackQuery.Data[0:2] == "S_" {
-		packName = strings.TrimPrefix(opts.update.CallbackQuery.Data, "S_")
+	if opts.Update.CallbackQuery.Data[0:2] == "S_" {
+		packName = strings.TrimPrefix(opts.Update.CallbackQuery.Data, "S_")
 		isOnlyPNG = true
 	} else {
-		packName = strings.TrimPrefix(opts.update.CallbackQuery.Data, "s_")
+		packName = strings.TrimPrefix(opts.Update.CallbackQuery.Data, "s_")
 		isOnlyPNG = false
 	}
 
 	// 通过贴纸的 packName 获取贴纸集
-	stickerSet, err := opts.thebot.GetStickerSet(opts.ctx, &bot.GetStickerSetParams{ Name: packName })
+	stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: packName })
 	if err != nil {
 		log.Printf("error getting sticker set: %v", err)
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID: opts.update.CallbackQuery.From.ID,
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.CallbackQuery.From.ID,
 			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote>Error getting sticker set: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
@@ -491,15 +494,15 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 	sitckerSetPack, count, err := getStickerPack(opts, stickerSet, isOnlyPNG)
 	if err != nil {
 		log.Println("Error downloading sticker:", err)
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID: opts.update.CallbackQuery.From.ID,
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.CallbackQuery.From.ID,
 			Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote>Error download sticker set: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
 	}
 	if sitckerSetPack == nil {
-		opts.thebot.SendMessage(opts.ctx, &bot.SendMessageParams{
-			ChatID: opts.update.CallbackQuery.From.ID,
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.CallbackQuery.From.ID,
 			Text:   "未能获取到压缩包",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
@@ -507,7 +510,7 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 	}
 
 	documentParams := &bot.SendDocumentParams{
-		ChatID: opts.update.CallbackQuery.From.ID,
+		ChatID: opts.Update.CallbackQuery.From.ID,
 		ParseMode: models.ParseModeMarkdownV1,
 	}
 
@@ -519,22 +522,22 @@ func downloadStickerPackCallBackHandler(opts *subHandlerOpts) {
 		documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerSet.Name, count), Data: sitckerSetPack}
 	}
 
-	opts.thebot.SendDocument(opts.ctx, documentParams)
+	opts.Thebot.SendDocument(opts.Ctx, documentParams)
 
-	opts.thebot.DeleteMessage(opts.ctx, &bot.DeleteMessageParams{
-		ChatID: opts.update.CallbackQuery.Message.Message.Chat.ID,
+	opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		MessageID: botMessage.ID,
 	})
 
 }
 
-var Sticker_CallBackQueryHandlers = []Plugin_CallbackQuery{
+var Sticker_CallBackQueryHandlers = []plugin_utils.Plugin_CallbackQuery{
 	{
-		commandChar: "s",
-		handler: downloadStickerPackCallBackHandler,
+		CommandChar: "s",
+		Handler: DownloadStickerPackCallBackHandler,
 	},
 	{
-		commandChar: "S",
-		handler: downloadStickerPackCallBackHandler,
+		CommandChar: "S",
+		Handler: DownloadStickerPackCallBackHandler,
 	},
 }

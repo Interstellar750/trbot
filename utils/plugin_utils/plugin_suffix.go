@@ -1,12 +1,16 @@
-package main
+package plugin_utils
+
+import "trbot/utils/handler_utils"
 
 type Plugin_SuffixCommand struct {
-	suffixCommand string
-	handler       func(*subHandlerOpts)
+	SuffixCommand string
+	Handler       func(*handler_utils.SubHandlerOpts)
 }
 
 func AddSuffixCommandPlugins(Plugins ...Plugin_SuffixCommand) int {
-	if AllPugins.SuffixCommand == nil { AllPugins.SuffixCommand = []Plugin_SuffixCommand{} }
+	if AllPugins.SuffixCommand == nil {
+		AllPugins.SuffixCommand = []Plugin_SuffixCommand{}
+	}
 
 	var pluginCount int
 	for _, originPlugin := range Plugins {

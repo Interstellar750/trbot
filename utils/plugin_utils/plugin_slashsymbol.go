@@ -1,12 +1,16 @@
-package main
+package plugin_utils
+
+import "trbot/utils/handler_utils"
 
 type Plugin_SlashSymbolCommand struct {
-	slashCommand string // 'command' in '/command'
-	handler func(*subHandlerOpts)
+	SlashCommand string // 'command' in '/command'
+	Handler      func(*handler_utils.SubHandlerOpts)
 }
 
 func AddSlashSymbolCommandPlugins(Plugins ...Plugin_SlashSymbolCommand) int {
-	if AllPugins.SlashSymbolCommand == nil { AllPugins.SlashSymbolCommand = []Plugin_SlashSymbolCommand{} }
+	if AllPugins.SlashSymbolCommand == nil {
+		AllPugins.SlashSymbolCommand = []Plugin_SlashSymbolCommand{}
+	}
 
 	var pluginCount int
 	for _, originPlugin := range Plugins {

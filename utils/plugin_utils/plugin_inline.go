@@ -1,6 +1,8 @@
-package main
+package plugin_utils
 
 import (
+	"trbot/utils/handler_utils"
+
 	"github.com/go-telegram/bot/models"
 )
 
@@ -11,9 +13,9 @@ type Plugin_InlineCommandList struct {
 
 // 需要返回一个列表，将由程序的分页函数来控制分页和输出
 type Plugin_Inline struct {
-	command string
-	handler func(*subHandlerOpts) []models.InlineQueryResult
-	description string
+	Command string
+	Handler func(*handler_utils.SubHandlerOpts) []models.InlineQueryResult
+	Description string
 }
 
 func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
@@ -28,9 +30,9 @@ func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
 
 // 完全由插件自行控制输出
 type Plugin_InlineManual struct {
-	command string
-	handler func(*subHandlerOpts)
-	description string
+	Command string
+	Handler func(*handler_utils.SubHandlerOpts)
+	Description string
 }
 
 func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineManual) int {
@@ -44,9 +46,9 @@ func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineMa
 }
 
 type Plugin_InlinePrefix struct {
-	prefixCommand string
-	handler func(*subHandlerOpts)
-	description string
+	PrefixCommand string
+	Handler func(*handler_utils.SubHandlerOpts)
+	Description string
 }
 
 func AddInlinePrefixHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlinePrefix) int {
