@@ -14,6 +14,12 @@ var LogMan_IDs []int64 = []int64{1086395364, 2074319561} // 拥有查看日志�
 
 var MetadataFileName string = "metadata.yaml"
 
+var RedisURL string = "localhost:6379"
+var RedisPassword string = ""
+var RedisMainDB  int = 0
+var RedisCountDB int = 1
+var RedisSubDB   int = 2
+
 var DB_path      string = "./db_yaml/"
 var Voice_path   string = DB_path + "voices/"
 var LogFile_path string = DB_path + "log.txt"

@@ -10,6 +10,7 @@ import (
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
+	"trbot/utils/database_redis"
 	"trbot/utils/database_yaml"
 	"trbot/utils/handler_utils"
 	"trbot/utils/mess"
@@ -103,6 +104,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			)
 			opts.ChatInfo = database_yaml.GetIDInfo(&update.InlineQuery.From.ID)
 		}
+		
+		database_redis.InitUser(&opts, update.InlineQuery.From)
 
 		opts.ChatInfo.LatestInlineQuery = update.InlineQuery.Query
 
