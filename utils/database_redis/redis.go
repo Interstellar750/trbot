@@ -34,11 +34,20 @@ func PingRedis(opts *handler_utils.SubHandlerOpts, db *redis.Client) (string, er
 	return pong, nil
 }
 
+func gobEncode(thing any) (any, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(thing)
+	if err != nil {
+		return nil, err
+	} else {
+		return buf.Bytes(), nil
+	}
+}
+
 func InitUser(opts *handler_utils.SubHandlerOpts, user *models.User) bool {
 	undecode, err := MainDB.HGet(opts.Ctx, "BaseInfo", strconv.FormatInt(user.ID, 10)).Bytes()
 	if err != nil {
-		var buf bytes.Buffer
-		enc := gob.NewEncoder(&buf)
 
 		var newUser = BaseInfo{
 			ChatName: utils.ShowUserName(user),
@@ -49,21 +58,21 @@ func InitUser(opts *handler_utils.SubHandlerOpts, user *models.User) bool {
 		err = MainDB.SAdd(opts.Ctx, "UserList", strconv.FormatInt(user.ID, 10)).Err()
 		if err != nil { log.Println("Redis 创建 UserList 失败:", err) }
 
-		err := enc.Encode(newUser)
+		newUserByte, err := gobEncode(newUser)
 		if err != nil { log.Println("Gob 序列化 BaseInfo 失败:", err) }
-		err = MainDB.HSet(opts.Ctx, "BaseInfo", strconv.FormatInt(user.ID, 10), buf.Bytes()).Err()
+		err = MainDB.HSet(opts.Ctx, "BaseInfo", strconv.FormatInt(user.ID, 10), newUserByte).Err()
 		if err != nil { log.Println("Redis 创建 BaseInfo 失败:", err) }
 
 		var newUserContent = LatestContent{}
-		err = enc.Encode(newUserContent)
+		newUserContentByte, err := gobEncode(newUserContent)
 		if err != nil { log.Println("Gob 序列化 LatestContent 失败:", err) }
-		err = MainDB.HSet(opts.Ctx, "LatestContent", strconv.FormatInt(user.ID, 10), buf.Bytes()).Err()
+		err = MainDB.HSet(opts.Ctx, "LatestContent", strconv.FormatInt(user.ID, 10), newUserContentByte).Err()
 		if err != nil { log.Println("Redis 创建 LatestContent 失败:", err) }
 
 		var newUserUsage = UsageCount{}
-		err = enc.Encode(newUserUsage)
+		newUserUsageByte, err := gobEncode(newUserUsage)
 		if err != nil { log.Println("Gob 序列化 UsageCount 失败:", err) }
-		err = MainDB.HSet(opts.Ctx, "UsageCount", strconv.FormatInt(user.ID, 10), buf.Bytes()).Err()
+		err = MainDB.HSet(opts.Ctx, "UsageCount", strconv.FormatInt(user.ID, 10), newUserUsageByte).Err()
 		if err != nil { log.Println("Redis 创建 UsageCount 失败:", err) }
 
 		log.Printf("newUser: \"%s\"(%d)\n", newUser.ChatName, user.ID)
