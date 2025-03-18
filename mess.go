@@ -110,6 +110,7 @@ func getMessageType(msg *models.Message) MessageType {
 type MessageAttribute struct {
 	IsFromAnonymous      bool // anonymous admin or owner in group/supergroup
 	IsFromLinkedChannel  bool // is automatic forward post from linked channel
+	IsUserAsChannel      bool // user selected to send message as a channel
 	IsHasSenderChat      bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
 	IsChatEnableForum    bool // group or supergroup is enable topic
 	IsForwardMessage     bool // not a origin message, forward from somewhere
@@ -138,8 +139,13 @@ func getMessageAttribute(msg *models.Message) MessageAttribute {
 	if msg.SenderChat != nil {
 		attribute.IsHasSenderChat = true
 		if msg.From != nil {
-			if msg.From.ID == 1087968824 && msg.From.IsBot && msg.SenderChat.ID == msg.Chat.ID {
-				attribute.IsFromAnonymous = true
+			if msg.From.IsBot {
+				if msg.From.ID == 1087968824 && msg.SenderChat.ID == msg.Chat.ID {
+					attribute.IsFromAnonymous = true
+				}
+				if msg.From.ID == 136817688 {
+					attribute.IsUserAsChannel = true
+				}
 			}
 			if msg.From.ID == 777000 && msg.ForwardOrigin != nil && msg.ForwardOrigin.MessageOriginChannel != nil && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
 				attribute.IsFromLinkedChannel = true
@@ -225,7 +231,7 @@ type UpdateType struct {
 	CallbackQuery           bool // *models.CallbackQuery
 	ShippingQuery           bool // *models.ShippingQuery
 	PreCheckoutQuery        bool // *models.PreCheckoutQuery
-	PurchasedPaidMedia       bool // *models.PaidMediaPurchased
+	PurchasedPaidMedia      bool // *models.PaidMediaPurchased
 	Poll                    bool // *models.Poll
 	PollAnswer              bool // *models.PollAnswer
 	MyChatMember            bool // *models.ChatMemberUpdated
