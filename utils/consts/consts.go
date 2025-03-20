@@ -16,9 +16,9 @@ var MetadataFileName string = "metadata.yaml"
 
 var RedisURL string = "localhost:6379"
 var RedisPassword string = ""
-var RedisMainDB  int = 0
-var RedisCountDB int = 1
-var RedisSubDB   int = 2
+var RedisMainDB     int = 0
+var RedisUserInfoDB int = 1
+var RedisSubDB      int = 2
 
 var DB_path      string = "./db_yaml/"
 var Voice_path   string = DB_path + "voices/"

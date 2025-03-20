@@ -21,7 +21,7 @@ import (
 
 
 func main() {
-	consts.LogFile_path = mess.WhereIsBotToken()
+	consts.BotToken = mess.WhereIsBotToken()
 
 	consts.IsDebugMode = os.Getenv("DEBUG") == "true"
 	if consts.IsDebugMode {

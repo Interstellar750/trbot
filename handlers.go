@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -105,9 +106,17 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			opts.ChatInfo = database_yaml.GetIDInfo(&update.InlineQuery.From.ID)
 		}
 		
-		database_redis.InitUser(&opts, update.InlineQuery.From)
+		database_redis.InitUser(opts.Ctx, update.InlineQuery.From)
 
 		opts.ChatInfo.LatestInlineQuery = update.InlineQuery.Query
+
+		count, err := database_redis.UserDB.HGet(opts.Ctx, strconv.FormatInt(update.InlineQuery.From.ID, 10), "InlineRequst").Int()
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			database_redis.UserDB.HSet(opts.Ctx, strconv.FormatInt(update.InlineQuery.From.ID, 10), "InlineRequst", count + 1)
+		}
+
 
 		opts.ChatInfo.InlineCount++
 		log.Printf("inline from: \"%s\"(%s)[%d], query: [%s]", 
@@ -431,54 +440,13 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 	if !strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol) {
 		if consts.Inline_NoDefaultHandler {
 			var inlineButton *models.InlineQueryResultsButton
-			// SavedMessage := database_yaml.Database.Data.SavedMessage[opts.ChatInfo.ID]
-
-			// if SavedMessage.Count == 0 && !SavedMessage.AgreePrivacyPolicy {
-			// 	inlineButton = &models.InlineQueryResultsButton{
-			// 		Text: "点击此处来尝试保存内容",
-			// 		StartParameter: "via-inline_savedmessage-help",
-			// 	}
-			// }
-
-			var commandList []plugin_utils.Plugin_InlineCommandList
-
-			for _, plugin := range plugin_utils.AllPugins.Inline {
-				var command plugin_utils.Plugin_InlineCommandList
-				command.Command = plugin.Command
-				if plugin.Description != "" {
-					command.Description = plugin.Description
-				} else {
-					command.Description = "此插件没有设定描述..."
-				}
-				commandList = append(commandList, command)
-			}
-
-			for _, plugin := range plugin_utils.AllPugins.InlineManual {
-				var command plugin_utils.Plugin_InlineCommandList
-				command.Command = plugin.Command
-				if plugin.Description != "" {
-					command.Description = plugin.Description
-				} else {
-					command.Description = "此插件没有设定描述..."
-				}
-				commandList = append(commandList, command)
-			}
-
-			for _, plugin := range plugin_utils.AllPugins.InlinePrefix {
-				var command plugin_utils.Plugin_InlineCommandList
-				command.Command = plugin.PrefixCommand
-				if plugin.Description != "" {
-					command.Description = "仅限管理员 " + plugin.Description
-				} else {
-					command.Description = "仅限管理员 " + "此插件没有设定描述..."
-				}
-				commandList = append(commandList, command)
-			}
-
 			var message string = "可用的 Inline 模式命令:\n\n"
-
-			for _, command := range commandList {
-				message += fmt.Sprintf("命令: <code>%s%s</code>\n描述: %s\n\n", consts.InlineSubCommandSymbol, command.Command, command.Description)
+			for _, command := range plugin_utils.AllPugins.InlineCommandList {
+				message += fmt.Sprintf("命令: <code>%s%s</code>\n", consts.InlineSubCommandSymbol, command.Command)
+				if command.Description != "" {
+					message += fmt.Sprintf("描述: %s\n", command.Description)
+				}
+				message += "\n"
 			}
 
 			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -498,11 +466,48 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				log.Printf("Error sending inline query response: %v", err)
 				return
 			}
+		// } else if opts.ChatInfo.DefaultInlinePlugin != "" {
 		} else {
 			plugin_utils.AllPugins.InlineManual[0].Handler(opts)
 		}
 	} else if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
+		var inlineButton *models.InlineQueryResultsButton
+
+		// if database_redis.ChatInfo. {
+		// 	inlineButton = &models.InlineQueryResultsButton{
+		// 		Text: "点击此处修改默认命令",
+		// 		StartParameter: "via-inline_change-inline-command",
+		// 	}
+		// }
 		// 展示全部命令
+		var results []models.InlineQueryResult
+		results = append(results, &models.InlineQueryResultArticle{
+				ID:    "keepInput",
+				Title: "请不要点击列表中的命令",
+				Description: "由于限制，您需要手动输入完整的命令",
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: "请不要点击选单中的命令...",
+				},
+			})
+		for _, plugin := range plugin_utils.AllPugins.InlineCommandList {
+			results = append(results, &models.InlineQueryResultArticle{
+				ID:    plugin.Command,
+				Title: plugin.Command,
+				Description: plugin.Description,
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: "请不要点击选单中的命令...",
+				},
+			})
+		}
+		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.Update.InlineQuery.ID,
+				Results:       results,
+				Button:        inlineButton,
+			})
+			if err != nil {
+				log.Printf("Error sending inline query response: %v", err)
+				return
+			}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol) {
 		// 插件处理完后返回全部列表，由设定好的函数进行分页
 		for _, plugin := range plugin_utils.AllPugins.Inline {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 	"trbot/plugins"
+	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
 	"trbot/utils/mess"
@@ -142,7 +143,8 @@ func InitPlugins() {
 	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.Plugin_InlineManual{
 		Command: "uaav",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			if len(opts.Fields) < 2 {
+			keywords := utils.InlineExtractKeywords(opts.Fields)
+			if len(keywords) == 0 {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
@@ -160,15 +162,15 @@ func InitPlugins() {
 				if err != nil {
 					mess.PrintLogAndSave(fmt.Sprintln("some error when answer custom voice tips,", err))
 				}
-			} else if len(opts.Fields) == 2 {
-				if strings.HasPrefix(opts.Fields[1], "https://") {
+			} else if len(keywords) == 1 {
+				if strings.HasPrefix(keywords[0], "https://") {
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.Update.InlineQuery.ID,
 						Results: []models.InlineQueryResult{
 							&models.InlineQueryResultVoice{
 								ID:       "custom",
 								Title:    "Custom voice",
-								VoiceURL: opts.Fields[1],
+								VoiceURL: keywords[0],
 							},
 						},
 						IsPersonal: true,
@@ -215,6 +217,7 @@ func InitPlugins() {
 				}
 			}
 		},
+		Description: "将一个音频链接作为语音格式发送",
 	})
 
 	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.Plugin_InlinePrefix{
@@ -250,6 +253,7 @@ func InitPlugins() {
 					log.Println("Error when reading log file")
 				}
 			},
+			Description: "显示日志",
 		},
 		{
 			PrefixCommand: "reload",
@@ -275,6 +279,7 @@ func InitPlugins() {
 					log.Println("Error when answering inline query :reload", err)
 				}
 			},
+			Description: "重新加载附加数据",
 		},
 		{
 			PrefixCommand: "savedb",
@@ -300,6 +305,7 @@ func InitPlugins() {
 					log.Println("Error when answering inline query :savedb", err)
 				}
 			},
+			Description: "保存数据库",
 		},
 	}...)
 

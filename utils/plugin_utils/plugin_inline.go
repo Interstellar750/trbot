@@ -22,6 +22,7 @@ func AddInlineHandlerPlugins(InlineHandlerPlugins ...Plugin_Inline) int {
 	if AllPugins.Inline == nil { AllPugins.Inline = []Plugin_Inline{} }
 	var pluginCount int
 	for _, originPlugin := range InlineHandlerPlugins {
+		AllPugins.InlineCommandList = append(AllPugins.InlineCommandList, Plugin_InlineCommandList{Command: originPlugin.Command, Description: originPlugin.Description})
 		AllPugins.Inline = append(AllPugins.Inline, originPlugin)
 		pluginCount++
 	}
@@ -39,6 +40,7 @@ func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlineMa
 	if AllPugins.InlineManual == nil { AllPugins.InlineManual = []Plugin_InlineManual{} }
 	var pluginCount int
 	for _, originPlugin := range InlineManualHandlerPlugins {
+		AllPugins.InlineCommandList = append(AllPugins.InlineCommandList, Plugin_InlineCommandList{Command: originPlugin.Command, Description: originPlugin.Description})
 		AllPugins.InlineManual = append(AllPugins.InlineManual, originPlugin)
 		pluginCount++
 	}
@@ -55,6 +57,7 @@ func AddInlinePrefixHandlerPlugins(InlineManualHandlerPlugins ...Plugin_InlinePr
 	if AllPugins.InlinePrefix == nil { AllPugins.InlinePrefix = []Plugin_InlinePrefix{} }
 	var pluginCount int
 	for _, originPlugin := range InlineManualHandlerPlugins {
+		AllPugins.InlineCommandList = append(AllPugins.InlineCommandList, Plugin_InlineCommandList{Command: originPlugin.PrefixCommand, Description: originPlugin.Description})
 		AllPugins.InlinePrefix = append(AllPugins.InlinePrefix, originPlugin)
 		pluginCount++
 	}

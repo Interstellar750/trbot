@@ -38,8 +38,6 @@ type IDInfo struct {
 	MessageCount int `yaml:"MessageCount,omitempty"`
 	InlineCount  int `yaml:"InlineCount,omitempty"`
 
-	IsBlackList         bool `yaml:"IsBlackList,omitempty"`
-	IsBotAdmin          bool `yaml:"IsBotAdmin,omitempty"`
 	IsEnableForwardonly bool `yaml:"IsEnableForwardonly,omitempty"`
 
 	// nil/0 voice, 1 saved

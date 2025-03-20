@@ -2,27 +2,30 @@ package database_redis
 
 import "github.com/go-telegram/bot/models"
 
-// Hash
-type BaseInfo struct {
+type ChatInfo struct {
+	// normal data
+	ID       int64
 	ChatName string
 	ChatType models.ChatType
 	AddTime  string
-}
 
-// Hash
-type LatestContent struct {
+	// flags
+	DefaultInlinePlugin string
+
+	// status
+	HasPendingCallbackQuery bool
+
+	// latest datas
 	LatestMessage           string
 	LatestInlineQuery       string
 	LatestInlineResult      string
 	LatestCallbackQueryData string
-}
 
-// Zset
-type UsageCount struct {
-	InlineRequst       int
-	InlineCallback     int
-	MessageNormal      int
-	MessageCommand     int
-	StickerDownload    int
-	StickerSetDownload int
+	// usage counts
+	InlineRequst         int
+	InlineCallback       int
+	MessageNormal        int
+	MessageCommand       int
+	StickerDownloaded    int
+	StickerSetDownloaded int
 }
