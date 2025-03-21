@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"trbot/utils/consts"
-	"trbot/utils/database_yaml"
+	"trbot/database/db_yaml"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_init"
 	"trbot/utils/signals"
@@ -55,9 +55,8 @@ func main() {
 	log.Printf("starting %d\n", consts.BotMe.ID)
 	log.Printf("logChat_ID: %v", consts.LogChat_ID)
 
-	database_yaml.Database, err = database_yaml.ReadYamlDB(consts.DB_path + consts.MetadataFileName)
+	db_yaml.Database, err = db_yaml.ReadYamlDB(consts.DB_path + consts.MetadataFileName)
 	if err != nil {
-		log.Println("read yaml db error: ", err)
 	}
 
 	go signals.SignalsHandler(ctx, consts.SignalsChannel)

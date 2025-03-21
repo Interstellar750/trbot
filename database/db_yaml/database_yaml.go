@@ -1,12 +1,14 @@
-package database_yaml
+package db_yaml
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"reflect"
 	"time"
+	"trbot/database/database_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/mess"
@@ -23,45 +25,35 @@ type DataBaseYaml struct {
 
 	UpdateTimestamp int64 `yaml:"UpdateTimestamp"`
 	Data struct {
-		IDs []IDInfo `yaml:"IDs"`
-		Admin []int64 `yaml:"Admin,omitempty"`
-		// SavedMessage map[int64]plugins.SavedMessage `yaml:"SavedMessage,omitempty"`
+		ChatInfo []database_struct.ChatInfo `yaml:"ChatInfo"`
 	} `yaml:"Data"`
 }
 
-type IDInfo struct {
-	ID       int64           `yaml:"ID"`
-	ChatName string          `yaml:"ChatName"`
-	ChatType models.ChatType `yaml:"ChatType"`
-	AddTime  string          `yaml:"AddTime,omitempty"`
-
-	MessageCount int `yaml:"MessageCount,omitempty"`
-	InlineCount  int `yaml:"InlineCount,omitempty"`
-
-	IsEnableForwardonly bool `yaml:"IsEnableForwardonly,omitempty"`
-
-	// nil/0 voice, 1 saved
-	DefaultInlineMode int `yaml:"DefaultInlineMode,omitempty"`
-
-	LatestMessage      string `yaml:"LatestMessage,omitempty"`
-	LatestInlineQuery  string `yaml:"LatestInlineQuery,omitempty"`
-	LatestInlineResult string `yaml:"LatestInlineResult,omitempty"`
-
-	HasPendingCallbackQuery bool   `yaml:"HasPendingCallbackQuery,omitempty"`
-	LatestCallbackQueryData string `yaml:"LatestCallbackQueryData,omitempty"`
-
-	// SavedMessage   SavedMessage `yaml:"SavedMessage,omitempty"`
-	IsSavedChannel bool         `yaml:"IsSavedChannel,omitempty"`
-	SavedForUserID int64        `yaml:"SavedForUserID,omitempty"`
+func Init(ctx context.Context) bool {
+	if consts.DB_path != "" {
+		var err error
+		Database, err = ReadYamlDB(consts.DB_path + consts.MetadataFileName)
+		if err != nil {
+			log.Println("read yaml db error:", err)
+			return false
+		}
+		return true
+	} else {
+		log.Println("DB path is empty")
+		return false
+	}
 }
-
 
 func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
 	file, err := os.Open(pathToFile)
 	if err != nil {
 		log.Println("[Database]: Not found Database file. Created new one")
-		SaveYamlDB(consts.DB_path, consts.MetadataFileName, DataBaseYaml{})
-		return DataBaseYaml{}, err
+		err = SaveYamlDB(consts.DB_path, consts.MetadataFileName, DataBaseYaml{})
+		if err != nil {
+			return DataBaseYaml{}, err
+		} else {
+			return DataBaseYaml{}, nil
+		}
 	}
 	defer file.Close()
 
@@ -102,8 +94,8 @@ func SaveYamlDB(path string, name string, Database interface{}) error {
 }
 
 // 添加数据
-func addToYamlDB(params *IDInfo) {
-	Database.Data.IDs = append(Database.Data.IDs, *params)
+func addToYamlDB(params *database_struct.ChatInfo) {
+	Database.Data.ChatInfo = append(Database.Data.ChatInfo, *params)
 }
 
 func AutoSaveDatabaseHandler() {
@@ -192,44 +184,44 @@ func AutoSaveDatabaseHandler() {
 }
 
 // 初次添加群组时，获取必要信息
-func AddChatInfo(chat *models.Chat) bool {
-	for _, data := range Database.Data.IDs {
+func InitChat(ctx context.Context, chat *models.Chat) error {
+	for _, data := range Database.Data.ChatInfo {
 		if data.ID == chat.ID {
-			return false // 群组已存在，不重复添加
+			return nil // 群组已存在，不重复添加
 		}
 	}
-	addToYamlDB(&IDInfo{
+	addToYamlDB(&database_struct.ChatInfo{
 		ID:       chat.ID,
 		ChatType: chat.Type,
 		ChatName: utils.ShowChatName(chat),
 		AddTime:  time.Now().Format(time.RFC3339),
 	})
 	consts.SignalsChannel.Database_save <- true
-	return true
+	return nil
 }
 
-func AddUserInfo(user *models.User) bool {
-	for _, data := range Database.Data.IDs {
+func InitUser(ctx context.Context, user *models.User) error {
+	for _, data := range Database.Data.ChatInfo {
 		if data.ID == user.ID {
-			return false // 用户已存在，不重复添加
+			return nil // 用户已存在，不重复添加
 		}
 	}
-	addToYamlDB(&IDInfo{
+	addToYamlDB(&database_struct.ChatInfo{
 		ID:       user.ID,
 		ChatType: models.ChatTypePrivate,
 		ChatName: utils.ShowUserName(user),
 		AddTime:  time.Now().Format(time.RFC3339),
 	})
 	consts.SignalsChannel.Database_save <- true
-	return true
+	return nil
 }
 
 // 获取 ID 信息
-func GetIDInfo(id *int64) *IDInfo {
-	for Index, Data := range Database.Data.IDs {
-		if Data.ID == *id {
-			return &Database.Data.IDs[Index]
+func GetChatInfo(ctx context.Context, id int64) (*database_struct.ChatInfo, error) {
+	for Index, Data := range Database.Data.ChatInfo {
+		if Data.ID == id {
+			return &Database.Data.ChatInfo[Index], nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("ChatInfo not found")
 }

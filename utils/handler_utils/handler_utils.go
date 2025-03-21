@@ -2,8 +2,7 @@ package handler_utils
 
 import (
 	"context"
-	"trbot/utils/database_redis"
-	"trbot/utils/database_yaml"
+	"trbot/database/database_struct"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -14,7 +13,6 @@ type SubHandlerOpts struct {
 	Ctx      context.Context
 	Thebot   *bot.Bot
 	Update   *models.Update
-	ChatInfo *database_yaml.IDInfo
-	RChatInfo *database_redis.ChatInfo
+	ChatInfo *database_struct.ChatInfo
 	Fields   []string // 根据请求的类型，可能是消息文本，也可能是 inline 的 query
 }

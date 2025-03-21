@@ -128,7 +128,7 @@ func InitPlugins() {
 			})
 		},
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugins.ForwardOnly_SlashSymbolCommandHandler)
+	// plugin_utils.AddSlashSymbolCommandPlugins(plugins.ForwardOnly_SlashSymbolCommandHandler)
 
 	// AddCustomSymbolCommandPlugins(plugins.Udonese_SlashCommandHandlers...)
 

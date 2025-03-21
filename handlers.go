@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"trbot/database"
+	"trbot/database/db_redis"
+	"trbot/database/db_yaml"
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/database_redis"
-	"trbot/utils/database_yaml"
 	"trbot/utils/handler_utils"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
@@ -39,23 +40,24 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	if update.Message != nil {
 		// 正常消息
 		opts.Fields = strings.Fields(update.Message.Text)
-		opts.ChatInfo = database_yaml.GetIDInfo(&update.Message.Chat.ID)
+		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
 
-		if opts.ChatInfo == nil && database_yaml.AddChatInfo(&update.Message.Chat) {
+
+		if opts.ChatInfo == nil && db_yaml.InitChat(opts.Ctx, &update.Message.Chat) != nil {
 			log.Printf("add (message)%s \"%s\"(%s)[%d] in database",
 				update.Message.Chat.Type,
 				utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
 			)
-			opts.ChatInfo = database_yaml.GetIDInfo(&update.Message.Chat.ID)
+			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
 		}
 
-		database_redis.InitChat(opts.Ctx, &update.Message.Chat)
-		database_redis.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, "MessageNormal")
-		database_redis.RecordLatestData(opts.Ctx, update.Message.Chat.ID, "LatestMessage", update.Message.Text)
+		db_redis.InitChat(opts.Ctx, &update.Message.Chat)
+		db_redis.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, "MessageNormal")
+		db_redis.RecordLatestData(opts.Ctx, update.Message.Chat.ID, "LatestMessage", update.Message.Text)
 
 		opts.ChatInfo.LatestMessage = update.Message.Text
 
-		opts.ChatInfo.MessageCount++
+		opts.ChatInfo.MessageNormal++
 		if consts.IsDebugMode {
 			if update.Message.Photo != nil {
 				log.Printf("photo message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) caption: [%s]", 
@@ -100,23 +102,23 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// inline 查询
 		opts.Fields = strings.Fields(update.InlineQuery.Query)
 
-		opts.ChatInfo = database_yaml.GetIDInfo(&update.InlineQuery.From.ID)
+		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
 
-		if opts.ChatInfo == nil && database_yaml.AddUserInfo(update.InlineQuery.From) {
+		if opts.ChatInfo == nil && db_yaml.InitUser(opts.Ctx, update.InlineQuery.From) != nil {
 			log.Printf("add (inline)private \"%s\"(%s)[%d] in database",
 				utils.ShowUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
 			)
-			opts.ChatInfo = database_yaml.GetIDInfo(&update.InlineQuery.From.ID)
+			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
 		}
 		
-		database_redis.InitUser(opts.Ctx, update.InlineQuery.From)
-		database_redis.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, "InlineRequest")
-		database_redis.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, "LatestInlineQuery", update.InlineQuery.Query)
+		db_redis.InitUser(opts.Ctx, update.InlineQuery.From)
+		db_redis.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, "InlineRequest")
+		db_redis.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, "LatestInlineQuery", update.InlineQuery.Query)
 
 		opts.ChatInfo.LatestInlineQuery = update.InlineQuery.Query
 
 
-		opts.ChatInfo.InlineCount++
+		opts.ChatInfo.InlineRequest++
 		log.Printf("inline from: \"%s\"(%s)[%d], query: [%s]", 
 			utils.ShowUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
 			update.InlineQuery.Query,
@@ -125,18 +127,18 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		inlineHandler(&opts)
 	} else if update.ChosenInlineResult != nil {
 		// inline 查询结果被选择
-		opts.ChatInfo = database_yaml.GetIDInfo(&update.ChosenInlineResult.From.ID)
+		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
 
-		if opts.ChatInfo == nil && database_yaml.AddUserInfo(&update.ChosenInlineResult.From) {
+		if opts.ChatInfo == nil && db_yaml.InitUser(opts.Ctx, &update.ChosenInlineResult.From) != nil {
 			log.Printf("add (inlineResult)private \"%s\"(%s)[%d] in database",
 				utils.ShowUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
 			)
-			opts.ChatInfo = database_yaml.GetIDInfo(&update.ChosenInlineResult.From.ID)
+			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
 		}
 
-		database_redis.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
-		database_redis.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, "InlineResult")
-		database_redis.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, "LatestInlineResult", update.ChosenInlineResult.ResultID)
+		db_redis.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
+		db_redis.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, "InlineResult")
+		db_redis.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, "LatestInlineResult", update.ChosenInlineResult.ResultID)
 
 		opts.ChatInfo.LatestInlineResult = update.ChosenInlineResult.ResultID + "," + update.ChosenInlineResult.Query
 		log.Printf("chosen inline from \"%s\"(%s)[%d], ID: [%s] query: [%s]",
@@ -151,16 +153,16 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			update.CallbackQuery.Data,
 		)
 
-		opts.ChatInfo = database_yaml.GetIDInfo(&update.CallbackQuery.From.ID)
+		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
 
-		if opts.ChatInfo == nil && database_yaml.AddUserInfo(&update.CallbackQuery.From) {
+		if opts.ChatInfo == nil && db_yaml.InitUser(opts.Ctx, &update.CallbackQuery.From) != nil {
 			log.Printf("add (callback)private \"%s\"[%d] in database", utils.ShowUserName(&update.CallbackQuery.From), update.CallbackQuery.From.ID)
-			opts.ChatInfo = database_yaml.GetIDInfo(&update.CallbackQuery.From.ID)
+			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
 		}
 
-		database_redis.InitUser(opts.Ctx, &update.CallbackQuery.From)
-		database_redis.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, "CallbackQuery")
-		database_redis.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, "LatestCallbackQueryData", update.CallbackQuery.Data)
+		db_redis.InitUser(opts.Ctx, &update.CallbackQuery.From)
+		db_redis.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, "CallbackQuery")
+		db_redis.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, "LatestCallbackQueryData", update.CallbackQuery.Data)
 
 		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
 		if opts.ChatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.ChatInfo.LatestCallbackQueryData {
@@ -436,7 +438,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			// 	},
 			// })
 		} else {
-			plugins.DeleteNotAllowMessage(opts)
+			// plugins.DeleteNotAllowMessage(opts)
 		}
 	}
 }
@@ -479,7 +481,7 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 	} else if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
 		var inlineButton *models.InlineQueryResultsButton
 
-		// if database_redis.ChatInfo. {
+		// if db_redis.ChatInfo. {
 		// 	inlineButton = &models.InlineQueryResultsButton{
 		// 		Text: "点击此处修改默认命令",
 		// 		StartParameter: "via-inline_change-inline-command",

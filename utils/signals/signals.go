@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 	"trbot/utils/consts"
-	"trbot/utils/database_yaml"
+	"trbot/database/db_yaml"
 	"trbot/utils/mess"
 )
 
@@ -22,13 +22,13 @@ func SignalsHandler(ctx context.Context, SIGNAL consts.SignalChannel) {
 		// 	additional.AutoSaveDatabaseHandler()
 		case <-ctx.Done():
 			log.Println("Cancle signal received")
-			database_yaml.AutoSaveDatabaseHandler()
+			db_yaml.AutoSaveDatabaseHandler()
 			log.Println("Database saved")
 			SIGNAL.WorkDone <- true
 			return
 		case <-SIGNAL.Database_save:
-			database_yaml.Database.UpdateTimestamp = time.Now().Unix()
-			err := database_yaml.SaveYamlDB(consts.DB_path, consts.MetadataFileName, database_yaml.Database)
+			db_yaml.Database.UpdateTimestamp = time.Now().Unix()
+			err := db_yaml.SaveYamlDB(consts.DB_path, consts.MetadataFileName, db_yaml.Database)
 			if err != nil {
 				mess.PrintLogAndSave(fmt.Sprintln("some issues happend when some function call save database now:", err))
 			} else {
