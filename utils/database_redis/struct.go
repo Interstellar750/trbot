@@ -15,17 +15,23 @@ type ChatInfo struct {
 	// status
 	HasPendingCallbackQuery bool
 
-	// latest datas
+	// message
 	LatestMessage           string
+	// inline
 	LatestInlineQuery       string
 	LatestInlineResult      string
+	// callbackquery
 	LatestCallbackQueryData string
 
-	// usage counts
-	InlineRequst         int
-	InlineCallback       int
+	// inline
+	InlineRequest        int
+	InlineResult         int
+	// message
 	MessageNormal        int
 	MessageCommand       int
+	// callback query
+	CallbackQuery        int
+	// sticker
 	StickerDownloaded    int
 	StickerSetDownloaded int
 }

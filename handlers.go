@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +48,10 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			)
 			opts.ChatInfo = database_yaml.GetIDInfo(&update.Message.Chat.ID)
 		}
+
+		database_redis.InitChat(opts.Ctx, &update.Message.Chat)
+		database_redis.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, "MessageNormal")
+		database_redis.RecordLatestData(opts.Ctx, update.Message.Chat.ID, "LatestMessage", update.Message.Text)
 
 		opts.ChatInfo.LatestMessage = update.Message.Text
 
@@ -107,15 +110,10 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 		
 		database_redis.InitUser(opts.Ctx, update.InlineQuery.From)
+		database_redis.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, "InlineRequest")
+		database_redis.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, "LatestInlineQuery", update.InlineQuery.Query)
 
 		opts.ChatInfo.LatestInlineQuery = update.InlineQuery.Query
-
-		count, err := database_redis.UserDB.HGet(opts.Ctx, strconv.FormatInt(update.InlineQuery.From.ID, 10), "InlineRequst").Int()
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			database_redis.UserDB.HSet(opts.Ctx, strconv.FormatInt(update.InlineQuery.From.ID, 10), "InlineRequst", count + 1)
-		}
 
 
 		opts.ChatInfo.InlineCount++
@@ -136,6 +134,10 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			opts.ChatInfo = database_yaml.GetIDInfo(&update.ChosenInlineResult.From.ID)
 		}
 
+		database_redis.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
+		database_redis.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, "InlineResult")
+		database_redis.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, "LatestInlineResult", update.ChosenInlineResult.ResultID)
+
 		opts.ChatInfo.LatestInlineResult = update.ChosenInlineResult.ResultID + "," + update.ChosenInlineResult.Query
 		log.Printf("chosen inline from \"%s\"(%s)[%d], ID: [%s] query: [%s]",
 			utils.ShowUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
@@ -155,6 +157,10 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			log.Printf("add (callback)private \"%s\"[%d] in database", utils.ShowUserName(&update.CallbackQuery.From), update.CallbackQuery.From.ID)
 			opts.ChatInfo = database_yaml.GetIDInfo(&update.CallbackQuery.From.ID)
 		}
+
+		database_redis.InitUser(opts.Ctx, &update.CallbackQuery.From)
+		database_redis.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, "CallbackQuery")
+		database_redis.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, "LatestCallbackQueryData", update.CallbackQuery.Data)
 
 		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
 		if opts.ChatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.ChatInfo.LatestCallbackQueryData {

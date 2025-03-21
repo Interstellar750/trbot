@@ -154,3 +154,31 @@ func InitChat(ctx context.Context, chat *models.Chat) bool {
 		return false
 	}
 }
+
+func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName string) bool {
+	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), fieldName).Int()
+	if err == nil {
+		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, count + 1).Err()
+		if err == nil {
+			return true
+		}
+	} else if err == redis.Nil {
+		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, 1).Err()
+		if err == nil {
+			fmt.Printf("Key %s not found, creating in Redis\n", fieldName)
+			return true
+		}
+	}
+
+	fmt.Println("Error incrementing usage count to Redis:", err)
+	return false
+}
+
+func RecordLatestData(ctx context.Context, chatID int64, fieldName string, value string) bool {
+	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
+	if err == nil {
+		return true
+	}
+	log.Println("Error saving chat info to Redis:", err)
+	return false
+}

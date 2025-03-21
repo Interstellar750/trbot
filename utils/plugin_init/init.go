@@ -309,5 +309,5 @@ func InitPlugins() {
 		},
 	}...)
 
-	// plugin_utils.AddCallbackQueryCommandPlugins(plugins.Sticker_CallBackQueryHandlers...)
+	plugin_utils.AddCallbackQueryCommandPlugins(plugins.Sticker_CallBackQueryHandlers...)
 }
