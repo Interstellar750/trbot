@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"trbot/database"
 	"trbot/database/database_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -19,7 +20,13 @@ import (
 var MainDB *redis.Client // 配置文件
 var UserDB *redis.Client // 用户数据
 
-func Init(ctx context.Context) bool {
+var ctxbg = context.Background()
+
+// 此函数会被自动运行以初始化数据库
+func init() {
+	var IsInitialized bool = false
+	var InitializedErr error
+
 	if consts.RedisURL != "" {
 		if consts.RedisMainDB != -1 {
 			MainDB = redis.NewClient(&redis.Options{
@@ -27,9 +34,10 @@ func Init(ctx context.Context) bool {
 				Password: consts.RedisPassword,
 				DB:       consts.RedisMainDB,
 			})
-			err := PingRedis(ctx, MainDB)
+			err := PingRedis(ctxbg, MainDB)
 			if err != nil {
-				log.Println("Redis MainDB Ping Error:", err)
+				InitializedErr = fmt.Errorf("error ping Redis MainDB: %s", err)
+				IsInitialized = false
 			}
 		}
 		if consts.RedisUserInfoDB != -1 {
@@ -38,17 +46,34 @@ func Init(ctx context.Context) bool {
 				Password: consts.RedisPassword,
 				DB:       consts.RedisUserInfoDB,
 			})
-			err := PingRedis(ctx, UserDB)
+			err := PingRedis(ctxbg, UserDB)
 			if err != nil {
-				log.Println("Redis UserDB Ping Error:", err)
+				InitializedErr = fmt.Errorf("error ping Redis UserDB: %s", err)
+				IsInitialized = false
 			}
 		}
 
-		return true
+		if InitializedErr == nil {
+			IsInitialized = true
+		}
 	} else {
-		log.Println("RedisURL is empty")
-		return false
+		InitializedErr = fmt.Errorf("RedisURL is empty")
+		IsInitialized = false
 	}
+
+	database.AddDatabaseBackend(database.DatabaseBackend{
+		Name:           "redis",
+		IsInitialized:  IsInitialized,
+		InitializedErr: InitializedErr,
+
+		InitUser:              InitUser,
+		InitChat:              InitChat,
+		GetChatInfo:           GetChatInfo,
+		IncrementalUsageCount: IncrementalUsageCount,
+		RecordLatestData:      RecordLatestData,
+		UpdateOperationStatus: UpdateOperationStatus,
+		SetCustomFlag:         SetCustomFlag,
+	})
 }
 
 func PingRedis(ctx context.Context, db *redis.Client) error {
@@ -162,8 +187,8 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 	}
 }
 
-func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName string) error {
-	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), fieldName).Int()
+func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_UsageCount) error {
+	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), string(fieldName)).Int()
 	if err == nil {
 		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, count + 1).Err()
 		if err == nil {
@@ -180,11 +205,29 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName string) 
 	return fmt.Errorf("[UserDB] Error incrementing usage count to Redis: %v", err)
 }
 
-func RecordLatestData(ctx context.Context, chatID int64, fieldName string, value string) error {
+func RecordLatestData(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_LatestData, value string) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
 	if err == nil {
 		return nil
 	}
 	
 	return fmt.Errorf("[UserDB] Error saving chat info to Redis: %v", err)
+}
+
+func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_Status, value bool) error {
+	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("[UserDB] Error update operation status to Redis: %v", err)
+}
+
+func SetCustomFlag(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_CustomFlag, value string) error {
+    err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("[UserDB] Error setting custom flag to Redis: %v", err)
 }

@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"time"
 
+	"trbot/database"
 	"trbot/utils/consts"
-	"trbot/database/db_yaml"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_init"
 	"trbot/utils/signals"
@@ -55,14 +55,12 @@ func main() {
 	log.Printf("starting %d\n", consts.BotMe.ID)
 	log.Printf("logChat_ID: %v", consts.LogChat_ID)
 
-	db_yaml.Database, err = db_yaml.ReadYamlDB(consts.DB_path + consts.MetadataFileName)
-	if err != nil {
-	}
+	database.ListDatabaseCount()
 
 	go signals.SignalsHandler(ctx, consts.SignalsChannel)
 
 	// 初始化插件
-	plugin_init.InitPlugins()
+	plugin_init.RegisterPlugins()
 
 	// 检查是否设定了 webhookURL 环境变量
 	if mess.UsingWebhook() { // Webhook

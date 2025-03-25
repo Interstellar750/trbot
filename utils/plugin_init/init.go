@@ -16,7 +16,7 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-func InitPlugins() {
+func RegisterPlugins() {
 	// 触发：'/start via-inline_test'
 	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
 		Prefix:   "via-inline",
@@ -136,7 +136,6 @@ func InitPlugins() {
 
 	// inline 模式由程序输出的函数
 	// AddInlineHandlerPlugins(plugins.SavedMessage_InlineCommandHandler)
-	// AddInlineHandlerPlugins(plugins.Udonese_InlineCommandHandler)
 
 	// inline 模式自行处理输出的函数
 	// AddInlineManualHandlerPlugins(plugins.VoiceListInlineHandler)

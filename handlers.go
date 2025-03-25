@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"trbot/database"
-	"trbot/database/db_redis"
-	"trbot/database/db_yaml"
+	"trbot/database/database_struct"
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -28,6 +27,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		Thebot:   thebot,
 		Update:   update,
 	}
+	var err error
 
 	if update.Message != nil {
 		// fmt.Println(getMessageType(update.Message))
@@ -40,24 +40,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	if update.Message != nil {
 		// 正常消息
 		opts.Fields = strings.Fields(update.Message.Text)
-		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
-
-
-		if opts.ChatInfo == nil && db_yaml.InitChat(opts.Ctx, &update.Message.Chat) != nil {
-			log.Printf("add (message)%s \"%s\"(%s)[%d] in database",
-				update.Message.Chat.Type,
-				utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-			)
-			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
+		database.InitChat(opts.Ctx, &update.Message.Chat)
+		database.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, database_struct.MessageNormal)
+		database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, database_struct.LatestMessage, update.Message.Text)
+		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
+		if err != nil {
+			log.Println(err)
 		}
 
-		db_redis.InitChat(opts.Ctx, &update.Message.Chat)
-		db_redis.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, "MessageNormal")
-		db_redis.RecordLatestData(opts.Ctx, update.Message.Chat.ID, "LatestMessage", update.Message.Text)
-
-		opts.ChatInfo.LatestMessage = update.Message.Text
-
-		opts.ChatInfo.MessageNormal++
 		if consts.IsDebugMode {
 			if update.Message.Photo != nil {
 				log.Printf("photo message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) caption: [%s]", 
@@ -101,24 +91,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	} else if update.InlineQuery != nil {
 		// inline 查询
 		opts.Fields = strings.Fields(update.InlineQuery.Query)
-
-		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
-
-		if opts.ChatInfo == nil && db_yaml.InitUser(opts.Ctx, update.InlineQuery.From) != nil {
-			log.Printf("add (inline)private \"%s\"(%s)[%d] in database",
-				utils.ShowUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
-			)
-			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
+		database.InitUser(opts.Ctx, update.InlineQuery.From)
+		database.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, database_struct.InlineRequest)
+		database.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, database_struct.LatestInlineQuery, update.InlineQuery.Query)
+		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
+		if err != nil {
+			log.Println(err)
 		}
-		
-		db_redis.InitUser(opts.Ctx, update.InlineQuery.From)
-		db_redis.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, "InlineRequest")
-		db_redis.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, "LatestInlineQuery", update.InlineQuery.Query)
 
-		opts.ChatInfo.LatestInlineQuery = update.InlineQuery.Query
-
-
-		opts.ChatInfo.InlineRequest++
 		log.Printf("inline from: \"%s\"(%s)[%d], query: [%s]", 
 			utils.ShowUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
 			update.InlineQuery.Query,
@@ -127,42 +107,35 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		inlineHandler(&opts)
 	} else if update.ChosenInlineResult != nil {
 		// inline 查询结果被选择
-		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
-
-		if opts.ChatInfo == nil && db_yaml.InitUser(opts.Ctx, &update.ChosenInlineResult.From) != nil {
-			log.Printf("add (inlineResult)private \"%s\"(%s)[%d] in database",
-				utils.ShowUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
-			)
-			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
+		opts.Fields = strings.Fields(update.ChosenInlineResult.Query)
+		database.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
+		database.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, database_struct.InlineResult)
+		database.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, database_struct.LatestInlineResult, update.ChosenInlineResult.ResultID)
+		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
+		if err != nil {
+			log.Println(err)
 		}
 
-		db_redis.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
-		db_redis.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, "InlineResult")
-		db_redis.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, "LatestInlineResult", update.ChosenInlineResult.ResultID)
-
-		opts.ChatInfo.LatestInlineResult = update.ChosenInlineResult.ResultID + "," + update.ChosenInlineResult.Query
 		log.Printf("chosen inline from \"%s\"(%s)[%d], ID: [%s] query: [%s]",
 			utils.ShowUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
 			update.ChosenInlineResult.ResultID, update.ChosenInlineResult.Query,
 		)
 	} else if update.CallbackQuery != nil {
 		// replymarkup 回调
+		
+		database.InitUser(opts.Ctx, &update.CallbackQuery.From)
+		database.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, database_struct.CallbackQuery)
+		database.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, database_struct.LatestCallbackQueryData, update.CallbackQuery.Data)
+		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
+		if err != nil {
+			log.Println(err)
+		}
+
 		log.Printf("callback from \"%s\"(%s)[%d] in \"%s\"(%s)[%d] query: [%s]",
 			utils.ShowUserName(&update.CallbackQuery.From), update.CallbackQuery.From.Username, update.CallbackQuery.From.ID,
 			utils.ShowChatName(&update.CallbackQuery.Message.Message.Chat), update.CallbackQuery.Message.Message.Chat.Username, update.CallbackQuery.Message.Message.Chat.ID,
 			update.CallbackQuery.Data,
 		)
-
-		opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
-
-		if opts.ChatInfo == nil && db_yaml.InitUser(opts.Ctx, &update.CallbackQuery.From) != nil {
-			log.Printf("add (callback)private \"%s\"[%d] in database", utils.ShowUserName(&update.CallbackQuery.From), update.CallbackQuery.From.ID)
-			opts.ChatInfo, _ = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
-		}
-
-		db_redis.InitUser(opts.Ctx, &update.CallbackQuery.From)
-		db_redis.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, "CallbackQuery")
-		db_redis.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, "LatestCallbackQueryData", update.CallbackQuery.Data)
 
 		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
 		if opts.ChatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.ChatInfo.LatestCallbackQueryData {
@@ -334,14 +307,15 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 	if utils.AnyContains(opts.Update.Message.Chat.Type, models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 检测如果消息开头是 / 符号，作为命令来处理
 		if strings.HasPrefix(opts.Update.Message.Text, "/") {
+			if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/start") {
+				if consts.IsDebugMode {
+					log.Printf("hit in /start commands")
+				}
+				startHandler(opts)
+				return
+			}
 			for _, plugin := range plugin_utils.AllPugins.SlashSymbolCommand {
-				if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/start") {
-					if consts.IsDebugMode {
-						log.Printf("hit startcommand: /%s", plugin.SlashCommand)
-					}
-					startHandler(opts)
-					return
-				} else if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
+				if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
 					if consts.IsDebugMode {
 						log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
 					}
@@ -445,48 +419,15 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 
 // 处理 inline 模式下的请求
 func inlineHandler(opts *handler_utils.SubHandlerOpts) {
-	if !strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol) {
-		if consts.Inline_NoDefaultHandler {
-			var inlineButton *models.InlineQueryResultsButton
-			var message string = "可用的 Inline 模式命令:\n\n"
-			for _, command := range plugin_utils.AllPugins.InlineCommandList {
-				message += fmt.Sprintf("命令: <code>%s%s</code>\n", consts.InlineSubCommandSymbol, command.Command)
-				if command.Description != "" {
-					message += fmt.Sprintf("描述: %s\n", command.Description)
-				}
-				message += "\n"
-			}
-
-			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.Update.InlineQuery.ID,
-				Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:    "nodefaulthandler",
-					Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", consts.InlineSubCommandSymbol),
-					Description: "由于管理员没有设定默认命令，您需要手动选择一个 Inline 模式下的命令，点击此处查看命令列表",
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: message,
-						ParseMode: models.ParseModeHTML,
-					},
-				}},
-				Button: inlineButton,
-			})
-			if err != nil {
-				log.Printf("Error sending inline query response: %v", err)
-				return
-			}
-		// } else if opts.ChatInfo.DefaultInlinePlugin != "" {
-		} else {
-			plugin_utils.AllPugins.InlineManual[0].Handler(opts)
-		}
-	} else if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
+	if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
 		var inlineButton *models.InlineQueryResultsButton
 
-		// if db_redis.ChatInfo. {
-		// 	inlineButton = &models.InlineQueryResultsButton{
-		// 		Text: "点击此处修改默认命令",
-		// 		StartParameter: "via-inline_change-inline-command",
-		// 	}
-		// }
+		if opts.ChatInfo.DefaultInlinePlugin == "" {
+			inlineButton = &models.InlineQueryResultsButton{
+				Text: "点击此处修改默认命令",
+				StartParameter: "via-inline_change-inline-command",
+			}
+		}
 		// 展示全部命令
 		var results []models.InlineQueryResult
 		results = append(results, &models.InlineQueryResultArticle{
@@ -568,25 +509,37 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 		}
 		return
 	} else {
-		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.Update.InlineQuery.ID,
-			Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
-				ID:    "empty",
-				Title: "没有保存内容（点击查看详细教程）",
-				Description: "对一条信息回复 /save 来保存它",
-				InputMessageContent: models.InputTextMessageContent{
-					MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", consts.BotMe.Username, consts.BotMe.Username),
-					ParseMode: models.ParseModeHTML,
-				},
-			}},
-			Button: &models.InlineQueryResultsButton{
-				Text: "点击此处快速跳转到机器人",
-				StartParameter: "via-inline_noreply",
-			},
+		if consts.Inline_NoDefaultHandler {
+			var inlineButton *models.InlineQueryResultsButton
+			var message string = "可用的 Inline 模式命令:\n\n"
+			for _, command := range plugin_utils.AllPugins.InlineCommandList {
+				message += fmt.Sprintf("命令: <code>%s%s</code>\n", consts.InlineSubCommandSymbol, command.Command)
+				if command.Description != "" {
+					message += fmt.Sprintf("描述: %s\n", command.Description)
+				}
+				message += "\n"
+			}
 
-		})
-		if err != nil {
-			log.Println("Error when answering inline [saved] command", err)
+			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.Update.InlineQuery.ID,
+				Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:    "nodefaulthandler",
+					Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", consts.InlineSubCommandSymbol),
+					Description: "由于管理员没有设定默认命令，您需要手动选择一个命令，点击此处查看命令列表",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: message,
+						ParseMode: models.ParseModeHTML,
+					},
+				}},
+				Button: inlineButton,
+			})
+			if err != nil {
+				log.Printf("Error sending inline query response: %v", err)
+				return
+			}
+		// } else if opts.ChatInfo.DefaultInlinePlugin != "" {
+		} else {
+			plugin_utils.AllPugins.InlineManual[0].Handler(opts)
 		}
 	}
 
@@ -604,4 +557,36 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 	// 	log.Printf("Error sending inline query response: %v", err)
 	// 	return
 	// }
+}
+
+func startHandler(opts *handler_utils.SubHandlerOpts) {
+	if len(opts.Fields) > 1 {
+		for _, n := range plugin_utils.AllPugins.SlashStart.WithPrefixHandler {
+			if strings.HasPrefix(opts.Fields[1], n.Prefix) {
+				inlineArgument := strings.Split(opts.Fields[1], "_")
+				if inlineArgument[1] == n.Argument {
+					n.Handler(opts)
+					return
+				}
+			}
+		}
+		for _, n := range plugin_utils.AllPugins.SlashStart.Handler {
+			if opts.Fields[1] == n.Argument {
+				n.Handler(opts)
+				return
+			}
+		}
+	}
+
+	opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID:    opts.Update.Message.Chat.ID,
+		Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您将会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.Update.Message.From.FirstName, opts.Update.Message.From.LastName),
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+		LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
+		ParseMode: models.ParseModeMarkdownV1,
+		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text: "尝试 Inline 模式",
+			SwitchInlineQueryCurrentChat: " ",
+		}}}},
+	})
 }

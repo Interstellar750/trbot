@@ -35,3 +35,38 @@ type ChatInfo struct {
 	StickerDownloaded    int `yaml:"StickerDownloaded,omitempty"`
 	StickerSetDownloaded int `yaml:"StickerSetDownloaded,omitempty"`
 }
+
+type ChatInfoField_CustomFlag string
+const (
+	DefaultInlinePlugin ChatInfoField_CustomFlag = "DefaultInlinePlugin"
+)
+
+type ChatInfoField_Status string
+const (
+	HasPendingCallbackQuery ChatInfoField_Status = "HasPendingCallbackQuery"
+)
+
+type ChatInfoField_LatestData string
+const (
+	LatestMessage ChatInfoField_LatestData = "LatestMessage"
+
+	LatestInlineQuery  ChatInfoField_LatestData = "LatestInlineQuery"
+	LatestInlineResult ChatInfoField_LatestData = "LatestInlineResult"
+
+	LatestCallbackQueryData ChatInfoField_LatestData = "LatestCallbackQueryData"
+	
+)
+
+type ChatInfoField_UsageCount string
+const (
+	InlineRequest ChatInfoField_UsageCount = "InlineRequest"
+	InlineResult  ChatInfoField_UsageCount = "InlineResult"
+	
+	MessageNormal  ChatInfoField_UsageCount = "MessageNormal"
+	MessageCommand ChatInfoField_UsageCount = "MessageCommand"
+	
+	CallbackQuery ChatInfoField_UsageCount = "CallbackQuery"
+	
+	StickerDownloaded    ChatInfoField_UsageCount = "StickerDownloaded"
+	StickerSetDownloaded ChatInfoField_UsageCount = "StickerSetDownloaded"
+)

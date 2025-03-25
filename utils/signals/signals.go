@@ -18,8 +18,8 @@ func SignalsHandler(ctx context.Context, SIGNAL consts.SignalChannel) {
 
 	for {
 		select {
-		// case <-every10Min.C: // 每次 Ticker 触发时执行任务
-		// 	additional.AutoSaveDatabaseHandler()
+		case <-every10Min.C: // 每次 Ticker 触发时执行任务
+			db_yaml.AutoSaveDatabaseHandler()
 		case <-ctx.Done():
 			log.Println("Cancle signal received")
 			db_yaml.AutoSaveDatabaseHandler()

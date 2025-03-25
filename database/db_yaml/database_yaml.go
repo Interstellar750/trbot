@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"time"
+	"trbot/database"
 	"trbot/database/database_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -29,19 +30,37 @@ type DataBaseYaml struct {
 	} `yaml:"Data"`
 }
 
-func Init(ctx context.Context) bool {
+func init() {
+	var IsInitialized bool = false
+	var InitializedErr error
+
 	if consts.DB_path != "" {
 		var err error
 		Database, err = ReadYamlDB(consts.DB_path + consts.MetadataFileName)
 		if err != nil {
-			log.Println("read yaml db error:", err)
-			return false
+			InitializedErr = fmt.Errorf("read yaml db error: %s", err)
+			IsInitialized = false
 		}
-		return true
+		IsInitialized = true
 	} else {
-		log.Println("DB path is empty")
-		return false
+		InitializedErr = fmt.Errorf("DB path is empty")
+		IsInitialized = false
 	}
+
+	database.AddDatabaseBackend(database.DatabaseBackend{
+		Name:           "yaml",
+		IsLowLevel:     true,
+		IsInitialized:  IsInitialized,
+		InitializedErr: InitializedErr,
+
+		InitUser:              InitUser,
+		InitChat:              InitChat,
+		GetChatInfo:           GetChatInfo,
+		IncrementalUsageCount: IncrementalUsageCount,
+		RecordLatestData:      RecordLatestData,
+		UpdateOperationStatus: UpdateOperationStatus,
+		SetCustomFlag:         SetCustomFlag,
+	})
 }
 
 func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
@@ -117,7 +136,7 @@ func AutoSaveDatabaseHandler() {
 	}
 	// 没有修改就跳过保存
 	if reflect.DeepEqual(savedDatabase, Database) && consts.IsDebugMode {
-		fmt.Printf("\r%s looks Database no any change, skip autosave this time", time.Now().Format(time.RFC3339))
+		log.Println("looks Database no any change, skip autosave this time")
 	} else {
 		// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
 		if savedDatabase.ForceOverwrite {
@@ -224,4 +243,64 @@ func GetChatInfo(ctx context.Context, id int64) (*database_struct.ChatInfo, erro
 		}
 	}
 	return nil, fmt.Errorf("ChatInfo not found")
+}
+
+func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_UsageCount) error {
+	for Index, Data := range Database.Data.ChatInfo {
+		if Data.ID == chatID {
+			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+			for i := 0; i < v.NumField(); i++ {
+				if v.Type().Field(i).Name == string(fieldName) {
+					v.Field(i).SetInt(v.Field(i).Int() + 1)
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("ChatInfo not found")
+}
+
+func RecordLatestData(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_LatestData, value string) error {
+	for Index, Data := range Database.Data.ChatInfo {
+		if Data.ID == chatID {
+			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+			for i := 0; i < v.NumField(); i++ {
+				if v.Type().Field(i).Name == string(fieldName) {
+					v.Field(i).SetString(value)
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("ChatInfo not found")
+}
+
+func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_Status, value bool) error {
+	for Index, Data := range Database.Data.ChatInfo {
+		if Data.ID == chatID {
+			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+			for i := 0; i < v.NumField(); i++ {
+				if v.Type().Field(i).Name == string(fieldName) {
+					v.Field(i).SetBool(value)
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("ChatInfo not found")
+}
+
+func SetCustomFlag(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_CustomFlag, value string) error {
+	for Index, Data := range Database.Data.ChatInfo {
+		if Data.ID == chatID {
+			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+			for i := 0; i < v.NumField(); i++ {
+				if v.Type().Field(i).Name == string(fieldName) {
+					v.Field(i).SetString(value)
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("ChatInfo not found")
 }
