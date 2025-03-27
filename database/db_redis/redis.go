@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"trbot/database"
 	"trbot/database/database_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -22,11 +21,7 @@ var UserDB *redis.Client // 用户数据
 
 var ctxbg = context.Background()
 
-// 此函数会被自动运行以初始化数据库
-func init() {
-	var IsInitialized bool = false
-	var InitializedErr error
-
+func InitializeDB() (bool, error) {
 	if consts.RedisURL != "" {
 		if consts.RedisMainDB != -1 {
 			MainDB = redis.NewClient(&redis.Options{
@@ -36,8 +31,7 @@ func init() {
 			})
 			err := PingRedis(ctxbg, MainDB)
 			if err != nil {
-				InitializedErr = fmt.Errorf("error ping Redis MainDB: %s", err)
-				IsInitialized = false
+				return false, fmt.Errorf("error ping Redis MainDB: %s", err)
 			}
 		}
 		if consts.RedisUserInfoDB != -1 {
@@ -48,32 +42,14 @@ func init() {
 			})
 			err := PingRedis(ctxbg, UserDB)
 			if err != nil {
-				InitializedErr = fmt.Errorf("error ping Redis UserDB: %s", err)
-				IsInitialized = false
+				return false, fmt.Errorf("error ping Redis UserDB: %s", err)
 			}
 		}
 
-		if InitializedErr == nil {
-			IsInitialized = true
-		}
+		return true, nil
 	} else {
-		InitializedErr = fmt.Errorf("RedisURL is empty")
-		IsInitialized = false
+		return false, fmt.Errorf("RedisURL is empty")
 	}
-
-	database.AddDatabaseBackend(database.DatabaseBackend{
-		Name:           "redis",
-		IsInitialized:  IsInitialized,
-		InitializedErr: InitializedErr,
-
-		InitUser:              InitUser,
-		InitChat:              InitChat,
-		GetChatInfo:           GetChatInfo,
-		IncrementalUsageCount: IncrementalUsageCount,
-		RecordLatestData:      RecordLatestData,
-		UpdateOperationStatus: UpdateOperationStatus,
-		SetCustomFlag:         SetCustomFlag,
-	})
 }
 
 func PingRedis(ctx context.Context, db *redis.Client) error {

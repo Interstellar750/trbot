@@ -55,7 +55,7 @@ func main() {
 	log.Printf("starting %d\n", consts.BotMe.ID)
 	log.Printf("logChat_ID: %v", consts.LogChat_ID)
 
-	database.ListDatabaseCount()
+	database.InitAndListDatabases()
 
 	go signals.SignalsHandler(ctx, consts.SignalsChannel)
 

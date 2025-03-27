@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"time"
-	"trbot/database"
 	"trbot/database/database_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -30,37 +29,17 @@ type DataBaseYaml struct {
 	} `yaml:"Data"`
 }
 
-func init() {
-	var IsInitialized bool = false
-	var InitializedErr error
-
+func InitializeDB() (bool, error) {
 	if consts.DB_path != "" {
 		var err error
 		Database, err = ReadYamlDB(consts.DB_path + consts.MetadataFileName)
 		if err != nil {
-			InitializedErr = fmt.Errorf("read yaml db error: %s", err)
-			IsInitialized = false
+			return false, fmt.Errorf("read yaml db error: %s", err)
 		}
-		IsInitialized = true
+		return true, nil
 	} else {
-		InitializedErr = fmt.Errorf("DB path is empty")
-		IsInitialized = false
+		return false, fmt.Errorf("DB path is empty")
 	}
-
-	database.AddDatabaseBackend(database.DatabaseBackend{
-		Name:           "yaml",
-		IsLowLevel:     true,
-		IsInitialized:  IsInitialized,
-		InitializedErr: InitializedErr,
-
-		InitUser:              InitUser,
-		InitChat:              InitChat,
-		GetChatInfo:           GetChatInfo,
-		IncrementalUsageCount: IncrementalUsageCount,
-		RecordLatestData:      RecordLatestData,
-		UpdateOperationStatus: UpdateOperationStatus,
-		SetCustomFlag:         SetCustomFlag,
-	})
 }
 
 func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {

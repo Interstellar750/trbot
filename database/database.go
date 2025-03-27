@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"trbot/database/database_struct"
+	"trbot/database/db_redis"
+	"trbot/database/db_yaml"
 
 	"github.com/go-telegram/bot/models"
 )
@@ -17,7 +19,8 @@ type DatabaseBackend struct {
 	IsLowLevel bool
 
 	// 是否已被成功初始化
-	IsInitialized bool
+	Initializer    func() (bool, error)
+	IsInitialized  bool
 	InitializedErr error
 
 	// 操作数据库的函数
@@ -39,17 +42,18 @@ func AddDatabaseBackend(backends ...DatabaseBackend) int {
 	if DBBackends_LowLevel == nil { DBBackends_LowLevel = []DatabaseBackend{} }
 
 	var count int
-	for _, backend := range backends {
-		if backend.IsInitialized {
-			if backend.IsLowLevel {
-				DBBackends_LowLevel = append(DBBackends_LowLevel, backend)
+	for _, db := range backends {
+		db.IsInitialized, db.InitializedErr = db.Initializer()
+		if db.IsInitialized {
+ 			if db.IsLowLevel {
+				DBBackends_LowLevel = append(DBBackends_LowLevel, db)
 			} else {
-				DBBackends = append(DBBackends, backend)
+				DBBackends = append(DBBackends, db)
 			}
-			log.Printf("Initialized database backend [%s]", backend.Name)
+			log.Printf("Initialized database backend [%s]", db.Name)
 			count++
 		} else {
-			log.Printf("Failed to initialize database backend [%s]: %s", backend.Name, backend.InitializedErr)
+			log.Printf("Failed to initialize database backend [%s]: %s", db.Name, db.InitializedErr)
 		}
 	}
 
@@ -57,20 +61,39 @@ func AddDatabaseBackend(backends ...DatabaseBackend) int {
 }
 
 
-func ListDatabaseCount() {
-	// AddDatabaseBackend(databaseBackend{
-	// 	name: "redis",
-	// 	InitDatabase: db_redis.Init,
-	// 	InitUser: db_redis.InitUser,
-	// 	InitChat: db_redis.InitChat,
-	// 	GetChatInfo: db_redis.GetChatInfo,
-	// })
+func InitAndListDatabases() {
+	AddDatabaseBackend(DatabaseBackend{
+		Name:        "redis",
+		Initializer: db_redis.InitializeDB,
+
+		InitUser:              db_redis.InitUser,
+		InitChat:              db_redis.InitChat,
+		GetChatInfo:           db_redis.GetChatInfo,
+		IncrementalUsageCount: db_redis.IncrementalUsageCount,
+		RecordLatestData:      db_redis.RecordLatestData,
+		UpdateOperationStatus: db_redis.UpdateOperationStatus,
+		SetCustomFlag:         db_redis.SetCustomFlag,
+	})
+
+	AddDatabaseBackend(DatabaseBackend{
+		Name:        "yaml",
+		IsLowLevel:  true,
+		Initializer: db_yaml.InitializeDB,
+
+		InitUser:              db_yaml.InitUser,
+		InitChat:              db_yaml.InitChat,
+		GetChatInfo:           db_yaml.GetChatInfo,
+		IncrementalUsageCount: db_yaml.IncrementalUsageCount,
+		RecordLatestData:      db_yaml.RecordLatestData,
+		UpdateOperationStatus: db_yaml.UpdateOperationStatus,
+		SetCustomFlag:         db_yaml.SetCustomFlag,
+	})
 
 	for _, backend := range DBBackends {
-		log.Printf("Database backend [%s] is available", backend.Name)
+		log.Printf("Database backend [%s] is available (high-level)", backend.Name)
 	}
 	for _, backend := range DBBackends_LowLevel {
-		log.Printf("Database backend [%s] is available", backend.Name)
+		log.Printf("Database backend [%s] is available (low-level)", backend.Name)
 	}
 
 	if len(DBBackends) + len(DBBackends_LowLevel) == 0 {
