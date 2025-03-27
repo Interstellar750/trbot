@@ -1,4 +1,4 @@
-package db_redis
+package redis_db
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"trbot/database/database_struct"
+	"trbot/database/db_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
 
@@ -58,7 +58,7 @@ func PingRedis(ctx context.Context, db *redis.Client) error {
 }
 
 // 保存用户信息
-func SaveChatInfo(ctx context.Context, chatInfo *database_struct.ChatInfo) error {
+func SaveChatInfo(ctx context.Context, chatInfo *db_struct.ChatInfo) error {
 	if chatInfo == nil {
 		return fmt.Errorf("chatInfo 不能为空")
 	}
@@ -78,7 +78,7 @@ func SaveChatInfo(ctx context.Context, chatInfo *database_struct.ChatInfo) error
 }
 
 // 获取用户信息
-func GetChatInfo(ctx context.Context, chatID int64) (*database_struct.ChatInfo, error) {
+func GetChatInfo(ctx context.Context, chatID int64) (*db_struct.ChatInfo, error) {
 	key := strconv.FormatInt(chatID, 10)
 	data, err := UserDB.HGetAll(ctx, key).Result()
 	if err != nil {
@@ -88,7 +88,7 @@ func GetChatInfo(ctx context.Context, chatID int64) (*database_struct.ChatInfo, 
 		return nil, nil
 	}
 
-	user := &database_struct.ChatInfo{}
+	user := &db_struct.ChatInfo{}
 	v := reflect.ValueOf(user).Elem()
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Type().Field(i)
@@ -119,7 +119,7 @@ func InitUser(ctx context.Context, user *models.User) error {
 		return fmt.Errorf("[UserDB] Error getting chat info from Redis: %v", err)
 	}
 	if chatData == nil {
-		var newUser = database_struct.ChatInfo{
+		var newUser = db_struct.ChatInfo{
 			ID:       user.ID,
 			ChatName: utils.ShowUserName(user),
 			ChatType: models.ChatTypePrivate,
@@ -144,7 +144,7 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 		return fmt.Errorf("[UserDB] Error getting chat info from Redis: %v", err)
 	}
 	if chatData == nil {
-		var newChat = database_struct.ChatInfo{
+		var newChat = db_struct.ChatInfo{
 			ID:       chat.ID,
 			ChatName: utils.ShowChatName(chat),
 			ChatType: models.ChatTypePrivate,
@@ -163,7 +163,7 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 	}
 }
 
-func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_UsageCount) error {
+func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
 	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), string(fieldName)).Int()
 	if err == nil {
 		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, count + 1).Err()
@@ -181,7 +181,7 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName database
 	return fmt.Errorf("[UserDB] Error incrementing usage count to Redis: %v", err)
 }
 
-func RecordLatestData(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_LatestData, value string) error {
+func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
 	if err == nil {
 		return nil
@@ -190,7 +190,7 @@ func RecordLatestData(ctx context.Context, chatID int64, fieldName database_stru
 	return fmt.Errorf("[UserDB] Error saving chat info to Redis: %v", err)
 }
 
-func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_Status, value bool) error {
+func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
 	if err == nil {
 		return nil
@@ -199,7 +199,7 @@ func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName database
 	return fmt.Errorf("[UserDB] Error update operation status to Redis: %v", err)
 }
 
-func SetCustomFlag(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_CustomFlag, value string) error {
+func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
     err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
 	if err == nil {
 		return nil

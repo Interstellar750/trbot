@@ -151,7 +151,7 @@ func SaveUdonese(path string, name string, Database interface{}) error {
 // 设计之初可以添加多个意思，但现在不推荐这样
 func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
 	for wordIndex, savedList := range udonese.List {
-		if savedList.Word == params.Word {
+		if strings.EqualFold(savedList.Word, params.Word){
 			log.Printf("发现已存在的词 [%s]，正在检查是否有新增的意思", savedList.Word)
 			for _, newMeaning := range params.MeaningList {
 				var isreallynew bool = true

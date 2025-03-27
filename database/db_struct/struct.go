@@ -1,4 +1,4 @@
-package database_struct
+package db_struct
 
 import "github.com/go-telegram/bot/models"
 

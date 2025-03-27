@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"trbot/database"
-	"trbot/database/database_struct"
+	"trbot/database/db_struct"
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -41,8 +41,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// 正常消息
 		opts.Fields = strings.Fields(update.Message.Text)
 		database.InitChat(opts.Ctx, &update.Message.Chat)
-		database.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, database_struct.MessageNormal)
-		database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, database_struct.LatestMessage, update.Message.Text)
+		database.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, db_struct.MessageNormal)
+		database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, db_struct.LatestMessage, update.Message.Text)
 		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
 		if err != nil {
 			log.Println(err)
@@ -92,8 +92,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// inline 查询
 		opts.Fields = strings.Fields(update.InlineQuery.Query)
 		database.InitUser(opts.Ctx, update.InlineQuery.From)
-		database.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, database_struct.InlineRequest)
-		database.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, database_struct.LatestInlineQuery, update.InlineQuery.Query)
+		database.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, db_struct.InlineRequest)
+		database.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, db_struct.LatestInlineQuery, update.InlineQuery.Query)
 		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
 		if err != nil {
 			log.Println(err)
@@ -109,8 +109,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// inline 查询结果被选择
 		opts.Fields = strings.Fields(update.ChosenInlineResult.Query)
 		database.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
-		database.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, database_struct.InlineResult)
-		database.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, database_struct.LatestInlineResult, update.ChosenInlineResult.ResultID)
+		database.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, db_struct.InlineResult)
+		database.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, db_struct.LatestInlineResult, update.ChosenInlineResult.ResultID)
 		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
 		if err != nil {
 			log.Println(err)
@@ -124,8 +124,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// replymarkup 回调
 		
 		database.InitUser(opts.Ctx, &update.CallbackQuery.From)
-		database.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, database_struct.CallbackQuery)
-		database.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, database_struct.LatestCallbackQueryData, update.CallbackQuery.Data)
+		database.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, db_struct.CallbackQuery)
+		database.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, db_struct.LatestCallbackQueryData, update.CallbackQuery.Data)
 		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
 		if err != nil {
 			log.Println(err)

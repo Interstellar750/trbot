@@ -1,4 +1,4 @@
-package db_yaml
+package yaml_db
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"os"
 	"reflect"
 	"time"
-	"trbot/database/database_struct"
+	"trbot/database/db_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/mess"
@@ -25,7 +25,7 @@ type DataBaseYaml struct {
 
 	UpdateTimestamp int64 `yaml:"UpdateTimestamp"`
 	Data struct {
-		ChatInfo []database_struct.ChatInfo `yaml:"ChatInfo"`
+		ChatInfo []db_struct.ChatInfo `yaml:"ChatInfo"`
 	} `yaml:"Data"`
 }
 
@@ -92,7 +92,7 @@ func SaveYamlDB(path string, name string, Database interface{}) error {
 }
 
 // 添加数据
-func addToYamlDB(params *database_struct.ChatInfo) {
+func addToYamlDB(params *db_struct.ChatInfo) {
 	Database.Data.ChatInfo = append(Database.Data.ChatInfo, *params)
 }
 
@@ -188,7 +188,7 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 			return nil // 群组已存在，不重复添加
 		}
 	}
-	addToYamlDB(&database_struct.ChatInfo{
+	addToYamlDB(&db_struct.ChatInfo{
 		ID:       chat.ID,
 		ChatType: chat.Type,
 		ChatName: utils.ShowChatName(chat),
@@ -204,7 +204,7 @@ func InitUser(ctx context.Context, user *models.User) error {
 			return nil // 用户已存在，不重复添加
 		}
 	}
-	addToYamlDB(&database_struct.ChatInfo{
+	addToYamlDB(&db_struct.ChatInfo{
 		ID:       user.ID,
 		ChatType: models.ChatTypePrivate,
 		ChatName: utils.ShowUserName(user),
@@ -215,7 +215,7 @@ func InitUser(ctx context.Context, user *models.User) error {
 }
 
 // 获取 ID 信息
-func GetChatInfo(ctx context.Context, id int64) (*database_struct.ChatInfo, error) {
+func GetChatInfo(ctx context.Context, id int64) (*db_struct.ChatInfo, error) {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == id {
 			return &Database.Data.ChatInfo[Index], nil
@@ -224,7 +224,7 @@ func GetChatInfo(ctx context.Context, id int64) (*database_struct.ChatInfo, erro
 	return nil, fmt.Errorf("ChatInfo not found")
 }
 
-func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_UsageCount) error {
+func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
@@ -239,7 +239,7 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName database
 	return fmt.Errorf("ChatInfo not found")
 }
 
-func RecordLatestData(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_LatestData, value string) error {
+func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
@@ -254,7 +254,7 @@ func RecordLatestData(ctx context.Context, chatID int64, fieldName database_stru
 	return fmt.Errorf("ChatInfo not found")
 }
 
-func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_Status, value bool) error {
+func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
@@ -269,7 +269,7 @@ func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName database
 	return fmt.Errorf("ChatInfo not found")
 }
 
-func SetCustomFlag(ctx context.Context, chatID int64, fieldName database_struct.ChatInfoField_CustomFlag, value string) error {
+func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
