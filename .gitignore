@@ -28,3 +28,4 @@ __debug_bin*
 db_yaml/metadata.yaml
 /db_yaml/udonese
 /cache
+/db_yaml/savedmessage

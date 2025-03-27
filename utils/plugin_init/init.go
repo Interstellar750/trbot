@@ -5,7 +5,6 @@ import (
 	"log"
 	"strings"
 	"time"
-	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
@@ -18,25 +17,28 @@ import (
 
 func RegisterPlugins() {
 	// 触发：'/start via-inline_test'
-	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
-		Prefix:   "via-inline",
-		Argument: "test",
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
-				Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
-				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-					Text: "点击加入测试群组",
-					URL:  "https://t.me/+BomkHuFsjqc3ZGE1",
-				}}}},
-			})
+	plugin_utils.AddSlashStartWithPrefixCommandPlugins([]plugin_utils.SlashStartWithPrefixHandler{
+		{
+			Prefix:   "via-inline",
+			Argument: "noreply",
+			Handler:  nil, // 不回复
 		},
-	})
-
-	// 触发：'/start'
-	// AddSlashStartCommandPlugins(plugins.SavedMessage_StartCommandHandlers...)
-	// AddSlashStartWithPrefixCommandPlugins(plugins.SavedMessage_StartCommandWithPrefixHandlers...)
+		{
+			Prefix:   "via-inline",
+			Argument: "test",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:          opts.Update.Message.Chat.ID,
+					Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "点击加入测试群组",
+						URL:  "https://t.me/+BomkHuFsjqc3ZGE1",
+					}}}},
+				})
+			},
+		},
+	}...)
 
 	// 文本消息开头的命令
 	// AddSlashSymbolCommandPlugins(plugins.SavedMessage_SlashSymbolCommandHandler)
@@ -119,23 +121,24 @@ func RegisterPlugins() {
 				ParseMode:       models.ParseModeMarkdownV1,
 			})
 			time.Sleep(time.Second * 20)
-			opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+			success, _ := opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
 				ChatID: opts.Update.Message.Chat.ID,
 				MessageIDs: []int{
 					opts.Update.Message.ID,
 					botMessage.ID,
 				},
 			})
+			if !success {
+				// 不能把用户的消息也删了，就单独删自己的
+				opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					MessageID: botMessage.ID,
+				})
+			}
+			
 		},
 	})
 	// plugin_utils.AddSlashSymbolCommandPlugins(plugins.ForwardOnly_SlashSymbolCommandHandler)
-
-	// AddCustomSymbolCommandPlugins(plugins.Udonese_SlashCommandHandlers...)
-
-	// AddSuffixCommandPlugins(plugins.Udonese_SuffixCommandHandler)
-
-	// inline 模式由程序输出的函数
-	// AddInlineHandlerPlugins(plugins.SavedMessage_InlineCommandHandler)
 
 	// inline 模式自行处理输出的函数
 	// AddInlineManualHandlerPlugins(plugins.VoiceListInlineHandler)
@@ -308,5 +311,4 @@ func RegisterPlugins() {
 		},
 	}...)
 
-	plugin_utils.AddCallbackQueryCommandPlugins(plugins.Sticker_CallBackQueryHandlers...)
 }

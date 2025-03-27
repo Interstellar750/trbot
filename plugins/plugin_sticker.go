@@ -19,6 +19,18 @@ import (
 	"golang.org/x/image/webp"
 )
 
+func init() {
+	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.Plugin_CallbackQuery{
+		{
+			CommandChar: "s",
+			Handler: DownloadStickerPackCallBackHandler,
+		},
+		{
+			CommandChar: "S",
+			Handler: DownloadStickerPackCallBackHandler,
+		},
+	}...)
+}
 
 func EchoSticker(opts *handler_utils.SubHandlerOpts) (io.Reader, bool, error) {
 	var fileSuffix string // `.webp`, `.webm`, `.tgs`, `.tgs`
@@ -529,15 +541,4 @@ func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
 		MessageID: botMessage.ID,
 	})
 
-}
-
-var Sticker_CallBackQueryHandlers = []plugin_utils.Plugin_CallbackQuery{
-	{
-		CommandChar: "s",
-		Handler: DownloadStickerPackCallBackHandler,
-	},
-	{
-		CommandChar: "S",
-		Handler: DownloadStickerPackCallBackHandler,
-	},
 }

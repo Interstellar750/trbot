@@ -24,7 +24,6 @@ var DB_path      string = "./db_yaml/"
 var Voice_path   string = DB_path + "voices/"
 var LogFile_path string = DB_path + "log.txt"
 
-
 var IsDebugMode bool = false
 var Private_log bool = false
 
