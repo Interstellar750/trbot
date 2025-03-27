@@ -21,7 +21,6 @@ var RedisUserInfoDB int = 1
 var RedisSubDB      int = 2
 
 var DB_path      string = "./db_yaml/"
-var Voice_path   string = DB_path + "voices/"
 var LogFile_path string = DB_path + "log.txt"
 
 var IsDebugMode bool = false
