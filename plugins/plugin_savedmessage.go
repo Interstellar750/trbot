@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"trbot/database"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
@@ -457,12 +456,7 @@ type SavedMessageTypeCachedMpeg4Gif struct {
 }
 
 func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
-	userData, err := database.GetChatInfo(opts.Ctx, opts.Update.Message.From.ID)
-	if err != nil {
-		log.Println(err)
-	}
-
-	UserSavedMessage := SavedMessageSet[userData.ID]
+	UserSavedMessage := SavedMessageSet[opts.Update.Message.From.ID]
 
 	messageParams := &bot.SendMessageParams{
 		ChatID: opts.Update.Message.Chat.ID,
@@ -519,7 +513,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存音乐"
 		} else if opts.Update.Message.ReplyToMessage.Animation != nil {
@@ -533,7 +527,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存 GIF"
 		} else if opts.Update.Message.ReplyToMessage.Document != nil {
@@ -547,7 +541,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[userData.ID] = UserSavedMessage
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 				SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 				messageParams.Text = "已保存 GIF (文件)"
 			} else {
@@ -561,7 +555,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[userData.ID] = UserSavedMessage
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 				SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 				messageParams.Text = "已保存文件"
 			}
@@ -577,7 +571,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存图片"
 		} else if opts.Update.Message.ReplyToMessage.Sticker != nil {
@@ -602,7 +596,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存贴纸"
 		} else if opts.Update.Message.ReplyToMessage.Video != nil {
@@ -625,7 +619,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存视频"
 		} else if opts.Update.Message.ReplyToMessage.VideoNote != nil {
@@ -637,7 +631,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存圆形录制视频"
 		} else if opts.Update.Message.ReplyToMessage.Voice != nil {
@@ -651,7 +645,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
-			SavedMessageSet[userData.ID] = UserSavedMessage
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
 			SaveSavedMessageList(SavedMessage_path, consts.MetadataFileName, SavedMessageSet)
 			messageParams.Text = "已保存语音"
 		} else {
@@ -661,7 +655,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 
 	// fmt.Println(opts.ChatInfo)
 
-	_, err = opts.Thebot.SendMessage(opts.Ctx, messageParams)
+	_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
 	if err != nil {
 		log.Printf("Error response /save command: %v", err)
 	}

@@ -8,25 +8,25 @@ var All []MessageType
 type MessageType struct {
 	// https://core.telegram.org/bots/api#message
 
-	Animation bool // call gif, mpeg4 format, can save to GIFs, no caption
-	Audio     bool // or call music, can have caption, some music may as a document
-	Document  bool // can have caption
-	PaidMedia bool // photo or video, unknow caption
-	Photo     bool // a list, sort by resolution
-	Sticker   bool // sticker, but some .webp file maybe will send as sticker, actual file format and resolution may not match the limitations. no caption
-	Story     bool
-	Video     bool
-	VideoNote bool // A circular video shot in Telegram
-	Voice     bool // can have caption
-	OnlyText  bool // just text message
-	Contact   bool
-	Dice      bool
-	Game      bool
-	Poll      bool
-	Venue     bool
-	Location  bool
-	Invoice   bool
-	Giveaway   bool
+	Animation bool `yaml:"Animation,omitempty"` // call gif, mpeg4 format, can save to GIFs, no caption
+	Audio     bool `yaml:"Audio,omitempty"`     // or call music, can have caption, some music may as a document
+	Document  bool `yaml:"Document,omitempty"`  // can have caption
+	PaidMedia bool `yaml:"PaidMedia,omitempty"` // photo or video, unknow caption
+	Photo     bool `yaml:"Photo,omitempty"`     // a list, sort by resolution
+	Sticker   bool `yaml:"Sticker,omitempty"`   // sticker, but some .webp file maybe will send as sticker, actual file format and resolution may not match the limitations. no caption
+	Story     bool `yaml:"Story,omitempty"`
+	Video     bool `yaml:"Video,omitempty"`
+	VideoNote bool `yaml:"VideoNote,omitempty"` // A circular video shot in Telegram
+	Voice     bool `yaml:"Voice,omitempty"`     // can have caption
+	OnlyText  bool `yaml:"OnlyText,omitempty"`  // just text message
+	Contact   bool `yaml:"Contact,omitempty"`
+	Dice      bool `yaml:"Dice,omitempty"`
+	Game      bool `yaml:"Game,omitempty"`
+	Poll      bool `yaml:"Poll,omitempty"`
+	Venue     bool `yaml:"Venue,omitempty"`
+	Location  bool `yaml:"Location,omitempty"`
+	Invoice   bool `yaml:"Invoice,omitempty"`
+	Giveaway  bool `yaml:"Giveaway,omitempty"`
 }
 // 判断消息的类型
 func GetMessageType(msg *models.Message) MessageType {
@@ -93,30 +93,30 @@ func GetMessageType(msg *models.Message) MessageType {
 }
 // 消息属性
 type MessageAttribute struct {
-	IsFromAnonymous      bool // anonymous admin or owner in group/supergroup
-	IsFromLinkedChannel  bool // is automatic forward post from linked channel
-	IsUserAsChannel      bool // user selected to send message as a channel
-	IsHasSenderChat      bool // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
-	IsChatEnableForum    bool // group or supergroup is enable topic
-	IsForwardMessage     bool // not a origin message, forward from somewhere
-	IsTopicMessage       bool // the message is sent to a forum topic
-	IsAutomaticForward   bool // is post from linked channel, auto forward by server
-	IsReplyToMessage     bool // message reply to a another message
-	IsExternalReply      bool // message reply from another chat, or call 'quote'
-	IsQuoteToMessage     bool // reply from another chat or manual quote from current chat, maybe only true for text message
-	IsQuoteHasEntities   bool // is quote message has entities
-	IsManualQuote        bool // user manually select text to quote a message. if false, just use 'reply to other chat'
-	IsReplyToStory       bool // TODO
-	IsViaBot             bool // message by inline mode
-	IsEdited             bool // message aready edited
-	IsFromOffline        bool // eg scheduled message
-	IsGroupedMedia       bool // media group, like select more than one file or photo to send
-	IsTextHasEntities    bool // message has text entities
-	IsMessageHasEffect   bool // message has effect
-	IsCaptionHasEntities bool // message has caption entities
-	IsCaptionAboveMedia  bool // set the caption to appear before the content when sending videos or photos
-	IsMediaHasSpoiler    bool // image or video has a spoiler
-	IsHasInlineKeyboard  bool // message has inline keyboard
+	IsFromAnonymous      bool `yaml:"IsFromAnonymous,omitempty"`      // anonymous admin or owner in group/supergroup
+	IsFromLinkedChannel  bool `yaml:"IsFromLinkedChannel,omitempty"`  // is automatic forward post from linked channel
+	IsUserAsChannel      bool `yaml:"IsUserAsChannel,omitempty"`      // user selected to send message as a channel
+	IsHasSenderChat      bool `yaml:"IsHasSenderChat,omitempty"`      // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
+	IsChatEnableForum    bool `yaml:"IsChatEnableForum,omitempty"`    // group or supergroup is enable topic
+	IsForwardMessage     bool `yaml:"IsForwardMessage,omitempty"`     // not a origin message, forward from somewhere
+	IsTopicMessage       bool `yaml:"IsTopicMessage,omitempty"`       // the message is sent to a forum topic
+	IsAutomaticForward   bool `yaml:"IsAutomaticForward,omitempty"`   // is post from linked channel, auto forward by server
+	IsReplyToMessage     bool `yaml:"IsReplyToMessage,omitempty"`     // message reply to a another message
+	IsExternalReply      bool `yaml:"IsExternalReply,omitempty"`      // message reply from another chat, or call 'quote'
+	IsQuoteToMessage     bool `yaml:"IsQuoteToMessage,omitempty"`     // reply from another chat or manual quote from current chat, maybe only true for text message
+	IsQuoteHasEntities   bool `yaml:"IsQuoteHasEntities,omitempty"`   // is quote message has entities
+	IsManualQuote        bool `yaml:"IsManualQuote,omitempty"`        // user manually select text to quote a message. if false, just use 'reply to other chat'
+	IsReplyToStory       bool `yaml:"IsReplyToStory,omitempty"`       // TODO
+	IsViaBot             bool `yaml:"IsViaBot,omitempty"`             // message by inline mode
+	IsEdited             bool `yaml:"IsEdited,omitempty"`             // message aready edited
+	IsFromOffline        bool `yaml:"IsFromOffline,omitempty"`        // eg scheduled message
+	IsGroupedMedia       bool `yaml:"IsGroupedMedia,omitempty"`       // media group, like select more than one file or photo to send
+	IsTextHasEntities    bool `yaml:"IsTextHasEntities,omitempty"`    // message has text entities
+	IsMessageHasEffect   bool `yaml:"IsMessageHasEffect,omitempty"`   // message has effect
+	IsCaptionHasEntities bool `yaml:"IsCaptionHasEntities,omitempty"` // message has caption entities
+	IsCaptionAboveMedia  bool `yaml:"IsCaptionAboveMedia,omitempty"`  // set the caption to appear before the content when sending videos or photos
+	IsMediaHasSpoiler    bool `yaml:"IsMediaHasSpoiler,omitempty"`    // image or video has a spoiler
+	IsHasInlineKeyboard  bool `yaml:"IsHasInlineKeyboard,omitempty"`  // message has inline keyboard
 }
 // 判断消息属性
 func GetMessageAttribute(msg *models.Message) MessageAttribute {

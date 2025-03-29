@@ -412,7 +412,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			// 	},
 			// })
 		} else {
-			// plugins.DeleteNotAllowMessage(opts)
+			plugins.DeleteNotAllowMessage(opts)
 		}
 	}
 }
