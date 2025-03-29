@@ -123,7 +123,7 @@ func InitUser(ctx context.Context, user *models.User) error {
 			ID:       user.ID,
 			ChatName: utils.ShowUserName(user),
 			ChatType: models.ChatTypePrivate,
-			AddTime: time.Now().Format(time.RFC3339),
+			AddTime:  time.Now().Format(time.RFC3339),
 		}
 
 		err = SaveChatInfo(ctx, &newUser)
@@ -148,7 +148,7 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 			ID:       chat.ID,
 			ChatName: utils.ShowChatName(chat),
 			ChatType: models.ChatTypePrivate,
-			AddTime: time.Now().Format(time.RFC3339),
+			AddTime:  time.Now().Format(time.RFC3339),
 		}
 
 		err = SaveChatInfo(ctx, &newChat)

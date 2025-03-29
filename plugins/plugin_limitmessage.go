@@ -27,7 +27,9 @@ var LimitMessage_path string = consts.DB_path + "limitmessage/"
 
 type AllowMessages struct {
 	IsEnable            bool                        `yaml:"IsEnable"`
+	IsUnderTest         bool                        `yaml:"IsUnderTest"`
 	AddTime             string                      `yaml:"AddTime"`
+	IsLogicAnd          bool                        `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
 	MessageType         updatetype.MessageType      `yaml:"MessageType"`
 	IsWhiteForType      bool                        `yaml:"IsWhiteForType"`
 	MessageAttribute    updatetype.MessageAttribute `yaml:"MessageAttribute"`
@@ -92,18 +94,16 @@ func SomeMessageOnlyHandler(opts *handler_utils.SubHandlerOpts) {
 		})
 	} else if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, opts.Update.Message.From.ID) {
 		thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
+		
+		if thisChat.AddTime == "" {
+			thisChat.AddTime = time.Now().Format(time.RFC3339)
+		}
 
 		if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) {
-			var pendingMessage string = "限制消息功能，当前"
-			if thisChat.IsEnable {
-				pendingMessage += "已启用"
-			} else {
-				pendingMessage += "已禁用"
-			}
 
 			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Update.Message.Chat.ID,
-				Text:   pendingMessage,
+				Text:   "Limit Message 菜单",
 				ReplyMarkup: buildMessageAllKB(thisChat),
 			})
 			opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -145,21 +145,42 @@ func DeleteNotAllowMessage(opts *handler_utils.SubHandlerOpts) {
 			thisattribute  := updatetype.GetMessageAttribute(opts.Update.Message)
 
 			// 根据规则的黑白名单选择判断逻辑
-			if thisChat.IsWhiteForType == thisChat.IsWhiteForAttribute {
-				deleteAction = CheckMessageType(this, thisChat.MessageType, thisChat.IsWhiteForType) || CheckMessageAttribute(thisattribute, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
-			} else {
+			if thisChat.IsLogicAnd {
 				deleteAction = CheckMessageType(this, thisChat.MessageType, thisChat.IsWhiteForType) && CheckMessageAttribute(thisattribute, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
+			} else {
+				deleteAction = CheckMessageType(this, thisChat.MessageType, thisChat.IsWhiteForType) || CheckMessageAttribute(thisattribute, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
 			}
 
 			if deleteAction {
-				_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-					ChatID:    opts.Update.Message.Chat.ID,
-					MessageID: opts.Update.Message.ID,
-				})
-				if err != nil {
-					log.Printf("Failed to delete message: %v", err)
+				if thisChat.IsUnderTest {
+					opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						Text:   "测试模式：此消息将被设定的规则删除",
+						DisableNotification: true,
+						ReplyParameters: &models.ReplyParameters{
+							MessageID: opts.Update.Message.ID,
+						},
+						ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+							{
+								Text: "删除此提醒",
+								CallbackData: "limitmsg_done",
+							},
+							{
+								Text: "关闭测试模式",
+								CallbackData: "limitmsg_offtest",
+							},
+						}}},
+					})
 				} else {
-					log.Printf("Deleted message from %d in %d: %s\n", opts.Update.Message.From.ID, opts.Update.Message.Chat.ID, opts.Update.Message.Text)
+					_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+						ChatID:    opts.Update.Message.Chat.ID,
+						MessageID: opts.Update.Message.ID,
+					})
+					if err != nil {
+						log.Printf("Failed to delete message: %v", err)
+					} else {
+						log.Printf("Deleted message from %d in %d: %s\n", opts.Update.Message.From.ID, opts.Update.Message.Chat.ID, opts.Update.Message.Text)
+					}
 				}
 			}
 		}
@@ -269,12 +290,16 @@ func init() {
 	})
 }
 
-func buttonText(text string, opt bool) string {
+func buttonText(text string, opt, IsWhiteList bool) string {
 	if opt {
-		return "✅ " + text
+		if IsWhiteList {
+			return "✅ " + text
+		} else {
+			return "❌ " + text
+		}
 	}
 
-	return "❌ " + text
+	return text
 }
 
 func buttonWhiteBlackRule(opt bool) string {
@@ -285,21 +310,45 @@ func buttonWhiteBlackRule(opt bool) string {
 	return "黑名单模式"
 }
 
-func buttonIsEnable(opt bool) string {
+func buttonWhiteBlackDescription(opt bool) string {
 	if opt {
-		return "已启用功能，点击关闭"
+		return "仅允许发送选中的项目，其他消息将被删除"
 	}
 
-	return "已关闭功能，点击启用"
+	return "将删除选中的项目"
 }
 
-func buildMessageTypeKB(msgType updatetype.MessageType) models.ReplyMarkup {
+func buttonIsEnable(opt bool) string {
+	if opt {
+		return "当前已启用"
+	}
+
+	return "当前已关闭"
+}
+
+func buttonIsLogicAnd(opt bool) string {
+	if opt {
+		return "满足上方所有条件才删除消息"
+	}
+
+	return "满足其中一个条件就删除消息"
+}
+
+func buttonIsUnderTest(opt bool) string {
+	if opt {
+		return "点击关闭测试模式"
+	}
+
+	return "点此开启测试模式"
+}
+
+func buildMessageTypeKB(chat AllowMessages) models.ReplyMarkup {
 
 	var msgTypeItems [][]models.InlineKeyboardButton
 	var msgTypeItemsTemp []models.InlineKeyboardButton
 
-	v := reflect.ValueOf(msgType) // 解除指针获取值
-	t := reflect.TypeOf(msgType)
+	v := reflect.ValueOf(chat.MessageType) // 解除指针获取值
+	t := reflect.TypeOf(chat.MessageType)
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -309,7 +358,7 @@ func buildMessageTypeKB(msgType updatetype.MessageType) models.ReplyMarkup {
 			msgTypeItemsTemp = []models.InlineKeyboardButton{}
 		}
 		msgTypeItemsTemp = append(msgTypeItemsTemp, models.InlineKeyboardButton{
-			Text:         buttonText(field.Name, value.Bool()),
+			Text:         buttonText(field.Name, value.Bool(), chat.IsWhiteForType),
 			CallbackData: "limitmsg_type_" + field.Name,
 		})
 	}
@@ -327,13 +376,13 @@ func buildMessageTypeKB(msgType updatetype.MessageType) models.ReplyMarkup {
 	return kb
 }
 
-func buildMessageAttributeKB(msgAttribute updatetype.MessageAttribute) models.ReplyMarkup {
+func buildMessageAttributeKB(chat AllowMessages) models.ReplyMarkup {
 
 	var msgAttributeItems [][]models.InlineKeyboardButton
 	var msgAttributeItemsTemp []models.InlineKeyboardButton
 
-	v := reflect.ValueOf(msgAttribute) // 解除指针获取值
-	t := reflect.TypeOf(msgAttribute)
+	v := reflect.ValueOf(chat.MessageAttribute) // 解除指针获取值
+	t := reflect.TypeOf(chat.MessageAttribute)
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -343,7 +392,7 @@ func buildMessageAttributeKB(msgAttribute updatetype.MessageAttribute) models.Re
 			msgAttributeItemsTemp = []models.InlineKeyboardButton{}
 		}
 		msgAttributeItemsTemp = append(msgAttributeItemsTemp, models.InlineKeyboardButton{
-			Text:         buttonText(field.Name, value.Bool()),
+			Text:         buttonText(field.Name, value.Bool(), chat.IsWhiteForAttribute),
 			CallbackData: "limitmsg_attr_" + field.Name,
 		})
 	}
@@ -370,7 +419,7 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 			CallbackData: "limitmsg_typekb",
 		},
 		{
-			Text: "<- " + buttonWhiteBlackRule(chat.IsWhiteForType),
+			Text: "<-- " + buttonWhiteBlackRule(chat.IsWhiteForType),
 			CallbackData: "limitmsg_typekb_switchrule",
 		},
 	})
@@ -381,8 +430,22 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 			CallbackData: "limitmsg_attrkb",
 		},
 		{
-			Text: buttonWhiteBlackRule(chat.IsWhiteForAttribute),
+			Text: "<-- " + buttonWhiteBlackRule(chat.IsWhiteForAttribute),
 			CallbackData: "limitmsg_attrkb_switchrule",
+		},
+	})
+
+	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
+		{
+			Text: buttonIsLogicAnd(chat.IsLogicAnd),
+			CallbackData: "limitmsg_switchlogic",
+		},
+	})
+
+	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
+		{
+			Text: buttonIsUnderTest(chat.IsUnderTest),
+			CallbackData: "limitmsg_switchtest",
 		},
 	})
 
@@ -416,10 +479,9 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text: "当前消息类型：" + buttonWhiteBlackRule(thisChat.IsWhiteForType),
-			ReplyMarkup: buildMessageTypeKB(thisChat.MessageType),
+			Text: buttonWhiteBlackRule(thisChat.IsWhiteForType) + ": " + buttonWhiteBlackDescription(thisChat.IsWhiteForType),
+			ReplyMarkup: buildMessageTypeKB(thisChat),
 		})
-		
 	case "limitmsg_typekb_switchrule":
 		thisChat.IsWhiteForType = !thisChat.IsWhiteForType
 		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
@@ -431,8 +493,8 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text: "当前消息属性：" + buttonWhiteBlackRule(thisChat.IsWhiteForAttribute),
-			ReplyMarkup: buildMessageAttributeKB(thisChat.MessageAttribute),
+			Text: buttonWhiteBlackRule(thisChat.IsWhiteForAttribute) + ": " + buttonWhiteBlackDescription(thisChat.IsWhiteForAttribute) + "\n有一些项目可能无法使用",
+			ReplyMarkup: buildMessageAttributeKB(thisChat),
 		})
 	case "limitmsg_attrkb_switchrule":
 		thisChat.IsWhiteForAttribute = !thisChat.IsWhiteForAttribute
@@ -442,17 +504,10 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 			ReplyMarkup: buildMessageAllKB(thisChat),
 		})
 	case "limitmsg_back":
-		var pendingMessage string = "限制消息功能，当前"
-		if thisChat.IsEnable {
-			pendingMessage += "已启用"
-		} else {
-			pendingMessage += "已禁用"
-		}
-
 		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text: pendingMessage,
+			Text:   "Limit Message 菜单",
 			ReplyMarkup: buildMessageAllKB(thisChat),
 		})
 	case "limitmsg_done":
@@ -467,14 +522,30 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 			ReplyMarkup: buildMessageAllKB(thisChat),
 		})
-	// 	opts.CallbackQuery.AnswerCallbackQuery()
-	// 	opts.CallbackQuery.EditMessageReplyMarkup(buildMessageAttrKB(opts.Chat))
-	// case "limitmsg_switchrule":
-	// 	opts.CallbackQuery.AnswerCallbackQuery()
-	// 	opts.CallbackQuery.EditMessageReplyMarkup(buildMessageAllKB(opts.Chat))
-	// case "limitmsg_done":
-	// 	opts.CallbackQuery.AnswerCallbackQuery()
-	// 	opts.CallbackQuery.EditMessageReplyMarkup(buildMessageAllKB(opts.Chat))
+	case "limitmsg_switchlogic":
+		thisChat.IsLogicAnd = !thisChat.IsLogicAnd
+		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+			ReplyMarkup: buildMessageAllKB(thisChat),
+		})
+	case "limitmsg_switchtest":
+		thisChat.IsUnderTest = !thisChat.IsUnderTest
+		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+			ReplyMarkup: buildMessageAllKB(thisChat),
+		})
+	case "limitmsg_offtest":
+		thisChat.IsUnderTest = false
+		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+			ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				Text: "删除此提醒",
+				CallbackData: "limitmsg_done",
+			}}}},
+		})
 	default:
 		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_") {
 			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_")
@@ -494,7 +565,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 			opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-				ReplyMarkup: buildMessageTypeKB(thisChat.MessageType),
+				ReplyMarkup: buildMessageTypeKB(thisChat),
 			})
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_") {
 			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_")
@@ -514,7 +585,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 			opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-				ReplyMarkup: buildMessageAttributeKB(thisChat.MessageAttribute),
+				ReplyMarkup: buildMessageAttributeKB(thisChat),
 			})
 		}
 	}
