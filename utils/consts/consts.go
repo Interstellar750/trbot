@@ -23,18 +23,16 @@ var RedisSubDB      int = 2
 var DB_path      string = "./db_yaml/"
 var LogFile_path string = DB_path + "log.txt"
 
-var IsDebugMode bool = false
+var IsDebugMode bool
 var Private_log bool = false
-
-// 禁用 Inline 默认函数，启用后会提示 Inline 用法
-var Inline_NoDefaultHandler bool = true
 
 var BotMe *models.User // 用于存储 bot 信息
 
-
-var InlineSubCommandSymbol string = "+"
-var InlinePaginationSymbol string = "-"
-var InlineResultsPerPage   int    = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery
+var Inline_NoDefaultHandler bool   = false // 禁用 Inline 默认函数，启用后会提示 Inline 用法
+var Inline_DefaultHandler   string = "voice"
+var InlineSubCommandSymbol  string  = "+"
+var InlinePaginationSymbol  string  = "-"
+var InlineResultsPerPage    int     = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery
 
 var Cache_path string = "./cache/"
 
@@ -54,13 +52,15 @@ var StickerCacheZip_path string = Cache_path + "sticker_zip/"
 
 
 type SignalChannel struct {
-	Database_save          chan bool
-	AdditionalDatas_reload chan bool
-	WorkDone               chan bool
+	Database_save   chan bool
+	PluginDB_save   chan bool
+	PluginDB_reload chan bool
+	WorkDone        chan bool
 }
 
 var SignalsChannel = SignalChannel{
-	Database_save:          make(chan bool),
-	AdditionalDatas_reload: make(chan bool),
-	WorkDone:               make(chan bool),
+	Database_save:   make(chan bool),
+	PluginDB_save:   make(chan bool),
+	PluginDB_reload: make(chan bool),
+	WorkDone:        make(chan bool),
 }

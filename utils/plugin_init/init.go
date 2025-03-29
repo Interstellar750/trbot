@@ -5,6 +5,8 @@ import (
 	"log"
 	"strings"
 	"time"
+	"trbot/database"
+	"trbot/database/db_struct"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
@@ -38,7 +40,45 @@ func RegisterPlugins() {
 				})
 			},
 		},
+		{
+			Prefix:   "via-inline",
+			Argument: "change-inline-command",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text:   "选择一个 Inline 模式下的默认命令\n由于缓存原因，您可能需要等一会才能看到更新后的结果",
+					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				})
+			},
+		},
 	}...)
+	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.Plugin_CallbackQuery{
+		CommandChar: "inline_default_",
+		Handler: func(opts *handler_utils.SubHandlerOpts) {
+			if opts.Update.CallbackQuery.Data == "inline_default_none" {
+				database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
+				opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+				})
+			}
+			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
+			for _, inlinePlugin := range plugin_utils.AllPugins.InlineCommandList {
+				if inlinePlugin.Command == callbackField {
+					database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
+					opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+						ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+						ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+					})
+					return
+				}
+			}
+			
+		},
+	})
 
 	// 文本消息开头的命令
 	// AddSlashSymbolCommandPlugins(plugins.SavedMessage_SlashSymbolCommandHandler)
@@ -258,9 +298,9 @@ func RegisterPlugins() {
 			Description: "显示日志",
 		},
 		{
-			PrefixCommand: "reload",
+			PrefixCommand: "plugindb_reload",
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
-				consts.SignalsChannel.AdditionalDatas_reload <- true
+				consts.SignalsChannel.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
@@ -281,7 +321,33 @@ func RegisterPlugins() {
 					log.Println("Error when answering inline query :reload", err)
 				}
 			},
-			Description: "重新加载附加数据",
+			Description: "重新读取插件数据库",
+		},
+		{
+			PrefixCommand: "plugindb_save",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				consts.SignalsChannel.PluginDB_save <- true
+				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.Update.InlineQuery.ID,
+					Results: []models.InlineQueryResult{
+						&models.InlineQueryResultArticle{
+							ID:          "reload",
+							Title:       "已请求保存",
+							Description: fmt.Sprintf("last save at %s", time.Now().Format(time.RFC3339)),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "???",
+								ParseMode:   models.ParseModeMarkdownV1,
+							},
+						},
+					},
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				if err != nil {
+					log.Println("Error when answering inline query :reload", err)
+				}
+			},
+			Description: "保存插件数据库",
 		},
 		{
 			PrefixCommand: "savedb",

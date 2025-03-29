@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"time"
-	"trbot/utils/consts"
 	"trbot/database/yaml_db"
+	"trbot/utils/consts"
 	"trbot/utils/mess"
+	"trbot/utils/plugin_utils"
 )
 
 func SignalsHandler(ctx context.Context, SIGNAL consts.SignalChannel) {
@@ -34,9 +35,13 @@ func SignalsHandler(ctx context.Context, SIGNAL consts.SignalChannel) {
 			} else {
 				mess.PrintLogAndSave("save at " + time.Now().Format(time.RFC3339))
 			}
-		// case <-SIGNAL.AdditionalDatas_reload:
-		// 	additional.AdditionalDatas = additional.ReadAdditionalDatas(consts.AdditionalDatas_paths)
-		// 	log.Println("AdditionalData reloaded")
+		case <-SIGNAL.PluginDB_reload:
+			plugin_utils.ReloadPluginsDatabase()
+			log.Println("Plugin Database reloaded")
+		case <-SIGNAL.PluginDB_save:
+			mess.PrintLogAndSave(plugin_utils.SavePluginsDatabase())
+			log.Println("Plugin Database saved")
 		}
+		
 	}
 }

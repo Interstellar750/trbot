@@ -36,6 +36,24 @@ type AllowMessages struct {
 	IsWhiteForAttribute bool                        `yaml:"IsWhiteForAttribute"`
 }
 
+func init() {
+	ReadLimitMessageList()
+	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+		Name: "Limit Message",
+		Saver: SaveLimitMessageList,
+		Loader: ReadLimitMessageList,
+	})
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+		SlashCommand: "limitmessage",
+		Handler: SomeMessageOnlyHandler,
+	})
+	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.Plugin_CallbackQuery{
+		CommandChar: "limitmsg_",
+		Handler: LimitMessageCallback,
+	})
+	
+}
+
 func SaveLimitMessageList() error {
 	data, err := yaml.Marshal(LimitMessageList)
 	if err != nil { return err }
@@ -73,7 +91,7 @@ func ReadLimitMessageList() {
 	err = decoder.Decode(&limitMessageList)
 	if err != nil {
 		if err == io.EOF {
-			log.Println("[LimitMessage]: Udonese list looks empty. now format it")
+			log.Println("[LimitMessage]: database looks empty. now format it")
 			SaveLimitMessageList()
 			LimitMessageList, LimitMessageErr = map[int64]AllowMessages{}, nil
 			return
@@ -276,18 +294,6 @@ func CheckMessageAttribute(this, target updatetype.MessageAttribute, IsWhiteList
 		}
 	}
 	return delete
-}
-
-func init() {
-	ReadLimitMessageList()
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
-		SlashCommand: "limitmessage",
-		Handler: SomeMessageOnlyHandler,
-	})
-	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.Plugin_CallbackQuery{
-		CommandChar: "limitmsg_",
-		Handler: LimitMessageCallback,
-	})
 }
 
 func buttonText(text string, opt, IsWhiteList bool) string {

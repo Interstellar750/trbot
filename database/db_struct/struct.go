@@ -15,23 +15,18 @@ type ChatInfo struct {
 	// status
 	HasPendingCallbackQuery bool `yaml:"HasPendingCallbackQuery,omitempty"`
 
-	// message
+	// latest data
 	LatestMessage           string `yaml:"LatestMessage,omitempty"`
-	// inline
 	LatestInlineQuery       string `yaml:"LatestInlineQuery,omitempty"`
 	LatestInlineResult      string `yaml:"LatestInlineResult,omitempty"`
-	// callbackquery
 	LatestCallbackQueryData string `yaml:"LatestCallbackQueryData,omitempty"`
 
-	// inline
+	// usage count
 	InlineRequest        int `yaml:"InlineRequest,omitempty"`
 	InlineResult         int `yaml:"InlineResult,omitempty"`
-	// message
 	MessageNormal        int `yaml:"MessageNormal,omitempty"`
 	MessageCommand       int `yaml:"MessageCommand,omitempty"`
-	// callback query
 	CallbackQuery        int `yaml:"CallbackQuery,omitempty"`
-	// sticker
 	StickerDownloaded    int `yaml:"StickerDownloaded,omitempty"`
 	StickerSetDownloaded int `yaml:"StickerSetDownloaded,omitempty"`
 }

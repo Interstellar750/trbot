@@ -5,7 +5,7 @@ import (
 )
 
 type Plugin_All struct {
-	Initializer []Plugin_Initializer // 插件需要的初始化函数
+	Databases           []DatabaseHandler
 	// Inline mode
 	Inline              []Plugin_Inline            // 函数返回全部列表，由预设函数进行分页
 	InlineManual        []Plugin_InlineManual      // 函数自行处理输出

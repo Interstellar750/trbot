@@ -169,6 +169,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 		for _, n := range plugin_utils.AllPugins.CallbackQuery {
 			if strings.HasPrefix(update.CallbackQuery.Data, n.CommandChar) {
+				if n.Handler == nil { continue }
 				n.Handler(&opts)
 				break
 			}
@@ -319,6 +320,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 					if consts.IsDebugMode {
 						log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
 					}
+					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
 					return
 				}
@@ -348,6 +350,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 					if consts.IsDebugMode {
 						log.Printf("hit fullcommand: %s", plugin.FullCommand)
 					}
+					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
 					return
 				}
@@ -357,6 +360,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 					if consts.IsDebugMode {
 						log.Printf("hit suffixcommand: %s", plugin.SuffixCommand)
 					}
+					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
 					return
 				}
@@ -449,18 +453,20 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 		}
 		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.Update.InlineQuery.ID,
-				Results:       results,
-				Button:        inlineButton,
-			})
-			if err != nil {
-				log.Printf("Error sending inline query response: %v", err)
-				return
-			}
+			InlineQueryID: opts.Update.InlineQuery.ID,
+			Results:       results,
+			Button:        inlineButton,
+			IsPersonal:    true,
+		})
+		if err != nil {
+			log.Printf("Error sending inline query response: %v", err)
+			return
+		}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol) {
 		// 插件处理完后返回全部列表，由设定好的函数进行分页
 		for _, plugin := range plugin_utils.AllPugins.Inline {
 			if opts.Fields[0][1:] == plugin.Command {
+				if plugin.Handler == nil { continue }
 				ResultList := plugin.Handler(opts)
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -476,9 +482,10 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 		}
 		// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
-		for _, plugins := range plugin_utils.AllPugins.InlineManual {
-			if opts.Fields[0][1:] == plugins.Command {
-				plugins.Handler(opts)
+		for _, plugin := range plugin_utils.AllPugins.InlineManual {
+			if opts.Fields[0][1:] == plugin.Command {
+				if plugin.Handler == nil { continue }
+				plugin.Handler(opts)
 				return
 			}
 		}
@@ -486,6 +493,7 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 		if utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs) {
 			for _, plugin := range plugin_utils.AllPugins.InlinePrefix {
 				if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol + plugin.PrefixCommand) {
+					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
 					return
 				}
@@ -537,9 +545,88 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				log.Printf("Error sending inline query response: %v", err)
 				return
 			}
-		// } else if opts.ChatInfo.DefaultInlinePlugin != "" {
+		} else if opts.ChatInfo.DefaultInlinePlugin != "" {
+			for _, plugin := range plugin_utils.AllPugins.Inline {
+				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
+					if plugin.Handler == nil { continue }
+					ResultList := plugin.Handler(opts)
+					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: opts.Update.InlineQuery.ID,
+						Results:       utils.InlineResultPagination(opts.Fields, ResultList),
+						IsPersonal:    true,
+						CacheTime:     30,
+					})
+					if err != nil {
+						log.Printf("Error when answering inline [%s] command: %v", plugin.Command, err)
+						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
+					}
+					return
+				}
+			}
+			// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
+			for _, plugin := range plugin_utils.AllPugins.InlineManual {
+				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
+					if plugin.Handler == nil { continue }
+					plugin.Handler(opts)
+					return
+				}
+			}
+
+			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.Update.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:    "noinlineplugin",
+					Title: fmt.Sprintf("不存在的默认命令 [%s]", opts.Fields[0]),
+					Description: "或许是因为管理员已经移除了这个插件，请重新选择一个默认插件",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+						ParseMode: models.ParseModeMarkdownV1,
+					},
+				}},
+			})
+			if err != nil {
+				log.Println("Error when answering inline no command", err)
+			}
+			return
+		} else if consts.Inline_DefaultHandler != "" {
+			for _, plugin := range plugin_utils.AllPugins.Inline {
+				if consts.Inline_DefaultHandler == plugin.Command {
+					if plugin.Handler == nil { continue }
+					ResultList := plugin.Handler(opts)
+					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: opts.Update.InlineQuery.ID,
+						Results:       utils.InlineResultPagination(opts.Fields, ResultList),
+						IsPersonal:    true,
+						CacheTime:     30,
+					})
+					if err != nil {
+						log.Printf("Error when answering inline [%s] command: %v", plugin.Command, err)
+						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
+					}
+					return
+				}
+			}
+			// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
+			for _, plugin := range plugin_utils.AllPugins.InlineManual {
+				if consts.Inline_DefaultHandler == plugin.Command {
+					if plugin.Handler == nil { continue }
+					plugin.Handler(opts)
+					return
+				}
+			}
 		} else {
-			plugin_utils.AllPugins.InlineManual[0].Handler(opts)
+			if len(plugin_utils.AllPugins.Inline) > 0 {
+				if plugin_utils.AllPugins.Inline[0].Handler != nil {
+					plugin_utils.AllPugins.Inline[0].Handler(opts)
+					return
+				}
+			}
+			if len(plugin_utils.AllPugins.InlineManual) > 0 {
+				if plugin_utils.AllPugins.InlineManual[0].Handler != nil {
+					plugin_utils.AllPugins.InlineManual[0].Handler(opts)
+					return
+				}
+			}
 		}
 	}
 
@@ -565,6 +652,7 @@ func startHandler(opts *handler_utils.SubHandlerOpts) {
 			if strings.HasPrefix(opts.Fields[1], n.Prefix) {
 				inlineArgument := strings.Split(opts.Fields[1], "_")
 				if inlineArgument[1] == n.Argument {
+					if n.Handler == nil { continue }
 					n.Handler(opts)
 					return
 				}

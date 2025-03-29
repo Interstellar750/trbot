@@ -101,15 +101,16 @@ type UdoneseMeaning struct {
 	ViaName      string `yaml:"ViaName,omitempty"`
 }
 
-func ReadUdonese(path, name string) (*Udonese, error) {
+func ReadUdonese() {
 	var udonese *Udonese
 
-	file, err := os.Open(path + name)
+	file, err := os.Open(Udonese_path + consts.MetadataFileName)
 	if err != nil {
 		// 如果是找不到目录，新建一个
 		log.Println("[Udonese]: Not found database file. Created new one")
-		SaveUdonese(path, name, Udonese{})
-		return &Udonese{}, err
+		SaveUdonese()
+		UdoneseData, UdoneseErr = &Udonese{}, err
+		return 
 	}
 	defer file.Close()
 
@@ -118,33 +119,35 @@ func ReadUdonese(path, name string) (*Udonese, error) {
 	if err != nil {
 		if err == io.EOF {
 			log.Println("[Udonese]: Udonese list looks empty. now format it")
-			SaveUdonese(path, name, Udonese{})
-			return &Udonese{}, nil
+			SaveUdonese()
+			UdoneseData, UdoneseErr = &Udonese{}, nil
+			return
 		}
-		log.Println("(func)readUdonese:", err)
-		return &Udonese{}, err
+		log.Println("(func)ReadUdonese:", err)
+		UdoneseData, UdoneseErr = &Udonese{}, err
+		return
 	}
-	return udonese, nil
+	UdoneseData, UdoneseErr = udonese, nil
 }
 
-func SaveUdonese(path string, name string, Database interface{}) error {
-	data, err := yaml.Marshal(Database)
+func SaveUdonese() error {
+	data, err := yaml.Marshal(UdoneseData)
 	if err != nil { return err }
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.MkdirAll(path, 0755); err != nil {
+	if _, err := os.Stat(Udonese_path); os.IsNotExist(err) {
+		if err := os.MkdirAll(Udonese_path, 0755); err != nil {
 			return err
 		}
 	}
 
-	if _, err := os.Stat(path + name); os.IsNotExist(err) {
-		_, err := os.Create(path + name)
+	if _, err := os.Stat(Udonese_path + consts.MetadataFileName); os.IsNotExist(err) {
+		_, err := os.Create(Udonese_path + consts.MetadataFileName)
 		if err != nil {
 			return err
 		}
 	}
 
-	return os.WriteFile(path + name, data, 0644)
+	return os.WriteFile(Udonese_path + consts.MetadataFileName, data, 0644)
 }
 
 // 如果要添加的意思重复，返回对应意思的单个词结构体指针，否则返回空指针
@@ -265,7 +268,7 @@ func udoneseHandler(opts *handler_utils.SubHandlerOpts) {
 	for i, n := range udon.OnlyWord() {
 		if n == opts.Update.Message.Text || strings.HasPrefix(opts.Update.Message.Text, n) {
 			udon.List[i].Used++
-			err = SaveUdonese(Udonese_path, consts.MetadataFileName, *udon)
+			err = SaveUdonese()
 			if err != nil {
 				log.Println("get some error when add udonese used count:", err)
 			}
@@ -465,7 +468,7 @@ func udoneseHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 		} else {
-			err = SaveUdonese(Udonese_path, consts.MetadataFileName, *udon)
+			err = SaveUdonese()
 			if err != nil {
 				pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
 			} else {
@@ -547,7 +550,12 @@ func udoneseHandler(opts *handler_utils.SubHandlerOpts) {
 }
 
 func init() {
-	UdoneseData, UdoneseErr = ReadUdonese(Udonese_path, consts.MetadataFileName)
+	ReadUdonese()
+	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+		Name: "Udonese",
+		Saver: SaveUdonese,
+		Loader: ReadUdonese,
+	})
 	plugin_utils.AddInlineHandlerPlugins(plugin_utils.Plugin_Inline{
 		Command: "sms",
 		Handler: UdoneseInlineHandler,

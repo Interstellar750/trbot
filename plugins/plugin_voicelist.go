@@ -23,7 +23,11 @@ var VoiceListErr error
 var VoiceList_path string = consts.DB_path + "voices/"
 
 func init() {
-	VoiceLists, VoiceListErr = ReadVoicePackFromPath(VoiceList_path)
+	ReadVoicePackFromPath()
+	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+		Name: "Voice List",
+		Loader: ReadVoicePackFromPath,
+	})
 	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.Plugin_InlineManual{
 		Command: "voice",
 		Handler: VoiceListHandler,
@@ -42,17 +46,18 @@ type VoicePack struct {
 }
 
 // 读取指定目录下所有结尾为 .yaml 或 .yml 的语音文件
-func ReadVoicePackFromPath(path string) ([]VoicePack, error) {
+func ReadVoicePackFromPath() {
 	var packs []VoicePack
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		log.Printf("No voices dir, create a new one: %s", path)
-		if err := os.MkdirAll(path, 0755); err != nil {
-			return nil, err
+	if _, err := os.Stat(VoiceList_path); os.IsNotExist(err) {
+		log.Printf("No voices dir, create a new one: %s", VoiceList_path)
+		if err := os.MkdirAll(VoiceList_path, 0755); err != nil {
+			VoiceLists, VoiceListErr = nil, err
+			return 
 		}
 	}
 
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(VoiceList_path, func(path string, info os.FileInfo, err error) error {
 		if err != nil { return err }
 		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
 			file, err := os.Open(path)
@@ -67,9 +72,12 @@ func ReadVoicePackFromPath(path string) ([]VoicePack, error) {
 		}
 		return nil
 	})
-	if err != nil { return nil, err }
+	if err != nil {
+		VoiceLists, VoiceListErr = nil, err
+		return
+	}
 
-	return packs, nil
+	VoiceLists, VoiceListErr = packs, nil
 }
 
 func VoiceListHandler(opts *handler_utils.SubHandlerOpts) {

@@ -7,7 +7,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"trbot/database/db_struct"
 	"trbot/utils/consts"
+	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -360,4 +362,46 @@ func ShowChatName(chat *models.Chat) string {
 	} else {
 		return chat.FirstName
 	}
+}
+
+// func ChangeDefaultInlineCommand(user )
+
+func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) models.ReplyMarkup {
+	var inlinePlugins [][]models.InlineKeyboardButton
+	for _, v := range plugin_utils.AllPugins.Inline {
+		if chatInfo.DefaultInlinePlugin == v.Command {
+			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
+				Text: fmt.Sprintf("✅ [%s] - %s", v.Command, v.Description),
+				CallbackData: "inline_default_" + v.Command,
+			}})
+		} else {
+			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
+				Text: fmt.Sprintf("[%s] - %s", v.Command, v.Description),
+				CallbackData: "inline_default_" + v.Command,
+			}})
+		}
+	}
+	for _, v := range plugin_utils.AllPugins.InlineManual {
+		if chatInfo.DefaultInlinePlugin == v.Command {
+			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
+				Text: fmt.Sprintf("✅ [%s] - %s", v.Command, v.Description),
+				CallbackData: "inline_default_" + v.Command,
+			}})
+		} else {
+			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
+				Text: fmt.Sprintf("[%s] - %s", v.Command, v.Description),
+				CallbackData: "inline_default_" + v.Command,
+			}})
+		}
+	}
+	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
+		Text: "取消默认命令",
+		CallbackData: "inline_default_none",
+	}})
+
+	kb := &models.InlineKeyboardMarkup{
+		InlineKeyboard: inlinePlugins,
+	}
+
+	return kb
 }
