@@ -254,8 +254,7 @@ func udoneseHandler(opts *handler_utils.SubHandlerOpts) {
 	if opts.Update.Message.ForwardOrigin != nil {
 		return
 	}
-
-	if opts.Update.Message.Chat.ID != UdonGroupID {
+	if len(opts.Fields) < 1 {
 		return
 	}
 
@@ -561,18 +560,22 @@ func init() {
 		Handler: UdoneseInlineHandler,
 		Description: "查询 Udonese 词典",
 	})
-	plugin_utils.AddCustomSymbolCommandPlugins([]plugin_utils.Plugin_CustomSymbolCommand{
-		{
-			FullCommand: "udonese",
-			Handler:     udoneseHandler,
-		},
-		{
-			FullCommand: "sms",
-			Handler:     udoneseHandler,
-		},
-	}...)
-	plugin_utils.AddSuffixCommandPlugins(plugin_utils.Plugin_SuffixCommand{
-		SuffixCommand: "ssm",
-		Handler:       udoneseHandler,
+	// plugin_utils.AddCustomSymbolCommandPlugins([]plugin_utils.Plugin_CustomSymbolCommand{
+	// 	{
+	// 		FullCommand: "udonese",
+	// 		Handler:     udoneseHandler,
+	// 	},
+	// 	{
+	// 		FullCommand: "sms",
+	// 		Handler:     udoneseHandler,
+	// 	},
+	// }...)
+	plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.Plugin_HandlerByChatID{
+		ChatID:  UdonGroupID,
+		Handler: udoneseHandler,
 	})
+	// plugin_utils.AddSuffixCommandPlugins(plugin_utils.Plugin_SuffixCommand{
+	// 	SuffixCommand: "ssm",
+	// 	Handler:       udoneseHandler,
+	// })
 }

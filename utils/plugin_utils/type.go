@@ -26,7 +26,7 @@ type Plugin_All struct {
 	DefaultHandlerByMessageTypeForSupergroup *Plugin_HandlerByMessageType
 	DefaultHandlerByMessageTypeForChannel    *Plugin_HandlerByMessageType
 
-	// DefaultHandlerByChatID
+	DefaultHandlerByChatID []Plugin_HandlerByChatID
 }
 
 var AllPugins = Plugin_All{}

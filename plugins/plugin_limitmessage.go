@@ -474,6 +474,14 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 }
 
 func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
+	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.CallbackQuery.Message.Message.Chat.ID, opts.Update.CallbackQuery.From.ID) {
+		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: opts.Update.CallbackQuery.ID,
+			Text: "您没有权限修改此配置",
+			ShowAlert: true,
+		})
+		return
+	}
 	thisChat := LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID]
 
 	switch opts.Update.CallbackQuery.Data {

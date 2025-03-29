@@ -160,11 +160,11 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			log.Println("accept callback query")
 			opts.ChatInfo.HasPendingCallbackQuery = true
 			opts.ChatInfo.LatestCallbackQueryData = update.CallbackQuery.Data
-			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "已接受请求",
-				ShowAlert:       false,
-			})
+			// thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			// 	CallbackQueryID: update.CallbackQuery.ID,
+			// 	Text:            "已接受请求",
+			// 	ShowAlert:       false,
+			// })
 		}
 
 		for _, n := range plugin_utils.AllPugins.CallbackQuery {
@@ -312,6 +312,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 				if consts.IsDebugMode {
 					log.Printf("hit in /start commands")
 				}
+				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 				startHandler(opts)
 				return
 			}
@@ -321,6 +322,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 						log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
 					}
 					if plugin.Handler == nil { continue }
+					database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 					plugin.Handler(opts)
 					return
 				}
@@ -334,6 +336,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 					Text:      "不存在的命令",
 				})
+				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 				time.Sleep(time.Second * 10)
 				opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
 					ChatID:     opts.Update.Message.Chat.ID,
@@ -351,6 +354,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 						log.Printf("hit fullcommand: %s", plugin.FullCommand)
 					}
 					if plugin.Handler == nil { continue }
+					database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 					plugin.Handler(opts)
 					return
 				}
@@ -361,6 +365,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 						log.Printf("hit suffixcommand: %s", plugin.SuffixCommand)
 					}
 					if plugin.Handler == nil { continue }
+					database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 					plugin.Handler(opts)
 					return
 				}
@@ -385,6 +390,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 					Text:      "不存在的命令",
 				})
+				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 				if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 			} else {
 				// 非命令消息，提示无操作可用
@@ -417,6 +423,13 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			// })
 		} else {
 			plugins.DeleteNotAllowMessage(opts)
+		}
+
+		for _, handlerByChatIDHandler := range plugin_utils.AllPugins.DefaultHandlerByChatID {
+			if handlerByChatIDHandler.ChatID == opts.Update.Message.Chat.ID {
+				if handlerByChatIDHandler.Handler == nil { continue }
+				handlerByChatIDHandler.Handler(opts)
+			}
 		}
 	}
 }
