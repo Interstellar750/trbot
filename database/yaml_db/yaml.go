@@ -45,7 +45,7 @@ func InitializeDB() (bool, error) {
 func ReadYamlDB(pathToFile string) (DataBaseYaml, error) {
 	file, err := os.Open(pathToFile)
 	if err != nil {
-		log.Println("[Database]: Not found Database file. Created new one")
+		log.Println("[Database_yaml]: Not found Database file. Created new one")
 		err = SaveYamlDB(consts.DB_path, consts.MetadataFileName, DataBaseYaml{})
 		if err != nil {
 			return DataBaseYaml{}, err

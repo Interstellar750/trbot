@@ -40,17 +40,6 @@ var StickerCache_path    string = Cache_path + "sticker/"
 var StickerCachePNG_path string = Cache_path + "sticker_png/"
 var StickerCacheZip_path string = Cache_path + "sticker_zip/"
 
-// type AdditionalDataPath struct {
-// 	Voice   string
-// 	Udonese string
-// }
-
-// var AdditionalDatas_paths = &AdditionalDataPath{
-// 	Voice: Voice_path,
-// 	Udonese: Udon_path,
-// }
-
-
 type SignalChannel struct {
 	Database_save   chan bool
 	PluginDB_save   chan bool

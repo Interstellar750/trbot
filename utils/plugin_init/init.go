@@ -81,7 +81,6 @@ func RegisterPlugins() {
 	})
 
 	// 文本消息开头的命令
-	// AddSlashSymbolCommandPlugins(plugins.SavedMessage_SlashSymbolCommandHandler)
 	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
 		SlashCommand: "chatinfo",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
