@@ -40,7 +40,7 @@ func SignalsHandler(ctx context.Context, SIGNAL consts.SignalChannel) {
 			log.Println("Plugin Database reloaded")
 		case <-SIGNAL.PluginDB_save:
 			mess.PrintLogAndSave(plugin_utils.SavePluginsDatabase())
-			log.Println("Plugin Database saved")
+			// log.Println("Plugin Database saved")
 		}
 		
 	}

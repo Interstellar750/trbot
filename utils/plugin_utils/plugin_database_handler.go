@@ -25,7 +25,10 @@ func AddDataBaseHandler(InlineHandlerPlugins ...DatabaseHandler) int {
 
 func ReloadPluginsDatabase() {
 	for _, plugin := range AllPugins.Databases {
-		if plugin.Loader == nil { continue }
+		if plugin.Loader == nil {
+			log.Printf("Plugin [%s] has no loader function, skipping", plugin.Name)
+			continue
+		}
 		plugin.Loader()
 	}
 }
@@ -34,13 +37,17 @@ func SavePluginsDatabase() string {
 	dbCount := len(AllPugins.Databases)
 	successCount := 0
 	for _, plugin := range AllPugins.Databases {
-		if plugin.Saver == nil { continue }
+		if plugin.Saver == nil { 
+			log.Printf("Plugin [%s] has no saver function, skipping", plugin.Name)
+			successCount++
+			continue
+		}
 		err := plugin.Saver()
 		if err != nil {
-			log.Println("Plugin", plugin.Name, "failed to save:", err)
+			log.Printf("Plugin [%s] failed to save: %s", plugin.Name, err)
 		} else {
 			successCount++
 		}
 	}
-	return fmt.Sprintf("[plugin_utils] Saved %d/%d plugins database", successCount, dbCount)
+	return fmt.Sprintf("[plugin_utils] Saved (%d/%d) plugins database", successCount, dbCount)
 }
