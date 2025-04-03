@@ -832,17 +832,17 @@ func AgreePrivacyPolicy(opts *handler_utils.SubHandlerOpts) {
 func init() {
 	ReadSavedMessageList()
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
-		Name: "Saved Message",
-		Saver: SaveSavedMessageList,
+		Name:   "Saved Message",
+		Saver:  SaveSavedMessageList,
 		Loader: ReadSavedMessageList,
 	})
 	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
 		SlashCommand: "save",
-		Handler: saveMessageHandler,
+		Handler:      saveMessageHandler,
 	})
 	plugin_utils.AddInlineHandlerPlugins(plugin_utils.Plugin_Inline{
-		Command: "saved",
-		Handler: InlineShowSavedMessageHandler,
+		Command:     "saved",
+		Handler:     InlineShowSavedMessageHandler,
 		Description: "显示自己保存的消息",
 	})
 	plugin_utils.AddSlashStartCommandPlugins([]plugin_utils.SlashStartHandler{
@@ -855,11 +855,9 @@ func init() {
 			Handler:  AgreePrivacyPolicy,
 		},
 	}...)
-	plugin_utils.AddSlashStartWithPrefixCommandPlugins([]plugin_utils.SlashStartWithPrefixHandler{
-		{
-			Prefix:   "via-inline",
-			Argument: "savedmessage-help",
-			Handler:  saveMessageHandler,
-		},
-	}...)
+	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
+		Prefix:   "via-inline",
+		Argument: "savedmessage-help",
+		Handler:  saveMessageHandler,
+	})
 }
