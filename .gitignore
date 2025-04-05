@@ -30,3 +30,4 @@ db_yaml/metadata.yaml
 /cache
 /db_yaml/savedmessage
 /db_yaml/limitmessage
+/db_yaml/detectkeyword

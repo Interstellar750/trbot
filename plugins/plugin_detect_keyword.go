@@ -5,7 +5,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
@@ -16,7 +18,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var KeywordDataList *KeywordData
+var KeywordDataList KeywordData = KeywordData{
+	Chats: map[int64]KeywordChatList{},
+	Users: map[int64]KeywordUserList{},
+}
 var KeywordDataErr  error
 
 var KeywordData_path string = consts.DB_path + "detectkeyword/"
@@ -31,6 +36,15 @@ func init() {
 	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
 		SlashCommand: "setkeyword",
 		Handler:      addKeywordHandler,
+	})
+	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.Plugin_CallbackQuery{
+		CommandChar: "detectkeyword_",
+		Handler:     callbackHandler,
+	})
+	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
+		Prefix: "detectkeyword",
+		Argument: "addgroup",
+		Handler: startPrefixAddGroup,
 	})
 }
 
@@ -52,7 +66,8 @@ type KeywordChatList struct {
 }
 
 type KeywordUserList struct {
-	UserID         int64        `yaml:"UserID"`
+	UserID         int64         `yaml:"UserID"`
+	AddTime        string        `yaml:"AddTime"`
 	Limit          int           `yaml:"Limit"`
 	IsEnabled      bool          `yaml:"IsEnabled"`
 	IsSilentNotice bool          `yaml:"IsSilentNotice"`
@@ -60,8 +75,9 @@ type KeywordUserList struct {
 }
 
 type KeywordItem struct {
-	ChatID  int64    `yaml:"ChatID"`
-	Keyword []string `yaml:"Keyword"`
+	ChatID    int64    `yaml:"ChatID"`
+	IsEnabled bool     `yaml:"IsEnabled"`
+	Keyword   []string `yaml:"Keyword"`
 }
 
 func ReadKeywordList() {
@@ -72,7 +88,7 @@ func ReadKeywordList() {
 		// 如果是找不到目录，新建一个
 		log.Println("[DetectKeyword]: Not found database file. Created new one")
 		SaveKeywordList()
-		KeywordDataList, KeywordDataErr = &KeywordData{}, err
+		KeywordDataErr = err
 		return
 	}
 	defer file.Close()
@@ -83,14 +99,14 @@ func ReadKeywordList() {
 		if err == io.EOF {
 			log.Println("[DetectKeyword]: keyword list looks empty. now format it")
 			SaveKeywordList()
-			KeywordDataList, KeywordDataErr = &KeywordData{}, nil
+			KeywordDataErr = nil
 			return
 		}
 		log.Println("(func)ReadKeywordList:", err)
-		KeywordDataList, KeywordDataErr = &KeywordData{}, err
+		KeywordDataErr = err
 		return
 	}
-	KeywordDataList, KeywordDataErr = &lists, nil
+	KeywordDataList, KeywordDataErr = lists, nil
 }
 
 func SaveKeywordList() error {
@@ -126,7 +142,7 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 				ParseMode: models.ParseModeHTML,
 				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "管理此功能",
-					CallbackData: "detectkeyword_groupmanage_switch",
+					CallbackData: "detectkeyword_groupmanage",
 				}}}},
 			})
 			if err != nil {
@@ -134,6 +150,19 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 			return
 		} else {
+			if chat.AddTime == "" {
+				chat = KeywordChatList{
+					ChatID: opts.Update.Message.Chat.ID,
+					ChatName: opts.Update.Message.Chat.Title,
+					ChatUsername: opts.Update.Message.Chat.Username,
+					ChatType: opts.Update.Message.Chat.Type,
+					AddTime: time.Now().Format(time.RFC3339),
+					InitByID: opts.Update.Message.From.ID,
+					IsDisable: false,
+				}
+				KeywordDataList.Chats[opts.Update.Message.Chat.ID] = chat
+				SaveKeywordList()
+			}
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Update.Message.Chat.ID,
 				Text: "已记录群组，点击下方左侧按钮来设定监听关键词\n若您是群组的管理员，您可以点击右侧的按钮来管理此功能",
@@ -142,11 +171,11 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
 					{
 						Text: "设定关键词",
-						URL: fmt.Sprintf("https://t.me/%s?start=setkeyword_%s_%d", consts.BotMe.Username, opts.Update.Message.Chat.Type, opts.Update.Message.Chat.ID),
+						URL: fmt.Sprintf("https://t.me/%s?start=detectkeyword_addgroup_%d", consts.BotMe.Username, opts.Update.Message.Chat.ID),
 					},
 					{
 						Text: "管理此功能",
-						CallbackData: "detectkeyword_groupmanage_switch",
+						CallbackData: "detectkeyword_groupmanage",
 					},
 				}}},
 			})
@@ -156,8 +185,19 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 			return
 		}
 	} else {
-		userKeyword := KeywordDataList.Users[opts.Update.Message.From.ID]
-		if len(userKeyword.Keywords) == 0 {
+		user := KeywordDataList.Users[opts.Update.Message.From.ID]
+		if user.AddTime == "" {
+			user = KeywordUserList{
+				UserID: opts.Update.Message.From.ID,
+				AddTime: time.Now().Format(time.RFC3339),
+				Limit: 50,
+				IsEnabled: false,
+				IsSilentNotice: false,
+			}
+			KeywordDataList.Users[opts.Update.Message.From.ID] = user
+			SaveKeywordList()
+		}
+		if len(user.Keywords) == 0 {
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Update.Message.Chat.ID,
 				Text: "您还没有添加任何群组，请在群组中使用 /setkeyword 来记录群组\n若发送信息后没有回应，请检查机器人是否在对应群组中",
@@ -216,7 +256,7 @@ func keywordDetector(opts *handler_utils.SubHandlerOpts) {
 }
 
 func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatname, keyword string) {
-	var messageLink string = fmt.Sprintf("https://t.me/c/%d/%d", opts.Update.Message.Chat.ID, opts.Update.Message.ID)
+	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
@@ -253,7 +293,23 @@ func callbackHandler(opts *handler_utils.SubHandlerOpts) {
 			Text: "消息关键词检测\n",
 			ReplyMarkup: buildGroupManageKB(chat),
 		})
+	case "detectkeyword_groupmanage_switch":
+		chat.IsDisable = !chat.IsDisable
+		_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+			Text: "消息关键词检测\n",
+			ReplyMarkup: buildGroupManageKB(chat),
+		})
+		if err != nil {
+			fmt.Println(err)
+		}
+	default:
+		
 	}
+	
+	KeywordDataList.Chats[opts.Update.CallbackQuery.Message.Message.Chat.ID] = chat
+	SaveKeywordList()
 }
 
 func showChatStatus(IsDisable bool) string {
@@ -265,17 +321,56 @@ func showChatStatus(IsDisable bool) string {
 }
 
 func buildGroupManageKB(chat KeywordChatList) models.ReplyMarkup {
-	var chatAllow [][]models.InlineKeyboardButton
+	var buttons [][]models.InlineKeyboardButton
 
-	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
+	buttons = append(buttons, []models.InlineKeyboardButton{
 		{
 			Text: showChatStatus(chat.IsDisable),
 			CallbackData: "detectkeyword_groupmanage_switch",
 		},
 	})
 
-	kb := &models.InlineKeyboardMarkup{
-		InlineKeyboard: chatAllow,
+	return &models.InlineKeyboardMarkup{
+		InlineKeyboard: buttons,
 	}
-	return kb
+}
+
+func startPrefixAddGroup(opts *handler_utils.SubHandlerOpts) {
+	user := KeywordDataList.Users[opts.Update.Message.From.ID]
+	if strings.HasPrefix(opts.Fields[1], "detectkeyword_addgroup_") {
+		groupID := strings.TrimPrefix(opts.Fields[1], "detectkeyword_addgroup_")
+		groupID_int64, err := strconv.ParseInt(groupID, 10, 64)
+		if err != nil {
+			fmt.Println("format groupID error:", err)
+			return
+		}
+		var IsAdded bool = false
+		for _, keyword := range user.Keywords {
+			if keyword.ChatID == groupID_int64 {
+				IsAdded = true
+				break
+			}
+		}
+		if !IsAdded {
+			log.Println("add group", groupID_int64, "to user", opts.Update.Message.From.ID)
+			user.Keywords = append(user.Keywords, KeywordItem{
+				ChatID: groupID_int64,
+				IsEnabled: false,
+			})
+		}
+		KeywordDataList.Users[opts.Update.Message.From.ID] = user
+
+		chat := KeywordDataList.Chats[groupID_int64]
+
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.Message.Chat.ID,
+			Text: fmt.Sprintf("已添加 <a href=\"https://t.me/c/%s/\">%s</a> 群组", utils.RemoveIDPrefix(chat.ChatID), chat.ChatName),
+			ParseMode: models.ParseModeHTML,
+		})
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	SaveKeywordList()
+
 }

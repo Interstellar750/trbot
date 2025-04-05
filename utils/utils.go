@@ -364,7 +364,6 @@ func ShowChatName(chat *models.Chat) string {
 	}
 }
 
-// func ChangeDefaultInlineCommand(user )
 
 func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) models.ReplyMarkup {
 	var inlinePlugins [][]models.InlineKeyboardButton
@@ -404,4 +403,13 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 	}
 
 	return kb
+}
+
+func RemoveIDPrefix(id int64) string {
+	mayWithPrefix := fmt.Sprintf("%d", id)
+	if strings.HasPrefix(mayWithPrefix, "-100") {
+		return mayWithPrefix[4:]
+	} else {
+		return mayWithPrefix
+	}
 }
