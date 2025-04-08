@@ -372,16 +372,18 @@ func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
 				// 判断是否是此群组
 				if keywords.ChatID == opts.Update.Message.Chat.ID {
 					if opts.Update.Message.Caption != "" {
+						text := strings.ToLower(opts.Update.Message.Caption)
 						for _, keyword := range keywords.Keyword {
-							if strings.Contains(strings.ToLower(opts.Update.Message.Caption), keyword) {
-								notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword)
+							if strings.Contains(text, keyword) {
+								notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword, text)
 								break
 							}
 						}
 					} else if opts.Update.Message.Text != "" {
+						text := strings.ToLower(opts.Update.Message.Text)
 						for _, keyword := range keywords.Keyword {
-							if strings.Contains(strings.ToLower(opts.Update.Message.Text), keyword) {
-								notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword)
+							if strings.Contains(text, keyword) {
+								notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword, text)
 								break
 							}
 						}
@@ -392,18 +394,11 @@ func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatname, keyword string) {
+func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatname, keyword, text string) {
 	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
-	var messageText string
-	if opts.Update.Message.Caption != "" {
-		messageText = opts.Update.Message.Caption
-	} else {
-		messageText = opts.Update.Message.Text
-	}
-
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
-		Text: fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中有消息触发了设定的关键词 [%s]\n<blockquote>%s</blockquote>", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, keyword, messageText),
+		Text: fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中有消息触发了设定的关键词 [%s]\n<blockquote>%s</blockquote>", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, keyword, text),
 		ParseMode: models.ParseModeHTML,
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "点击前往查看",
@@ -435,7 +430,7 @@ func groupManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-		Text: "消息关键词检测\n此功能允许用户设定一些关键词，当机器人检测到群组内的消息包含用户设定的关键词时，向用户发送提醒\n\n" + utils.TextForTrueOrFalse(chat.IsDisable, "已为当前群组关闭关键词检测功能，已设定了关键词的用户将无法再收到此群组的提醒", ""),
+		Text: fmt.Sprintf("消息关键词检测\n此功能允许用户设定一些关键词，当机器人检测到群组内的消息包含用户设定的关键词时，向用户发送提醒\n\n当前群组中有 %d 个用户启用了此功能\n\n%s", len(chat.UsersID),  utils.TextForTrueOrFalse(chat.IsDisable, "已为当前群组关闭关键词检测功能，已设定了关键词的用户将无法再收到此群组的提醒", "")),
 		ReplyMarkup: buildGroupManageKB(chat),
 	})
 	if err != nil {
@@ -532,12 +527,14 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				if chat.ChatID == id_int64 {
 					for index, keyword := range chat.Keyword {
 						var tempbutton []models.InlineKeyboardButton
-						for i := 0; i < 2; i++ {
-							tempbutton = append(tempbutton, models.InlineKeyboardButton{
-								Text: keyword,
-								CallbackData: "detectkw_mng_keyword_" + strconv.FormatInt(chat.ChatID, 10) + "_" + strconv.Itoa(index),
-							})
+						if index % 2 == 0 && index != 0 {
+							buttons = append(buttons, tempbutton)
+							tempbutton = []models.InlineKeyboardButton{}
 						}
+						tempbutton = append(tempbutton, models.InlineKeyboardButton{
+							Text: keyword,
+							CallbackData: fmt.Sprintf("detectkw_mng_keyword_%d_%s", chat.ChatID, keyword),
+						})
 						buttons = append(buttons, tempbutton)
 					}
 				}
@@ -571,6 +568,34 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 			return
+		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_keyword_") {
+			idAndKeyword := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_keyword_")
+			idAndKeywordList := strings.Split(idAndKeyword, "_")
+			id_int64, _ := strconv.ParseInt(idAndKeywordList[0], 10, 64)
+
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID: opts.Update.CallbackQuery.From.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				Text: fmt.Sprintf("[%s] 是为群组 <a href=\"https://t.me/c/%s/\">%s</a> 设定的关键词", idAndKeywordList[1], utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName),
+				ReplyMarkup: &models.InlineKeyboardMarkup{
+					InlineKeyboard: [][]models.InlineKeyboardButton{
+						{
+							{
+								Text: "返回",
+								CallbackData: "detectkw_mng_chat_" + idAndKeywordList[0],
+							},
+							{
+								Text: "删除此关键词",
+								CallbackData: "detectkw_mng_delkw_" + idAndKeyword,
+							},
+						},
+					},
+				},
+		})
+			if err != nil {
+				fmt.Println(err)
+			}
+
 		}
 		
 	}
