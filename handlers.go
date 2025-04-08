@@ -423,6 +423,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			// })
 		} else {
 			plugins.DeleteNotAllowMessage(opts)
+			plugins.KeywordDetector(opts)
 		}
 
 		for _, handlerByChatIDHandler := range plugin_utils.AllPugins.DefaultHandlerByChatID {

@@ -413,3 +413,11 @@ func RemoveIDPrefix(id int64) string {
 		return mayWithPrefix
 	}
 }
+
+func TextForTrueOrFalse(condition bool, tureText, falseText string) string {
+	if condition {
+		return tureText
+	} else {
+		return falseText
+	}
+}
