@@ -84,7 +84,7 @@ type KeywordUserList struct {
 func (user KeywordUserList)enabledChatCount() int {
 	var count int
 	for _, v := range user.ChatsForUser {
-		if v.IsEnabled {
+		if !v.IsDisable {
 			count++
 		}
 	}
@@ -128,7 +128,7 @@ func (user KeywordUserList)selectChat() models.ReplyMarkup {
 
 type ChatForUser struct {
 	ChatID          int64    `yaml:"ChatID"`
-	IsEnabled       bool     `yaml:"IsEnabled,omitempty"`
+	IsDisable       bool     `yaml:"IsDisable,omitempty"`
 	IsConfirmDelete bool     `yaml:"IsConfirmDelete,omitempty"`
 	Keyword         []string `yaml:"Keyword"`
 }
@@ -351,7 +351,7 @@ func buildListenList() {
 	for _, user := range KeywordDataList.Users {
 		if !user.IsDisable {
 			for _, key := range user.ChatsForUser {
-				if key.IsEnabled {
+				if !key.IsDisable {
 					chat := KeywordDataList.Chats[key.ChatID]
 					chat.UsersID = append(chat.UsersID, user.UserID)
 					KeywordDataList.Chats[key.ChatID] = chat
@@ -559,7 +559,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 			for index, chat := range KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser {
 				if chat.ChatID == id_int64 {
-					chat.IsEnabled = !chat.IsEnabled
+					chat.IsDisable = !chat.IsDisable
 				}
 				KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser[index] = chat
 			}
@@ -629,18 +629,16 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				ChatID: opts.Update.CallbackQuery.From.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 				Text: fmt.Sprintf("[%s] 是为群组 <a href=\"https://t.me/c/%s/\">%s</a> 设定的关键词", idAndKeywordList[1], utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName),
-				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
 					{
-						{
-							Text: "返回",
-							CallbackData: "detectkw_mng_chat_" + idAndKeywordList[0],
-						},
-						{
-							Text: "删除此关键词",
-							CallbackData: "detectkw_mng_delkw_" + idAndKeyword,
-						},
+						Text: "返回",
+						CallbackData: "detectkw_mng_chat_" + idAndKeywordList[0],
 					},
-				}},
+					{
+						Text: "删除此关键词",
+						CallbackData: "detectkw_mng_delkw_" + idAndKeyword,
+					},
+				}}},
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
@@ -711,7 +709,6 @@ func startPrefixAddGroup(opts *handler_utils.SubHandlerOpts) {
 			log.Println("add group", groupID_int64, "to user", opts.Update.Message.From.ID)
 			user.ChatsForUser = append(user.ChatsForUser, ChatForUser{
 				ChatID: groupID_int64,
-				IsEnabled: false,
 			})
 		}
 		KeywordDataList.Users[opts.Update.Message.From.ID] = user
@@ -751,7 +748,7 @@ func buildUserChatList(user KeywordUserList) models.ReplyMarkup {
 			})
 		} else {
 			subchats = append(subchats, models.InlineKeyboardButton{
-				Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsEnabled, "已启用 ✅", "已禁用 ❌"),
+				Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsDisable, "已禁用 ❌", "已启用 ✅"),
 				CallbackData: fmt.Sprintf("detectkw_mng_switch_chat_%d", targetChat.ChatID),
 			})
 		}
