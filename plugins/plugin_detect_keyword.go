@@ -732,37 +732,39 @@ func startPrefixAddGroup(opts *handler_utils.SubHandlerOpts) {
 func buildUserChatList(user KeywordUserList) models.ReplyMarkup {
 	var buttons [][]models.InlineKeyboardButton
 
-	for _, chat := range user.ChatsForUser {
-		var subchats []models.InlineKeyboardButton
-		var targetChat = KeywordDataList.Chats[chat.ChatID]
-		
-		subchats = append(subchats, models.InlineKeyboardButton{
-			Text: targetChat.ChatName,
-			CallbackData: fmt.Sprintf("detectkw_mng_chat_%d", targetChat.ChatID),
-		})
+	if !user.IsDisable {
+		for _, chat := range user.ChatsForUser {
+			var subchats []models.InlineKeyboardButton
+			var targetChat = KeywordDataList.Chats[chat.ChatID]
+			
+			subchats = append(subchats, models.InlineKeyboardButton{
+				Text: targetChat.ChatName,
+				CallbackData: fmt.Sprintf("detectkw_mng_chat_%d", targetChat.ChatID),
+			})
 
-		if targetChat.IsDisable {
-			subchats = append(subchats, models.InlineKeyboardButton{
-				Text: "🚫 查看帮助",
-				CallbackData: "detectkw_mng_chatdisablebyadmin",
-			})
-		} else {
-			subchats = append(subchats, models.InlineKeyboardButton{
-				Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsDisable, "已禁用 ❌", "已启用 ✅"),
-				CallbackData: fmt.Sprintf("detectkw_mng_switch_chat_%d", targetChat.ChatID),
-			})
+			if targetChat.IsDisable {
+				subchats = append(subchats, models.InlineKeyboardButton{
+					Text: "🚫 查看帮助",
+					CallbackData: "detectkw_mng_chatdisablebyadmin",
+				})
+			} else {
+				subchats = append(subchats, models.InlineKeyboardButton{
+					Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsDisable, "当前已禁用 ❌", "当前已启用 ✅"),
+					CallbackData: fmt.Sprintf("detectkw_mng_switch_chat_%d", targetChat.ChatID),
+				})
+			}
+			
+			buttons = append(buttons, subchats)
 		}
-		
-		buttons = append(buttons, subchats)
+
+		buttons = append(buttons, []models.InlineKeyboardButton{{
+			Text: "🔄 通知偏好：" + utils.TextForTrueOrFalse(user.IsSilentNotice, "🔇 无声通知", "🔉 有声通知"),
+			CallbackData: "detectkw_mng_noticeswitch",
+		}})
 	}
 
 	buttons = append(buttons, []models.InlineKeyboardButton{{
-		Text: "🔄 通知偏好：" + utils.TextForTrueOrFalse(user.IsSilentNotice, "🔇 无声通知", "🔉 有声通知"),
-		CallbackData: "detectkw_mng_noticeswitch",
-	}})
-
-	buttons = append(buttons, []models.InlineKeyboardButton{{
-		Text: "🔄 全局状态：" + utils.TextForTrueOrFalse(user.IsDisable, "已禁用", "已启用"),
+		Text: "🔄 全局状态：" + utils.TextForTrueOrFalse(user.IsDisable, "已禁用 ❌", "已启用 ✅"),
 		CallbackData: "detectkw_mng_globalswitch",
 	}})
 
