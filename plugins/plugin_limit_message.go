@@ -368,6 +368,9 @@ func buildMessageTypeKB(chat AllowMessages) models.ReplyMarkup {
 			CallbackData: "limitmsg_type_" + field.Name,
 		})
 	}
+	if len(msgTypeItemsTemp) != 0 {
+		msgTypeItems = append(msgTypeItems, msgTypeItemsTemp)
+	}
 
 
 	msgTypeItems = append(msgTypeItems, []models.InlineKeyboardButton{{
@@ -401,6 +404,9 @@ func buildMessageAttributeKB(chat AllowMessages) models.ReplyMarkup {
 			Text:         buttonText(field.Name, value.Bool(), chat.IsWhiteForAttribute),
 			CallbackData: "limitmsg_attr_" + field.Name,
 		})
+	}
+	if len(msgAttributeItemsTemp) != 0 {
+		msgAttributeItems = append(msgAttributeItems, msgAttributeItemsTemp)
 	}
 
 
