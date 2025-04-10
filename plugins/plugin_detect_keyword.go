@@ -297,7 +297,7 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 				targetChat := KeywordDataList.Chats[chat.ChatID]
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
-					Text: fmt.Sprintf("已为 <a href=\"https://t.me/c/%s/\">%s</a> 群组添加关键词 [%s]，您可以续向此群组添加更多关键词\n", utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName, strings.ToLower(opts.Fields[1])),
+					Text: fmt.Sprintf("已为 <a href=\"https://t.me/c/%s/\">%s</a> 群组添加关键词 [%s]，您可以继续向此群组添加更多关键词\n", utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName, strings.ToLower(opts.Fields[1])),
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 					ParseMode: models.ParseModeHTML,
 					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
@@ -453,14 +453,20 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 	case "detectkw_mng_finish":
 		user.AddingChatID = 0
 	default:
-		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") {
-			idAndKeyword := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_")
+		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") || strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_delkw_") {
+			var idAndKeyword string
+			if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") {
+				idAndKeyword = strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_")
+			} else {
+				idAndKeyword = strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_delkw_")
+			}
 			idAndKeywordList := strings.Split(idAndKeyword, "_")
+			chatID, err := strconv.ParseInt(idAndKeywordList[0], 10, 64)
+			if err != nil {
+				fmt.Println(err)
+			}
 			for index, chat := range KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser {
-				chatID , err := strconv.ParseInt(idAndKeywordList[0], 10, 64)
-				if err != nil {
-					fmt.Println(err)
-				}
+				
 				if chat.ChatID == chatID {
 					var tempKeyword []string
 					for _, keyword := range chat.Keyword {
@@ -473,14 +479,56 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser[index] = chat
 				SaveKeywordList()
 			}
-			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.From.ID,
-				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-				Text: "已撤销操作",
-			})
-			if err != nil {
-				fmt.Println(err)
+			if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") {
+				_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+					ChatID: opts.Update.CallbackQuery.From.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					Text: "已撤销操作",
+				})
+				if err != nil {
+					fmt.Println(err)
+				}
+			} else {
+				var buttons [][]models.InlineKeyboardButton
+				var tempbutton []models.InlineKeyboardButton
+				for _, chat := range user.ChatsForUser {
+					if chat.ChatID == chatID {
+						for index, keyword := range chat.Keyword {
+							if index % 2 == 0 && index != 0 {
+								buttons = append(buttons, tempbutton)
+								tempbutton = []models.InlineKeyboardButton{}
+							}
+							tempbutton = append(tempbutton, models.InlineKeyboardButton{
+								Text: keyword,
+								CallbackData: fmt.Sprintf("detectkw_mng_keyword_%d_%s", chat.ChatID, keyword),
+							})
+							// buttons = append(buttons, tempbutton)
+						}
+						if len(tempbutton) != 0 {
+							buttons = append(buttons, tempbutton)
+						}
+					}
+				}
+
+				buttons = append(buttons, []models.InlineKeyboardButton{{
+					Text: "返回上一级",
+					CallbackData: "detectkw_mng_chat_" + idAndKeywordList[0],
+				}})
+
+				_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+					ChatID: opts.Update.CallbackQuery.From.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					Text: fmt.Sprintf("已删除 [%s] 关键词\n\n您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", idAndKeywordList[1], utils.RemoveIDPrefix(chatID), KeywordDataList.Chats[chatID].ChatName, user.keywordCount()),
+					ParseMode: models.ParseModeHTML,
+					ReplyMarkup: &models.InlineKeyboardMarkup{
+						InlineKeyboard: buttons,
+					},
+				})
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
+			
 			return
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_adding_") {
 			id := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_adding_")
@@ -523,10 +571,10 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				fmt.Println(err)
 			}
 			var buttons [][]models.InlineKeyboardButton
+			var tempbutton []models.InlineKeyboardButton
 			for _, chat := range KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser {
 				if chat.ChatID == id_int64 {
 					for index, keyword := range chat.Keyword {
-						var tempbutton []models.InlineKeyboardButton
 						if index % 2 == 0 && index != 0 {
 							buttons = append(buttons, tempbutton)
 							tempbutton = []models.InlineKeyboardButton{}
@@ -535,37 +583,42 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 							Text: keyword,
 							CallbackData: fmt.Sprintf("detectkw_mng_keyword_%d_%s", chat.ChatID, keyword),
 						})
+						// buttons = append(buttons, tempbutton)
+					}
+					if len(tempbutton) != 0 {
 						buttons = append(buttons, tempbutton)
 					}
 				}
 			}
-			if len(buttons) == 0 {
-				_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-					ChatID: opts.Update.CallbackQuery.From.ID,
-					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-					Text: fmt.Sprintf("当前群组 <a href=\"https://t.me/c/%s/\">%s</a> 没有关键词，点击下方按钮来为此群组添加关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName),
-					ParseMode: models.ParseModeHTML,
-					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "添加关键词",
-						CallbackData: fmt.Sprintf("detectkw_mng_adding_%d", id_int64),
-					}}}},
-				})
-				if err != nil {
-					log.Println(err)
-				}
+
+			var pendingMessage string
+			if len(buttons) > 0 {
+				pendingMessage = fmt.Sprintf("当前群组 <a href=\"https://t.me/c/%s/\">%s</a> 没有关键词，点击下方按钮来为此群组添加关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName)
+				buttons = append(buttons, []models.InlineKeyboardButton{{
+					Text: "添加关键词",
+					CallbackData: fmt.Sprintf("detectkw_mng_adding_%d", id_int64),
+				}})
 			} else {
-				_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-					ChatID: opts.Update.CallbackQuery.From.ID,
-					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-					Text: fmt.Sprintf("您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName, user.keywordCount()),
-					ParseMode: models.ParseModeHTML,
-					ReplyMarkup: &models.InlineKeyboardMarkup{
-						InlineKeyboard: buttons,
-					},
-				})
-				if err != nil {
-					fmt.Println(err)
-				}
+				pendingMessage = fmt.Sprintf("您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName, user.keywordCount())
+			}
+
+			buttons = append(buttons, []models.InlineKeyboardButton{{
+				Text: "返回上一级",
+				CallbackData: "detectkw_mng",
+			}})
+
+
+			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID: opts.Update.CallbackQuery.From.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				Text: pendingMessage,
+				ParseMode: models.ParseModeHTML,
+				ReplyMarkup: &models.InlineKeyboardMarkup{
+					InlineKeyboard: buttons,
+				},
+			})
+			if err != nil {
+				fmt.Println(err)
 			}
 			return
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_keyword_") {
@@ -577,25 +630,24 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				ChatID: opts.Update.CallbackQuery.From.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 				Text: fmt.Sprintf("[%s] 是为群组 <a href=\"https://t.me/c/%s/\">%s</a> 设定的关键词", idAndKeywordList[1], utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName),
-				ReplyMarkup: &models.InlineKeyboardMarkup{
-					InlineKeyboard: [][]models.InlineKeyboardButton{
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+					{
 						{
-							{
-								Text: "返回",
-								CallbackData: "detectkw_mng_chat_" + idAndKeywordList[0],
-							},
-							{
-								Text: "删除此关键词",
-								CallbackData: "detectkw_mng_delkw_" + idAndKeyword,
-							},
+							Text: "返回",
+							CallbackData: "detectkw_mng_chat_" + idAndKeywordList[0],
+						},
+						{
+							Text: "删除此关键词",
+							CallbackData: "detectkw_mng_delkw_" + idAndKeyword,
 						},
 					},
-				},
-		})
+				}},
+				ParseMode: models.ParseModeHTML,
+			})
 			if err != nil {
 				fmt.Println(err)
 			}
-
+			return
 		}
 		
 	}
