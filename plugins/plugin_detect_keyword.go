@@ -517,7 +517,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 					ChatID: opts.Update.CallbackQuery.From.ID,
 					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-					Text: fmt.Sprintf("已删除 [%s] 关键词\n\n您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", idAndKeywordList[1], utils.RemoveIDPrefix(chatID), KeywordDataList.Chats[chatID].ChatName, user.keywordCount()),
+					Text: fmt.Sprintf("已删除 [%s] 关键词\n\n您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", idAndKeywordList[1], utils.RemoveIDPrefix(chatID), KeywordDataList.Chats[chatID].ChatName, len(buttons) - 1),
 					ParseMode: models.ParseModeHTML,
 					ReplyMarkup: &models.InlineKeyboardMarkup{
 						InlineKeyboard: buttons,
@@ -598,7 +598,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 					CallbackData: fmt.Sprintf("detectkw_mng_adding_%d", id_int64),
 				}})
 			} else {
-				pendingMessage = fmt.Sprintf("您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName, user.keywordCount())
+				pendingMessage = fmt.Sprintf("您当前为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定了 %d 个关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName, len(buttons))
 			}
 
 			buttons = append(buttons, []models.InlineKeyboardButton{{
