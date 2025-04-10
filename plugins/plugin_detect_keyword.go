@@ -442,7 +442,6 @@ func groupManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 }
 
 func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
-
 	user := KeywordDataList.Users[opts.Update.CallbackQuery.From.ID]
 
 	switch opts.Update.CallbackQuery.Data {
@@ -592,8 +591,8 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 
 			var pendingMessage string
-			if len(buttons) > 0 {
-				pendingMessage = fmt.Sprintf("当前群组 <a href=\"https://t.me/c/%s/\">%s</a> 没有关键词，点击下方按钮来为此群组添加关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName)
+			if len(buttons) == 0 {
+				pendingMessage = fmt.Sprintf("当前群组 <a href=\"https://t.me/c/%s/\">%s</a> 没有关键词\n点击下方按钮来为此群组添加关键词", utils.RemoveIDPrefix(id_int64), KeywordDataList.Chats[id_int64].ChatName)
 				buttons = append(buttons, []models.InlineKeyboardButton{{
 					Text: "添加关键词",
 					CallbackData: fmt.Sprintf("detectkw_mng_adding_%d", id_int64),
@@ -682,6 +681,18 @@ func buildGroupManageKB(chat KeywordChatList) models.ReplyMarkup {
 
 func startPrefixAddGroup(opts *handler_utils.SubHandlerOpts) {
 	user := KeywordDataList.Users[opts.Update.Message.From.ID]
+	if user.AddTime == "" {
+		// 初始化用户
+		user = KeywordUserList{
+			UserID: opts.Update.Message.From.ID,
+			AddTime: time.Now().Format(time.RFC3339),
+			Limit: 50,
+			IsDisable: false,
+			IsSilentNotice: false,
+		}
+		KeywordDataList.Users[opts.Update.Message.From.ID] = user
+		SaveKeywordList()
+	}
 	if strings.HasPrefix(opts.Fields[1], "detectkw_addgroup_") {
 		groupID := strings.TrimPrefix(opts.Fields[1], "detectkw_addgroup_")
 		groupID_int64, err := strconv.ParseInt(groupID, 10, 64)
@@ -740,7 +751,7 @@ func buildUserChatList(user KeywordUserList) models.ReplyMarkup {
 			})
 		} else {
 			subchats = append(subchats, models.InlineKeyboardButton{
-				Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsEnabled, "已启用", "已禁用"),
+				Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsEnabled, "已启用 ✅", "已禁用 ❌"),
 				CallbackData: fmt.Sprintf("detectkw_mng_switch_chat_%d", targetChat.ChatID),
 			})
 		}
