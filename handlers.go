@@ -32,7 +32,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	if update.Message != nil {
 		// fmt.Println(getMessageType(update.Message))
 		if update.Message.Chat.Type == "private" {
-			// plugin_utils.AllPugins.DefaultHandlerByMessageTypeForPrivate
+			// plugin_utils.AllPlugins.DefaultHandlerByMessageTypeForPrivate
 		}
 	}
 
@@ -167,7 +167,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			// })
 		}
 
-		for _, n := range plugin_utils.AllPugins.CallbackQuery {
+		for _, n := range plugin_utils.AllPlugins.CallbackQuery {
 			if strings.HasPrefix(update.CallbackQuery.Data, n.CommandChar) {
 				if n.Handler == nil { continue }
 				n.Handler(&opts)
@@ -316,7 +316,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 				startHandler(opts)
 				return
 			}
-			for _, plugin := range plugin_utils.AllPugins.SlashSymbolCommand {
+			for _, plugin := range plugin_utils.AllPlugins.SlashSymbolCommand {
 				if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
 					if consts.IsDebugMode {
 						log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
@@ -348,7 +348,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 				return
 			} 
 		} else if len(opts.Update.Message.Text) > 0 {
-			for _, plugin := range plugin_utils.AllPugins.CustomSymbolCommand {
+			for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
 				if utils.CommandMaybeWithSuffixUsername(opts.Fields, plugin.FullCommand) {
 					if consts.IsDebugMode {
 						log.Printf("hit fullcommand: %s", plugin.FullCommand)
@@ -359,7 +359,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 					return
 				}
 			}
-			for _, plugin := range plugin_utils.AllPugins.SuffixCommand {
+			for _, plugin := range plugin_utils.AllPlugins.SuffixCommand {
 				if strings.HasSuffix(opts.Update.Message.Text, plugin.SuffixCommand) {
 					if consts.IsDebugMode {
 						log.Printf("hit suffixcommand: %s", plugin.SuffixCommand)
@@ -426,7 +426,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			plugins.KeywordDetector(opts)
 		}
 
-		for _, handlerByChatIDHandler := range plugin_utils.AllPugins.DefaultHandlerByChatID {
+		for _, handlerByChatIDHandler := range plugin_utils.AllPlugins.DefaultHandlerByChatID {
 			if handlerByChatIDHandler.ChatID == opts.Update.Message.Chat.ID {
 				if handlerByChatIDHandler.Handler == nil { continue }
 				handlerByChatIDHandler.Handler(opts)
@@ -437,34 +437,43 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 
 // 处理 inline 模式下的请求
 func inlineHandler(opts *handler_utils.SubHandlerOpts) {
-	if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
-		var inlineButton *models.InlineQueryResultsButton
+	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs)
 
-		if opts.ChatInfo.DefaultInlinePlugin == "" {
-			inlineButton = &models.InlineQueryResultsButton{
-				Text: "点击此处修改默认命令",
-				StartParameter: "via-inline_change-inline-command",
-			}
+	if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
+		// 仅输入了命令符号，展示命令列表
+		var inlineButton = &models.InlineQueryResultsButton{
+			Text: "点击此处修改默认命令",
+			StartParameter: "via-inline_change-inline-command",
 		}
 		// 展示全部命令
 		var results []models.InlineQueryResult
 		results = append(results, &models.InlineQueryResultArticle{
-				ID:    "keepInput",
-				Title: "请不要点击列表中的命令",
-				Description: "由于限制，您需要手动输入完整的命令",
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "请不要点击选单中的命令...",
-				},
-			})
-		for _, plugin := range plugin_utils.AllPugins.InlineCommandList {
-			results = append(results, &models.InlineQueryResultArticle{
-				ID:    plugin.Command,
+			ID:    "keepInput",
+			Title: "请不要点击列表中的命令",
+			Description: "由于限制，您需要手动输入完整的命令",
+			InputMessageContent: &models.InputTextMessageContent{
+				MessageText: "请不要点击选单中的命令...",
+			},
+		})
+		for _, plugin := range plugin_utils.AllPlugins.InlineCommandList {
+			if !IsAdmin && plugin.Attr.IsHideInCommandList {
+				continue
+			}
+			var command = &models.InlineQueryResultArticle{
+				ID:    "inlinemenu" + plugin.Command,
 				Title: plugin.Command,
 				Description: plugin.Description,
 				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: "请不要点击选单中的命令...",
 				},
-			})
+			}
+			if plugin.Attr.IsHideInCommandList {
+				command.Description += "隐藏 | "
+			}
+			if plugin.Attr.IsOnlyAllowAdmin {
+				command.Description += "管理员 | "
+			}
+			results = append(results, command)
 		}
 		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: opts.Update.InlineQuery.ID,
@@ -477,8 +486,13 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 			return
 		}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol) {
-		// 插件处理完后返回全部列表，由设定好的函数进行分页
-		for _, plugin := range plugin_utils.AllPugins.Inline {
+		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则提示错误
+
+		// 插件处理完后返回全部列表，由设定好的函数进行分页输出
+		for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
+			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+				continue
+			}
 			if opts.Fields[0][1:] == plugin.Command {
 				if plugin.Handler == nil { continue }
 				ResultList := plugin.Handler(opts)
@@ -496,24 +510,29 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 		}
 		// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
-		for _, plugin := range plugin_utils.AllPugins.InlineManual {
+		for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
+			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+				continue
+			}
 			if opts.Fields[0][1:] == plugin.Command {
 				if plugin.Handler == nil { continue }
 				plugin.Handler(opts)
 				return
 			}
 		}
-		// 仅限管理员使用的命令
-		if utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs) {
-			for _, plugin := range plugin_utils.AllPugins.InlinePrefix {
-				if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol + plugin.PrefixCommand) {
-					if plugin.Handler == nil { continue }
-					plugin.Handler(opts)
-					return
-				}
+		// 符合命令前缀，完全由插件自行控制输出
+		for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
+			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+				continue
 			}
-			
+			if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol + plugin.PrefixCommand) {
+				if plugin.Handler == nil { continue }
+				plugin.Handler(opts)
+				return
+			}
 		}
+
+		// 没有匹配到任何命令
 		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: opts.Update.InlineQuery.ID,
 			Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
@@ -521,7 +540,7 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				Title: fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
 				Description: "请检查命令是否正确",
 				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+					MessageText: "您在使用 inline 模式时没有选择正确的命令...",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			}},
@@ -531,36 +550,14 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 		}
 		return
 	} else {
-		if consts.Inline_NoDefaultHandler {
-			var inlineButton *models.InlineQueryResultsButton
-			var message string = "可用的 Inline 模式命令:\n\n"
-			for _, command := range plugin_utils.AllPugins.InlineCommandList {
-				message += fmt.Sprintf("命令: <code>%s%s</code>\n", consts.InlineSubCommandSymbol, command.Command)
-				if command.Description != "" {
-					message += fmt.Sprintf("描述: %s\n", command.Description)
-				}
-				message += "\n"
-			}
+		if opts.ChatInfo.DefaultInlinePlugin != "" {
+			// 来自用户设定的默认命令
 
-			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.Update.InlineQuery.ID,
-				Results:       []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:    "nodefaulthandler",
-					Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", consts.InlineSubCommandSymbol),
-					Description: "由于管理员没有设定默认命令，您需要手动选择一个命令，点击此处查看命令列表",
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: message,
-						ParseMode: models.ParseModeHTML,
-					},
-				}},
-				Button: inlineButton,
-			})
-			if err != nil {
-				log.Printf("Error sending inline query response: %v", err)
-				return
-			}
-		} else if opts.ChatInfo.DefaultInlinePlugin != "" {
-			for _, plugin := range plugin_utils.AllPugins.Inline {
+			// 插件处理完后返回全部列表，由设定好的函数进行分页输出
+			for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+					continue
+				}
 				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
 					if plugin.Handler == nil { continue }
 					ResultList := plugin.Handler(opts)
@@ -578,7 +575,10 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 			// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
-			for _, plugin := range plugin_utils.AllPugins.InlineManual {
+			for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+					continue
+				}
 				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
 					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
@@ -586,6 +586,19 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 
+			// 符合命令前缀，完全由插件自行控制输出
+			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+					continue
+				}
+				if opts.ChatInfo.DefaultInlinePlugin == plugin.PrefixCommand {
+					if plugin.Handler == nil { continue }
+					plugin.Handler(opts)
+					return
+				}
+			}
+
+			// 没有匹配到命令，提示不存在的命令
 			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.Update.InlineQuery.ID,
 				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
@@ -596,15 +609,26 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 						MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 						ParseMode: models.ParseModeMarkdownV1,
 					},
+					
 				}},
+				Button: &models.InlineQueryResultsButton{
+					Text: "点击此处修改默认命令",
+					StartParameter: "via-inline_change-inline-command",
+				},
 			})
 			if err != nil {
-				log.Println("Error when answering inline no command", err)
+				log.Println("Error when answering inline default command invailid:", err)
 			}
 			return
-		} else if consts.Inline_DefaultHandler != "" {
-			for _, plugin := range plugin_utils.AllPugins.Inline {
-				if consts.Inline_DefaultHandler == plugin.Command {
+		} else if consts.InlineDefaultHandler != "" {
+			// 全局设定里设定的默认命令
+
+			// 插件处理完后返回全部列表，由设定好的函数进行分页输出
+			for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+					continue
+				}
+				if consts.InlineDefaultHandler == plugin.Command {
 					if plugin.Handler == nil { continue }
 					ResultList := plugin.Handler(opts)
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -621,48 +645,92 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 			// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
-			for _, plugin := range plugin_utils.AllPugins.InlineManual {
-				if consts.Inline_DefaultHandler == plugin.Command {
+			for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+					continue
+				}
+				if consts.InlineDefaultHandler == plugin.Command {
 					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
 					return
 				}
 			}
-		} else {
-			if len(plugin_utils.AllPugins.Inline) > 0 {
-				if plugin_utils.AllPugins.Inline[0].Handler != nil {
-					plugin_utils.AllPugins.Inline[0].Handler(opts)
+			// 符合命令前缀，完全由插件自行控制输出
+			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
+					continue
+				}
+				if opts.ChatInfo.DefaultInlinePlugin == plugin.PrefixCommand {
+					if plugin.Handler == nil { continue }
+					plugin.Handler(opts)
 					return
 				}
 			}
-			if len(plugin_utils.AllPugins.InlineManual) > 0 {
-				if plugin_utils.AllPugins.InlineManual[0].Handler != nil {
-					plugin_utils.AllPugins.InlineManual[0].Handler(opts)
-					return
-				}
+
+			// todo
+			// 判断是否有足够的插件，以及默认插件是否存在
+			var pendingMessage string
+			if len(plugin_utils.AllPlugins.InlineCommandList) == 0 {
+				pendingMessage = "此 bot 似乎并没有使用任何 inline 模式插件，请联系管理员"
+			} else {
+				pendingMessage = fmt.Sprintf("您可以继续输入 %s 来查看其他可用的命令", consts.InlineSubCommandSymbol)
 			}
+			 _, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.Update.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:    "invaliddefaulthandler",
+					Title: "管理员设定了无效的默认命令",
+					Description: pendingMessage,
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "机器人管理员给设定了一个无效的默认 inline 命令",
+						ParseMode: models.ParseModeMarkdownV1,
+					},
+				}},
+			})
+			if err != nil {
+				log.Printf("Error sending inline query response: %v", err)
+				return
+			}
+			return
+		}
+
+		// 设置禁用了默认命令，或用户
+		var inlineButton *models.InlineQueryResultsButton
+		var message string = "可用的 Inline 模式命令:\n\n"
+		for _, command := range plugin_utils.AllPlugins.InlineCommandList {
+			if command.Attr.IsHideInCommandList {
+				continue
+			}
+			message += fmt.Sprintf("命令: <code>%s%s</code>\n", consts.InlineSubCommandSymbol, command.Command)
+			if command.Description != "" {
+				message += fmt.Sprintf("描述: %s\n", command.Description)
+			}
+			message += "\n"
+		}
+
+		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+			InlineQueryID: opts.Update.InlineQuery.ID,
+			Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:    "nodefaulthandler",
+				Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", consts.InlineSubCommandSymbol),
+				Description: "由于管理员没有设定默认命令，您需要手动选择一个命令，点击此处查看命令列表",
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: message,
+					ParseMode: models.ParseModeHTML,
+				},
+			}},
+			Button: inlineButton,
+		})
+		if err != nil {
+			log.Printf("Error sending inline query no default handler: %v", err)
+			return
 		}
 	}
-
-
-	
-
-	// fmt.Println(opts.Fields, len(results))
-
-	// _, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-	// 	InlineQueryID: opts.Update.InlineQuery.ID,
-	// 	Results:       InlineResultPagination(opts.Fields, results),
-	// 	// Button: inlineButton,
-	// })
-	// if err != nil {
-	// 	log.Printf("Error sending inline query response: %v", err)
-	// 	return
-	// }
 }
 
 func startHandler(opts *handler_utils.SubHandlerOpts) {
 	if len(opts.Fields) > 1 {
-		for _, n := range plugin_utils.AllPugins.SlashStart.WithPrefixHandler {
+		for _, n := range plugin_utils.AllPlugins.SlashStart.WithPrefixHandler {
 			if strings.HasPrefix(opts.Fields[1], n.Prefix) {
 				inlineArgument := strings.Split(opts.Fields[1], "_")
 				if inlineArgument[1] == n.Argument {
@@ -672,7 +740,7 @@ func startHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 		}
-		for _, n := range plugin_utils.AllPugins.SlashStart.Handler {
+		for _, n := range plugin_utils.AllPlugins.SlashStart.Handler {
 			if opts.Fields[1] == n.Argument {
 				n.Handler(opts)
 				return
@@ -681,11 +749,11 @@ func startHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 
 	opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID:    opts.Update.Message.Chat.ID,
-		Text:      fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您将会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.Update.Message.From.FirstName, opts.Update.Message.From.LastName),
+		ChatID: opts.Update.Message.Chat.ID,
+		Text:   fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.Update.Message.From.FirstName, opts.Update.Message.From.LastName),
+		ParseMode: models.ParseModeMarkdownV1,
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 		LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
-		ParseMode: models.ParseModeMarkdownV1,
 		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "尝试 Inline 模式",
 			SwitchInlineQueryCurrentChat: " ",

@@ -46,14 +46,15 @@ func RegisterPlugins() {
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
-					Text:   "选择一个 Inline 模式下的默认命令\n由于缓存原因，您可能需要等一会才能看到更新后的结果",
+					Text:   "选择一个 Inline 模式下的默认命令\n<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>",
+					ParseMode: models.ParseModeHTML,
 					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 				})
 			},
 		},
 	}...)
-	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.Plugin_CallbackQuery{
+	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
 		CommandChar: "inline_default_",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
 			if opts.Update.CallbackQuery.Data == "inline_default_none" {
@@ -65,7 +66,7 @@ func RegisterPlugins() {
 				})
 			}
 			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
-			for _, inlinePlugin := range plugin_utils.AllPugins.InlineCommandList {
+			for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
 				if inlinePlugin.Command == callbackField {
 					database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
 					opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
@@ -73,15 +74,15 @@ func RegisterPlugins() {
 						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 						ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 					})
-					return
+					break
 				}
 			}
-			
+			consts.SignalsChannel.Database_save <- true
 		},
 	})
 
 	// 文本消息开头的命令
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "chatinfo",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
 			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -92,7 +93,7 @@ func RegisterPlugins() {
 			})
 		},
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "test",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
 			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -106,7 +107,7 @@ func RegisterPlugins() {
 			})
 		},
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "fileid",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
 			var pendingMessage string
@@ -147,7 +148,7 @@ func RegisterPlugins() {
 			}
 		},
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "version",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
 			// info, err := opts.Thebot.GetWebhookInfo(ctx)
@@ -168,7 +169,7 @@ func RegisterPlugins() {
 				},
 			})
 			if !success {
-				// 不能把用户的消息也删了，就单独删自己的
+				// 如果不能把用户的消息也删了，就单独删 bot 的消息
 				opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
 					MessageID: botMessage.ID,
@@ -177,12 +178,14 @@ func RegisterPlugins() {
 			
 		},
 	})
-	// plugin_utils.AddSlashSymbolCommandPlugins(plugins.ForwardOnly_SlashSymbolCommandHandler)
 
 	// inline 模式自行处理输出的函数
-	// AddInlineManualHandlerPlugins(plugins.VoiceListInlineHandler)
-	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.Plugin_InlineManual{
+	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
 		Command: "uaav",
+		Attr: plugin_utils.InlineHandlerAttr{
+			IsHideInCommandList: true,
+			IsCantBeDefault: true,
+		},
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
 			keywords := utils.InlineExtractKeywords(opts.Fields)
 			if len(keywords) == 0 {
@@ -261,9 +264,14 @@ func RegisterPlugins() {
 		Description: "将一个音频链接作为语音格式发送",
 	})
 
-	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.Plugin_InlinePrefix{
+	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.InlinePrefixHandler{
 		{
 			PrefixCommand: "log",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault: true,
+				IsOnlyAllowAdmin: true,
+			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				logs := mess.ReadLog()
 				if logs != nil {
@@ -298,6 +306,11 @@ func RegisterPlugins() {
 		},
 		{
 			PrefixCommand: "plugindb_reload",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault: true,
+				IsOnlyAllowAdmin: true,
+			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				consts.SignalsChannel.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -324,6 +337,11 @@ func RegisterPlugins() {
 		},
 		{
 			PrefixCommand: "plugindb_save",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault: true,
+				IsOnlyAllowAdmin: true,
+			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				consts.SignalsChannel.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -350,6 +368,11 @@ func RegisterPlugins() {
 		},
 		{
 			PrefixCommand: "savedb",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault: true,
+				IsOnlyAllowAdmin: true,
+			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				consts.SignalsChannel.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -375,5 +398,4 @@ func RegisterPlugins() {
 			Description: "保存数据库",
 		},
 	}...)
-
 }

@@ -2,7 +2,7 @@ package plugin_utils
 
 import "trbot/utils/handler_utils"
 
-type Plugin_SlashStart struct {
+type SlashStartCommand struct {
 	Handler           []SlashStartHandler           // 例如 /start subcommand
 	WithPrefixHandler []SlashStartWithPrefixHandler // 例如 /start subcommand_augument
 }
@@ -13,16 +13,13 @@ type SlashStartHandler struct {
 }
 
 func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) int {
-	if AllPugins.SlashStart == nil {
-		AllPugins.SlashStart = &Plugin_SlashStart{}
-	}
-	if AllPugins.SlashStart.Handler == nil {
-		AllPugins.SlashStart.Handler = []SlashStartHandler{}
-	}
+	if AllPlugins.SlashStart == nil { AllPlugins.SlashStart = &SlashStartCommand{} }
+	if AllPlugins.SlashStart.Handler == nil { AllPlugins.SlashStart.Handler = []SlashStartHandler{} }
 
 	var pluginCount int
 	for _, originPlugin := range SlashStartCommandPlugins {
-		AllPugins.SlashStart.Handler = append(AllPugins.SlashStart.Handler, originPlugin)
+		if originPlugin.Argument == "" { continue }
+		AllPlugins.SlashStart.Handler = append(AllPlugins.SlashStart.Handler, originPlugin)
 		pluginCount++
 	}
 	return pluginCount
@@ -35,16 +32,13 @@ type SlashStartWithPrefixHandler struct {
 }
 
 func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ...SlashStartWithPrefixHandler) int {
-	if AllPugins.SlashStart == nil {
-		AllPugins.SlashStart = &Plugin_SlashStart{}
-	}
-	if AllPugins.SlashStart.WithPrefixHandler == nil {
-		AllPugins.SlashStart.WithPrefixHandler = []SlashStartWithPrefixHandler{}
-	}
+	if AllPlugins.SlashStart == nil { AllPlugins.SlashStart = &SlashStartCommand{} }
+	if AllPlugins.SlashStart.WithPrefixHandler == nil { AllPlugins.SlashStart.WithPrefixHandler = []SlashStartWithPrefixHandler{} }
 
 	var pluginCount int
 	for _, originPlugin := range SlashStartWithPrefixCommandPlugins {
-		AllPugins.SlashStart.WithPrefixHandler = append(AllPugins.SlashStart.WithPrefixHandler, originPlugin)
+		if originPlugin.Argument == "" { continue }
+		AllPlugins.SlashStart.WithPrefixHandler = append(AllPlugins.SlashStart.WithPrefixHandler, originPlugin)
 		pluginCount++
 	}
 	return pluginCount

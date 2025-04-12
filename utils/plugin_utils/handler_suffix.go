@@ -2,19 +2,18 @@ package plugin_utils
 
 import "trbot/utils/handler_utils"
 
-type Plugin_SuffixCommand struct {
+type SuffixCommand struct {
 	SuffixCommand string
 	Handler       func(*handler_utils.SubHandlerOpts)
 }
 
-func AddSuffixCommandPlugins(Plugins ...Plugin_SuffixCommand) int {
-	if AllPugins.SuffixCommand == nil {
-		AllPugins.SuffixCommand = []Plugin_SuffixCommand{}
-	}
+func AddSuffixCommandPlugins(Plugins ...SuffixCommand) int {
+	if AllPlugins.SuffixCommand == nil { AllPlugins.SuffixCommand = []SuffixCommand{} }
 
 	var pluginCount int
 	for _, originPlugin := range Plugins {
-		AllPugins.SuffixCommand = append(AllPugins.SuffixCommand, originPlugin)
+		if originPlugin.SuffixCommand == "" { continue }
+		AllPlugins.SuffixCommand = append(AllPlugins.SuffixCommand, originPlugin)
 		pluginCount++
 	}
 	return pluginCount

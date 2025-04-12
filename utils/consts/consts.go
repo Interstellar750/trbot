@@ -6,11 +6,14 @@ import (
 
 var BotToken string // 全局 bot token
 
-var WebhookURL string // Webhook 运行模式下接受请求的 URL 地址
+var WebhookURL  string // Webhook 运行模式下接受请求的 URL 地址
 var WebhookPort string = "localhost:2847" // Webhook 运行模式下监听的端口
 
 var LogChat_ID int64 = -1002499888124 // 用于接收日志的聊天 ID，可以是 用户 群聊 频道
-var LogMan_IDs []int64 = []int64{1086395364, 2074319561} // 拥有查看日志权限的用户，可设定多个
+var LogMan_IDs []int64 = []int64{ // 拥有查看日志权限的用户，可设定多个
+	1086395364,
+	2074319561,
+}
 
 var MetadataFileName string = "metadata.yaml"
 
@@ -28,11 +31,10 @@ var Private_log bool = false
 
 var BotMe *models.User // 用于存储 bot 信息
 
-var Inline_NoDefaultHandler bool   = false // 禁用 Inline 默认函数，启用后会提示 Inline 用法
-var Inline_DefaultHandler   string = "voice"
-var InlineSubCommandSymbol  string  = "+"
-var InlinePaginationSymbol  string  = "-"
-var InlineResultsPerPage    int     = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery
+var InlineDefaultHandler   string = "voice" // 默认的 inline 命令，设为 "" 会显示打开菜单的提示
+var InlineSubCommandSymbol string = "+"
+var InlinePaginationSymbol string = "-"
+var InlineResultsPerPage   int    = 50 // maxinum is 50, see https://core.telegram.org/bots/api#answerinlinequery
 
 var Cache_path string = "./cache/"
 

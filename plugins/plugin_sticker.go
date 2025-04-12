@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.Plugin_CallbackQuery{
+	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
 		{
 			CommandChar: "s",
 			Handler: DownloadStickerPackCallBackHandler,

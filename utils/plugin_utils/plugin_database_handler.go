@@ -12,19 +12,19 @@ type DatabaseHandler struct {
 }
 
 func AddDataBaseHandler(InlineHandlerPlugins ...DatabaseHandler) int {
-	if AllPugins.Databases == nil {
-		AllPugins.Databases = []DatabaseHandler{}
+	if AllPlugins.Databases == nil {
+		AllPlugins.Databases = []DatabaseHandler{}
 	}
 	var pluginCount int
 	for _, originPlugin := range InlineHandlerPlugins {
-		AllPugins.Databases = append(AllPugins.Databases, originPlugin)
+		AllPlugins.Databases = append(AllPlugins.Databases, originPlugin)
 		pluginCount++
 	}
 	return pluginCount
 }
 
 func ReloadPluginsDatabase() {
-	for _, plugin := range AllPugins.Databases {
+	for _, plugin := range AllPlugins.Databases {
 		if plugin.Loader == nil {
 			log.Printf("Plugin [%s] has no loader function, skipping", plugin.Name)
 			continue
@@ -34,9 +34,9 @@ func ReloadPluginsDatabase() {
 }
 
 func SavePluginsDatabase() string {
-	dbCount := len(AllPugins.Databases)
+	dbCount := len(AllPlugins.Databases)
 	successCount := 0
-	for _, plugin := range AllPugins.Databases {
+	for _, plugin := range AllPlugins.Databases {
 		if plugin.Saver == nil { 
 			log.Printf("Plugin [%s] has no saver function, skipping", plugin.Name)
 			successCount++

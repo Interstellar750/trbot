@@ -19,7 +19,7 @@ import (
 // 常规类型会判定值是否相等，字符串如果包含也符合条件，例如 "bc" 在 "abcd" 中
 func AnyContains(target any, candidates ...any) bool {
 	for _, candidate := range candidates {
-		if candidates == nil { continue }
+		if candidate == nil { continue }
 		// fmt.Println(reflect.ValueOf(target).Kind(), reflect.ValueOf(candidate).Kind(), reflect.Array, reflect.Slice)
 		targetKind := reflect.ValueOf(target).Kind()
 		candidateKind := reflect.ValueOf(candidate).Kind()
@@ -90,16 +90,16 @@ func UserIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool 
 
 	for _, admin := range admins {
 		if admin.Owner != nil {
-		    admins_userIDs = append(admins_userIDs, admin.Owner.User.ID)
+			admins_userIDs = append(admins_userIDs, admin.Owner.User.ID)
 			if admin.Owner.User.Username != "" {
-		        admins_usernames = append(admins_usernames, admin.Owner.User.Username)
-		    }
+				admins_usernames = append(admins_usernames, admin.Owner.User.Username)
+			}
 		}
 		if admin.Administrator != nil {
-		    admins_userIDs = append(admins_userIDs, admin.Administrator.User.ID)
+			admins_userIDs = append(admins_userIDs, admin.Administrator.User.ID)
 			if admin.Administrator.User.Username != "" {
-		        admins_usernames = append(admins_usernames, admin.Administrator.User.Username)
-		    }
+				admins_usernames = append(admins_usernames, admin.Administrator.User.Username)
+			}
 		}
 	}
 
@@ -315,6 +315,9 @@ func InlineQueryMatchMultKeyword(fields []string, keywords []string) bool {
 	}
 	// fmt.Println(allkeywords)
 	if allkeywords == 1 {
+		if len(keywords) == 0 {
+			return false
+		}
 		if AnyContains(fields[0], keywords) {
 			return true
 		}
@@ -367,32 +370,23 @@ func ShowChatName(chat *models.Chat) string {
 
 func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) models.ReplyMarkup {
 	var inlinePlugins [][]models.InlineKeyboardButton
-	for _, v := range plugin_utils.AllPugins.Inline {
+	for _, v := range plugin_utils.AllPlugins.InlineCommandList {
+		if v.Attr.IsCantBeDefault {
+			continue
+		}
 		if chatInfo.DefaultInlinePlugin == v.Command {
 			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("✅ [%s] - %s", v.Command, v.Description),
+				Text: fmt.Sprintf("✅ [ %s%s ] - %s", consts.InlineSubCommandSymbol, v.Command, v.Description),
 				CallbackData: "inline_default_" + v.Command,
 			}})
 		} else {
 			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("[%s] - %s", v.Command, v.Description),
+				Text: fmt.Sprintf("[ %s%s ] - %s", consts.InlineSubCommandSymbol, v.Command, v.Description),
 				CallbackData: "inline_default_" + v.Command,
 			}})
 		}
 	}
-	for _, v := range plugin_utils.AllPugins.InlineManual {
-		if chatInfo.DefaultInlinePlugin == v.Command {
-			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("✅ [%s] - %s", v.Command, v.Description),
-				CallbackData: "inline_default_" + v.Command,
-			}})
-		} else {
-			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("[%s] - %s", v.Command, v.Description),
-				CallbackData: "inline_default_" + v.Command,
-			}})
-		}
-	}
+	
 	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
 		Text: "取消默认命令",
 		CallbackData: "inline_default_none",

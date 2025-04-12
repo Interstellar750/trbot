@@ -60,7 +60,12 @@ func (list UdoneseWord) OnlyMeaning() []string {
 
 // 以 models.ParseModeHTML 的格式输出一个词和其对应的全部意思
 func (list UdoneseWord) OutputMeanings() string {
-	var pendingMessage = fmt.Sprintf("[ <code>%s</code> ] 已使用 %d 次，它的意思有\n", list.Word, list.Used)
+	var pendingMessage = fmt.Sprintf("[ <code>%s</code> ] 已使用 %d 次，", list.Word, list.Used)
+	if len(list.MeaningList) != 0 {
+		pendingMessage += "它的意思有\n"
+	} else {
+		pendingMessage += "还没有添加任何意思\n"
+	}
 	for i, s := range list.MeaningList {
 		// 先加意思
 		pendingMessage += fmt.Sprintf("<code>%d</code>. [ %s ] ", i+1, s.Meaning)
@@ -486,10 +491,16 @@ func udoneseInlineHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQue
 	// 仅 :sms 参数，或带有分页符号，输出全部词
 	if len(keywordFields) == 0 {
 		for _, data := range UdoneseData.List {
+			var pendingMessage string
+			if len(data.MeaningList) > 0 {
+				pendingMessage = fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning)
+			} else {
+				pendingMessage = fmt.Sprintf("已使用 %d 次，暂无意思", data.Used)
+			}
 			udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 				ID:    data.Word + "-word",
 				Title: data.Word,
-				Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
+				Description: pendingMessage,
 				InputMessageContent: models.InputTextMessageContent{
 					MessageText: data.OutputMeanings(),
 					ParseMode: models.ParseModeHTML,
@@ -499,11 +510,17 @@ func udoneseInlineHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQue
 	} else {
 		for _, data := range UdoneseData.List {
 			// 通过词查找意思
+			var pendingMessage string
+			if len(data.MeaningList) > 0 {
+				pendingMessage = fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning)
+			} else {
+				pendingMessage = fmt.Sprintf("已使用 %d 次，暂无意思", data.Used)
+			}
 			if utils.InlineQueryMatchMultKeyword(keywordFields, []string{strings.ToLower(data.Word)}) {
 				udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 					ID:    data.Word + "-word",
 					Title: data.Word,
-					Description: fmt.Sprintf("已使用 %d 次，有 %d 个意思: %s...", data.Used, len(data.MeaningList), data.MeaningList[0].Meaning),
+					Description: pendingMessage,
 					InputMessageContent: models.InputTextMessageContent{
 						MessageText: data.OutputMeanings(),
 						ParseMode: models.ParseModeHTML,
@@ -662,24 +679,24 @@ func init() {
 		Saver: SaveUdonese,
 		Loader: ReadUdonese,
 	})
-	plugin_utils.AddInlineHandlerPlugins(plugin_utils.Plugin_Inline{
+	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
 		Command: "sms",
 		Handler: udoneseInlineHandler,
 		Description: "查询 Udonese 词典",
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "udonese",
 		Handler:      addUdoneseHandler,
 	})
-	plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.Plugin_HandlerByChatID{
+	plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
 		ChatID:  UdonGroupID,
 		Handler: udoneseGroupHandler,
 	})
-	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.Plugin_CallbackQuery{
+	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
 		CommandChar: "udonese",
 		Handler:      udoneseCallbackHandler,
 	})
-	// plugin_utils.AddSuffixCommandPlugins(plugin_utils.Plugin_SuffixCommand{
+	// plugin_utils.AddSuffixCommandPlugins(plugin_utils.SuffixCommand{
 	// 	SuffixCommand: "ssm",
 	// 	Handler:       udoneseHandler,
 	// })

@@ -836,11 +836,11 @@ func init() {
 		Saver:  SaveSavedMessageList,
 		Loader: ReadSavedMessageList,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.Plugin_SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "save",
 		Handler:      saveMessageHandler,
 	})
-	plugin_utils.AddInlineHandlerPlugins(plugin_utils.Plugin_Inline{
+	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
 		Command:     "saved",
 		Handler:     InlineShowSavedMessageHandler,
 		Description: "显示自己保存的消息",

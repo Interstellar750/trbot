@@ -2,7 +2,7 @@ package updatetype
 
 import "github.com/go-telegram/bot/models"
 
-var All []MessageType
+// var All []MessageType
 
 // 消息类型
 type MessageType struct {
