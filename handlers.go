@@ -468,10 +468,10 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				},
 			}
 			if plugin.Attr.IsHideInCommandList {
-				command.Description += "隐藏 | "
+				command.Description = "隐藏 | " + command.Description
 			}
 			if plugin.Attr.IsOnlyAllowAdmin {
-				command.Description += "管理员 | "
+				command.Description = "管理员 | " + command.Description
 			}
 			results = append(results, command)
 		}
