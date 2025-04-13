@@ -308,7 +308,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 		isViaGroup    bool
 		isFromChannel bool
 		isViaChannel  bool
-	) 
+	)
 
 	if opts.Update.Message.ReplyToMessage != nil {
 		// 有回复一条信息，通过回复消息添加词
@@ -405,7 +405,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", s.FromUsername, s.FromName)
 				} else if s.FromID != 0 {
 					if s.FromID < 0 {
-						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(s.FromID, 10), "-100"), s.FromName)
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(s.FromID), s.FromName)
 					} else {
 						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", s.FromID, s.FromName)
 					}
@@ -416,7 +416,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", s.ViaUsername, s.ViaName)
 				} else if s.ViaID != 0 {
 					if s.ViaID < 0 {
-						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(s.ViaID, 10), "-100"), s.ViaName)
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(s.ViaID), s.ViaName)
 					} else {
 						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", s.ViaID, s.ViaName)
 					}
@@ -439,7 +439,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 				pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", fromUsername, fromName)
 			} else if fromID != 0 {
 				if fromID < 0 {
-					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(fromID, 10), "-100"), fromName)
+					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(fromID), fromName)
 				} else {
 					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", fromID, fromName)
 				}
@@ -450,7 +450,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", viaUsername, viaName)
 			} else if viaID != 0 {
 				if viaID < 0 {
-					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", strings.TrimPrefix(strconv.FormatInt(viaID, 10), "-100"), viaName)
+					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(viaID), viaName)
 				} else {
 					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", viaID, viaName)
 				}
@@ -775,7 +775,7 @@ func udoneseCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a>\n", targetMeaning.ViaUsername, targetMeaning.ViaName)
 		} else if targetMeaning.ViaID != 0 {
 			if targetMeaning.ViaID < 0 {
-				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a>\n", strings.TrimPrefix(strconv.FormatInt(targetMeaning.ViaID, 10), "-100"), targetMeaning.ViaName)
+				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a>\n", utils.RemoveIDPrefix(targetMeaning.ViaID), targetMeaning.ViaName)
 			} else {
 				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a>\n", targetMeaning.ViaID, targetMeaning.ViaName)
 			}
