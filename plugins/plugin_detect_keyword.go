@@ -80,10 +80,11 @@ type KeywordUserList struct {
 	IsDisable       bool          `yaml:"IsDisable,omitempty"`
 	IsSilentNotice  bool          `yaml:"IsSilentNotice,omitempty"`
 	IsIncludeSelf   bool          `yaml:"IsIncludeSelf,omitempty"`
-	IsIncludeBot    bool          `yaml:"IsIncludeBot,omitempty"` // todu
+	IsIncludeBot    bool          `yaml:"IsIncludeBot,omitempty"` // todo
 
 	AddingChatID    int64         `yaml:"AddingChatID,omitempty"`
 	GlobalKeyword   []string      `yaml:"GlobalKeyword"`
+	WatchUser       []int64       `yaml:"WatchUser"` // todo
 	ChatsForUser    []ChatForUser `yaml:"ChatForUser"`
 }
 
@@ -530,7 +531,7 @@ func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
 				if userKeywordList.ChatID == opts.Update.Message.Chat.ID {
 					for _, keyword := range userKeywordList.Keyword {
 						if strings.Contains(text, keyword) {
-							notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword, text, true)
+							notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword, text, false)
 							break
 						}
 					}
@@ -539,7 +540,7 @@ func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
 			// 用户全局设定的关键词
 			for _, userGlobalKeyword := range user.GlobalKeyword {
 				if strings.Contains(text, userGlobalKeyword) {
-					notifyUser(opts, user, opts.Update.Message.Chat.Title, userGlobalKeyword, text, false)
+					notifyUser(opts, user, opts.Update.Message.Chat.Title, userGlobalKeyword, text, true)
 					break
 				}
 			}
@@ -550,50 +551,10 @@ func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
 func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) {
 	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
 
-	var (
-		fromID        int64
-		fromUsername  string
-		fromName      string
-		isFromGroup   bool
-		isFromChannel bool
-
-		senderLink    string
-	)
-
-	if opts.Update.Message.From.IsBot {
-		if opts.Update.Message.From.ID == 136817688 {
-			// 用频道身份发言
-			isFromChannel = true
-		} else if opts.Update.Message.From.ID == 1087968824 {
-			// 用群组匿名身份发言
-			isFromGroup = true
-		}
-	}
-	if isFromChannel || isFromGroup {
-		// 频道身份
-		fromID = opts.Update.Message.SenderChat.ID
-		fromUsername = opts.Update.Message.SenderChat.Username
-		fromName = utils.ShowChatName(opts.Update.Message.SenderChat)
-	} else {
-		// 普通用户身份
-		fromID = opts.Update.Message.From.ID
-		fromName = utils.ShowUserName(opts.Update.Message.From)
-	}
-
-	// 来源的用户或频道
-	if fromUsername != "" {
-		senderLink += fmt.Sprintf("<a href=\"https://t.me/%s\">%s</a>", fromUsername, fromName)
-	} else if fromID != 0 {
-		if fromID < 0 {
-			senderLink += fmt.Sprintf("<a href=\"https://t.me/c/%s/0\">%s</a>", utils.RemoveIDPrefix(fromID), fromName)
-		} else {
-			senderLink += fmt.Sprintf("<a href=\"https://t.me/@id%d\">%s</a>", fromID, fromName)
-		}
-	}
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
 		Text: fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中\n来自 %s 的消息\n触发了设定的%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
-			utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, senderLink,
+			utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Update.Message, models.ParseModeHTML),
 			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, text,
 		),
 		ParseMode: models.ParseModeHTML,

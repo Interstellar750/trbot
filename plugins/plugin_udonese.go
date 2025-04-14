@@ -384,7 +384,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 
 	oldMeaning := addUdonese(UdoneseData, &UdoneseWord{
 		Word: opts.Fields[1],
-		MeaningList: []UdoneseMeaning{ {
+		MeaningList: []UdoneseMeaning{{
 			Meaning:      meaning,
 			FromID:       fromID,
 			FromUsername: fromUsername,

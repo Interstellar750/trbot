@@ -10,6 +10,7 @@ import (
 	"trbot/database/db_struct"
 	"trbot/utils/consts"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/updatetype"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -414,4 +415,29 @@ func TextForTrueOrFalse(condition bool, tureText, falseText string) string {
 	} else {
 		return falseText
 	}
+}
+
+func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) string {
+	var senderLink string
+	attr := updatetype.GetMessageAttribute(msg)
+
+	switch ParseMode {
+	case models.ParseModeHTML:
+		if attr.IsFromLinkedChannel || attr.IsFromAnonymous {
+			senderLink += fmt.Sprintf("<a href=\"https://t.me/c/%s\">%s</a>", RemoveIDPrefix(msg.SenderChat.ID), ShowChatName(msg.SenderChat))
+		} else if attr.IsUserAsChannel {
+			senderLink += fmt.Sprintf("<a href=\"https://t.me/%s\">%s</a>", msg.SenderChat.Username, ShowChatName(msg.SenderChat))
+		} else {
+			senderLink += fmt.Sprintf("<a href=\"https://t.me/@id%d\">%s</a>", msg.From.ID, ShowUserName(msg.From))
+		}
+	default:
+		if attr.IsFromLinkedChannel || attr.IsFromAnonymous {
+			senderLink += fmt.Sprintf("[%s][https://t.me/c/%s]", ShowChatName(msg.SenderChat), RemoveIDPrefix(msg.SenderChat.ID))
+		} else if attr.IsUserAsChannel {
+			senderLink += fmt.Sprintf("[%s][https://t.me/%s]", ShowChatName(msg.SenderChat), msg.SenderChat.Username)
+		} else {
+			senderLink += fmt.Sprintf("[%s][https://t.me/@id%d]", ShowUserName(msg.From), msg.From.ID)
+		}
+	}
+	return senderLink
 }
