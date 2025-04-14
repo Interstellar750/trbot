@@ -18,27 +18,12 @@ import (
 )
 
 func RegisterPlugins() {
-	// 触发：'/start via-inline_test'
+	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
 	plugin_utils.AddSlashStartWithPrefixCommandPlugins([]plugin_utils.SlashStartWithPrefixHandler{
 		{
 			Prefix:   "via-inline",
 			Argument: "noreply",
 			Handler:  nil, // 不回复
-		},
-		{
-			Prefix:   "via-inline",
-			Argument: "test",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
-				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID:          opts.Update.Message.Chat.ID,
-					Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
-					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "点击加入测试群组",
-						URL:  "https://t.me/+BomkHuFsjqc3ZGE1",
-					}}}},
-				})
-			},
 		},
 		{
 			Prefix:   "via-inline",
@@ -54,6 +39,8 @@ func RegisterPlugins() {
 			},
 		},
 	}...)
+
+	// 通过消息按钮触发的请求
 	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
 		CommandChar: "inline_default_",
 		Handler: func(opts *handler_utils.SubHandlerOpts) {
@@ -81,103 +68,105 @@ func RegisterPlugins() {
 		},
 	})
 
-	// 文本消息开头的命令
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
-		SlashCommand: "chatinfo",
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
-				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-				Text:            fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", opts.Update.Message.Chat.Type, opts.Update.Message.Chat.ID, opts.Update.Message.Chat.Username),
-				ParseMode:       models.ParseModeHTML,
-			})
-		},
-	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
-		SlashCommand: "test",
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
-				Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
-				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-					Text: "点击加入测试群组",
-					URL:  "https://t.me/+BomkHuFsjqc3ZGE1",
-				}}}},
-			})
-		},
-	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
-		SlashCommand: "fileid",
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			var pendingMessage string
-			if opts.Update.Message.ReplyToMessage != nil {
-				if opts.Update.Message.ReplyToMessage.Sticker != nil {
-					pendingMessage = fmt.Sprintf("Type: [Sticker] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Sticker.FileID)
-				} else if opts.Update.Message.ReplyToMessage.Document != nil {
-					pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Document.FileID)
-				} else if opts.Update.Message.ReplyToMessage.Photo != nil {
-					pendingMessage = "Type: [Photo]\n"
-					if len(opts.Fields) > 1 && opts.Fields[1] == "all" { // 如果有 all 指示，显示图片所有分辨率的 File ID
-						for i, n := range opts.Update.Message.ReplyToMessage.Photo {
-							pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d \n[<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileID)
-						}
-					} else { // 否则显示最后一个的 File ID (应该是最高分辨率的)
-						pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]\n", opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID)
-					}
-				} else if opts.Update.Message.ReplyToMessage.Video != nil {
-					pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Video.FileID)
-				} else if opts.Update.Message.ReplyToMessage.Voice != nil {
-					pendingMessage = fmt.Sprintf("Type: [Voice] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Voice.FileID)
-				} else if opts.Update.Message.ReplyToMessage.Audio != nil {
-					pendingMessage = fmt.Sprintf("Type: [Audio] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Audio.FileID)
-				} else {
-					pendingMessage = "Unknown message type"
-				}
-			} else {
-				pendingMessage = "Reply to a Sticker, Document or Photo to get its FileID"
-			}
-			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
-				Text:            pendingMessage,
-				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-				ParseMode:       models.ParseModeHTML,
-			})
-			if err != nil {
-				log.Printf("Error response /fileid command: %v", err)
-			}
-		},
-	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
-		SlashCommand: "version",
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			// info, err := opts.Thebot.GetWebhookInfo(ctx)
-			// fmt.Println(info)
-			// return
-			botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
-				Text:            mess.OutputVersionInfo(),
-				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-				ParseMode:       models.ParseModeMarkdownV1,
-			})
-			time.Sleep(time.Second * 20)
-			success, _ := opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-				ChatID: opts.Update.Message.Chat.ID,
-				MessageIDs: []int{
-					opts.Update.Message.ID,
-					botMessage.ID,
-				},
-			})
-			if !success {
-				// 如果不能把用户的消息也删了，就单独删 bot 的消息
-				opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					MessageID: botMessage.ID,
+	// 以 `/` 符号开头的命令
+	plugin_utils.AddSlashSymbolCommandPlugins([]plugin_utils.SlashSymbolCommand{
+		{
+			SlashCommand: "chatinfo",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:          opts.Update.Message.Chat.ID,
+					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+					Text:            fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", opts.Update.Message.Chat.Type, opts.Update.Message.Chat.ID, opts.Update.Message.Chat.Username),
+					ParseMode:       models.ParseModeHTML,
 				})
-			}
-			
+			},
 		},
-	})
+		{
+			SlashCommand: "test",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:          opts.Update.Message.Chat.ID,
+					Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "点击加入测试群组",
+						URL:  "https://t.me/+BomkHuFsjqc3ZGE1",
+					}}}},
+				})
+			},
+		},
+		{
+			SlashCommand: "fileid",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				var pendingMessage string
+				if opts.Update.Message.ReplyToMessage != nil {
+					if opts.Update.Message.ReplyToMessage.Sticker != nil {
+						pendingMessage = fmt.Sprintf("Type: [Sticker] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Sticker.FileID)
+					} else if opts.Update.Message.ReplyToMessage.Document != nil {
+						pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Document.FileID)
+					} else if opts.Update.Message.ReplyToMessage.Photo != nil {
+						pendingMessage = "Type: [Photo]\n"
+						if len(opts.Fields) > 1 && opts.Fields[1] == "all" { // 如果有 all 指示，显示图片所有分辨率的 File ID
+							for i, n := range opts.Update.Message.ReplyToMessage.Photo {
+								pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d \n[<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileID)
+							}
+						} else { // 否则显示最后一个的 File ID (应该是最高分辨率的)
+							pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]\n", opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID)
+						}
+					} else if opts.Update.Message.ReplyToMessage.Video != nil {
+						pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Video.FileID)
+					} else if opts.Update.Message.ReplyToMessage.Voice != nil {
+						pendingMessage = fmt.Sprintf("Type: [Voice] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Voice.FileID)
+					} else if opts.Update.Message.ReplyToMessage.Audio != nil {
+						pendingMessage = fmt.Sprintf("Type: [Audio] \nFileID: [<code>%v</code>]", opts.Update.Message.ReplyToMessage.Audio.FileID)
+					} else {
+						pendingMessage = "Unknown message type"
+					}
+				} else {
+					pendingMessage = "Reply to a Sticker, Document or Photo to get its FileID"
+				}
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:          opts.Update.Message.Chat.ID,
+					Text:            pendingMessage,
+					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+					ParseMode:       models.ParseModeHTML,
+				})
+				if err != nil {
+					log.Printf("Error response /fileid command: %v", err)
+				}
+			},
+		},
+		{
+			SlashCommand: "version",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				// info, err := opts.Thebot.GetWebhookInfo(ctx)
+				// fmt.Println(info)
+				// return
+				botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:          opts.Update.Message.Chat.ID,
+					Text:            mess.OutputVersionInfo(),
+					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+					ParseMode:       models.ParseModeMarkdownV1,
+				})
+				time.Sleep(time.Second * 20)
+				success, _ := opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					MessageIDs: []int{
+						opts.Update.Message.ID,
+						botMessage.ID,
+					},
+				})
+				if !success {
+					// 如果不能把用户的消息也删了，就单独删 bot 的消息
+					opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						MessageID: botMessage.ID,
+					})
+				}
+				
+			},
+		},
+	}...)
 
 	// inline 模式自行处理输出的函数
 	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
@@ -264,13 +253,14 @@ func RegisterPlugins() {
 		Description: "将一个音频链接作为语音格式发送",
 	})
 
+	// inline 模式以前缀触发的命令，需要自行处理输出。
 	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.InlinePrefixHandler{
 		{
 			PrefixCommand: "log",
 			Attr: plugin_utils.InlineHandlerAttr{
 				IsHideInCommandList: true,
-				IsCantBeDefault: true,
-				IsOnlyAllowAdmin: true,
+				IsCantBeDefault:     true,
+				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				logs := mess.ReadLog()
@@ -305,11 +295,11 @@ func RegisterPlugins() {
 			Description: "显示日志",
 		},
 		{
-			PrefixCommand: "plugindb_reload",
+			PrefixCommand: "reloadpdb",
 			Attr: plugin_utils.InlineHandlerAttr{
 				IsHideInCommandList: true,
-				IsCantBeDefault: true,
-				IsOnlyAllowAdmin: true,
+				IsCantBeDefault:     true,
+				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				consts.SignalsChannel.PluginDB_reload <- true
@@ -336,11 +326,11 @@ func RegisterPlugins() {
 			Description: "重新读取插件数据库",
 		},
 		{
-			PrefixCommand: "plugindb_save",
+			PrefixCommand: "savepdb",
 			Attr: plugin_utils.InlineHandlerAttr{
 				IsHideInCommandList: true,
-				IsCantBeDefault: true,
-				IsOnlyAllowAdmin: true,
+				IsCantBeDefault:     true,
+				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				consts.SignalsChannel.PluginDB_save <- true
@@ -370,8 +360,8 @@ func RegisterPlugins() {
 			PrefixCommand: "savedb",
 			Attr: plugin_utils.InlineHandlerAttr{
 				IsHideInCommandList: true,
-				IsCantBeDefault: true,
-				IsOnlyAllowAdmin: true,
+				IsCantBeDefault:     true,
+				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				consts.SignalsChannel.Database_save <- true
