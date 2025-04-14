@@ -29,7 +29,7 @@ func AnyContains(target any, candidates ...any) bool {
 		}
 		switch c := candidate.(type) {
 		case string:
-			if targetKind == reflect.String && strings.Contains(c, target.(string)) {
+			if targetKind == reflect.String && strings.Contains(strings.ToLower(c), strings.ToLower(target.(string))) {
 				return true
 			}
 		default:
@@ -57,7 +57,7 @@ func checkNested(target any, value reflect.Value) bool {
 		element := value.Index(i).Interface()
 		switch c := element.(type) {
 		case string:
-			if reflect.ValueOf(target).Kind() == reflect.String && strings.Contains(c, target.(string)) {
+			if reflect.ValueOf(target).Kind() == reflect.String && strings.Contains(strings.ToLower(c), strings.ToLower(target.(string))) {
 				return true
 			}
 		default:
