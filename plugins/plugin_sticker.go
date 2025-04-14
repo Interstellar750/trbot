@@ -421,7 +421,7 @@ func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
 	if err != nil {
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Update.Message.Chat.ID,
-			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote>Error downloading sticker: %s</blockquote>", err),
+			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Error downloading sticker: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
 	}
@@ -497,7 +497,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
 		log.Printf("error getting sticker set: %v", err)
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Update.CallbackQuery.From.ID,
-			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote>Error getting sticker set: %s</blockquote>", err),
+			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote expandable>Error getting sticker set: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
 		return
@@ -508,7 +508,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
 		log.Println("Error downloading sticker:", err)
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Update.CallbackQuery.From.ID,
-			Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote>Error download sticker set: %s</blockquote>", err),
+			Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote expandable>Error download sticker set: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
 	}

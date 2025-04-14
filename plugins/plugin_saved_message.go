@@ -771,26 +771,24 @@ func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.
 func SendPrivacyPolicy(opts *handler_utils.SubHandlerOpts) {
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Update.Message.Chat.ID,
-		Text: "<blockquote>目前此机器人仍在开发阶段中，此信息可能会有更改</blockquote>\n" +
-			"本机器人提供收藏信息功能，您可以在回复一条信息时输入 /save 来收藏它，之后在 inline 模式下随时浏览您的收藏内容并发送\n\n" +
+		Text: "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
+			"<blockquote expandable>本机器人提供收藏信息功能，您可以在回复一条信息时输入 /save 来收藏它，之后在 inline 模式下随时浏览您的收藏内容并发送\n\n" +
 
 			"我们会记录哪些数据？\n" +
-			"<blockquote>" +
 			"1. 您的用户信息，例如 用户昵称、用户 ID、聊天类型（当您将此机器人添加到群组或频道中时）\n" +
 			"2. 您的使用情况，例如 消息计数、inline 调用计数、inline 条目计数、最后向机器人发送的消息、callback_query、inline_query 以及选择的 inline 结果\n" +
 			"3. 收藏信息内容，您需要注意这个，因为您是为了这个而阅读此内容，例如 存储的收藏信息数量、其图片上传到 Telegram 时的文件 ID、图片下方的文本，还有您在使用添加命令时所自定义的搜索关键词" +
-			"</blockquote>\n\n" +
+			"\n\n" +
 
 			"我的数据安全吗？\n" +
-			"<blockquote>" +
 			"这是一个早期的项目，还有很多未发现的 bug 与漏洞，因此您不能也不应该将敏感的数据存储在此机器人中，若您觉得我们收集的信息不妥，您可以不点击底部的同意按钮，我们仅会收集一些基本的信息，防止对机器人造成滥用，基本信息为前一段的 1 至 2 条目" +
-			"</blockquote>\n\n" +
+			"\n\n" +
 
-			"我收藏的消息，有谁可以看到?" +
-			"<blockquote>" +
+			"我收藏的消息，有谁可以看到?\n" +
 			"此功能被设计为每个人有单独的存储空间，如果您不手动从 inline 模式下选择信息并发送，其他用户是没法查看您的收藏列表的。不过，与上一个条目一样，为了防止滥用，我们是可以也有权利查看您收藏的内容的，请不要在其中保存隐私数据" +
-			"</blockquote>\n\n" +
+			"</blockquote>" +
 
+			"\n\n" +
 			"内容待补充...",
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{

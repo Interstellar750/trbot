@@ -592,7 +592,7 @@ func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatna
 	}
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
-		Text: fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中\n来自 %s 的消息\n触发了设定的%s关键词 [ %s ]\n<blockquote>%s</blockquote>",
+		Text: fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中\n来自 %s 的消息\n触发了设定的%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
 			utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, senderLink,
 			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, text,
 		),
@@ -833,7 +833,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				if len(buttons) == 0 {
 					pendingMessage = "您没有设定任何全局关键词\n点击下方按钮来添加全局关键词"
 				} else {
-					pendingMessage = fmt.Sprintf("您当前设定了 %d 个全局关键词\n<blockquote>全局关键词将对您添加的全部群组生效\n但在部分情况下，全局关键词不会生效：\n- 您手动将群组设定为禁用状态\n- 对应群组的管理员为该群组关闭了此功能</blockquote>", len(buttons))
+					pendingMessage = fmt.Sprintf("您当前设定了 %d 个全局关键词\n<blockquote expandable>全局关键词将对您添加的全部群组生效\n但在部分情况下，全局关键词不会生效：\n- 您手动将群组设定为禁用状态\n- 对应群组的管理员为该群组关闭了此功能</blockquote>", len(buttons))
 				}
 			} else {
 				for _, chat := range KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser {
