@@ -10,6 +10,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
 	"trbot/utils/plugin_utils"
+	"unicode/utf8"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -82,8 +83,9 @@ func ReadSavedMessageList() {
 
 
 type sortstruct struct {
-	// 存放一些标准列表里没有的数据，方便搜索
-	sharedData *SavedMessageSharedData
+	sharedData *SavedMessageSharedData // 存放一些标准列表里没有的数据，方便搜索
+
+	onlyText  *models.InlineQueryResultArticle
 
 	audio     *models.InlineQueryResultCachedAudio
 	document  *models.InlineQueryResultCachedDocument
@@ -97,6 +99,7 @@ type sortstruct struct {
 }
 
 type SavedMessageItems struct {
+	OnlyText  []SavedMessageTypeCachedOnlyText  `yaml:"OnlyText,omitempty"`
 	Audio     []SavedMessageTypeCachedAudio     `yaml:"Audio,omitempty"`
 	Document  []SavedMessageTypeCachedDocument  `yaml:"Document,omitempty"`
 	Gif       []SavedMessageTypeCachedGif       `yaml:"Gif,omitempty"`
@@ -112,6 +115,34 @@ func (s *SavedMessageItems) All() []sortstruct {
 	// var all []models.InlineQueryResult
 	var list []sortstruct
 	//  = make([]sortstruct, 100)
+	for _, v := range s.OnlyText {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			log.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].onlyText != nil {
+			log.Println("duplicate id", v.ID)
+			continue
+		}
+		// var pendingTitle string
+		// if len(v.TitleAndMessageText) > 20 {
+		// 	pendingTitle = v.TitleAndMessageText[:20] + "..."
+		// }
+		list[index].onlyText = &models.InlineQueryResultArticle{
+			ID:                  v.ID,
+			Title:               v.TitleAndMessageText,
+			Description:         v.Description,
+			InputMessageContent: models.InputTextMessageContent{
+				MessageText:        v.TitleAndMessageText,
+				Entities:           v.Entities,
+				LinkPreviewOptions: v.LinkPreviewOptions,
+			},
+		}
+	}
 	for _, v := range s.Audio {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
@@ -353,6 +384,16 @@ type SavedMessageSharedData struct {
 	Description string
 }
 
+type SavedMessageTypeCachedOnlyText struct {
+	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+
+	ID                  string                     `yaml:"ID"`
+	TitleAndMessageText string                     `yaml:"TitleAndMessageText"`
+	Description         string                     `yaml:"Description,omitempty"`
+	Entities            []models.MessageEntity     `yaml:"Entities,omitempty"`
+	LinkPreviewOptions  *models.LinkPreviewOptions `yaml:"LinkPreviewOptions,omitempty"`
+}
+
 type SavedMessageTypeCachedAudio struct {
 	IsDeleted bool `yaml:"IsDeleted,omitempty"`
 
@@ -504,7 +545,30 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			DescriptionText = opts.Update.Message.Text[len(opts.Fields[0]) + 1:]
 		}
 
-		if opts.Update.Message.ReplyToMessage.Audio != nil {
+		if opts.Update.Message.ReplyToMessage.Text != "" {
+			messageLength := utf8.RuneCountInString(opts.Update.Message.ReplyToMessage.Text)
+			var pendingEntitites []models.MessageEntity = opts.Update.Message.ReplyToMessage.Entities
+			if messageLength > 100 {
+				pendingEntitites = append(pendingEntitites, models.MessageEntity{
+					Type:   "expandable_blockquote",
+					Offset: 0,
+					Length: messageLength,
+				})
+			}
+
+			UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
+				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+				TitleAndMessageText: opts.Update.Message.ReplyToMessage.Text,
+				Description: DescriptionText,
+				Entities: pendingEntitites,
+				LinkPreviewOptions: opts.Update.Message.ReplyToMessage.LinkPreviewOptions,
+			})
+			UserSavedMessage.Count++
+			UserSavedMessage.SavedTimes++
+			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+			SaveSavedMessageList()
+			messageParams.Text = "已保存文本"
+		} else if opts.Update.Message.ReplyToMessage.Audio != nil {
 			UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
 				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
 				FileID: opts.Update.Message.ReplyToMessage.Audio.FileID,
@@ -674,7 +738,9 @@ func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.
 	if len(keywordFields) == 0 {
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
-			if n.audio != nil {
+			if n.onlyText != nil {
+				all = append(all, n.onlyText)
+			} else if n.audio != nil {
 				all = append(all, n.audio)
 			} else if n.document != nil {
 				all = append(all, n.document)
@@ -698,7 +764,9 @@ func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.
 	} else {
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
-			if n.audio != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description}) {
+			if n.onlyText != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.onlyText.Description, n.onlyText.Title}) {
+				all = append(all, n.onlyText)
+			} else if n.audio != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description}) {
 				all = append(all, n.audio)
 			} else if n.document != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
 				all = append(all, n.document)
