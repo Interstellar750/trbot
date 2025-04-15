@@ -603,13 +603,12 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				InlineQueryID: opts.Update.InlineQuery.ID,
 				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 					ID:    "noinlineplugin",
-					Title: fmt.Sprintf("不存在的默认命令 [%s]", opts.Fields[0]),
-					Description: "或许是因为管理员已经移除了这个插件，请重新选择一个默认插件",
+					Title: fmt.Sprintf("不存在的默认命令 [%s]", opts.ChatInfo.DefaultInlinePlugin),
+					Description: "或许是因为管理员已经移除了这个插件，请重新选择一个默认命令",
 					InputMessageContent: &models.InputTextMessageContent{
 						MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 						ParseMode: models.ParseModeMarkdownV1,
 					},
-					
 				}},
 				Button: &models.InlineQueryResultsButton{
 					Text: "点击此处修改默认命令",
@@ -636,6 +635,10 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 						Results:       utils.InlineResultPagination(opts.Fields, ResultList),
 						IsPersonal:    true,
 						CacheTime:     30,
+						Button: &models.InlineQueryResultsButton{
+							Text: "输入 + 号显示菜单，或点击此处修改默认命令",
+							StartParameter: "via-inline_change-inline-command",
+						},
 					})
 					if err != nil {
 						log.Printf("Error when answering inline [%s] command: %v", plugin.Command, err)
@@ -667,13 +670,12 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 
-			// todo
 			// 判断是否有足够的插件，以及默认插件是否存在
 			var pendingMessage string
 			if len(plugin_utils.AllPlugins.InlineCommandList) == 0 {
 				pendingMessage = "此 bot 似乎并没有使用任何 inline 模式插件，请联系管理员"
 			} else {
-				pendingMessage = fmt.Sprintf("您可以继续输入 %s 来查看其他可用的命令", consts.InlineSubCommandSymbol)
+				pendingMessage = fmt.Sprintf("您可以继续输入 %s 号来查看其他可用的命令", consts.InlineSubCommandSymbol)
 			}
 			 _, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.Update.InlineQuery.ID,
@@ -682,10 +684,14 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 					Title: "管理员设定了无效的默认命令",
 					Description: pendingMessage,
 					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: "机器人管理员给设定了一个无效的默认 inline 命令",
+						MessageText: "机器人管理员设定了一个无效的默认 inline 命令",
 						ParseMode: models.ParseModeMarkdownV1,
 					},
 				}},
+				Button: &models.InlineQueryResultsButton{
+					Text: "您可以点击此处设定一个默认命令",
+					StartParameter: "via-inline_change-inline-command",
+				},
 			})
 			if err != nil {
 				log.Printf("Error sending inline query response: %v", err)
@@ -694,8 +700,11 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 			return
 		}
 
-		// 设置禁用了默认命令，或用户
-		var inlineButton *models.InlineQueryResultsButton
+		// 用户没设定默认命令，配置里也没有填写默认命令 consts.InlineDefaultHandler，
+		var inlineButton = &models.InlineQueryResultsButton{
+			Text: "您可以点击此处设定一个默认命令",
+			StartParameter: "via-inline_change-inline-command",
+		}
 		var message string = "可用的 Inline 模式命令:\n\n"
 		for _, command := range plugin_utils.AllPlugins.InlineCommandList {
 			if command.Attr.IsHideInCommandList {

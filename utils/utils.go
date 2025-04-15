@@ -361,7 +361,7 @@ func ShowUserName(user *models.User) string {
 func ShowChatName(chat *models.Chat) string {
 	if chat.Title != "" { // 群组
 		return chat.Title
-	} else if chat.LastName != "" { // 
+	} else if chat.LastName != "" { // 可能是用户正在与 bot 发送信息
 		return chat.FirstName + " " + chat.LastName
 	} else {
 		return chat.FirstName
@@ -388,10 +388,16 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 		}
 	}
 	
-	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-		Text: "取消默认命令",
-		CallbackData: "inline_default_none",
-	}})
+	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{
+		{
+			Text: "取消默认命令",
+			CallbackData: "inline_default_none",
+		},
+		{
+			Text: "浏览 inline 命令菜单",
+			SwitchInlineQueryCurrentChat: "+",
+		},
+	})
 
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: inlinePlugins,

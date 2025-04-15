@@ -31,7 +31,7 @@ func RegisterPlugins() {
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
 				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
-					Text:   "选择一个 Inline 模式下的默认命令\n<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>",
+					Text:   fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", consts.InlineSubCommandSymbol),
 					ParseMode: models.ParseModeHTML,
 					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },

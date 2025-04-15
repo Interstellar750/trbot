@@ -28,7 +28,7 @@ func init() {
 		Name: "Voice List",
 		Loader: ReadVoicePackFromPath,
 	})
-	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
+	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
 		Command: "voice",
 		Handler: VoiceListHandler,
 		Description: "一些语音列表",
@@ -80,9 +80,24 @@ func ReadVoicePackFromPath() {
 	VoiceLists, VoiceListErr = packs, nil
 }
 
-func VoiceListHandler(opts *handler_utils.SubHandlerOpts) {
+func VoiceListHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQueryResult {
 	// 将 metadata 转换为 Inline Query 结果
 	var results []models.InlineQueryResult
+
+	if VoiceLists == nil {
+		log.Printf("No voices file in voices_path: %s", VoiceList_path)
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    consts.LogChat_ID,
+			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
+		})
+		return []models.InlineQueryResult{&models.InlineQueryResultVoice{
+			ID:       "none",
+			Title:    "无法读取到语音文件，请联系机器人管理员",
+			Caption:  "由于无法读取到语音文件，此处被替换为预设的 `♿otto: 我是说的道理~` ",
+			VoiceURL: "https://alist.trle5.xyz/d/voices/otto/我是说的道理.ogg",
+			ParseMode: models.ParseModeMarkdownV1,
+		}}
+	}
 
 	keywordFields := utils.InlineExtractKeywords(opts.Fields)
 
@@ -125,54 +140,16 @@ func VoiceListHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 
 	if VoiceListErr != nil {
-		log.Printf("Error when reading metadata files: %v", VoiceListErr)
-		opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.Update.InlineQuery.ID,
-			Results:       []models.InlineQueryResult{
-				&models.InlineQueryResultVoice{
-					ID:       "none",
-					Title:    "读取语音文件时发生错误，请联系机器人管理员",
-					Caption:  "由于无法读取到语音文件，此处被替换为预设的 `♿otto: 我是说的道理~` ",
-					VoiceURL: "https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wssddl.mp3",
-					ParseMode: models.ParseModeMarkdownV1,
-				},
+		return append([]models.InlineQueryResult{&models.InlineQueryResultArticle{
+			ID:       "none",
+			Title:    "读取语音文件时发生错误，请联系机器人管理员",
+			Description: "点此显示错误信息",
+			InputMessageContent: models.InputTextMessageContent{
+				MessageText: fmt.Sprintf("读取语音文件时发生错误<blockquote expandable>%s</blockquote>", VoiceListErr),
+				ParseMode: models.ParseModeHTML,
 			},
-			CacheTime: 0,
-		})
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: consts.LogChat_ID,
-			Text:   fmt.Sprintf("%s\nInline Mode: some user get error, %v", time.Now().Format(time.RFC3339), VoiceListErr),
-		})
-		return
-	} else if VoiceLists == nil {
-		log.Printf("No voices file in voices_path: %s", VoiceList_path)
-		opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.Update.InlineQuery.ID,
-			Results:       []models.InlineQueryResult{
-				&models.InlineQueryResultVoice{
-					ID:       "none",
-					Title:    "无法读取到语音文件，请联系机器人管理员",
-					Caption:  "由于无法读取到语音文件，此处被替换为预设的 `♿otto: 我是说的道理~` ",
-					VoiceURL: "https://otto-hzys.huazhiwan.xyz/static/ysddTokens/wssddl.mp3",
-					ParseMode: models.ParseModeMarkdownV1,
-				},
-			},
-			CacheTime: 0,
-		})
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    consts.LogChat_ID,
-			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
-		})
-		return
+		}}, results...)
 	}
 
-	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-		InlineQueryID: opts.Update.InlineQuery.ID,
-		Results:       utils.InlineResultPagination(opts.Fields, results),
-		// Button: inlineButton,
-	})
-	if err != nil {
-		log.Printf("Error sending inline query response: %v", err)
-		return
-	}
+	return results
 }
