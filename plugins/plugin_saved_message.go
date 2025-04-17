@@ -886,7 +886,7 @@ func AgreePrivacyPolicy(opts *handler_utils.SubHandlerOpts) {
 			Text: "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "点击浏览你的收藏",
+				Text: "点击浏览您的收藏",
 				SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "saved ",
 			}}}},
 		})

@@ -20,8 +20,11 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
+	defer func(){ if r := recover(); r != nil {
+		mess.PrintLogAndSave(fmt.Sprintln("recovered in defaultHandler:", r))
+	}}()
+
 	var opts = handler_utils.SubHandlerOpts{
 		Ctx:      ctx,
 		Thebot:   thebot,
@@ -302,6 +305,10 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func messageHandler(opts *handler_utils.SubHandlerOpts) {
+	defer func(){ if r := recover(); r != nil {
+		mess.PrintLogAndSave(fmt.Sprintln("recovered in messageHandler:", r))
+	}}()
+
 	var botMessage *models.Message // 存放 bot 发送的信息
 
 	// 首先判断聊天类型，这里处理私聊、群组和超级群组的消息
@@ -437,6 +444,10 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 
 // 处理 inline 模式下的请求
 func inlineHandler(opts *handler_utils.SubHandlerOpts) {
+	defer func(){ if r := recover(); r != nil {
+		mess.PrintLogAndSave(fmt.Sprintln("recovered in inlineHandler:", r))
+	}}()
+
 	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs)
 
 	if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
@@ -738,6 +749,10 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 }
 
 func startHandler(opts *handler_utils.SubHandlerOpts) {
+	defer func(){ if r := recover(); r != nil {
+		mess.PrintLogAndSave(fmt.Sprintln("recovered in startHandler:", r))
+	}}()
+
 	if len(opts.Fields) > 1 {
 		for _, n := range plugin_utils.AllPlugins.SlashStart.WithPrefixHandler {
 			if strings.HasPrefix(opts.Fields[1], n.Prefix) {
