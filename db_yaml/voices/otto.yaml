@@ -239,7 +239,7 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
   - ID:       otto-techshows
     Title:    技术演示
     Caption:  你看你爹操作这波
-    VoiceURL: https://alist.trle5.xyz/d/voices/otto/你看你爹操作这波啊.ogg
+    VoiceURL: https://alist.trle5.xyz/d/voices/otto/你看你爹操作这波.ogg
 
   - ID:       otto-ahdead
     Title:    啊... 死！

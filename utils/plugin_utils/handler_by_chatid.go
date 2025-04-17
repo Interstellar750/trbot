@@ -8,13 +8,13 @@ type HandlerByChatID struct {
 }
 
 func AddHandlerByChatIDPlugins(Handlers ...HandlerByChatID) int {
-	if AllPlugins.DefaultHandlerByChatID == nil {
-		AllPlugins.DefaultHandlerByChatID = []HandlerByChatID{}
+	if AllPlugins.HandlerByChatID == nil {
+		AllPlugins.HandlerByChatID = []HandlerByChatID{}
 	}
 	var pluginCount int
 	for _, originPlugin := range Handlers {
 		if originPlugin.ChatID == 0 { continue }
-		AllPlugins.DefaultHandlerByChatID = append(AllPlugins.DefaultHandlerByChatID, originPlugin)
+		AllPlugins.HandlerByChatID = append(AllPlugins.HandlerByChatID, originPlugin)
 		pluginCount++
 	}
 	return pluginCount

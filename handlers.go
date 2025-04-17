@@ -433,7 +433,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			plugins.KeywordDetector(opts)
 		}
 
-		for _, handlerByChatIDHandler := range plugin_utils.AllPlugins.DefaultHandlerByChatID {
+		for _, handlerByChatIDHandler := range plugin_utils.AllPlugins.HandlerByChatID {
 			if handlerByChatIDHandler.ChatID == opts.Update.Message.Chat.ID {
 				if handlerByChatIDHandler.Handler == nil { continue }
 				handlerByChatIDHandler.Handler(opts)

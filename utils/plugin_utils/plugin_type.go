@@ -1,9 +1,5 @@
 package plugin_utils
 
-import (
-	"trbot/utils/handler_utils"
-)
-
 type Plugin_All struct {
 	Databases           []DatabaseHandler
 	// Inline mode
@@ -21,28 +17,8 @@ type Plugin_All struct {
 	CallbackQuery []CallbackQuery // 处理 InlineKeyboardMarkup 的 callback 函数
 
 	// 根据聊天类型设定的默认处理函数
-	DefaultHandlerByMessageTypeForPrivate    *HandlerByMessageType
-	DefaultHandlerByMessageTypeForGroup      *HandlerByMessageType
-	DefaultHandlerByMessageTypeForSupergroup *HandlerByMessageType
-	DefaultHandlerByMessageTypeForChannel    *HandlerByMessageType
-
-	DefaultHandlerByChatID []HandlerByChatID
+	HandlerByMessageType *HandlerByMessageType
+	HandlerByChatID     []HandlerByChatID
 }
 
 var AllPlugins = Plugin_All{}
-
-type HandlerByMessageType struct {
-	Photo   func(*handler_utils.SubHandlerOpts)
-
-
-	Message   func(*handler_utils.SubHandlerOpts)
-	Sticker   func(*handler_utils.SubHandlerOpts)
-	Document  func(*handler_utils.SubHandlerOpts)
-	Audio     func(*handler_utils.SubHandlerOpts)
-	Video     func(*handler_utils.SubHandlerOpts)
-	VideoNote func(*handler_utils.SubHandlerOpts)
-	Voice     func(*handler_utils.SubHandlerOpts)
-	Contact   func(*handler_utils.SubHandlerOpts)
-	Location  func(*handler_utils.SubHandlerOpts)
-
-}
