@@ -430,18 +430,23 @@ func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
 		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
 	}
 
+	var stickerFilePrefix, stickerFileSuffix string
+
 	if opts.Update.Message.Sticker.IsVideo {
-		documentParams.Caption  = "<blockquote>see <a href=\"https://wikipedia.org/wiki/WebM\">wikipedia/WebM</a></blockquote>"
-		documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s_%d.webm", stickerData.StickerSetName, stickerData.StickerIndex), Data: stickerData.Data}
+		documentParams.Caption = "<blockquote>see <a href=\"https://wikipedia.org/wiki/WebM\">wikipedia/WebM</a></blockquote>"
+		stickerFileSuffix = "webm"
 	} else if opts.Update.Message.Sticker.IsAnimated {
-		documentParams.Caption  = "<blockquote>see <a href=\"https://core.telegram.org/stickers#animated-stickers\">stickers/animated-stickers</a></blockquote>"
-		documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s_%d.tgs.file", stickerData.StickerSetName, stickerData.StickerIndex), Data: stickerData.Data}
+		documentParams.Caption = "<blockquote>see <a href=\"https://core.telegram.org/stickers#animated-stickers\">stickers/animated-stickers</a></blockquote>"
+		stickerFileSuffix = "tgs.file"
 	} else {
-		documentParams.Document = &models.InputFileUpload{Filename:  fmt.Sprintf("%s_%d.png", stickerData.StickerSetName, stickerData.StickerIndex), Data: stickerData.Data}
+		stickerFileSuffix = "png"
 	}
 
-	// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
-	if !stickerData.IsCustomSticker {
+	if stickerData.IsCustomSticker {
+		stickerFilePrefix = "sticker"
+	} else {
+		stickerFilePrefix = fmt.Sprintf("%s_%d", stickerData.StickerSetName, stickerData.StickerIndex)
+		// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
 		documentParams.Caption += fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
 		documentParams.ReplyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
@@ -452,6 +457,8 @@ func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
 			},
 		}}
 	}
+
+	documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s.%s", stickerFilePrefix, stickerFileSuffix), Data: stickerData.Data}
 
 	opts.Thebot.SendDocument(opts.Ctx, documentParams)
 }
