@@ -484,18 +484,16 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 
 func buildListenList() {
 	for index, chat := range KeywordDataList.Chats {
-		if !chat.IsDisable {
-			chat.UsersID = []int64{}
-			KeywordDataList.Chats[index] = chat
-		}
+		chat.UsersID = []int64{}
+		KeywordDataList.Chats[index] = chat
 	}
 	for _, user := range KeywordDataList.Users {
 		if !user.IsDisable {
-			for _, key := range user.ChatsForUser {
-				if !key.IsDisable {
-					chat := KeywordDataList.Chats[key.ChatID]
+			for _, keywordForChat := range user.ChatsForUser {
+				if !keywordForChat.IsDisable {
+					chat := KeywordDataList.Chats[keywordForChat.ChatID]
 					chat.UsersID = append(chat.UsersID, user.UserID)
-					KeywordDataList.Chats[key.ChatID] = chat
+					KeywordDataList.Chats[keywordForChat.ChatID] = chat
 				}
 			}
 		}
@@ -618,6 +616,13 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 	case "detectkw_mng_finish":
 		// 停止添加群组关键词
 		user.AddingChatID = 0
+	case "detectkw_mng_chatdisablebyadmin":
+		// 目标群组的管理员为群组关闭了此功能
+		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: opts.Update.CallbackQuery.ID,
+			Text:            "此群组的的管理员禁用了此功能，因此，您无法再收到来自该群组的关键词提醒，您可以询问该群组的管理员是否可以重新开启这个功能",
+			ShowAlert:       true,
+		})
 	default:
 		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") || strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_delkw_") {
 		// 撤销添加或删除关键词
@@ -979,12 +984,12 @@ func startPrefixAddGroup(opts *handler_utils.SubHandlerOpts) {
 func buildUserChatList(user KeywordUserList) models.ReplyMarkup {
 	var buttons [][]models.InlineKeyboardButton
 
-	buttons = append(buttons, []models.InlineKeyboardButton{{
-		Text: fmt.Sprintf("全局关键词 %d 个", len(user.GlobalKeyword)),
-		CallbackData:  fmt.Sprintf("detectkw_mng_chat_%d", user.UserID),
-	}})
-
 	if !user.IsDisable {
+		buttons = append(buttons, []models.InlineKeyboardButton{{
+			Text: fmt.Sprintf("全局关键词 %d 个", len(user.GlobalKeyword)),
+			CallbackData:  fmt.Sprintf("detectkw_mng_chat_%d", user.UserID),
+		}})
+
 		for _, chat := range user.ChatsForUser {
 			var subchats []models.InlineKeyboardButton
 			var targetChat = KeywordDataList.Chats[chat.ChatID]
