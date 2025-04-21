@@ -18,58 +18,17 @@ import (
 )
 
 func RegisterPlugins() {
-	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
-	plugin_utils.AddSlashStartWithPrefixCommandPlugins([]plugin_utils.SlashStartWithPrefixHandler{
-		{
-			Prefix:   "via-inline",
-			Argument: "noreply",
-			Handler:  nil, // 不回复
-		},
-		{
-			Prefix:   "via-inline",
-			Argument: "change-inline-command",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
-				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					Text:   fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", consts.InlineSubCommandSymbol),
-					ParseMode: models.ParseModeHTML,
-					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				})
-			},
-		},
-	}...)
-
-	// 通过消息按钮触发的请求
-	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
-		CommandChar: "inline_default_",
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
-			if opts.Update.CallbackQuery.Data == "inline_default_none" {
-				database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
-				opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
-				})
-			}
-			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
-			for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
-				if inlinePlugin.Command == callbackField {
-					database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
-					opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-						ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-						ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
-					})
-					break
-				}
-			}
-			consts.SignalsChannel.Database_save <- true
-		},
-	})
 
 	// 以 `/` 符号开头的命令
 	plugin_utils.AddSlashSymbolCommandPlugins([]plugin_utils.SlashSymbolCommand{
+		{
+			SlashCommand: "start",
+			Handler:      startHandler,
+		},
+		{
+			SlashCommand: "help",
+			Handler:      helpHandler,
+		},
 		{
 			SlashCommand: "chatinfo",
 			Handler: func(opts *handler_utils.SubHandlerOpts) {
@@ -168,6 +127,62 @@ func RegisterPlugins() {
 		},
 	}...)
 
+	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
+	plugin_utils.AddSlashStartWithPrefixCommandPlugins([]plugin_utils.SlashStartWithPrefixHandler{
+		{
+			Prefix:   "via-inline",
+			Argument: "noreply",
+			Handler:  nil, // 不回复
+		},
+		{
+			Prefix:   "via-inline",
+			Argument: "change-inline-command",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text:   fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", consts.InlineSubCommandSymbol),
+					ParseMode: models.ParseModeHTML,
+					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				})
+			},
+		},
+	}...)
+
+	// 通过消息按钮触发的请求
+	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
+		{
+			CommandChar: "inline_default_",
+			Handler: func(opts *handler_utils.SubHandlerOpts) {
+				if opts.Update.CallbackQuery.Data == "inline_default_none" {
+					database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
+					opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+						ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+						ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+					})
+				}
+				callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
+				for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
+					if inlinePlugin.Command == callbackField {
+						database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
+						opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+							ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+							MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+							ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+						})
+						break
+					}
+				}
+				consts.SignalsChannel.Database_save <- true
+			},
+		},
+		{
+			CommandChar: "help",
+			Handler:     helpCallbackHandler,
+		},
+	}...)
+
 	// inline 模式自行处理输出的函数
 	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
 		Command: "uaav",
@@ -253,7 +268,7 @@ func RegisterPlugins() {
 		Description: "将一个音频链接作为语音格式发送",
 	})
 
-	// inline 模式以前缀触发的命令，需要自行处理输出。
+	// inline 模式中以前缀触发的命令，需要自行处理输出。
 	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.InlinePrefixHandler{
 		{
 			PrefixCommand: "log",

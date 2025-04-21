@@ -2,6 +2,8 @@ package plugin_utils
 
 type Plugin_All struct {
 	Databases           []DatabaseHandler
+
+	HandlerHelp         []HandlerHelp
 	// Inline mode
 	InlineHandler       []InlineHandler       // 函数返回全部列表，由预设函数进行分页
 	InlineManualHandler []InlineManualHandler // 函数自行处理输出

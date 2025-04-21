@@ -26,14 +26,21 @@ var StickerCacheZip_path string = consts.Cache_path + "sticker_zip/"
 func init() {
 	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
 		{
+			// 不转换格式，打包下载整个贴纸包
 			CommandChar: "s",
 			Handler: DownloadStickerPackCallBackHandler,
 		},
 		{
+			// 将贴纸包中的静态贴纸全部转换为 PNG 格式并打包
 			CommandChar: "S",
 			Handler: DownloadStickerPackCallBackHandler,
 		},
 	}...)
+	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
+		Name:        "贴纸下载",
+		Description: "直接向机器人发送任意贴纸来下载转换后的 PNG 格式图片\n\n<blockquote expandable>仅限静态贴纸会被转换，动画和视频贴纸将会以原文件形式发送\n若您发送的贴纸为一个贴纸包中的贴纸，您可以点击消息中的按钮来下载整个贴纸包</blockquote>",
+		ParseMode:   models.ParseModeHTML,
+	})
 }
 
 type stickerDatas struct {

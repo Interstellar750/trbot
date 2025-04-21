@@ -39,7 +39,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 	}
 
-	// 根据 update 类型来设定
+	// 需要重写来配合 handler by update type
 	if update.Message != nil {
 		// 正常消息
 		opts.Fields = strings.Fields(update.Message.Text)
@@ -309,135 +309,104 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 		mess.PrintLogAndSave(fmt.Sprintln("recovered in messageHandler:", r))
 	}}()
 
-	var botMessage *models.Message // 存放 bot 发送的信息
-
-	// 首先判断聊天类型，这里处理私聊、群组和超级群组的消息
-	if utils.AnyContains(opts.Update.Message.Chat.Type, models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup) {
-		// 检测如果消息开头是 / 符号，作为命令来处理
-		if strings.HasPrefix(opts.Update.Message.Text, "/") {
-			if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/start") {
+	// 检测如果消息开头是 / 符号，作为命令来处理
+	if strings.HasPrefix(opts.Update.Message.Text, "/") {
+		for _, plugin := range plugin_utils.AllPlugins.SlashSymbolCommand {
+			if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
 				if consts.IsDebugMode {
-					log.Printf("hit in /start commands")
+					log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
 				}
+				if plugin.Handler == nil { continue }
 				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				startHandler(opts)
+				plugin.Handler(opts)
 				return
-			}
-			for _, plugin := range plugin_utils.AllPlugins.SlashSymbolCommand {
-				if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
-					if consts.IsDebugMode {
-						log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
-					}
-					if plugin.Handler == nil { continue }
-					database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-					plugin.Handler(opts)
-					return
-				}
-			}
-			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
-			if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
-				// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
-				// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
-				botMessage, _ = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID:    opts.Update.Message.Chat.ID,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					Text:      "不存在的命令",
-				})
-				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				time.Sleep(time.Second * 10)
-				opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-					ChatID:     opts.Update.Message.Chat.ID,
-					MessageIDs: []int{
-						opts.Update.Message.ID,
-						botMessage.ID,
-					},
-				})
-				return
-			} 
-		} else if len(opts.Update.Message.Text) > 0 {
-			for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
-				if utils.CommandMaybeWithSuffixUsername(opts.Fields, plugin.FullCommand) {
-					if consts.IsDebugMode {
-						log.Printf("hit fullcommand: %s", plugin.FullCommand)
-					}
-					if plugin.Handler == nil { continue }
-					database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-					plugin.Handler(opts)
-					return
-				}
-			}
-			for _, plugin := range plugin_utils.AllPlugins.SuffixCommand {
-				if strings.HasSuffix(opts.Update.Message.Text, plugin.SuffixCommand) {
-					if consts.IsDebugMode {
-						log.Printf("hit suffixcommand: %s", plugin.SuffixCommand)
-					}
-					if plugin.Handler == nil { continue }
-					database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-					plugin.Handler(opts)
-					return
-				}
 			}
 		}
-
-		// 不符合上方条件，即消息开头不是 / 符号的信息
-		if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
-			// 如果用户发送的是贴纸，下载并返回贴纸源文件给用户
-			if opts.Update.Message.Sticker != nil {
-				plugins.EchoStickerHandler(opts)
+		// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
+		if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
+			// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
+			// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
+			botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:    opts.Update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				Text:      "不存在的命令",
+			})
+			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			time.Sleep(time.Second * 10)
+			opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+				ChatID:     opts.Update.Message.Chat.ID,
+				MessageIDs: []int{
+					opts.Update.Message.ID,
+					botMessage.ID,
+				},
+			})
+			return
+		} 
+	} else if len(opts.Update.Message.Text) > 0 {
+		// 没有 `/` 号作为前缀，检查是不是自定义命令
+		for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
+			if utils.CommandMaybeWithSuffixUsername(opts.Fields, plugin.FullCommand) {
+				if consts.IsDebugMode {
+					log.Printf("hit fullcommand: %s", plugin.FullCommand)
+				}
+				if plugin.Handler == nil { continue }
+				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+				plugin.Handler(opts)
 				return
 			}
-
-			// 不匹配上面项目的则提示不可用
-			if strings.HasPrefix(opts.Update.Message.Text, "/") {
-				// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
-				// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
-				// botMessage, _ = 
-				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID:    opts.Update.Message.Chat.ID,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					Text:      "不存在的命令",
-				})
+		}
+		// 以后缀来触发的命令
+		for _, plugin := range plugin_utils.AllPlugins.SuffixCommand {
+			if strings.HasSuffix(opts.Update.Message.Text, plugin.SuffixCommand) {
+				if consts.IsDebugMode {
+					log.Printf("hit suffixcommand: %s", plugin.SuffixCommand)
+				}
+				if plugin.Handler == nil { continue }
 				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
-			} else {
-				// 非命令消息，提示无操作可用
-				// botMessage, _ = 
-				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID:    opts.Update.Message.Chat.ID,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					Text:      "无操作可用",
-				})
-				if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
-
-				// opts.Thebot.ForwardMessages(opts.Ctx, &bot.ForwardMessagesParams{
-				// 	ChatID:     logChat_ID,
-				// 	FromChatID: opts.Update.Message.Chat.ID,
-				// 	MessageIDs: []int{
-				// 		opts.Update.Message.ID - 1,
-				// 		opts.Update.Message.ID,
-				// 	},
-				// })
+				plugin.Handler(opts)
+				return
 			}
+		}
+	}
 
-			// 等待五秒删除请求信息和回复信息
-			// time.Sleep(time.Second * 10)
-			// opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-			// 	ChatID:     opts.Update.Message.Chat.ID,
-			// 	MessageIDs: []int{
-			// 		opts.Update.Message.ID,
-			// 		botMessage.ID,
-			// 	},
-			// })
+	// 这里需要重写配合 handler by message type
+	if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+		// 如果用户发送的是贴纸，下载并返回贴纸源文件给用户
+		if opts.Update.Message.Sticker != nil {
+			plugins.EchoStickerHandler(opts)
+			return
+		}
+
+		// 不匹配上面项目的则提示不可用
+		if strings.HasPrefix(opts.Update.Message.Text, "/") {
+			// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
+			// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
+			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:    opts.Update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				Text:      "不存在的命令",
+			})
+			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 		} else {
-			plugins.DeleteNotAllowMessage(opts)
-			plugins.KeywordDetector(opts)
+			// 非命令消息，提示无操作可用
+			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:    opts.Update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				Text:      "无操作可用",
+			})
+			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 		}
+	} else {
+		plugins.DeleteNotAllowMessage(opts)
+		plugins.KeywordDetector(opts)
+	}
 
-		for _, handlerByChatIDHandler := range plugin_utils.AllPlugins.HandlerByChatID {
-			if handlerByChatIDHandler.ChatID == opts.Update.Message.Chat.ID {
-				if handlerByChatIDHandler.Handler == nil { continue }
-				handlerByChatIDHandler.Handler(opts)
-			}
+	// 最后才运行针对群组 ID 的 handler
+	for _, handlerByChatIDHandler := range plugin_utils.AllPlugins.HandlerByChatID {
+		if handlerByChatIDHandler.ChatID == opts.Update.Message.Chat.ID {
+			if handlerByChatIDHandler.Handler == nil { continue }
+			handlerByChatIDHandler.Handler(opts)
 		}
 	}
 }
@@ -746,41 +715,4 @@ func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 			return
 		}
 	}
-}
-
-func startHandler(opts *handler_utils.SubHandlerOpts) {
-	defer func(){ if r := recover(); r != nil {
-		mess.PrintLogAndSave(fmt.Sprintln("recovered in startHandler:", r))
-	}}()
-
-	if len(opts.Fields) > 1 {
-		for _, n := range plugin_utils.AllPlugins.SlashStart.WithPrefixHandler {
-			if strings.HasPrefix(opts.Fields[1], n.Prefix) {
-				inlineArgument := strings.Split(opts.Fields[1], "_")
-				if inlineArgument[1] == n.Argument {
-					if n.Handler == nil { continue }
-					n.Handler(opts)
-					return
-				}
-			}
-		}
-		for _, n := range plugin_utils.AllPlugins.SlashStart.Handler {
-			if opts.Fields[1] == n.Argument {
-				n.Handler(opts)
-				return
-			}
-		}
-	}
-
-	opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID: opts.Update.Message.Chat.ID,
-		Text:   fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", opts.Update.Message.From.FirstName, opts.Update.Message.From.LastName),
-		ParseMode: models.ParseModeMarkdownV1,
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-		LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
-		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text: "尝试 Inline 模式",
-			SwitchInlineQueryCurrentChat: " ",
-		}}}},
-	})
 }
