@@ -506,6 +506,10 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 		ChatID: opts.Update.Message.Chat.ID,
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 		ParseMode: models.ParseModeHTML,
+		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text: "点击浏览您的收藏",
+			SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "saved ",
+		}}}},
 	}
 
 	if !UserSavedMessage.AgreePrivacyPolicy {

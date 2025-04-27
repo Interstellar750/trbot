@@ -284,6 +284,20 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 					SaveKeywordList()
 				}
 
+				// 限制关键词长度
+				if len(opts.Fields[1]) > 30 {
+					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						Text: "抱歉，单个关键词长度不能超过 30 个字符",
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						ParseMode: models.ParseModeHTML,
+					})
+					if err != nil {
+						log.Printf("Error response /setkeyword command keyword too long: %v", err)
+					}
+					return 
+				}
+
 				keyword := strings.ToLower(opts.Fields[1])
 				var pendingMessage string
 				var isKeywordExist bool
@@ -382,8 +396,8 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 					return 
 				}
 
-				var pendingMessage string
 				keyword := strings.ToLower(opts.Fields[1])
+				var pendingMessage string
 				var button models.ReplyMarkup
 				var isKeywordExist bool
 
