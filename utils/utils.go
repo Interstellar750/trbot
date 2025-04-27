@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"gopkg.in/yaml.v3"
 )
 
 // 如果 target 是 candidates 的一部分, 返回 true
@@ -423,6 +426,7 @@ func TextForTrueOrFalse(condition bool, tureText, falseText string) string {
 	}
 }
 
+// 获取消息来源的链接
 func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) string {
 	var senderLink string
 	attr := updatetype.GetMessageAttribute(msg)
@@ -446,4 +450,37 @@ func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) st
 		}
 	}
 	return senderLink
+}
+
+// 一个通用的 yaml 结构体读取函数
+func LoadYAML(pathToFile string, out interface{}) error {
+	file, err := os.ReadFile(pathToFile)
+	if err != nil {
+		return fmt.Errorf("读取文件失败: %w", err)
+	}
+
+	if err := yaml.Unmarshal(file, out); err != nil {
+		return fmt.Errorf("解析 YAML 失败: %w", err)
+	}
+
+	return nil
+}
+
+// 一个通用的 yaml 结构体保存函数，目录和文件不存在则创建，并以结构体类型保存
+func SaveYAML(pathToFile string, data interface{}) error {
+	out, err := yaml.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("编码 YAML 失败: %w", err)
+	}
+
+	dir := filepath.Dir(pathToFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	if err := os.WriteFile(pathToFile, out, 0644); err != nil {
+		return fmt.Errorf("写入文件失败: %w", err)
+	}
+
+	return nil
 }

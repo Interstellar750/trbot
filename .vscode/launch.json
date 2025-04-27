@@ -1,0 +1,18 @@
+// https://v2ex.com/t/1125422#r_16140286
+
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "调试主程序",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/",
+      "env": {},
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "output": "${workspaceFolder}/output/debug_app"
+    }
+  ]
+}

@@ -195,6 +195,7 @@ func SaveKeywordList() error {
 
 func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 	if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
+		// 在群组中直接使用 /setkeyword 命令
 		chat := KeywordDataList.Chats[opts.Update.Message.Chat.ID]
 		if chat.IsDisable {
 			// 此功能已被管理员手动禁用
@@ -228,6 +229,7 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 				SaveKeywordList()
 			}
 			if len(opts.Fields) == 1 {
+				// 只有一个 /setkeyword 命令
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
 					Text: "已记录群组，点击下方左侧按钮来设定监听关键词\n若您是群组的管理员，您可以点击右侧的按钮来管理此功能",
@@ -344,6 +346,7 @@ func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
 			
 		}
 	} else {
+		// 与机器人的私聊对话
 		user := KeywordDataList.Users[opts.Update.Message.From.ID]
 		if user.AddTime == "" {
 			// 初始化用户
@@ -797,6 +800,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			var pendingMessage string
 
 			if chatID_int64 == user.UserID {
+				// 全局关键词
 				for index, keyword := range user.GlobalKeyword {
 					if index % 2 == 0 && index != 0 {
 						buttons = append(buttons, tempbutton)
@@ -816,6 +820,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 					pendingMessage = fmt.Sprintf("您当前设定了 %d 个全局关键词\n<blockquote expandable>全局关键词将对您添加的全部群组生效\n但在部分情况下，全局关键词不会生效：\n- 您手动将群组设定为禁用状态\n- 对应群组的管理员为该群组关闭了此功能</blockquote>", len(buttons))
 				}
 			} else {
+				// 为群组设定的关键词
 				for _, chat := range KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser {
 					if chat.ChatID == chatID_int64 {
 						for index, keyword := range chat.Keyword {
@@ -877,7 +882,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			if chatID == user.UserID {
 				pendingMessage = fmt.Sprintf("[ %s ] 是您设定的全局关键词", chatIDAndKeywordList[1])
 			} else {
-				pendingMessage = fmt.Sprintf("[ %s ] 是为群组 <a href=\"https://t.me/c/%s/\">%s</a> 设定的关键词", chatIDAndKeywordList[1], utils.RemoveIDPrefix(chatID), KeywordDataList.Chats[chatID].ChatName)
+				pendingMessage = fmt.Sprintf("[ %s ] 是为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定的关键词", chatIDAndKeywordList[1], utils.RemoveIDPrefix(chatID), KeywordDataList.Chats[chatID].ChatName)
 			}
 
 			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
