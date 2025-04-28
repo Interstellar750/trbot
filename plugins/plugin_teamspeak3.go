@@ -27,7 +27,8 @@ var TSData_path    string = consts.DB_path + "teamspeak/"
 var botNickName    string = "trbot_teamspeak_plugin"
 var notifyGroupID  int64  = -1002499888124
 var isCanRunSignal bool   = false
-var needReInit     bool   = false
+// var isListening    bool   = true
+// var needReInit     bool   = false
 var tsServerQuery *TSServerQuery
 
 var privateOpts *handler_utils.SubHandlerOpts
@@ -40,13 +41,20 @@ type TSServerQuery struct {
 }
 
 func init() {
+	// todo 初始化不成功时依然注册 `/ts3` 命令，使用命令式输出初始化时的错误
 	if initTeamSpeak() {
 		log.Println("TeamSpeak plugin loaded")
 		plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 			SlashCommand: "ts3",
 			Handler: showStatus,
 		})
-		go listenUserStatus()
+
+		// 需要以群组 ID 来触发 handler 来获取 opts
+		plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
+			ChatID: notifyGroupID,
+			PluginName: "teamspeak_get_opts",
+			Handler: getOptsHandler,
+		})
 	}
 }
 
@@ -123,6 +131,17 @@ func initTeamSpeak() bool {
 	return true
 }
 
+func getOptsHandler(opts *handler_utils.SubHandlerOpts) {
+	if !isCanRunSignal && opts.Update != nil && opts.Update.Message != nil && opts.Update.Message.Chat.ID == notifyGroupID {
+		privateOpts = opts
+		isCanRunSignal = true
+
+		// 获取到 opts 后删掉 handler by chatID
+		plugin_utils.RemoveHandlerByChatIDPlugin(notifyGroupID, "teamspeak_get_opts")
+		go listenUserStatus()
+	}
+}
+
 func showStatus(opts *handler_utils.SubHandlerOpts) {
 	var pendingMessage string
 
@@ -130,49 +149,62 @@ func showStatus(opts *handler_utils.SubHandlerOpts) {
 		privateOpts = opts
 		isCanRunSignal = true
 		// 把启动线程的 goroutine 挪到这里？
-		pendingMessage += fmt.Sprintln("已准备好发送用户状态")
+		// pendingMessage += fmt.Sprintln("已准备好发送用户状态")
 	}
 
 	olClient, err := tsClient.Server.ClientList()
 	if err != nil {
 		log.Println("[teamspeak] get online client error:", err)
-		initTeamSpeak()
-	}
-	pendingMessage += fmt.Sprintln("在线客户端:")
-	var userCount int
-	for _, n := range olClient {
-		if n.Nickname == botNickName {
-			// 统计用户数量时跳过此机器人
-			continue
+		pendingMessage = fmt.Sprintf("连接到 teamspeak 服务器发生错误:\n<blockquote expandable>%s</blockquote>", err)
+	} else {
+		pendingMessage += fmt.Sprintln("在线客户端:")
+		var userCount int
+		for _, n := range olClient {
+			if n.Nickname == botNickName {
+				// 统计用户数量时跳过此机器人
+				continue
+			}
+			pendingMessage += fmt.Sprintf("用户 [ %s ] ", n.Nickname)
+			userCount++
+			if n.OnlineClientExt != nil {
+				pendingMessage += fmt.Sprintf("在线时长 %d", *n.OnlineClientTimes.LastConnected)
+			}
+			pendingMessage += "\n"
 		}
-		pendingMessage += fmt.Sprintf("用户 [ %s ] ", n.Nickname)
-		userCount++
-		if n.OnlineClientExt != nil {
-			pendingMessage += fmt.Sprintf("在线时长 %d", *n.OnlineClientTimes.LastConnected)
+		if userCount == 0 {
+			pendingMessage += "当前无用户在线"
 		}
-		pendingMessage += "\n"
-	}
-	if userCount == 0 {
-		pendingMessage += "当前无用户在线"
 	}
 	
+	
 	opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID: opts.Update.Message.Chat.ID,
-		Text:   pendingMessage,
+		ChatID:    opts.Update.Message.Chat.ID,
+		Text:      pendingMessage,
+		ParseMode: models.ParseModeHTML,
 	})
 }
 
 func listenUserStatus() {
-	every5Sec := time.NewTicker(5 * time.Second)
-	defer every5Sec.Stop()
+	// isListening = true
+	listenTicker := time.NewTicker(5 * time.Second)
+	defer listenTicker.Stop()
 
 	var beforeOnlineClient []string
 
 	for {
 		select {
-		case <-every5Sec.C:
+		case <-listenTicker.C:
 			if isCanRunSignal {
 				beforeOnlineClient = checkOnlineClientChange(beforeOnlineClient)
+			} else {
+				log.Println("[teamspeak] try reconnect...")
+				listenTicker.Reset(10 * time.Second)
+				if initTeamSpeak() {
+					isCanRunSignal = true
+					log.Println("[teamspeak] reconnect success")
+				} else {
+					log.Println("[teamspeak] reconnect failed, retry in 10s")
+				}
 			}
 		}
 	}
