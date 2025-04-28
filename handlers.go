@@ -403,10 +403,12 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 
 	// 最后才运行针对群组 ID 的 handler
-	for _, handlerByChatIDHandler := range plugin_utils.AllPlugins.HandlerByChatID {
-		if handlerByChatIDHandler.ChatID == opts.Update.Message.Chat.ID {
-			if handlerByChatIDHandler.Handler == nil { continue }
-			handlerByChatIDHandler.Handler(opts)
+	ByChatIDHandlers, isExist := plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID]
+	if isExist {
+		for name, handler := range ByChatIDHandlers {
+			if consts.IsDebugMode {
+				log.Printf("trigger handler by chatID [%s] for group [%d]", name, handler.ChatID)
+			}
 		}
 	}
 }

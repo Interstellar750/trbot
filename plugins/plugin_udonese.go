@@ -690,6 +690,7 @@ func init() {
 	})
 	plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
 		ChatID:  UdonGroupID,
+		PluginName: "udoneseGroupHandler",
 		Handler: udoneseGroupHandler,
 	})
 	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{

@@ -371,7 +371,7 @@ func ShowChatName(chat *models.Chat) string {
 	}
 }
 
-
+// 构建一个用于选择 Inline 模式下默认命令的按钮键盘
 func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) models.ReplyMarkup {
 	var inlinePlugins [][]models.InlineKeyboardButton
 	for _, v := range plugin_utils.AllPlugins.InlineCommandList {
@@ -409,6 +409,7 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 	return kb
 }
 
+// 如果一个 int64 类型的 ID 为 `-100`` 开头的负数，则去掉 `-100``
 func RemoveIDPrefix(id int64) string {
 	mayWithPrefix := fmt.Sprintf("%d", id)
 	if strings.HasPrefix(mayWithPrefix, "-100") {
