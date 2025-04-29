@@ -194,8 +194,6 @@ func getStickerPack(opts *handler_utils.SubHandlerOpts, stickerSet *models.Stick
 	var stickerCount_tgs  int
 	var stickerCount_webp int
 
-	var stickersInZip int
-
 	for i, sticker := range stickerSet.Stickers {
 		stickerfileName := fmt.Sprintf("%s %d %s.", sticker.SetName, i, sticker.FileID)
 		var fileSuffix string
@@ -212,7 +210,7 @@ func getStickerPack(opts *handler_utils.SubHandlerOpts, stickerSet *models.Stick
 			stickerCount_webp++
 		}
 
-		var originFullPath string = filePath + stickerfileName + fileSuffix
+		var originFullPath string = filePath    + stickerfileName + fileSuffix
 		var toPNGFullPath  string = filePathPNG + stickerfileName + "png"
 
 		_, err := os.Stat(originFullPath) // 检查单个贴纸是否已缓存
@@ -283,11 +281,11 @@ func getStickerPack(opts *handler_utils.SubHandlerOpts, stickerSet *models.Stick
 			return nil, fmt.Errorf("there are no static stickers in the sticker pack")
 		}
 		data.StickerCount = stickerCount_webp
-		zipFileName = fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, stickersInZip)
+		zipFileName = fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, data.StickerCount)
 		compressFolderPath = filePathPNG
 	} else {
 		data.StickerCount = stickerCount_webp + stickerCount_webm + stickerCount_tgs
-		zipFileName = fmt.Sprintf("%s(%d).zip", stickerSet.Name, stickersInZip)
+		zipFileName = fmt.Sprintf("%s(%d).zip", stickerSet.Name, data.StickerCount)
 		compressFolderPath = filePath
 	}
 
@@ -315,13 +313,13 @@ func getStickerPack(opts *handler_utils.SubHandlerOpts, stickerSet *models.Stick
 	}
 
 	if isZiped { // 存在已经完成压缩的贴纸包
-		log.Printf("sticker pack \"%s\"[%s](%d) is already zipped", stickerSet.Title, stickerSet.Name, stickersInZip)
+		log.Printf("sticker pack \"%s\"[%s](%d) is already zipped", stickerSet.Title, stickerSet.Name, data.StickerCount)
 	} else if isOnlyPNG && allConverted { // 仅需要 PNG 格式，且贴纸包完全转换成 PNG 格式，但尚未压缩
-		log.Printf("sticker pack \"%s\"[%s](%d) is already converted", stickerSet.Title, stickerSet.Name, stickersInZip)
+		log.Printf("sticker pack \"%s\"[%s](%d) is already converted", stickerSet.Title, stickerSet.Name, data.StickerCount)
 	} else if allCached { // 贴纸包中的贴纸已经全部缓存了
-		log.Printf("sticker pack \"%s\"[%s](%d) is already cached", stickerSet.Title, stickerSet.Name, stickersInZip)
+		log.Printf("sticker pack \"%s\"[%s](%d) is already cached", stickerSet.Title, stickerSet.Name, data.StickerCount)
 	} else { // 新下载的贴纸包（如果有部分已经下载了也是这个）
-		log.Printf("sticker pack \"%s\"[%s](%d) is downloaded", stickerSet.Title, stickerSet.Name, stickersInZip)
+		log.Printf("sticker pack \"%s\"[%s](%d) is downloaded", stickerSet.Title, stickerSet.Name, data.StickerCount)
 	}
 
 	return &data, nil
