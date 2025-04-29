@@ -1,7 +1,6 @@
 package plugin_utils
 
 import (
-	"fmt"
 	"trbot/utils/handler_utils"
 )
 
@@ -28,7 +27,7 @@ func AddHandlerByChatIDPlugins(Handlers ...HandlerByChatID) int {
 		AllPlugins.HandlerByChatID[originPlugin.ChatID] = chatIDMap
 		pluginCount++
 	}
-	fmt.Println(AllPlugins.HandlerByChatID)
+	// fmt.Println(AllPlugins.HandlerByChatID)
 	return pluginCount
 }
 

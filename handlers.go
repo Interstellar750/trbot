@@ -409,6 +409,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			if consts.IsDebugMode {
 				log.Printf("trigger handler by chatID [%s] for group [%d]", name, handler.ChatID)
 			}
+			handler.Handler(opts)
 		}
 	}
 }
