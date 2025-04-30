@@ -831,7 +831,7 @@ func udoneseCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 		var pendingMessage string = fmt.Sprintf("词: [ %s ]\n有 %d 个意思\n\n<blockquote>已删除 [ %s ] 词中的 %s 意思</blockquote>", targetWord.Word, len(targetWord.MeaningList), wordAndIndexList[0], deletedMeaning)
 
 		_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+			ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 			Text:      pendingMessage,
 			ParseMode: models.ParseModeHTML,
@@ -856,7 +856,7 @@ func udoneseCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 		var pendingMessage string = fmt.Sprintf("<blockquote>已删除 [ %s ] 词</blockquote>", word)
 
 		_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+			ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 			Text:      pendingMessage,
 			ParseMode: models.ParseModeHTML,

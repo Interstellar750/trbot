@@ -174,6 +174,7 @@ func RegisterPlugins() {
 						break
 					}
 				}
+				
 				consts.SignalsChannel.Database_save <- true
 			},
 		},

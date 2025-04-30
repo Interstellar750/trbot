@@ -116,7 +116,7 @@ func helpCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 	
 	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-		ChatID:      opts.Update.CallbackQuery.From.ID,
+		ChatID: 	 opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
 		Text:        fmt.Sprintf("当前 bot 中有 %d 个帮助文档", len(plugin_utils.AllPlugins.HandlerHelp)),
 		ReplyMarkup: plugin_utils.BuildHandlerHelpKeyboard(),

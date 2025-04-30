@@ -682,7 +682,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 
 			if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") {
 				_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-					ChatID: opts.Update.CallbackQuery.From.ID,
+					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 					Text: "已撤销操作，您可以继续使用 <code>/setkeyword 关键词</code> 来添加其他关键词",
 					ParseMode: models.ParseModeHTML,
@@ -731,7 +731,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 				})
 
 				_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-					ChatID: opts.Update.CallbackQuery.From.ID,
+					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 					Text: pendingMessage,
 					ParseMode: models.ParseModeHTML,
@@ -766,7 +766,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 
 			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.From.ID,
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 				Text: pendingMessage,
 				ParseMode: models.ParseModeHTML,
@@ -859,7 +859,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 
 			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.From.ID,
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 				Text: pendingMessage,
 				ParseMode: models.ParseModeHTML,
@@ -886,7 +886,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 
 			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.From.ID,
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 				Text: pendingMessage,
 				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
@@ -909,7 +909,7 @@ func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 
 	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-		ChatID: opts.Update.CallbackQuery.From.ID,
+		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 		Text: user.userStatus(),
 		ReplyMarkup: buildUserChatList(user),
