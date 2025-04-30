@@ -89,21 +89,28 @@ func helpCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 		} else {
 			for _, handler := range plugin_utils.AllPlugins.HandlerHelp {
 				if handler.Name == handlerName {
+
+					var replyMarkup models.ReplyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+						{
+							Text:         "返回",
+							CallbackData: "help",
+						},
+						{
+							Text:         "关闭",
+							CallbackData: "help-close",
+						},
+					}}}
+
+					if handler.ReplyMarkup != nil {
+						replyMarkup = handler.ReplyMarkup
+					}
+
 					_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-						ChatID:    opts.Update.CallbackQuery.From.ID,
-						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-						Text:      handler.Description,
-						ParseMode: handler.ParseMode,
-						ReplyMarkup: models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-							{
-								Text:         "返回",
-								CallbackData: "help",
-							},
-							{
-								Text:         "关闭",
-								CallbackData: "help-close",
-							},
-						}}},
+						ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
+						MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
+						Text:        handler.Description,
+						ParseMode:   handler.ParseMode,
+						ReplyMarkup: replyMarkup,
 					})
 					if err != nil {
 						fmt.Println(err)

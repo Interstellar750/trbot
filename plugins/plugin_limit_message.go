@@ -51,6 +51,12 @@ func init() {
 		CommandChar: "limitmsg_",
 		Handler: LimitMessageCallback,
 	})
+
+	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
+		Name:        "限制群组消息",
+		Description: "此功能需要 bot 为群组管理员并拥有删除消息的权限\n可以按照消息类型和消息属性来自动删除不允许的消息，支持自定逻辑和黑白名单，作为管理员在群组中使用 /limitmessage 命令来查看菜单",
+		ParseMode:   models.ParseModeHTML,
+	})
 	
 }
 

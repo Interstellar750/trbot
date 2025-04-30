@@ -51,6 +51,11 @@ func init() {
 		Argument: "addgroup",
 		Handler: startPrefixAddGroup,
 	})
+	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
+		Name:        "群组关键词检测",
+		Description: "此功能可以检测群组中的每一条信息，当包含设定的关键词时，将会向用户发送提醒\n\n使用方法：\n首先将机器人添加至想要监听关键词的群组中，发送 /setkeyword 命令，等待机器人回应后点击下方的 “设定关键词” 按钮即可为自己添加要监听的群组\n\n设定关键词：您可以在对应的群组中直接发送 <code>/setkeyword 要设定的关键词</code> 来为该群组设定关键词\n或前往机器人聊天页面，发送 <code>/setkeyword</code> 命令后点击对应的群组或全局关键词按钮，根据提示来添加关键词",
+		ParseMode:   models.ParseModeHTML,
+	})
 }
 
 type KeywordData struct {

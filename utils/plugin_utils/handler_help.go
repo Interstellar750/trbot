@@ -6,6 +6,7 @@ type HandlerHelp struct {
 	Name        string // show in help list
 	Description string
 	ParseMode   models.ParseMode
+	ReplyMarkup models.ReplyMarkup // button, if use callback, please register it manually
 }
 
 func BuildHandlerHelpKeyboard() models.ReplyMarkup {

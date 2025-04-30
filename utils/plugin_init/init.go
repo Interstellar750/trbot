@@ -162,16 +162,31 @@ func RegisterPlugins() {
 						ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 					})
 				}
-				callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
-				for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
-					if inlinePlugin.Command == callbackField {
-						database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
-						opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-							ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-							MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-							ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
-						})
-						break
+				if strings.HasPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_") {
+					callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_")
+					for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
+						if inlinePlugin.Command == callbackField {
+							database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
+							opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+								CallbackQueryID: opts.Update.CallbackQuery.ID,
+								Text: fmt.Sprintf("已成功将您的 inline 模式默认命令设为 \"%s\"", callbackField),
+								ShowAlert: true,
+							})
+							break
+						}
+					}
+				} else {
+					callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
+					for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
+						if inlinePlugin.Command == callbackField {
+							database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
+							opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+								ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+								MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+								ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+							})
+							break
+						}
 					}
 				}
 				

@@ -59,6 +59,12 @@ func init() {
 		log.Println("TeamSpeak plugin loaded failed:", tsErr)
 	}
 
+	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
+		Name:        "TeamSpeak 检测用户变动",
+		Description: "注意：使用此功能需要先在配置文件中手动填写配置文件\n\n使用 /ts3 命令随时查看服务器在线用户和监听状态，监听轮询时间为每 5 秒检测一次，若无法与服务器取得连接，将会自动尝试重新连接",
+		ParseMode:   models.ParseModeHTML,
+	})
+
 	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
 		SlashCommand: "ts3",
 		Handler: showStatus,
