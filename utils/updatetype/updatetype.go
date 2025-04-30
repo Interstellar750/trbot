@@ -194,7 +194,7 @@ func GetMessageAttribute(msg *models.Message) MessageAttribute {
 	if msg.HasMediaSpoiler {
 		attribute.IsMediaHasSpoiler = true
 	}
-	if len(msg.ReplyMarkup.InlineKeyboard) > 0 {
+	if msg.ReplyMarkup != nil && len(msg.ReplyMarkup.InlineKeyboard) > 0 {
 		attribute.IsHasInlineKeyboard = true
 	}
 	return attribute
