@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"trbot/database"
+	"trbot/database/db_struct"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
 	"trbot/utils/plugin_utils"
@@ -411,6 +413,8 @@ func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
 		fmt.Println(opts.Update.Message.Sticker)
 	}
 
+	database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.StickerDownloaded)
+
 	stickerData, err := EchoSticker(opts)
 	if err != nil {
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -474,6 +478,9 @@ func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
 		Text:   "已请求下载，请稍候",
 		ParseMode: models.ParseModeMarkdownV1,
 	})
+
+	database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.StickerSetDownloaded)
+
 	var packName string
 	var isOnlyPNG bool
 	if opts.Update.CallbackQuery.Data[0:2] == "S_" {
