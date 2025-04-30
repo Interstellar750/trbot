@@ -22,7 +22,7 @@ import (
 
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	defer func(){ if r := recover(); r != nil {
-		mess.PrintLogAndSave(fmt.Sprintln("recovered in defaultHandler:", r))
+		mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [defaultHandler]: \"%v\"\nStack: %s", r, utils.GetCurrentGoroutineStack()))
 	}}()
 
 	var opts = handler_utils.SubHandlerOpts{
@@ -306,7 +306,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func messageHandler(opts *handler_utils.SubHandlerOpts) {
 	defer func(){ if r := recover(); r != nil {
-		mess.PrintLogAndSave(fmt.Sprintln("recovered in messageHandler:", r))
+		mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [messageHandler]: \"%v\"\nStack: %s", r, utils.GetCurrentGoroutineStack()))
 	}}()
 
 	// 检测如果消息开头是 / 符号，作为命令来处理
@@ -417,7 +417,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 // 处理 inline 模式下的请求
 func inlineHandler(opts *handler_utils.SubHandlerOpts) {
 	defer func(){ if r := recover(); r != nil {
-		mess.PrintLogAndSave(fmt.Sprintln("recovered in inlineHandler:", r))
+		mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [inlineHandler]: \"%v\"\nStack: %s", r, utils.GetCurrentGoroutineStack()))
 	}}()
 
 	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs)

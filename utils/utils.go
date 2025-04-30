@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"trbot/database/db_struct"
@@ -484,4 +485,11 @@ func SaveYAML(pathToFile string, data interface{}) error {
 	}
 
 	return nil
+}
+
+// https://jasonkayzk.github.io/2021/09/26/在Golang发生Panic后打印出堆栈信息/
+func GetCurrentGoroutineStack() string {
+	var buf [4096]byte
+	n := runtime.Stack(buf[:], false)
+	return string(buf[:n])
 }
