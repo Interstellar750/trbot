@@ -289,7 +289,7 @@ voices: # Articles Photos Gifs Mpeg4Gifs Videos Audios Voices Documents
   - ID:       otto-comeback
     Title:    立功而反
     Caption:  棍哥我们回来啦，我们立功啦
-    VoiceURL: https://alist.trle5.xyz/d/voices/otto/立功而反.ogg
+    VoiceURL: https://alist.trle5.xyz/d/voices/otto/棍哥我们回来啦我们立功啦.ogg
 
   - ID:       otto-smileotto
     Title:    笑の棍电
