@@ -479,7 +479,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
 		ParseMode: models.ParseModeMarkdownV1,
 	})
 
-	database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.StickerSetDownloaded)
+	database.IncrementalUsageCount(opts.Ctx, opts.Update.CallbackQuery.Message.Message.Chat.ID, db_struct.StickerSetDownloaded)
 
 	var packName string
 	var isOnlyPNG bool
