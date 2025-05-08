@@ -10,6 +10,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/update_type"
 	"unicode/utf8"
 
 	"github.com/go-telegram/bot"
@@ -86,7 +87,6 @@ type sortstruct struct {
 	sharedData *SavedMessageSharedData // 存放一些标准列表里没有的数据，方便搜索
 
 	onlyText  *models.InlineQueryResultArticle
-
 	audio     *models.InlineQueryResultCachedAudio
 	document  *models.InlineQueryResultCachedDocument
 	gif       *models.InlineQueryResultCachedGif
@@ -141,6 +141,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 				Entities:           v.Entities,
 				LinkPreviewOptions: v.LinkPreviewOptions,
 			},
+			// ReplyMarkup: , // todo
 		}
 	}
 	for _, v := range s.Audio {
@@ -377,15 +378,29 @@ func (s *SavedMessageItems) All() []sortstruct {
 
 }
 
+type OriginInfo struct {
+	FromName string `yaml:"FromName,omitempty"`
+	FromID   int64  `yaml:"FromID,omitempty"`
+
+	// 用于查看消息来源
+	ChatID int64  `yaml:"ChatID,omitempty"`
+	MessageID int `yaml:"MessageID,omitempty"`
+}
+
+// 用于在构建 inline result 列表后存放列表中没有的数据
 type SavedMessageSharedData struct {
 	Name        string
 	Title       string
 	FileName    string
 	Description string
+
+	// OriginInfo *OriginInfo
 }
 
 type SavedMessageTypeCachedOnlyText struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
+
 
 	ID                  string                     `yaml:"ID"`
 	TitleAndMessageText string                     `yaml:"TitleAndMessageText"`
@@ -395,7 +410,8 @@ type SavedMessageTypeCachedOnlyText struct {
 }
 
 type SavedMessageTypeCachedAudio struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	Title       string `yaml:"Title,omitempty"`
 	FileName    string `yaml:"FileName,omitempty"`
@@ -408,7 +424,8 @@ type SavedMessageTypeCachedAudio struct {
 }
 
 type SavedMessageTypeCachedDocument struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
@@ -419,7 +436,8 @@ type SavedMessageTypeCachedDocument struct {
 }
 
 type SavedMessageTypeCachedGif struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	Description string `yaml:"Description,omitempty"`
 
@@ -431,7 +449,8 @@ type SavedMessageTypeCachedGif struct {
 }
 
 type SavedMessageTypeCachedPhoto struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
@@ -443,7 +462,8 @@ type SavedMessageTypeCachedPhoto struct {
 }
 
 type SavedMessageTypeCachedSticker struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	SetName     string `yaml:"SetName,omitempty"`
 	SetTitle    string `yaml:"SetTitle,omitempty"`
@@ -454,7 +474,8 @@ type SavedMessageTypeCachedSticker struct {
 }
 
 type SavedMessageTypeCachedVideo struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
@@ -465,7 +486,8 @@ type SavedMessageTypeCachedVideo struct {
 }
 
 type SavedMessageTypeCachedVideoNote struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
@@ -476,7 +498,8 @@ type SavedMessageTypeCachedVideoNote struct {
 }
 
 type SavedMessageTypeCachedVoice struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	Description string `yaml:"Description,omitempty"` // inline 描述
 
@@ -488,7 +511,8 @@ type SavedMessageTypeCachedVoice struct {
 }
 
 type SavedMessageTypeCachedMpeg4Gif struct {
-	IsDeleted bool `yaml:"IsDeleted,omitempty"`
+	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	Description string `yaml:"Description,omitempty"` // inline 描述
 
@@ -497,6 +521,56 @@ type SavedMessageTypeCachedMpeg4Gif struct {
 	Title           string                 `yaml:"Title,omitempty"`       // inline 标题
 	Caption         string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+}
+
+func getMessageOriginData(msgOrigin *models.MessageOrigin) OriginInfo {
+	if msgOrigin == nil { return OriginInfo{} }
+
+	switch msgOrigin.Type {
+	case models.MessageOriginTypeUser:
+		return OriginInfo{
+			FromName: utils.ShowUserName(&msgOrigin.MessageOriginUser.SenderUser),
+			FromID: msgOrigin.MessageOriginUser.SenderUser.ID,
+		}
+	case models.MessageOriginTypeHiddenUser:
+		return OriginInfo{
+			FromName: msgOrigin.MessageOriginHiddenUser.SenderUserName,
+		}
+	case models.MessageOriginTypeChat:
+		return OriginInfo{
+			FromName: utils.ShowChatName(&msgOrigin.MessageOriginChat.SenderChat),
+			FromID: msgOrigin.MessageOriginChat.SenderChat.ID,
+		}
+	case models.MessageOriginTypeChannel:
+		return OriginInfo{
+			FromName: utils.ShowChatName(&msgOrigin.MessageOriginChannel.Chat),
+			FromID: msgOrigin.MessageOriginChannel.Chat.ID,
+			MessageID: msgOrigin.MessageOriginChannel.MessageID,
+		}
+	default:
+		return OriginInfo{}
+	}
+}
+
+func getMessageLink(msg *models.Message) OriginInfo {
+	// if msg.From.ID == msg.Chat.ID {
+	// }
+	attr := update_type.GetMessageAttribute(msg)
+	if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsUserAsChannel {
+		return OriginInfo{
+			FromName: utils.ShowChatName(msg.SenderChat),
+			FromID: msg.SenderChat.ID,
+			ChatID: msg.Chat.ID,
+			MessageID: msg.ID,
+		}
+	} else {
+		return OriginInfo{
+			FromName: utils.ShowUserName(msg.From),
+			FromID: msg.From.ID,
+			ChatID: msg.Chat.ID,
+			MessageID: msg.ID,
+		}
+	}
 }
 
 func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
@@ -549,6 +623,13 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			DescriptionText = opts.Update.Message.Text[len(opts.Fields[0]) + 1:]
 		}
 
+		var originInfo OriginInfo
+		if opts.Update.Message.ReplyToMessage.ForwardOrigin != nil {
+			originInfo = getMessageOriginData(opts.Update.Message.ReplyToMessage.ForwardOrigin)
+		} else if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
+			originInfo = getMessageLink(opts.Update.Message)
+		}
+
 		if opts.Update.Message.ReplyToMessage.Text != "" {
 			messageLength := utf8.RuneCountInString(opts.Update.Message.ReplyToMessage.Text)
 			var pendingEntitites []models.MessageEntity = opts.Update.Message.ReplyToMessage.Entities
@@ -566,6 +647,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: DescriptionText,
 				Entities: pendingEntitites,
 				LinkPreviewOptions: opts.Update.Message.ReplyToMessage.LinkPreviewOptions,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -581,6 +663,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: DescriptionText,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -595,6 +678,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: DescriptionText,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -609,6 +693,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 					Description: DescriptionText,
 					Caption: opts.Update.Message.ReplyToMessage.Caption,
 					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					OriginInfo: &originInfo,
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
@@ -623,6 +708,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 					Description: DescriptionText,
 					Caption: opts.Update.Message.ReplyToMessage.Caption,
 					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					OriginInfo: &originInfo,
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
@@ -639,6 +725,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
 				CaptionAboveMedia: opts.Update.Message.ReplyToMessage.ShowCaptionAboveMedia,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -657,12 +744,14 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 					SetName: stickerSet.Name,
 					SetTitle: stickerSet.Title,
 					Description: DescriptionText,
+					OriginInfo: &originInfo,
 				})
 			} else {
 				UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
 					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
 					FileID: opts.Update.Message.ReplyToMessage.Sticker.FileID,
 					Description: DescriptionText,
+					OriginInfo: &originInfo,
 				})
 			}
 			UserSavedMessage.Count++
@@ -687,6 +776,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: opts.Update.Message.ReplyToMessage.Caption,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -699,6 +789,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				FileID: opts.Update.Message.ReplyToMessage.VideoNote.FileID,
 				Title: opts.Update.Message.ReplyToMessage.VideoNote.FileUniqueID,
 				Description: DescriptionText,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -713,6 +804,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: opts.Update.Message.ReplyToMessage.Caption,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+				OriginInfo: &originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
