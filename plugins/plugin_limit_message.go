@@ -13,7 +13,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
 	"trbot/utils/plugin_utils"
-	"trbot/utils/updatetype"
+	"trbot/utils/update_type"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -30,9 +30,9 @@ type AllowMessages struct {
 	IsUnderTest         bool                        `yaml:"IsUnderTest"`
 	AddTime             string                      `yaml:"AddTime"`
 	IsLogicAnd          bool                        `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
-	MessageType         updatetype.MessageType      `yaml:"MessageType"`
+	MessageType         update_type.MessageType      `yaml:"MessageType"`
 	IsWhiteForType      bool                        `yaml:"IsWhiteForType"`
-	MessageAttribute    updatetype.MessageAttribute `yaml:"MessageAttribute"`
+	MessageAttribute    update_type.MessageAttribute `yaml:"MessageAttribute"`
 	IsWhiteForAttribute bool                        `yaml:"IsWhiteForAttribute"`
 }
 
@@ -165,8 +165,8 @@ func DeleteNotAllowMessage(opts *handler_utils.SubHandlerOpts) {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
 		thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
 		if thisChat.IsEnable {
-			this := updatetype.GetMessageType(opts.Update.Message)
-			thisattribute  := updatetype.GetMessageAttribute(opts.Update.Message)
+			this := update_type.GetMessageType(opts.Update.Message)
+			thisattribute  := update_type.GetMessageAttribute(opts.Update.Message)
 
 			// 根据规则的黑白名单选择判断逻辑
 			if thisChat.IsLogicAnd {
@@ -211,7 +211,7 @@ func DeleteNotAllowMessage(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func CheckMessageType(this, target updatetype.MessageType, IsWhiteList bool) bool {
+func CheckMessageType(this, target update_type.MessageType, IsWhiteList bool) bool {
 	var delete bool = IsWhiteList
 
 	v1 := reflect.ValueOf(this)
@@ -248,7 +248,7 @@ func CheckMessageType(this, target updatetype.MessageType, IsWhiteList bool) boo
 	return delete
 }
 
-func CheckMessageAttribute(this, target updatetype.MessageAttribute, IsWhiteList bool) bool {
+func CheckMessageAttribute(this, target update_type.MessageAttribute, IsWhiteList bool) bool {
 	var delete bool = IsWhiteList
 	var noAttribute bool = true // 如果没有命中任何消息属性，提示内容，根据黑白名单判断是否删除
 
@@ -586,7 +586,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 					newStruct.Field(i).SetBool(!newStruct.Field(i).Bool())
 				}
 			}
-			thisChat.MessageType = newStruct.Interface().(updatetype.MessageType)
+			thisChat.MessageType = newStruct.Interface().(update_type.MessageType)
 
 			opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
@@ -606,7 +606,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 				}
 			}
 
-			thisChat.MessageAttribute = newStruct.Interface().(updatetype.MessageAttribute)
+			thisChat.MessageAttribute = newStruct.Interface().(update_type.MessageAttribute)
 
 			opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,

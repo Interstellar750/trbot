@@ -13,7 +13,7 @@ import (
 	"trbot/database/db_struct"
 	"trbot/utils/consts"
 	"trbot/utils/plugin_utils"
-	"trbot/utils/updatetype"
+	"trbot/utils/update_type"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -431,7 +431,7 @@ func TextForTrueOrFalse(condition bool, tureText, falseText string) string {
 // 获取消息来源的链接
 func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) string {
 	var senderLink string
-	attr := updatetype.GetMessageAttribute(msg)
+	attr := update_type.GetMessageAttribute(msg)
 
 	switch ParseMode {
 	case models.ParseModeHTML:

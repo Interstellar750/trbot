@@ -1,4 +1,4 @@
-package updatetype
+package update_type
 
 import "github.com/go-telegram/bot/models"
 
@@ -91,6 +91,7 @@ func GetMessageType(msg *models.Message) MessageType {
 	}
 	return msgType
 }
+
 // 消息属性
 type MessageAttribute struct {
 	IsFromAnonymous      bool `yaml:"IsFromAnonymous,omitempty"`      // anonymous admin or owner in group/supergroup
@@ -199,6 +200,7 @@ func GetMessageAttribute(msg *models.Message) MessageAttribute {
 	}
 	return attribute
 }
+
 // 更新类型
 type UpdateType struct {
 	Message                 bool // *models.Message
@@ -225,7 +227,7 @@ type UpdateType struct {
 	ChatBoost               bool // *models.ChatBoostUpdated
 	RemovedChatBoost        bool // *models.ChatBoostRemoved
 }
-
+// 判断更新属性
 func GetUpdateType(update *models.Update) UpdateType {
 	var updateType UpdateType
 	if update.Message != nil {
