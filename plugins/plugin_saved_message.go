@@ -141,7 +141,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 				Entities:           v.Entities,
 				LinkPreviewOptions: v.LinkPreviewOptions,
 			},
-			// ReplyMarkup: , // todo
+			ReplyMarkup:         buildFromInfoButton(v.OriginInfo),
 		}
 	}
 	for _, v := range s.Audio {
@@ -158,10 +158,11 @@ func (s *SavedMessageItems) All() []sortstruct {
 			continue
 		}
 		list[index].audio = &models.InlineQueryResultCachedAudio{
-			ID:                    v.ID,
-			AudioFileID:           v.FileID,
-			Caption:               v.Caption,
-			CaptionEntities:       v.CaptionEntities,
+			ID:              v.ID,
+			AudioFileID:     v.FileID,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 
 		list[index].sharedData = &SavedMessageSharedData{
@@ -182,12 +183,13 @@ func (s *SavedMessageItems) All() []sortstruct {
 			continue
 		}
 		list[index].document = &models.InlineQueryResultCachedDocument{
-			ID:                    v.ID,
-			DocumentFileID:        v.FileID,
-			Title:                 v.Title,
-			Description:           v.Description,
-			Caption:               v.Caption,
-			CaptionEntities:       v.CaptionEntities,
+			ID:              v.ID,
+			DocumentFileID:  v.FileID,
+			Title:           v.Title,
+			Description:     v.Description,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 	}
 	for _, v := range s.Gif {
@@ -204,11 +206,12 @@ func (s *SavedMessageItems) All() []sortstruct {
 			continue
 		}
 		list[index].gif = &models.InlineQueryResultCachedGif{
-			ID:                    v.ID,
-			GifFileID:             v.FileID,
-			Title:                 v.Title,
-			Caption:               v.Caption,
-			CaptionEntities:       v.CaptionEntities,
+			ID:              v.ID,
+			GifFileID:       v.FileID,
+			Title:           v.Title,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 
 		list[index].sharedData = &SavedMessageSharedData{
@@ -236,6 +239,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Caption:               v.Caption,
 			CaptionEntities:       v.CaptionEntities,
 			ShowCaptionAboveMedia: v.CaptionAboveMedia,
+			ReplyMarkup:           buildFromInfoButton(v.OriginInfo),
 		}
 	}
 	for _, v := range s.Sticker {
@@ -254,11 +258,12 @@ func (s *SavedMessageItems) All() []sortstruct {
 		list[index].sticker = &models.InlineQueryResultCachedSticker{
 			ID:            v.ID,
 			StickerFileID: v.FileID,
+			ReplyMarkup:   buildFromInfoButton(v.OriginInfo),
 		}
 
 		list[index].sharedData = &SavedMessageSharedData{
-			Name: v.SetName,
-			Title: v.SetTitle,
+			Name:        v.SetName,
+			Title:       v.SetTitle,
 			Description: v.Description,
 		}
 	}
@@ -282,6 +287,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Description:     v.Description,
 			Caption:         v.Caption,
 			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 	}
 	for _, v := range s.VideoNote {
@@ -304,6 +310,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Description:     v.Description,
 			Caption:         v.Caption,
 			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 	}
 	for _, v := range s.Voice {
@@ -325,6 +332,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Title:           v.Title,
 			Caption:         v.Caption,
 			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 		list[index].sharedData = &SavedMessageSharedData{
 			Description: v.Description,
@@ -349,6 +357,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Title:           v.Title,
 			Caption:         v.Caption,
 			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
 		}
 		list[index].sharedData = &SavedMessageSharedData{
 			Description: v.Description,
@@ -381,10 +390,56 @@ func (s *SavedMessageItems) All() []sortstruct {
 type OriginInfo struct {
 	FromName string `yaml:"FromName,omitempty"`
 	FromID   int64  `yaml:"FromID,omitempty"`
+	// FromChatID int64  `yaml:"FromChatID,omitempty"`
 
 	// 用于查看消息来源
 	ChatID int64  `yaml:"ChatID,omitempty"`
 	MessageID int `yaml:"MessageID,omitempty"`
+}
+
+func buildFromInfoButton(o *OriginInfo) models.ReplyMarkup {
+	if o == nil {
+		return nil
+	}
+	var buttons []models.InlineKeyboardButton
+
+	if o.FromID != 0 {
+		if o.FromID < 0 {
+			// -100 开头的 ID，为群组或频道
+			buttons = append(buttons, models.InlineKeyboardButton{
+				Text: "来自 " + o.FromName,
+				URL:  fmt.Sprintf("https://t.me/c/%s/0", utils.RemoveIDPrefix(o.FromID)),
+			})
+		} else {
+			buttons = append(buttons, models.InlineKeyboardButton{
+				Text: "来自用户 " + o.FromName,
+				URL:  fmt.Sprintf("https://t.me/@id%d", o.FromID),
+			})
+		}
+	}
+	if o.MessageID != 0 {
+		if o.ChatID == 0 {
+			// 保存来源是频道
+			buttons = append(buttons, models.InlineKeyboardButton{
+				Text: "查看消息",
+				URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(o.FromID), o.MessageID),
+			})
+		} else {
+			// 从群组中保存的消息
+			buttons = append(buttons, models.InlineKeyboardButton{
+				Text: "查看消息",
+				URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(o.ChatID), o.MessageID),
+			})
+		}
+		
+	}
+
+	return &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			buttons,
+		},
+	}
+
 }
 
 // 用于在构建 inline result 列表后存放列表中没有的数据
@@ -398,60 +453,56 @@ type SavedMessageSharedData struct {
 }
 
 type SavedMessageTypeCachedOnlyText struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
-
 	ID                  string                     `yaml:"ID"`
 	TitleAndMessageText string                     `yaml:"TitleAndMessageText"`
 	Description         string                     `yaml:"Description,omitempty"`
 	Entities            []models.MessageEntity     `yaml:"Entities,omitempty"`
 	LinkPreviewOptions  *models.LinkPreviewOptions `yaml:"LinkPreviewOptions,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedAudio struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
+	ID                string                 `yaml:"ID"`
+	FileID            string                 `yaml:"FileID"`
+	Caption           string                 `yaml:"Caption,omitempty"`
+	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 
 	Title       string `yaml:"Title,omitempty"`
 	FileName    string `yaml:"FileName,omitempty"`
 	Description string `yaml:"Description,omitempty"`
 
-	ID                string                 `yaml:"ID"`
-	FileID            string                 `yaml:"FileID"`
-	Caption           string                 `yaml:"Caption,omitempty"`
-	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedDocument struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
 	Title             string                 `yaml:"Title"`
 	Description       string                 `yaml:"Description,omitempty"`
 	Caption           string                 `yaml:"Caption,omitempty"`
 	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedGif struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
-	Description string `yaml:"Description,omitempty"`
-
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
 	Title             string                 `yaml:"Title,omitempty"`
 	Caption           string                 `yaml:"Caption,omitempty"`
 	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	Description string `yaml:"Description,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedPhoto struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
 	Title             string                 `yaml:"Title,omitempty"`       // inline 标题
@@ -459,34 +510,37 @@ type SavedMessageTypeCachedPhoto struct {
 	Caption           string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
 	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 	CaptionAboveMedia bool                   `yaml:"CaptionAboveMedia,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedSticker struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
+	ID     string `yaml:"ID"`
+	FileID string `yaml:"FileID"`
 
 	SetName     string `yaml:"SetName,omitempty"`
 	SetTitle    string `yaml:"SetTitle,omitempty"`
 	Description string `yaml:"Description,omitempty"`
 
-	ID     string `yaml:"ID"`
-	FileID string `yaml:"FileID"`
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedVideo struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
 	Title           string                 `yaml:"Title"`                 // inline 标题
 	Description     string                 `yaml:"Description,omitempty"` // inline 描述
 	Caption         string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedVideoNote struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 
 	ID              string                 `yaml:"ID"`
@@ -498,29 +552,29 @@ type SavedMessageTypeCachedVideoNote struct {
 }
 
 type SavedMessageTypeCachedVoice struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
-	Description string `yaml:"Description,omitempty"` // inline 描述
-
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
-	Title           string                 `yaml:"Title"`   // inline 标题
-	Caption         string                 `yaml:"Caption,omitempty"` // 发送后图片携带的文本
+	Title           string                 `yaml:"Title"`
+	Caption         string                 `yaml:"Caption,omitempty"`
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	Description string `yaml:"Description,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 type SavedMessageTypeCachedMpeg4Gif struct {
-	IsDeleted bool         `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
-	Description string `yaml:"Description,omitempty"` // inline 描述
-
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
-	Title           string                 `yaml:"Title,omitempty"`       // inline 标题
-	Caption         string                 `yaml:"Caption,omitempty"`     // 发送后图片携带的文本
+	Title           string                 `yaml:"Title,omitempty"`
+	Caption         string                 `yaml:"Caption,omitempty"`
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	Description string `yaml:"Description,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
 func getMessageOriginData(msgOrigin *models.MessageOrigin) OriginInfo {
@@ -532,6 +586,7 @@ func getMessageOriginData(msgOrigin *models.MessageOrigin) OriginInfo {
 			FromName: utils.ShowUserName(&msgOrigin.MessageOriginUser.SenderUser),
 			FromID: msgOrigin.MessageOriginUser.SenderUser.ID,
 		}
+	// 不再保存匿名的来源，已在调用处排除
 	case models.MessageOriginTypeHiddenUser:
 		return OriginInfo{
 			FromName: msgOrigin.MessageOriginHiddenUser.SenderUserName,
@@ -561,14 +616,14 @@ func getMessageLink(msg *models.Message) OriginInfo {
 			FromName: utils.ShowChatName(msg.SenderChat),
 			FromID: msg.SenderChat.ID,
 			ChatID: msg.Chat.ID,
-			MessageID: msg.ID,
+			MessageID: msg.ReplyToMessage.ID,
 		}
 	} else {
 		return OriginInfo{
 			FromName: utils.ShowUserName(msg.From),
 			FromID: msg.From.ID,
 			ChatID: msg.Chat.ID,
-			MessageID: msg.ID,
+			MessageID: msg.ReplyToMessage.ID,
 		}
 	}
 }
@@ -624,7 +679,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 		}
 
 		var originInfo OriginInfo
-		if opts.Update.Message.ReplyToMessage.ForwardOrigin != nil {
+		if opts.Update.Message.ReplyToMessage.ForwardOrigin != nil && opts.Update.Message.ReplyToMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
 			originInfo = getMessageOriginData(opts.Update.Message.ReplyToMessage.ForwardOrigin)
 		} else if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
 			originInfo = getMessageLink(opts.Update.Message)
