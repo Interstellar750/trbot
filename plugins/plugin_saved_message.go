@@ -797,6 +797,9 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 					if DescriptionText != "" {
 						if n.Description == "" {
 							messageParams.Text += "已为此消息添加搜索关键词 " + DescriptionText
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("搜索关键词未修改 [ %s ]", DescriptionText)
+							break
 						} else {
 							messageParams.Text += fmt.Sprintf("已将此消息的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
 						}
