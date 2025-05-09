@@ -788,32 +788,57 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			SaveSavedMessageList()
 			messageParams.Text = "已保存图片"
 		} else if opts.Update.Message.ReplyToMessage.Sticker != nil {
-			stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: opts.Update.Message.ReplyToMessage.Sticker.SetName })
-			if err != nil {
-				log.Printf("Error response /save command sticker no pack info: %v", err)
+			var isSaved bool
+
+			for i, n := range UserSavedMessage.Item.Sticker {
+				if n.FileID == opts.Update.Message.ReplyToMessage.Sticker.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该贴纸\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += "已为此消息添加搜索关键词 " + DescriptionText
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此消息的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.Sticker[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
 			}
-			if stickerSet != nil {
-				UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID: opts.Update.Message.ReplyToMessage.Sticker.FileID,
-					SetName: stickerSet.Name,
-					SetTitle: stickerSet.Title,
-					Description: DescriptionText,
-					OriginInfo: &originInfo,
-				})
-			} else {
-				UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID: opts.Update.Message.ReplyToMessage.Sticker.FileID,
-					Description: DescriptionText,
-					OriginInfo: &originInfo,
-				})
+
+			if !isSaved {
+				stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: opts.Update.Message.ReplyToMessage.Sticker.SetName })
+				if err != nil {
+					log.Printf("Error response /save command sticker no pack info: %v", err)
+				}
+				if stickerSet != nil {
+					// 属于一个贴纸包中的贴纸
+					UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+						ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID: opts.Update.Message.ReplyToMessage.Sticker.FileID,
+						SetName: stickerSet.Name,
+						SetTitle: stickerSet.Title,
+						Description: DescriptionText,
+						OriginInfo: &originInfo,
+					})
+				} else {
+					UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+						ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID: opts.Update.Message.ReplyToMessage.Sticker.FileID,
+						Description: DescriptionText,
+						OriginInfo: &originInfo,
+					})
+				}
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存贴纸"
 			}
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存贴纸"
+			
 		} else if opts.Update.Message.ReplyToMessage.Video != nil {
 			if DescriptionText == "" {
 				messageParams.Text = "保存失败：\n保存视频类型消息时需要一个描述\n请以 <code>/save 描述内容</code> 格式再次回复要收藏的视频"
