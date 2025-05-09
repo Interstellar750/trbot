@@ -274,7 +274,9 @@ func listenUserStatus() {
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(beforeOnlineClient)
 			} else {
-				log.Println("[teamspeak] try reconnect...")
+				if consts.IsDebugMode {
+					log.Println("[teamspeak] try reconnect...")
+				}
 				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
 				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
 				if retryCount < 15 {
@@ -286,7 +288,9 @@ func listenUserStatus() {
 					// 重新初始化成功则恢复 ticker 速度
 					retryCount = 1
 					listenTicker.Reset(5 * time.Second)
-					log.Println("[teamspeak] reconnect success")
+					if consts.IsDebugMode {
+						log.Println("[teamspeak] reconnect success")
+					}
 					privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 						ChatID:    privateOpts.Update.Message.Chat.ID,
 						Text:      "已成功与服务器重新建立连接",
@@ -294,7 +298,9 @@ func listenUserStatus() {
 					})
 				} else {
 					// 无法成功则等待下一个周期继续尝试
-					log.Printf("[teamspeak] reconnect failed, retry in %ds", (retryCount -1) * 20)
+					if consts.IsDebugMode {
+						log.Printf("[teamspeak] reconnect failed, retry in %ds", (retryCount -1) * 20)
+					}
 				}
 			}
 		}
@@ -319,7 +325,9 @@ func checkOnlineClientChange(before []string) []string {
 		}
 		added, removed := DiffSlices(before, nowOnlineClient)
 		if len(added) + len(removed) > 0 {
-			log.Printf("[teamspeak] online client change: added %v, removed %v", added, removed)
+			if consts.IsDebugMode {
+				log.Printf("[teamspeak] online client change: added %v, removed %v", added, removed)
+			}
 			notifyClientChange(privateOpts, tsServerQuery.GroupID, added, removed)
 		}
 	}
