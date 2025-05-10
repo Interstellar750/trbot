@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
 	"strconv"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -685,123 +686,262 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			originInfo = getMessageLink(opts.Update.Message)
 		}
 
+		var isSaved bool
+
 		if opts.Update.Message.ReplyToMessage.Text != "" {
-			messageLength := utf8.RuneCountInString(opts.Update.Message.ReplyToMessage.Text)
-			var pendingEntitites []models.MessageEntity = opts.Update.Message.ReplyToMessage.Entities
-			if messageLength > 100 {
-				pendingEntitites = append(pendingEntitites, models.MessageEntity{
-					Type:   "expandable_blockquote",
-					Offset: 0,
-					Length: messageLength,
-				})
+			for i, n := range UserSavedMessage.Item.OnlyText {
+				if n.TitleAndMessageText == opts.Update.Message.ReplyToMessage.Text && reflect.DeepEqual(n.Entities, opts.Update.Message.ReplyToMessage.Entities) {
+					isSaved = true
+					messageParams.Text = "已保存过该文本\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此文本添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此文本的搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此文本的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.OnlyText[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
 			}
 
-			UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				TitleAndMessageText: opts.Update.Message.ReplyToMessage.Text,
-				Description: DescriptionText,
-				Entities: pendingEntitites,
-				LinkPreviewOptions: opts.Update.Message.ReplyToMessage.LinkPreviewOptions,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存文本"
+			if !isSaved {
+				messageLength := utf8.RuneCountInString(opts.Update.Message.ReplyToMessage.Text)
+				var pendingEntitites []models.MessageEntity = opts.Update.Message.ReplyToMessage.Entities
+				if messageLength > 100 {
+					pendingEntitites = append(pendingEntitites, models.MessageEntity{
+						Type:   "expandable_blockquote",
+						Offset: 0,
+						Length: messageLength,
+					})
+				}
+
+				UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					TitleAndMessageText: opts.Update.Message.ReplyToMessage.Text,
+					Description: DescriptionText,
+					Entities: pendingEntitites,
+					LinkPreviewOptions: opts.Update.Message.ReplyToMessage.LinkPreviewOptions,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存文本"
+			}
 		} else if opts.Update.Message.ReplyToMessage.Audio != nil {
-			UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				FileID: opts.Update.Message.ReplyToMessage.Audio.FileID,
-				Title: opts.Update.Message.ReplyToMessage.Audio.Title,
-				FileName: opts.Update.Message.ReplyToMessage.Audio.FileName,
-				Description: DescriptionText,
-				Caption: opts.Update.Message.ReplyToMessage.Caption,
-				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存音乐"
+			for i, n := range UserSavedMessage.Item.Audio {
+				if n.FileID == opts.Update.Message.ReplyToMessage.Audio.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该音乐\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此音乐添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此音乐的搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此音乐的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.Audio[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID: opts.Update.Message.ReplyToMessage.Audio.FileID,
+					Title: opts.Update.Message.ReplyToMessage.Audio.Title,
+					FileName: opts.Update.Message.ReplyToMessage.Audio.FileName,
+					Description: DescriptionText,
+					Caption: opts.Update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存音乐"
+			}
 		} else if opts.Update.Message.ReplyToMessage.Animation != nil {
-			UserSavedMessage.Item.Mpeg4gif = append(UserSavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				FileID: opts.Update.Message.ReplyToMessage.Animation.FileID,
-				Title: opts.Update.Message.ReplyToMessage.Caption,
-				Description: DescriptionText,
-				Caption: opts.Update.Message.ReplyToMessage.Caption,
-				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存 GIF"
+			for i, n := range UserSavedMessage.Item.Mpeg4gif {
+				if n.FileID == opts.Update.Message.ReplyToMessage.Animation.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该 GIF\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此 GIF 添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此 GIF 搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此 GIF 的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.Mpeg4gif[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Mpeg4gif = append(UserSavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID: opts.Update.Message.ReplyToMessage.Animation.FileID,
+					Title: opts.Update.Message.ReplyToMessage.Caption,
+					Description: DescriptionText,
+					Caption: opts.Update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存 GIF"
+			}
 		} else if opts.Update.Message.ReplyToMessage.Document != nil {
 			if opts.Update.Message.ReplyToMessage.Document.MimeType == "image/gif" {
-				UserSavedMessage.Item.Gif = append(UserSavedMessage.Item.Gif, SavedMessageTypeCachedGif{
-					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID: opts.Update.Message.ReplyToMessage.Document.FileID,
-					Description: DescriptionText,
-					Caption: opts.Update.Message.ReplyToMessage.Caption,
-					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-					OriginInfo: originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
-				messageParams.Text = "已保存 GIF (文件)"
+				for i, n := range UserSavedMessage.Item.Gif {
+					if n.FileID == opts.Update.Message.ReplyToMessage.Document.FileID {
+						isSaved = true
+						messageParams.Text = "已保存过该 GIF (文件)\n"
+						if DescriptionText != "" {
+							if n.Description == "" {
+								messageParams.Text += fmt.Sprintf("已为此 GIF (文件)添加搜索关键词 [ %s ]", DescriptionText)
+							} else if DescriptionText == n.Description {
+								messageParams.Text += fmt.Sprintf("此 GIF (文件)搜索关键词未修改 [ %s ]", DescriptionText)
+								break
+							} else {
+								messageParams.Text += fmt.Sprintf("已将此 GIF (文件)的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+							}
+							n.Description = DescriptionText
+							UserSavedMessage.Item.Gif[i] = n
+							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SaveSavedMessageList()
+						}
+						break
+					}
+				}
+				if !isSaved {
+					UserSavedMessage.Item.Gif = append(UserSavedMessage.Item.Gif, SavedMessageTypeCachedGif{
+						ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID: opts.Update.Message.ReplyToMessage.Document.FileID,
+						Description: DescriptionText,
+						Caption: opts.Update.Message.ReplyToMessage.Caption,
+						CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+						OriginInfo: originInfo,
+					})
+					UserSavedMessage.Count++
+					UserSavedMessage.SavedTimes++
+					SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+					SaveSavedMessageList()
+					messageParams.Text = "已保存 GIF (文件)"
+				}
 			} else {
-				UserSavedMessage.Item.Document = append(UserSavedMessage.Item.Document, SavedMessageTypeCachedDocument{
-					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID: opts.Update.Message.ReplyToMessage.Document.FileID,
-					Title: opts.Update.Message.ReplyToMessage.Document.FileName,
-					Description: DescriptionText,
-					Caption: opts.Update.Message.ReplyToMessage.Caption,
-					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-					OriginInfo: originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
-				messageParams.Text = "已保存文件"
+				for i, n := range UserSavedMessage.Item.Document {
+					if n.FileID == opts.Update.Message.ReplyToMessage.Document.FileID {
+						isSaved = true
+						messageParams.Text = "已保存过该文件\n"
+						if DescriptionText != "" {
+							if n.Description == "" {
+								messageParams.Text += fmt.Sprintf("已为此文件添加搜索关键词 [ %s ]", DescriptionText)
+							} else if DescriptionText == n.Description {
+								messageParams.Text += fmt.Sprintf("此文件搜索关键词未修改 [ %s ]", DescriptionText)
+								break
+							} else {
+								messageParams.Text += fmt.Sprintf("已将此文件的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+							}
+							n.Description = DescriptionText
+							UserSavedMessage.Item.Document[i] = n
+							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SaveSavedMessageList()
+						}
+						break
+					}
+				}
+				if !isSaved {
+					UserSavedMessage.Item.Document = append(UserSavedMessage.Item.Document, SavedMessageTypeCachedDocument{
+						ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID: opts.Update.Message.ReplyToMessage.Document.FileID,
+						Title: opts.Update.Message.ReplyToMessage.Document.FileName,
+						Description: DescriptionText,
+						Caption: opts.Update.Message.ReplyToMessage.Caption,
+						CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+						OriginInfo: originInfo,
+					})
+					UserSavedMessage.Count++
+					UserSavedMessage.SavedTimes++
+					SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+					SaveSavedMessageList()
+					messageParams.Text = "已保存文件"
+				}
 			}
 		} else if opts.Update.Message.ReplyToMessage.Photo != nil {
-			UserSavedMessage.Item.Photo = append(UserSavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				FileID: opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID,
-				Title: opts.Update.Message.ReplyToMessage.Caption,
-				Description: DescriptionText,
-				Caption: opts.Update.Message.ReplyToMessage.Caption,
-				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				CaptionAboveMedia: opts.Update.Message.ReplyToMessage.ShowCaptionAboveMedia,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存图片"
+			for i, n := range UserSavedMessage.Item.Photo {
+				if n.FileID == opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该图片\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此图片添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此图片搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此图片的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.Photo[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Photo = append(UserSavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID: opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID,
+					Title: opts.Update.Message.ReplyToMessage.Caption,
+					Description: DescriptionText,
+					Caption: opts.Update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					CaptionAboveMedia: opts.Update.Message.ReplyToMessage.ShowCaptionAboveMedia,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存图片"
+			}
 		} else if opts.Update.Message.ReplyToMessage.Sticker != nil {
-			var isSaved bool
-
 			for i, n := range UserSavedMessage.Item.Sticker {
 				if n.FileID == opts.Update.Message.ReplyToMessage.Sticker.FileID {
 					isSaved = true
 					messageParams.Text = "已保存过该贴纸\n"
 					if DescriptionText != "" {
 						if n.Description == "" {
-							messageParams.Text += "已为此消息添加搜索关键词 " + DescriptionText
+							messageParams.Text += fmt.Sprintf("已为此贴纸添加搜索关键词 [ %s ]", DescriptionText)
 						} else if DescriptionText == n.Description {
 							messageParams.Text += fmt.Sprintf("搜索关键词未修改 [ %s ]", DescriptionText)
 							break
 						} else {
-							messageParams.Text += fmt.Sprintf("已将此消息的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+							messageParams.Text += fmt.Sprintf("已将此贴纸的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
 						}
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Sticker[i] = n
@@ -843,57 +983,119 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			}
 			
 		} else if opts.Update.Message.ReplyToMessage.Video != nil {
-			if DescriptionText == "" {
-				messageParams.Text = "保存失败：\n保存视频类型消息时需要一个描述\n请以 <code>/save 描述内容</code> 格式再次回复要收藏的视频"
-				_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
-				if err != nil {
-					log.Printf("Error response /save command video no description: %v", err)
+			for i, n := range UserSavedMessage.Item.Video {
+				if n.FileID == opts.Update.Message.ReplyToMessage.Video.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该视频\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此视频添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此视频搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此视频的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.Video[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
 				}
-				return
 			}
-
-			UserSavedMessage.Item.Video = append(UserSavedMessage.Item.Video, SavedMessageTypeCachedVideo{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				FileID: opts.Update.Message.ReplyToMessage.Video.FileID,
-				Title: DescriptionText,
-				Description: opts.Update.Message.ReplyToMessage.Caption,
-				Caption: opts.Update.Message.ReplyToMessage.Caption,
-				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存视频"
+			if !isSaved {
+				UserSavedMessage.Item.Video = append(UserSavedMessage.Item.Video, SavedMessageTypeCachedVideo{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID: opts.Update.Message.ReplyToMessage.Video.FileID,
+					Title: opts.Update.Message.ReplyToMessage.Video.FileName,
+					Description: DescriptionText,
+					Caption: opts.Update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存视频"
+			}
+			
 		} else if opts.Update.Message.ReplyToMessage.VideoNote != nil {
-			UserSavedMessage.Item.VideoNote = append(UserSavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				FileID: opts.Update.Message.ReplyToMessage.VideoNote.FileID,
-				Title: opts.Update.Message.ReplyToMessage.VideoNote.FileUniqueID,
-				Description: DescriptionText,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存圆形录制视频"
+			for i, n := range UserSavedMessage.Item.VideoNote {
+				if n.FileID == opts.Update.Message.ReplyToMessage.VideoNote.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该圆形视频\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此圆形视频添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此圆形视频搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此圆形视频的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.VideoNote[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.VideoNote = append(UserSavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID: opts.Update.Message.ReplyToMessage.VideoNote.FileID,
+					Title: opts.Update.Message.ReplyToMessage.VideoNote.FileUniqueID,
+					Description: DescriptionText,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存圆形视频"
+			}
+			
 		} else if opts.Update.Message.ReplyToMessage.Voice != nil {
-			UserSavedMessage.Item.Voice = append(UserSavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
-				ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-				FileID: opts.Update.Message.ReplyToMessage.Voice.FileID,
-				Title: DescriptionText,
-				Description: opts.Update.Message.ReplyToMessage.Caption,
-				Caption: opts.Update.Message.ReplyToMessage.Caption,
-				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: originInfo,
-			})
-			UserSavedMessage.Count++
-			UserSavedMessage.SavedTimes++
-			SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-			SaveSavedMessageList()
-			messageParams.Text = "已保存语音"
+			for i, n := range UserSavedMessage.Item.Voice {
+				if n.FileID == opts.Update.Message.ReplyToMessage.Voice.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该语音\n"
+					if DescriptionText != "" {
+						if n.Description == "" {
+							messageParams.Text += fmt.Sprintf("已为此语音添加搜索关键词 [ %s ]", DescriptionText)
+						} else if DescriptionText == n.Description {
+							messageParams.Text += fmt.Sprintf("此语音搜索关键词未修改 [ %s ]", DescriptionText)
+							break
+						} else {
+							messageParams.Text += fmt.Sprintf("已将此语音的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
+						}
+						n.Description = DescriptionText
+						UserSavedMessage.Item.Voice[i] = n
+						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+						SaveSavedMessageList()
+					}
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Voice = append(UserSavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
+					ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID: opts.Update.Message.ReplyToMessage.Voice.FileID,
+					Title: DescriptionText,
+					Description: opts.Update.Message.ReplyToMessage.Caption,
+					Caption: opts.Update.Message.ReplyToMessage.Caption,
+					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
+					OriginInfo: originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+				SaveSavedMessageList()
+				messageParams.Text = "已保存语音"
+			}
 		} else {
 			messageParams.Text = "暂不支持的消息类型"
 		}
@@ -947,6 +1149,8 @@ func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.
 				all = append(all, n.onlyText)
 			} else if n.audio != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description}) {
 				all = append(all, n.audio)
+			} else if n.mpeg4gif != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
+				all = append(all, n.mpeg4gif)
 			} else if n.document != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
 				all = append(all, n.document)
 			} else if n.gif != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
@@ -961,8 +1165,6 @@ func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.
 				all = append(all, n.videoNote)
 			} else if n.voice != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
 				all = append(all, n.voice)
-			} else if n.mpeg4gif != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
-				all = append(all, n.mpeg4gif)
 			}
 		}
 		InlineSavedMessageResultList = all
