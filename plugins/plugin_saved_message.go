@@ -577,49 +577,49 @@ type SavedMessageTypeCachedMpeg4Gif struct {
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
-func getMessageOriginData(msgOrigin *models.MessageOrigin) OriginInfo {
-	if msgOrigin == nil { return OriginInfo{} }
+func getMessageOriginData(msgOrigin *models.MessageOrigin) *OriginInfo {
+	if msgOrigin == nil { return nil }
 
 	switch msgOrigin.Type {
 	case models.MessageOriginTypeUser:
-		return OriginInfo{
+		return &OriginInfo{
 			FromName: utils.ShowUserName(&msgOrigin.MessageOriginUser.SenderUser),
 			FromID: msgOrigin.MessageOriginUser.SenderUser.ID,
 		}
 	// 不再保存匿名的来源，已在调用处排除
 	case models.MessageOriginTypeHiddenUser:
-		return OriginInfo{
+		return &OriginInfo{
 			FromName: msgOrigin.MessageOriginHiddenUser.SenderUserName,
 		}
 	case models.MessageOriginTypeChat:
-		return OriginInfo{
+		return &OriginInfo{
 			FromName: utils.ShowChatName(&msgOrigin.MessageOriginChat.SenderChat),
 			FromID: msgOrigin.MessageOriginChat.SenderChat.ID,
 		}
 	case models.MessageOriginTypeChannel:
-		return OriginInfo{
+		return &OriginInfo{
 			FromName: utils.ShowChatName(&msgOrigin.MessageOriginChannel.Chat),
 			FromID: msgOrigin.MessageOriginChannel.Chat.ID,
 			MessageID: msgOrigin.MessageOriginChannel.MessageID,
 		}
 	default:
-		return OriginInfo{}
+		return nil
 	}
 }
 
-func getMessageLink(msg *models.Message) OriginInfo {
+func getMessageLink(msg *models.Message) *OriginInfo {
 	// if msg.From.ID == msg.Chat.ID {
 	// }
 	attr := update_type.GetMessageAttribute(msg)
 	if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsUserAsChannel {
-		return OriginInfo{
+		return &OriginInfo{
 			FromName: utils.ShowChatName(msg.SenderChat),
 			FromID: msg.SenderChat.ID,
 			ChatID: msg.Chat.ID,
 			MessageID: msg.ReplyToMessage.ID,
 		}
 	} else {
-		return OriginInfo{
+		return &OriginInfo{
 			FromName: utils.ShowUserName(msg.From),
 			FromID: msg.From.ID,
 			ChatID: msg.Chat.ID,
@@ -678,7 +678,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 			DescriptionText = opts.Update.Message.Text[len(opts.Fields[0]) + 1:]
 		}
 
-		var originInfo OriginInfo
+		var originInfo *OriginInfo
 		if opts.Update.Message.ReplyToMessage.ForwardOrigin != nil && opts.Update.Message.ReplyToMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
 			originInfo = getMessageOriginData(opts.Update.Message.ReplyToMessage.ForwardOrigin)
 		} else if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
@@ -702,7 +702,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: DescriptionText,
 				Entities: pendingEntitites,
 				LinkPreviewOptions: opts.Update.Message.ReplyToMessage.LinkPreviewOptions,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -718,7 +718,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: DescriptionText,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -733,7 +733,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: DescriptionText,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -748,7 +748,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 					Description: DescriptionText,
 					Caption: opts.Update.Message.ReplyToMessage.Caption,
 					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-					OriginInfo: &originInfo,
+					OriginInfo: originInfo,
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
@@ -763,7 +763,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 					Description: DescriptionText,
 					Caption: opts.Update.Message.ReplyToMessage.Caption,
 					CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-					OriginInfo: &originInfo,
+					OriginInfo: originInfo,
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
@@ -780,7 +780,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
 				CaptionAboveMedia: opts.Update.Message.ReplyToMessage.ShowCaptionAboveMedia,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -825,14 +825,14 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 						SetName: stickerSet.Name,
 						SetTitle: stickerSet.Title,
 						Description: DescriptionText,
-						OriginInfo: &originInfo,
+						OriginInfo: originInfo,
 					})
 				} else {
 					UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
 						ID: fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
 						FileID: opts.Update.Message.ReplyToMessage.Sticker.FileID,
 						Description: DescriptionText,
-						OriginInfo: &originInfo,
+						OriginInfo: originInfo,
 					})
 				}
 				UserSavedMessage.Count++
@@ -859,7 +859,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: opts.Update.Message.ReplyToMessage.Caption,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -872,7 +872,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				FileID: opts.Update.Message.ReplyToMessage.VideoNote.FileID,
 				Title: opts.Update.Message.ReplyToMessage.VideoNote.FileUniqueID,
 				Description: DescriptionText,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
@@ -887,7 +887,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 				Description: opts.Update.Message.ReplyToMessage.Caption,
 				Caption: opts.Update.Message.ReplyToMessage.Caption,
 				CaptionEntities: opts.Update.Message.ReplyToMessage.CaptionEntities,
-				OriginInfo: &originInfo,
+				OriginInfo: originInfo,
 			})
 			UserSavedMessage.Count++
 			UserSavedMessage.SavedTimes++
