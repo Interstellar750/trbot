@@ -397,9 +397,6 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 			})
 			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 		}
-	} else {
-		plugins.DeleteNotAllowMessage(opts)
-		plugins.KeywordDetector(opts)
 	}
 
 	// 最后才运行针对群组 ID 的 handler

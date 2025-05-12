@@ -57,7 +57,7 @@ func init() {
 		Description: "此功能需要 bot 为群组管理员并拥有删除消息的权限\n可以按照消息类型和消息属性来自动删除不允许的消息，支持自定逻辑和黑白名单，作为管理员在群组中使用 /limitmessage 命令来查看菜单",
 		ParseMode:   models.ParseModeHTML,
 	})
-	
+	buildLimitGroupList()
 }
 
 func SaveLimitMessageList() error {
@@ -496,6 +496,8 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 	}
 	thisChat := LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID]
 
+	var needRebuildGroupList bool
+
 	switch opts.Update.CallbackQuery.Data {
 	case "limitmsg_typekb":
 		// opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -548,6 +550,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 			ReplyMarkup: buildMessageAllKB(thisChat),
 		})
+		needRebuildGroupList = true
 	case "limitmsg_switchlogic":
 		thisChat.IsLogicAnd = !thisChat.IsLogicAnd
 		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
@@ -562,6 +565,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 			ReplyMarkup: buildMessageAllKB(thisChat),
 		})
+		needRebuildGroupList = true
 	case "limitmsg_offtest":
 		thisChat.IsUnderTest = false
 		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
@@ -572,6 +576,7 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 				CallbackData: "limitmsg_done",
 			}}}},
 		})
+		needRebuildGroupList = true
 	default:
 		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_") {
 			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_")
@@ -617,5 +622,24 @@ func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
 	}
 
 	LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID] = thisChat
+	if needRebuildGroupList {
+		buildLimitGroupList()
+	}
 	SaveLimitMessageList()
+}
+
+func buildLimitGroupList() {
+	for id, n := range LimitMessageList {
+		if n.IsEnable || n.IsUnderTest {
+			plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
+				ChatID: id,
+				PluginName: "limit_message",
+				Handler: DeleteNotAllowMessage,
+			})
+			fmt.Println(plugin_utils.AllPlugins.HandlerByChatID)
+		} else {
+			plugin_utils.RemoveHandlerByChatIDPlugin(id, "limit_message")
+			fmt.Println(plugin_utils.AllPlugins.HandlerByChatID)
+		}
+	}
 }
