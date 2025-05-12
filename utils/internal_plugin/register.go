@@ -7,6 +7,7 @@ import (
 	"time"
 	"trbot/database"
 	"trbot/database/db_struct"
+	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_utils"
@@ -17,7 +18,10 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+// this function run only once in main
 func Register() {
+	// 初始化 /plugins/ 中的插件
+	plugins.InitPlugins()
 
 	// 以 `/` 符号开头的命令
 	plugin_utils.AddSlashSymbolCommandPlugins([]plugin_utils.SlashSymbolCommand{
