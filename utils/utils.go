@@ -12,6 +12,7 @@ import (
 	"strings"
 	"trbot/database/db_struct"
 	"trbot/utils/consts"
+	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/update_type"
 
@@ -488,8 +489,15 @@ func SaveYAML(pathToFile string, data interface{}) error {
 }
 
 // https://jasonkayzk.github.io/2021/09/26/在Golang发生Panic后打印出堆栈信息/
-func GetCurrentGoroutineStack() string {
+func getCurrentGoroutineStack() string {
 	var buf [4096]byte
 	n := runtime.Stack(buf[:], false)
 	return string(buf[:n])
+}
+
+func PanicCatcher(pluginName string) {
+	panic := recover()
+	if panic != nil {
+		mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [%s]: \"%v\"\nStack: %s", pluginName, panic, getCurrentGoroutineStack()))
+	}
 }
