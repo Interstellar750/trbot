@@ -1,4 +1,4 @@
-package update_type
+package type_utils
 
 import "github.com/go-telegram/bot/models"
 

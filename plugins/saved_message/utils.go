@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/update_type"
+	"trbot/utils/type_utils"
 
 	"github.com/go-telegram/bot/models"
 	"gopkg.in/yaml.v3"
@@ -419,7 +419,7 @@ func getMessageOriginData(msgOrigin *models.MessageOrigin) *OriginInfo {
 func getMessageLink(msg *models.Message) *OriginInfo {
 	// if msg.From.ID == msg.Chat.ID {
 	// }
-	attr := update_type.GetMessageAttribute(msg)
+	attr := type_utils.GetMessageAttribute(msg)
 	if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsUserAsChannel {
 		return &OriginInfo{
 			FromName: utils.ShowChatName(msg.SenderChat),
