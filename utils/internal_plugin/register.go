@@ -1,4 +1,4 @@
-package plugin_init
+package internal_plugin
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-func RegisterPlugins() {
+func Register() {
 
 	// 以 `/` 符号开头的命令
 	plugin_utils.AddSlashSymbolCommandPlugins([]plugin_utils.SlashSymbolCommand{

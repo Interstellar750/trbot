@@ -12,7 +12,7 @@ import (
 	"trbot/database"
 	"trbot/utils/consts"
 	"trbot/utils/mess"
-	"trbot/utils/plugin_init"
+	"trbot/utils/internal_plugin"
 	"trbot/utils/signals"
 
 	"github.com/go-telegram/bot"
@@ -60,7 +60,7 @@ func main() {
 	go signals.SignalsHandler(ctx, consts.SignalsChannel)
 
 	// 初始化插件
-	plugin_init.RegisterPlugins()
+	internal_plugin.Register()
 
 	// 检查是否设定了 webhookURL 环境变量
 	if mess.UsingWebhook() { // Webhook

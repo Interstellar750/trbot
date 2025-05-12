@@ -1,4 +1,4 @@
-package plugin_init
+package internal_plugin
 
 import (
 	"fmt"
