@@ -636,10 +636,8 @@ func buildLimitGroupList() {
 				PluginName: "limit_message",
 				Handler: DeleteNotAllowMessage,
 			})
-			fmt.Println(plugin_utils.AllPlugins.HandlerByChatID)
 		} else {
 			plugin_utils.RemoveHandlerByChatIDPlugin(id, "limit_message")
-			fmt.Println(plugin_utils.AllPlugins.HandlerByChatID)
 		}
 	}
 }
