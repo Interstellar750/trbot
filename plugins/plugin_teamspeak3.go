@@ -30,7 +30,9 @@ var isCanReInit    bool = true
 var isSuccessInit  bool = false
 var isListening    bool = false
 var isCanListening bool = false
+
 var resetListenTicker chan bool = make(chan bool)
+var pollingInterval   time.Duration = time.Second * 5
 
 var tsServerQuery TSServerQuery
 var privateOpts  *handler_utils.SubHandlerOpts
@@ -108,6 +110,10 @@ func initTeamSpeak() bool {
 		isCanReInit = false
 		return false
 	} else {
+		if tsClient != nil {
+			// 如果指针不为空，那就先注销一下之前的登录
+			tsClient.Logout()
+		}
 		tsClient, tsErr = ts3.NewClient(tsServerQuery.URL)
 		if tsErr != nil {
 			tsErr = fmt.Errorf("[teamspeak] connect error: %w", tsErr)
@@ -163,7 +169,7 @@ func initTeamSpeak() bool {
 		}
 	}
 
-	// 没遇到不可重新初始化的功能则成功初始化
+	// 没遇到不可重新初始化的部分则返回初始化成功
 	return true
 }
 
@@ -258,7 +264,7 @@ func showStatus(opts *handler_utils.SubHandlerOpts) {
 
 func listenUserStatus() {
 	isListening = true
-	listenTicker := time.NewTicker(5 * time.Second)
+	listenTicker := time.NewTicker(pollingInterval)
 	defer listenTicker.Stop()
 
 	var retryCount int = 1
@@ -267,7 +273,7 @@ func listenUserStatus() {
 	for {
 		select {
 		case <-resetListenTicker:
-			listenTicker.Reset(5 * time.Second)
+			listenTicker.Reset(pollingInterval)
 			isCanListening = true
 			retryCount = 1
 		case <-listenTicker.C:
@@ -287,7 +293,7 @@ func listenUserStatus() {
 					isCanListening = true
 					// 重新初始化成功则恢复 ticker 速度
 					retryCount = 1
-					listenTicker.Reset(5 * time.Second)
+					listenTicker.Reset(pollingInterval)
 					if consts.IsDebugMode {
 						log.Println("[teamspeak] reconnect success")
 					}
