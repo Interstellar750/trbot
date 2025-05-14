@@ -7,7 +7,7 @@ import (
 	"time"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -35,7 +35,7 @@ var resetListenTicker chan bool = make(chan bool)
 var pollingInterval   time.Duration = time.Second * 5
 
 var tsServerQuery TSServerQuery
-var privateOpts  *handler_utils.SubHandlerOpts
+var privateOpts  *handler_structs.SubHandlerParams
 
 type TSServerQuery struct {
 	// get Name And Password in TeamSpeak 3 Client -> `Tools`` -> `ServerQuery Login`
@@ -174,7 +174,7 @@ func initTeamSpeak() bool {
 }
 
 // 用于首次初始化成功时只要对应群组有任何消息，都能自动获取 privateOpts 用来定时发送消息，并开启监听协程
-func getOptsHandler(opts *handler_utils.SubHandlerOpts) {
+func getOptsHandler(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
@@ -188,7 +188,7 @@ func getOptsHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func showStatus(opts *handler_utils.SubHandlerOpts) {
+func showStatus(opts *handler_structs.SubHandlerParams) {
 	var pendingMessage string
 
 	// 如果首次初始化没成功，没有添加根据群组 ID 来触发的 handler，用户发送 /ts3 后可以通过这个来自动获取 opts 并启动监听
@@ -362,7 +362,7 @@ func DiffSlices(before, now []string) (added, removed []string) {
 	return
 }
 
-func notifyClientChange(opts *handler_utils.SubHandlerOpts, chatID int64, add, remove []string) {
+func notifyClientChange(opts *handler_structs.SubHandlerParams, chatID int64, add, remove []string) {
 	var pendingMessage string
 
 	if len(add) > 0 {

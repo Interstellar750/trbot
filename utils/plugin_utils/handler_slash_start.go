@@ -1,6 +1,6 @@
 package plugin_utils
 
-import "trbot/utils/handler_utils"
+import "trbot/utils/handler_structs"
 
 type SlashStartCommand struct {
 	Handler           []SlashStartHandler           // 例如 /start subcommand
@@ -9,7 +9,7 @@ type SlashStartCommand struct {
 
 type SlashStartHandler struct {
 	Argument string
-	Handler  func(*handler_utils.SubHandlerOpts)
+	Handler  func(*handler_structs.SubHandlerParams)
 }
 
 func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) int {
@@ -28,7 +28,7 @@ func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) 
 type SlashStartWithPrefixHandler struct {
 	Prefix   string
 	Argument string
-	Handler  func(*handler_utils.SubHandlerOpts)
+	Handler  func(*handler_structs.SubHandlerParams)
 }
 
 func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ...SlashStartWithPrefixHandler) int {

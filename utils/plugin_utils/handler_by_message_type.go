@@ -1,6 +1,6 @@
 package plugin_utils
 
-import "trbot/utils/handler_utils"
+import "trbot/utils/handler_structs"
 
 type HandlerByMessageType struct {
 	Private    *HandlerByMessageTypeFunctions
@@ -33,5 +33,5 @@ type HandlerByMessageTypeFunctions struct {
 
 type handler struct {
 	Name    string
-	Handler func(*handler_utils.SubHandlerOpts)
+	Handler func(*handler_structs.SubHandlerParams)
 }

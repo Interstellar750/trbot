@@ -11,7 +11,7 @@ import (
 
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type_utils"
 
@@ -109,7 +109,7 @@ func ReadLimitMessageList() {
 	LimitMessageList, LimitMessageErr = limitMessageList, nil
 }
 
-func SomeMessageOnlyHandler(opts *handler_utils.SubHandlerOpts) {
+func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) {
 	if opts.Update.Message.Chat.Type == "private" {
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.Update.Message.Chat.ID,
@@ -158,7 +158,7 @@ func SomeMessageOnlyHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func DeleteNotAllowMessage(opts *handler_utils.SubHandlerOpts) {
+func DeleteNotAllowMessage(opts *handler_structs.SubHandlerParams) {
 	
 	var deleteAction bool
 	if utils.AnyContains(opts.Update.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
@@ -485,7 +485,7 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 	return kb
 }
 
-func LimitMessageCallback(opts *handler_utils.SubHandlerOpts) {
+func LimitMessageCallback(opts *handler_structs.SubHandlerParams) {
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.CallbackQuery.Message.Message.Chat.ID, opts.Update.CallbackQuery.From.ID) {
 		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,

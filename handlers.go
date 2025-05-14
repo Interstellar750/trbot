@@ -12,7 +12,7 @@ import (
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 
@@ -23,7 +23,7 @@ import (
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	defer utils.PanicCatcher("defaultHandler")
 
-	var opts = handler_utils.SubHandlerOpts{
+	var opts = handler_structs.SubHandlerParams{
 		Ctx:      ctx,
 		Thebot:   thebot,
 		Update:   update,
@@ -302,7 +302,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 }
 
 // 处理所有信息请求的处理函数，触发条件为任何消息
-func messageHandler(opts *handler_utils.SubHandlerOpts) {
+func messageHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("messageHandler")
 
 	// 检测如果消息开头是 / 符号，作为命令来处理
@@ -408,7 +408,7 @@ func messageHandler(opts *handler_utils.SubHandlerOpts) {
 }
 
 // 处理 inline 模式下的请求
-func inlineHandler(opts *handler_utils.SubHandlerOpts) {
+func inlineHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("inlineHandler")
 
 	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs)

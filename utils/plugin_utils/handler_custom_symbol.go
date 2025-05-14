@@ -1,10 +1,10 @@
 package plugin_utils
 
-import "trbot/utils/handler_utils"
+import "trbot/utils/handler_structs"
 
 type CustomSymbolCommand struct {
 	FullCommand string
-	Handler func(*handler_utils.SubHandlerOpts)
+	Handler func(*handler_structs.SubHandlerParams)
 }
 
 func AddCustomSymbolCommandPlugins(Plugins ...CustomSymbolCommand) int {

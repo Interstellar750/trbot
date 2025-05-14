@@ -10,7 +10,7 @@ import (
 	"time"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -199,7 +199,7 @@ func SaveKeywordList() error {
 	return os.WriteFile(KeywordData_path + consts.MetadataFileName, data, 0644)
 }
 
-func addKeywordHandler(opts *handler_utils.SubHandlerOpts) {
+func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 	if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
 		// 在群组中直接使用 /setkeyword 命令
 		chat := KeywordDataList.Chats[opts.Update.Message.Chat.ID]
@@ -533,7 +533,7 @@ func buildListenList() {
 	}
 }
 
-func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
+func KeywordDetector(opts *handler_structs.SubHandlerParams) {
 	var text string
 	if opts.Update.Message.Caption != "" {
 		text = strings.ToLower(opts.Update.Message.Caption)
@@ -578,7 +578,7 @@ func KeywordDetector(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) {
+func notifyUser(opts *handler_structs.SubHandlerParams, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) {
 	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -601,7 +601,7 @@ func notifyUser(opts *handler_utils.SubHandlerOpts, user KeywordUserList, chatna
 	KeywordDataList.Users[user.UserID] = user
 }
 
-func groupManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
+func groupManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.CallbackQuery.Message.Message.Chat.ID, opts.Update.CallbackQuery.From.ID) {
 		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,
@@ -632,7 +632,7 @@ func groupManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func userManageCallbackHandler(opts *handler_utils.SubHandlerOpts) {
+func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 	user := KeywordDataList.Users[opts.Update.CallbackQuery.From.ID]
 
 	switch opts.Update.CallbackQuery.Data {
@@ -951,7 +951,7 @@ func buildGroupManageKB(chat KeywordChatList) models.ReplyMarkup {
 	}
 }
 
-func startPrefixAddGroup(opts *handler_utils.SubHandlerOpts) {
+func startPrefixAddGroup(opts *handler_structs.SubHandlerParams) {
 	user := KeywordDataList.Users[opts.Update.Message.From.ID]
 	if user.AddTime == "" {
 		// 初始化用户

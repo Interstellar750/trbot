@@ -1,7 +1,7 @@
 package plugin_utils
 
 import (
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 
 	"github.com/go-telegram/bot/models"
 )
@@ -22,7 +22,7 @@ type InlineCommandList struct {
 type InlineHandler struct {
 	Command string
 	Attr InlineHandlerAttr
-	Handler func(*handler_utils.SubHandlerOpts) []models.InlineQueryResult
+	Handler func(*handler_structs.SubHandlerParams) []models.InlineQueryResult
 	Description string
 }
 
@@ -42,7 +42,7 @@ func AddInlineHandlerPlugins(InlineHandlerPlugins ...InlineHandler) int {
 type InlineManualHandler struct {
 	Command string
 	Attr InlineHandlerAttr
-	Handler func(*handler_utils.SubHandlerOpts)
+	Handler func(*handler_structs.SubHandlerParams)
 	Description string
 }
 
@@ -62,7 +62,7 @@ func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...InlineManualHan
 type InlinePrefixHandler struct {
 	PrefixCommand string
 	Attr InlineHandlerAttr
-	Handler func(*handler_utils.SubHandlerOpts)
+	Handler func(*handler_structs.SubHandlerParams)
 	Description string
 }
 

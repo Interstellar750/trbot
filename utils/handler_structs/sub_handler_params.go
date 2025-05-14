@@ -1,4 +1,4 @@
-package handler_utils
+package handler_structs
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 // 调用子处理函数时的传递的参数，避免重复获取
-type SubHandlerOpts struct {
+type SubHandlerParams struct {
 	Ctx      context.Context
 	Thebot   *bot.Bot
 	Update   *models.Update

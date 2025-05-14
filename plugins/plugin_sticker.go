@@ -13,7 +13,7 @@ import (
 	"trbot/database"
 	"trbot/database/db_struct"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -54,7 +54,7 @@ type stickerDatas struct {
 	StickerSetTitle string // 贴纸包名称
 }
 
-func EchoSticker(opts *handler_utils.SubHandlerOpts) (*stickerDatas, error) {
+func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) {
 	var data stickerDatas
 
 	var fileSuffix string // `webp`, `webm`, `tgs`
@@ -179,7 +179,7 @@ func EchoSticker(opts *handler_utils.SubHandlerOpts) (*stickerDatas, error) {
 	return &data, nil
 }
 
-func getStickerPack(opts *handler_utils.SubHandlerOpts, stickerSet *models.StickerSet, isOnlyPNG bool) (*stickerDatas, error) {
+func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.StickerSet, isOnlyPNG bool) (*stickerDatas, error) {
 	var data stickerDatas = stickerDatas{
 		IsCustomSticker: false,
 		StickerSetName:  stickerSet.Name,
@@ -407,7 +407,7 @@ func zipFolder(srcDir, zipFile string) error {
 	return err
 }
 
-func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
+func EchoStickerHandler(opts *handler_structs.SubHandlerParams) {
 	// 下载 webp 格式的贴纸
 	if consts.IsDebugMode {
 		fmt.Println(opts.Update.Message.Sticker)
@@ -472,7 +472,7 @@ func EchoStickerHandler(opts *handler_utils.SubHandlerOpts) {
 	opts.Thebot.SendDocument(opts.Ctx, documentParams)
 }
 
-func DownloadStickerPackCallBackHandler(opts *handler_utils.SubHandlerOpts) {
+func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) {
 	botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		Text:   "已请求下载，请稍候",

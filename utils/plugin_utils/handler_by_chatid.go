@@ -1,13 +1,13 @@
 package plugin_utils
 
 import (
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 )
 
 type HandlerByChatID struct {
 	ChatID     int64
 	PluginName string
-	Handler    func(*handler_utils.SubHandlerOpts)
+	Handler    func(*handler_structs.SubHandlerParams)
 }
 
 func AddHandlerByChatIDPlugins(Handlers ...HandlerByChatID) int {

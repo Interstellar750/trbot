@@ -9,7 +9,7 @@ import (
 	"time"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -80,7 +80,7 @@ func ReadVoicePackFromPath() {
 	VoiceLists, VoiceListErr = packs, nil
 }
 
-func VoiceListHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQueryResult {
+func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {
 	// 将 metadata 转换为 Inline Query 结果
 	var results []models.InlineQueryResult
 

@@ -11,7 +11,7 @@ import (
 
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -214,7 +214,7 @@ func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
 	return nil
 }
 
-func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
+func addUdoneseHandler(opts *handler_structs.SubHandlerParams) {
 	// 不响应来自转发的命令
 	if opts.Update.Message.ForwardOrigin != nil {
 		return
@@ -478,7 +478,7 @@ func addUdoneseHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func udoneseInlineHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQueryResult {
+func udoneseInlineHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {
 	var udoneseResultList []models.InlineQueryResult
 
 	// 查语句需要不区分大小写
@@ -559,7 +559,7 @@ func udoneseInlineHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQue
 	return udoneseResultList
 }
 
-func udoneseGroupHandler(opts *handler_utils.SubHandlerOpts) {
+func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 	// 不响应来自转发的命令
 	if opts.Update.Message.ForwardOrigin != nil {
 		return
@@ -703,7 +703,7 @@ func init() {
 	// })
 }
 
-func udoneseCallbackHandler(opts *handler_utils.SubHandlerOpts) {
+func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
 	if !utils.AnyContains(opts.Update.CallbackQuery.From.ID, UdoneseManagerIDs) {
 		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,

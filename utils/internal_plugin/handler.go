@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 	"trbot/utils"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -13,7 +13,7 @@ import (
 )
 
 
-func startHandler(opts *handler_utils.SubHandlerOpts) {
+func startHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("startHandler")
 
 	if len(opts.Fields) > 1 {
@@ -50,7 +50,7 @@ func startHandler(opts *handler_utils.SubHandlerOpts) {
 	})
 }
 
-func helpHandler(opts *handler_utils.SubHandlerOpts) {
+func helpHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("helpHandler")
 
 	opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -63,7 +63,7 @@ func helpHandler(opts *handler_utils.SubHandlerOpts) {
 	})
 }
 
-func helpCallbackHandler(opts *handler_utils.SubHandlerOpts) {
+func helpCallbackHandler(opts *handler_structs.SubHandlerParams) {
 	if opts.Update.CallbackQuery.Data == "help-close" {
 		opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 			ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,

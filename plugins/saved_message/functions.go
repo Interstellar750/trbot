@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 	"unicode/utf8"
 
@@ -14,7 +14,7 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
+func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 	UserSavedMessage := SavedMessageSet[opts.Update.Message.From.ID]
 
 	messageParams := &bot.SendMessageParams{
@@ -518,7 +518,7 @@ func saveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func channelSaveMessageHandler(opts *handler_utils.SubHandlerOpts) {
+func channelSaveMessageHandler(opts *handler_structs.SubHandlerParams) {
 	ChannelSavedMessage := SavedMessageSet[opts.Update.ChannelPost.From.ID]
 
 	messageParams := &bot.SendMessageParams{
@@ -550,7 +550,7 @@ func channelSaveMessageHandler(opts *handler_utils.SubHandlerOpts) {
 
 }
 
-func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.InlineQueryResult {
+func InlineShowSavedMessageHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {
 	var InlineSavedMessageResultList []models.InlineQueryResult
 
 	SavedMessage := SavedMessageSet[opts.ChatInfo.ID]
@@ -657,7 +657,7 @@ func InlineShowSavedMessageHandler(opts *handler_utils.SubHandlerOpts) []models.
 	return InlineSavedMessageResultList
 }
 
-func SendPrivacyPolicy(opts *handler_utils.SubHandlerOpts) {
+func SendPrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Update.Message.Chat.ID,
 		Text: "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
@@ -692,7 +692,7 @@ func SendPrivacyPolicy(opts *handler_utils.SubHandlerOpts) {
 	}
 }
 
-func AgreePrivacyPolicy(opts *handler_utils.SubHandlerOpts) {
+func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 	var UserSavedMessage SavedMessage
 	// , ok := consts.Database.Data.SavedMessage[opts.ChatInfo.ID]
 	if len(SavedMessageSet) == 0 {

@@ -10,7 +10,7 @@ import (
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_utils"
+	"trbot/utils/handler_structs"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 
@@ -35,7 +35,7 @@ func Register() {
 		},
 		{
 			SlashCommand: "chatinfo",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Update.Message.Chat.ID,
 					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
@@ -46,7 +46,7 @@ func Register() {
 		},
 		{
 			SlashCommand: "test",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Update.Message.Chat.ID,
 					Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
@@ -60,7 +60,7 @@ func Register() {
 		},
 		{
 			SlashCommand: "fileid",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				var pendingMessage string
 				if opts.Update.Message.ReplyToMessage != nil {
 					if opts.Update.Message.ReplyToMessage.Sticker != nil {
@@ -101,7 +101,7 @@ func Register() {
 		},
 		{
 			SlashCommand: "version",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				// info, err := opts.Thebot.GetWebhookInfo(ctx)
 				// fmt.Println(info)
 				// return
@@ -141,7 +141,7 @@ func Register() {
 		{
 			Prefix:   "via-inline",
 			Argument: "change-inline-command",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
 					Text:   fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", consts.InlineSubCommandSymbol),
@@ -157,7 +157,7 @@ func Register() {
 	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
 		{
 			CommandChar: "inline_default_",
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				if opts.Update.CallbackQuery.Data == "inline_default_none" {
 					database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
 					opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
@@ -210,7 +210,7 @@ func Register() {
 			IsHideInCommandList: true,
 			IsCantBeDefault: true,
 		},
-		Handler: func(opts *handler_utils.SubHandlerOpts) {
+		Handler: func(opts *handler_structs.SubHandlerParams) {
 			keywords := utils.InlineExtractKeywords(opts.Fields)
 			if len(keywords) == 0 {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -297,7 +297,7 @@ func Register() {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				logs := mess.ReadLog()
 				if logs != nil {
 					log_count := len(logs)
@@ -336,7 +336,7 @@ func Register() {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				consts.SignalsChannel.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -367,7 +367,7 @@ func Register() {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				consts.SignalsChannel.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -398,7 +398,7 @@ func Register() {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			Handler: func(opts *handler_utils.SubHandlerOpts) {
+			Handler: func(opts *handler_structs.SubHandlerParams) {
 				consts.SignalsChannel.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
