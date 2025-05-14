@@ -370,6 +370,9 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 		// 如果用户发送的是贴纸，下载并返回贴纸源文件给用户
 		if opts.Update.Message.Sticker != nil {
 			plugins.EchoStickerHandler(opts)
+			// plugin_utils.AddHandlerByMessageTypePlugin(models.ChatTypeSupergroup, &plugin_utils.HandlerByMessageTypeFunctions{
+			// 	Animation: ,
+			// })
 			return
 		}
 

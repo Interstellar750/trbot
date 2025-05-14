@@ -19,9 +19,10 @@ type Plugin_All struct {
 	CallbackQuery []CallbackQuery // 处理 InlineKeyboardMarkup 的 callback 函数
 
 	// 根据聊天类型设定的默认处理函数
-	HandlerByMessageType *HandlerByMessageType
+	HandlerByMessageTypeFor *HandlerByMessageTypeFor
+
 	// 以聊天 ID 设定的默认处理函数，第一个 map 为 ID，第二个为 handler 名称
-	HandlerByChatID       map[int64]map[string]HandlerByChatID
+	HandlerByChatID map[int64]map[string]HandlerByChatID
 }
 
 var AllPlugins = Plugin_All{}

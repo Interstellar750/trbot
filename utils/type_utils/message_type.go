@@ -27,6 +27,30 @@ type MessageType struct {
 	Giveaway  bool `yaml:"Giveaway,omitempty"`
 }
 
+type MessageTypeList string
+
+const (
+	Animation MessageTypeList = "Animation"
+	Audio     MessageTypeList = "Audio"
+	Document  MessageTypeList = "Document"
+	PaidMedia MessageTypeList = "PaidMedia"
+	Photo     MessageTypeList = "Photo"
+	Sticker   MessageTypeList = "Sticker"
+	Story     MessageTypeList = "Story"
+	Video     MessageTypeList = "Video"
+	VideoNote MessageTypeList = "VideoNote"
+	Voice     MessageTypeList = "Voice"
+	OnlyText  MessageTypeList = "OnlyText"
+	Contact   MessageTypeList = "Contact"
+	Dice      MessageTypeList = "Dice"
+	Game      MessageTypeList = "Game"
+	Poll      MessageTypeList = "Poll"
+	Venue     MessageTypeList = "Venue"
+	Location  MessageTypeList = "Location"
+	Invoice   MessageTypeList = "Invoice"
+	Giveaway  MessageTypeList = "Giveaway"
+)
+
 // 判断消息的类型
 func GetMessageType(msg *models.Message) MessageType {
 	var msgType MessageType
