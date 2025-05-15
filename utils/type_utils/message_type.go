@@ -1,6 +1,10 @@
 package type_utils
 
-import "github.com/go-telegram/bot/models"
+import (
+	"reflect"
+
+	"github.com/go-telegram/bot/models"
+)
 
 // 消息类型
 type MessageType struct {
@@ -25,6 +29,19 @@ type MessageType struct {
 	Location  bool `yaml:"Location,omitempty"`
 	Invoice   bool `yaml:"Invoice,omitempty"`
 	Giveaway  bool `yaml:"Giveaway,omitempty"`
+}
+
+func (mt MessageType)InString() MessageTypeList {
+	val := reflect.ValueOf(mt)
+	typ := reflect.TypeOf(mt)
+
+	for i := 0; i < val.NumField(); i++ {
+		if val.Field(i).Bool() {
+			return MessageTypeList(typ.Field(i).Name)
+		}
+	}
+
+	return ""
 }
 
 type MessageTypeList string

@@ -9,12 +9,12 @@ import (
 
 	"trbot/database"
 	"trbot/database/db_struct"
-	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -307,6 +307,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 
 	// 检测如果消息开头是 / 符号，作为命令来处理
 	if strings.HasPrefix(opts.Update.Message.Text, "/") {
+		// 匹配默认的 `/xxx` 命令
 		for _, plugin := range plugin_utils.AllPlugins.SlashSymbolCommand {
 			if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
 				if consts.IsDebugMode {
@@ -318,8 +319,18 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				return
 			}
 		}
-		// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
-		if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
+		if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+			// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
+			// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
+			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:    opts.Update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				Text:      "不存在的命令",
+			})
+			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
+		} else if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
+			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
 			// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
 			botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -337,7 +348,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				},
 			})
 			return
-		} 
+		}
 	} else if len(opts.Update.Message.Text) > 0 {
 		// 没有 `/` 号作为前缀，检查是不是自定义命令
 		for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
@@ -365,37 +376,38 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 		}
 	}
 
-	// 这里需要重写配合 handler by message type
-	if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
-		// 如果用户发送的是贴纸，下载并返回贴纸源文件给用户
-		if opts.Update.Message.Sticker != nil {
-			plugins.EchoStickerHandler(opts)
-			// plugin_utils.AddHandlerByMessageTypePlugin(models.ChatTypeSupergroup, &plugin_utils.HandlerByMessageTypeFunctions{
-			// 	Animation: ,
-			// })
-			return
-		}
+	msgTypeInString := type_utils.GetMessageType(opts.Update.Message).InString()
+	var isProcessed       bool
+	var needSelectHandler bool
 
-		// 不匹配上面项目的则提示不可用
-		if strings.HasPrefix(opts.Update.Message.Text, "/") {
-			// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
-			// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:    opts.Update.Message.Chat.ID,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				Text:      "不存在的命令",
-			})
-			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
-		} else {
-			// 非命令消息，提示无操作可用
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:    opts.Update.Message.Chat.ID,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				Text:      "无操作可用",
-			})
-			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
+	if len(plugin_utils.AllPlugins.HandlerByMessageTypeFor[opts.Update.Message.Chat.Type][msgTypeInString]) > 1 {
+		needSelectHandler = true
+	}
+
+	if needSelectHandler {
+		isProcessed = true
+		// todo
+		// plugin_utils.AllPlugins.HandlerByMessageTypeFor[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard()	
+		return
+	} else {
+		// 虽然只有一个，但还是要遍历...
+		for name, handler := range plugin_utils.AllPlugins.HandlerByMessageTypeFor[opts.Update.Message.Chat.Type][msgTypeInString] {
+			if consts.IsDebugMode {
+				log.Printf("trigger handler by message type [%s] plugin [%s] for chat type [%s]", msgTypeInString, name, opts.Update.Message.Chat.Type)
+			}
+			isProcessed = true
+			handler.Handler(opts)
 		}
+	}
+	
+	if !isProcessed && opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+		// 非命令消息，提示无操作可用
+		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Update.Message.Chat.ID,
+			Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgTypeInString),
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+		})
+		if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 	}
 
 	// 最后才运行针对群组 ID 的 handler

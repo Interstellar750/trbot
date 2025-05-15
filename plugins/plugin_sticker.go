@@ -15,6 +15,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -42,6 +43,12 @@ func init() {
 		Name:        "贴纸下载",
 		Description: "直接向机器人发送任意贴纸来下载转换后的 PNG 格式图片\n\n<blockquote expandable>仅限静态贴纸会被转换，动画和视频贴纸将会以原文件形式发送\n若您发送的贴纸为一个贴纸包中的贴纸，您可以点击消息中的按钮来下载整个贴纸包</blockquote>",
 		ParseMode:   models.ParseModeHTML,
+	})
+	plugin_utils.AddHandlerByMessageTypePlugin(plugin_utils.HandlerByMessageType{
+		Name: "StickerDownload",
+		ChatType: models.ChatTypePrivate,
+		MessageType: type_utils.Sticker,
+		Handler: EchoStickerHandler,
 	})
 }
 

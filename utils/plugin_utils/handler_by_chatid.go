@@ -18,11 +18,10 @@ func AddHandlerByChatIDPlugins(Handlers ...HandlerByChatID) int {
 	for _, originPlugin := range Handlers {
 		if originPlugin.ChatID     == 0  { continue }
 		if originPlugin.PluginName == "" { continue }
-		// var chatIDMap = map[string]HandlerByChatID{}
-		chatIDMap := AllPlugins.HandlerByChatID[originPlugin.ChatID]
-		if chatIDMap == nil {
-			chatIDMap = map[string]HandlerByChatID{}
+		if AllPlugins.HandlerByChatID[originPlugin.ChatID] == nil {
+			AllPlugins.HandlerByChatID[originPlugin.ChatID] = map[string]HandlerByChatID{}
 		}
+		chatIDMap := AllPlugins.HandlerByChatID[originPlugin.ChatID]
 		chatIDMap[originPlugin.PluginName] = originPlugin
 		AllPlugins.HandlerByChatID[originPlugin.ChatID] = chatIDMap
 		pluginCount++
