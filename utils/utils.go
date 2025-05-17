@@ -144,10 +144,10 @@ func UserHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatI
 	for _, admin := range admins {
 		// owner allways have all permission
 		if admin.Administrator != nil && admin.Administrator.CanDeleteMessages {
-		    adminshavepermission_userIDs = append(adminshavepermission_userIDs, admin.Administrator.User.ID)
+			adminshavepermission_userIDs = append(adminshavepermission_userIDs, admin.Administrator.User.ID)
 			if admin.Administrator.User.Username != "" {
-		        adminshavepermission_usernames = append(adminshavepermission_usernames, admin.Administrator.User.Username)
-		    }
+				adminshavepermission_usernames = append(adminshavepermission_usernames, admin.Administrator.User.Username)
+			}
 		}
 	}
 	switch value := userID.(type) {

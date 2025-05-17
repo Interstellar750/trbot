@@ -4,43 +4,41 @@ import (
 	"trbot/utils/handler_structs"
 )
 
+/*
+	It is allowed to set multiple handlers,
+	and each handler will be triggered.
+
+	However, due to the nature of the map,
+	the execution order cannot be guaranteed.
+*/
 type HandlerByChatID struct {
 	ChatID     int64
 	PluginName string
 	Handler    func(*handler_structs.SubHandlerParams)
 }
 
-func AddHandlerByChatIDPlugins(Handlers ...HandlerByChatID) int {
-	if AllPlugins.HandlerByChatID == nil {
-		AllPlugins.HandlerByChatID = map[int64]map[string]HandlerByChatID{}
-	}
+func AddHandlerByChatIDPlugins(handlers ...HandlerByChatID) int {
+	if AllPlugins.HandlerByChatID == nil { AllPlugins.HandlerByChatID = map[int64]map[string]HandlerByChatID{} }
+
 	var pluginCount int
-	for _, originPlugin := range Handlers {
-		if originPlugin.ChatID     == 0  { continue }
-		if originPlugin.PluginName == "" { continue }
-		if AllPlugins.HandlerByChatID[originPlugin.ChatID] == nil {
-			AllPlugins.HandlerByChatID[originPlugin.ChatID] = map[string]HandlerByChatID{}
-		}
-		chatIDMap := AllPlugins.HandlerByChatID[originPlugin.ChatID]
-		chatIDMap[originPlugin.PluginName] = originPlugin
-		AllPlugins.HandlerByChatID[originPlugin.ChatID] = chatIDMap
+	for _, handler := range handlers {
+		if handler.ChatID     == 0 || handler.PluginName == "" { continue }
+		if AllPlugins.HandlerByChatID[handler.ChatID] == nil { AllPlugins.HandlerByChatID[handler.ChatID] = map[string]HandlerByChatID{} }
+
+		chatIDMap := AllPlugins.HandlerByChatID[handler.ChatID]
+		chatIDMap[handler.PluginName] = handler
+		AllPlugins.HandlerByChatID[handler.ChatID] = chatIDMap
 		pluginCount++
 	}
 	// fmt.Println(AllPlugins.HandlerByChatID)
 	return pluginCount
 }
 
-func RemoveHandlerByChatIDPlugin(chatID int64, pluginName string) bool {
-	if AllPlugins.HandlerByChatID == nil { return false }
+func RemoveHandlerByChatIDPlugin(chatID int64, pluginName string) {
+	if AllPlugins.HandlerByChatID == nil { return }
 
-	nameMap, isExist := AllPlugins.HandlerByChatID[chatID]
-	if !isExist{ return false }
-
-	_, isExist = nameMap[pluginName]
-	if isExist{
+	_, isExist := AllPlugins.HandlerByChatID[chatID][pluginName]
+	if isExist {
 		delete(AllPlugins.HandlerByChatID[chatID], pluginName)
-		return true
 	}
-
-	return false
 }

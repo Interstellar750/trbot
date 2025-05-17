@@ -44,10 +44,11 @@ func init() {
 		Description: "直接向机器人发送任意贴纸来下载转换后的 PNG 格式图片\n\n<blockquote expandable>仅限静态贴纸会被转换，动画和视频贴纸将会以原文件形式发送\n若您发送的贴纸为一个贴纸包中的贴纸，您可以点击消息中的按钮来下载整个贴纸包</blockquote>",
 		ParseMode:   models.ParseModeHTML,
 	})
-	plugin_utils.AddHandlerByMessageTypePlugin(plugin_utils.HandlerByMessageType{
-		Name: "StickerDownload",
+	plugin_utils.AddHandlerByMessageTypePlugins(plugin_utils.HandlerByMessageType{
+		PluginName: "StickerDownload",
 		ChatType: models.ChatTypePrivate,
 		MessageType: type_utils.Sticker,
+		AllowAutoTrigger: true,
 		Handler: EchoStickerHandler,
 	})
 }
@@ -415,6 +416,10 @@ func zipFolder(srcDir, zipFile string) error {
 }
 
 func EchoStickerHandler(opts *handler_structs.SubHandlerParams) {
+	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
+		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
+	}
+
 	// 下载 webp 格式的贴纸
 	if consts.IsDebugMode {
 		fmt.Println(opts.Update.Message.Sticker)

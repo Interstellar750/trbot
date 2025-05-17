@@ -13,7 +13,6 @@ type SlashStartHandler struct {
 }
 
 func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) int {
-	if AllPlugins.SlashStart == nil { AllPlugins.SlashStart = &SlashStartCommand{} }
 	if AllPlugins.SlashStart.Handler == nil { AllPlugins.SlashStart.Handler = []SlashStartHandler{} }
 
 	var pluginCount int
@@ -32,7 +31,6 @@ type SlashStartWithPrefixHandler struct {
 }
 
 func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ...SlashStartWithPrefixHandler) int {
-	if AllPlugins.SlashStart == nil { AllPlugins.SlashStart = &SlashStartCommand{} }
 	if AllPlugins.SlashStart.WithPrefixHandler == nil { AllPlugins.SlashStart.WithPrefixHandler = []SlashStartWithPrefixHandler{} }
 
 	var pluginCount int

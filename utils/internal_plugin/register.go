@@ -201,6 +201,10 @@ func Register() {
 			CommandChar: "help",
 			Handler:     helpCallbackHandler,
 		},
+		{
+			CommandChar: "HBMT", // Handler By Message Type
+			Handler: plugin_utils.SelectHandlerByMessageTypeHandlerCallback,
+		},
 	}...)
 
 	// inline 模式自行处理输出的函数

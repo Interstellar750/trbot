@@ -376,38 +376,50 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 		}
 	}
 
-	msgTypeInString := type_utils.GetMessageType(opts.Update.Message).InString()
-	var isProcessed       bool
-	var needSelectHandler bool
+	if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type] != nil {
+		msgTypeInString := type_utils.GetMessageType(opts.Update.Message).InString()
+		var isProcessed bool
 
-	if len(plugin_utils.AllPlugins.HandlerByMessageTypeFor[opts.Update.Message.Chat.Type][msgTypeInString]) > 1 {
-		needSelectHandler = true
-	}
-
-	if needSelectHandler {
-		isProcessed = true
-		// todo
-		// plugin_utils.AllPlugins.HandlerByMessageTypeFor[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard()	
-		return
-	} else {
-		// 虽然只有一个，但还是要遍历...
-		for name, handler := range plugin_utils.AllPlugins.HandlerByMessageTypeFor[opts.Update.Message.Chat.Type][msgTypeInString] {
-			if consts.IsDebugMode {
-				log.Printf("trigger handler by message type [%s] plugin [%s] for chat type [%s]", msgTypeInString, name, opts.Update.Message.Chat.Type)
+		// 如果此类型的 handler 数量仅有一个，且允许自动触发
+		if len(plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString]) == 1 {
+			// 虽然是遍历，但实际上只能遍历一次
+			for name, handler := range plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] {
+				isProcessed = true
+				if handler.AllowAutoTrigger {
+					// 允许自动触发的 handler
+					if consts.IsDebugMode {
+						log.Printf("trigger handler by message type [%s] plugin [%s] for chat type [%s]", msgTypeInString, name, opts.Update.Message.Chat.Type)
+					}
+					handler.Handler(opts)
+				} else {
+					// 此 handler 不允许自动触发，回复一条带按钮的消息让用户手动操作
+					opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID:    opts.Update.Message.Chat.ID,
+						Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
+					})
+				}
 			}
-			isProcessed = true
-			handler.Handler(opts)
+		} else {
+			// 多个 handler 自动回复一条带按钮的消息让用户手动操作
+			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:    opts.Update.Message.Chat.ID,
+				Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
+			})
 		}
-	}
-	
-	if !isProcessed && opts.Update.Message.Chat.Type == models.ChatTypePrivate {
-		// 非命令消息，提示无操作可用
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    opts.Update.Message.Chat.ID,
-			Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgTypeInString),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-		})
-		if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
+
+		// 仅在 private 对话中显示无默认处理插件的消息
+		if !isProcessed && opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+			// 非命令消息，提示无操作可用
+			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:    opts.Update.Message.Chat.ID,
+				Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgTypeInString),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			})
+		}
 	}
 
 	// 最后才运行针对群组 ID 的 handler
