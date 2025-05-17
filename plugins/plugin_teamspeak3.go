@@ -31,6 +31,8 @@ var isSuccessInit  bool = false
 var isListening    bool = false
 var isCanListening bool = false
 
+var hasHandlerByChatID bool
+
 var resetListenTicker chan bool = make(chan bool)
 var pollingInterval   time.Duration = time.Second * 5
 
@@ -57,6 +59,7 @@ func init() {
 			PluginName: "teamspeak_get_opts",
 			Handler:     getOptsHandler,
 		})
+		hasHandlerByChatID = true
 	} else {
 		log.Println("TeamSpeak plugin loaded failed:", tsErr)
 	}
@@ -178,13 +181,8 @@ func getOptsHandler(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
-
-		// 获取到 privateOpts 后删掉 handler by chatID
-		plugin_utils.RemoveHandlerByChatIDPlugin(tsServerQuery.GroupID, "teamspeak_get_opts")
 		go listenUserStatus()
-		if consts.IsDebugMode {
-			log.Println("success get opts and start listening")
-		}
+		if consts.IsDebugMode { log.Println("success get opts and start listening") }
 	}
 }
 
@@ -196,14 +194,10 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		if consts.IsDebugMode {
-			log.Println("success get opts")
-		}
+		if consts.IsDebugMode { log.Println("success get opts") }
 		if !isListening {
 			go listenUserStatus()
-			if consts.IsDebugMode {
-				log.Println("success start listening")
-			}
+			if consts.IsDebugMode { log.Println("success start listening") }
 		}
 		// pendingMessage += fmt.Sprintln("已准备好发送用户状态")
 	}
@@ -267,6 +261,12 @@ func listenUserStatus() {
 	listenTicker := time.NewTicker(pollingInterval)
 	defer listenTicker.Stop()
 
+	if hasHandlerByChatID {
+		hasHandlerByChatID = false
+		// 获取到 privateOpts 后删掉 handler by chatID
+		plugin_utils.RemoveHandlerByChatIDPlugin(tsServerQuery.GroupID, "teamspeak_get_opts")
+	}
+
 	var retryCount int = 1
 	var beforeOnlineClient []string
 
@@ -287,6 +287,10 @@ func listenUserStatus() {
 				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
 				if retryCount < 15 {
 					retryCount++
+				}
+				if tsClient != nil {
+					// 重试前尝试注销一次
+					tsClient.Logout()
 				}
 				if initTeamSpeak() {
 					isSuccessInit  = true
