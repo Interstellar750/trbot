@@ -30,6 +30,7 @@ var isCanReInit    bool = true
 var isSuccessInit  bool = false
 var isListening    bool = false
 var isCanListening bool = false
+var isLoginFailed  bool = false
 
 var hasHandlerByChatID bool
 
@@ -113,10 +114,7 @@ func initTeamSpeak() bool {
 		isCanReInit = false
 		return false
 	} else {
-		if tsClient != nil {
-			// 如果指针不为空，那就先注销一下之前的登录
-			tsClient.Logout()
-		}
+		if tsClient != nil { tsClient.Close() }
 		tsClient, tsErr = ts3.NewClient(tsServerQuery.URL)
 		if tsErr != nil {
 			tsErr = fmt.Errorf("[teamspeak] connect error: %w", tsErr)
@@ -133,7 +131,10 @@ func initTeamSpeak() bool {
 		err = tsClient.Login(tsServerQuery.Name, tsServerQuery.Password)
 		if err != nil {
 			tsErr = fmt.Errorf("[teamspeak] login error: %w", err)
+			isLoginFailed = true
 			return false
+		} else {
+			isLoginFailed = false
 		}
 	}
 
@@ -181,8 +182,11 @@ func getOptsHandler(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		go listenUserStatus()
-		if consts.IsDebugMode { log.Println("success get opts and start listening") }
+		if consts.IsDebugMode { log.Println("[teamspeak] success get opts by handler") }
+		if !isLoginFailed {
+			go listenUserStatus()
+			if consts.IsDebugMode { log.Println("[teamspeak] success start listening") }
+		}
 	}
 }
 
@@ -194,10 +198,10 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		if consts.IsDebugMode { log.Println("success get opts") }
-		if !isListening {
+		if consts.IsDebugMode { log.Println("[teamspeak] success get opts") }
+		if !isLoginFailed {
 			go listenUserStatus()
-			if consts.IsDebugMode { log.Println("success start listening") }
+			if consts.IsDebugMode { log.Println("[teamspeak] success start listening") }
 		}
 		// pendingMessage += fmt.Sprintln("已准备好发送用户状态")
 	}
@@ -232,6 +236,10 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 			if initTeamSpeak() {
 				isSuccessInit = true
 				tsErr = fmt.Errorf("")
+				if !isListening && !isLoginFailed {
+					go listenUserStatus()
+					if consts.IsDebugMode { log.Println("[teamspeak] success start listening") }
+				}
 				resetListenTicker <- true
 				pendingMessage = "尝试重新初始化成功，现可正常运行"
 			} else if isListening {
@@ -280,27 +288,17 @@ func listenUserStatus() {
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(beforeOnlineClient)
 			} else {
-				if consts.IsDebugMode {
-					log.Println("[teamspeak] try reconnect...")
-				}
+				if consts.IsDebugMode { log.Println("[teamspeak] try reconnect...") }
 				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
 				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
-				if retryCount < 15 {
-					retryCount++
-				}
-				if tsClient != nil {
-					// 重试前尝试注销一次
-					tsClient.Logout()
-				}
+				if retryCount < 15 { retryCount++ }
 				if initTeamSpeak() {
 					isSuccessInit  = true
 					isCanListening = true
 					// 重新初始化成功则恢复 ticker 速度
 					retryCount = 1
 					listenTicker.Reset(pollingInterval)
-					if consts.IsDebugMode {
-						log.Println("[teamspeak] reconnect success")
-					}
+					if consts.IsDebugMode { log.Println("[teamspeak] reconnect success") }
 					privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 						ChatID:    privateOpts.Update.Message.Chat.ID,
 						Text:      "已成功与服务器重新建立连接",
@@ -308,9 +306,7 @@ func listenUserStatus() {
 					})
 				} else {
 					// 无法成功则等待下一个周期继续尝试
-					if consts.IsDebugMode {
-						log.Printf("[teamspeak] reconnect failed, retry in %ds", (retryCount -1) * 20)
-					}
+					if consts.IsDebugMode { log.Printf("[teamspeak] connect failed [%s], retry in %ds", tsErr, (retryCount - 1) * 20) }
 				}
 			}
 		}
