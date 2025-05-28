@@ -5,6 +5,7 @@ import (
 	"log"
 	"reflect"
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
@@ -23,7 +24,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 		ParseMode:       models.ParseModeHTML,
 		ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:                         "点击浏览您的收藏",
-			SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "saved ",
+			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
 		}}}},
 	}
 
@@ -708,7 +709,7 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:                         "点击浏览您的收藏",
-			SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "saved ",
+			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
 		}}}},
 	})
 	if err != nil {
@@ -762,7 +763,7 @@ func Init() {
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{
 				Text:                         "点击浏览您的收藏",
-				SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "saved ",
+				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
 			}},
 			{{
 				Text:         "将此功能设定为您的默认 inline 命令",

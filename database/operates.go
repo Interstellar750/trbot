@@ -120,3 +120,37 @@ func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatIn
 	}
 	return allErr
 }
+
+func SaveDatabase(ctx context.Context) error {
+	var allErr error
+	for _, db := range DBBackends {
+		err := db.SaveDatabase(ctx)
+		if err != nil {
+			allErr = err
+		}
+	}
+	for _, db := range DBBackends_LowLevel {
+		err := db.SaveDatabase(ctx)
+		if err != nil {
+			allErr = fmt.Errorf("%s, %s", allErr, err)
+		}
+	}
+	return allErr
+}
+
+func ReadDatabase(ctx context.Context) error {
+	var allErr error
+	for _, db := range DBBackends {
+		err := db.ReadDatabase(ctx)
+		if err != nil {
+			allErr = err
+		}
+	}
+	for _, db := range DBBackends_LowLevel {
+		err := db.ReadDatabase(ctx)
+		if err != nil {
+			allErr = fmt.Errorf("%s, %s", allErr, err)
+		}
+	}
+	return allErr
+}

@@ -5,11 +5,13 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
@@ -19,10 +21,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var UdoneseData *Udonese
-var UdoneseErr   error
+var UdoneseData Udonese
+var UdoneseErr  error
 
-var Udonese_path string = consts.DB_path + "udonese/"
+var Udonese_path string = filepath.Join(consts.YAMLDataBasePath, "udonese/")
 var UdonGroupID  int64  = -1002205667779
 var UdoneseManagerIDs []int64 = []int64{
 	872082796, // akaudon
@@ -136,14 +138,14 @@ type UdoneseMeaning struct {
 }
 
 func ReadUdonese() {
-	var udonese *Udonese
+	var udonese Udonese
 
-	file, err := os.Open(Udonese_path + consts.MetadataFileName)
+	file, err := os.Open(filepath.Join(Udonese_path, consts.YAMLFileName))
 	if err != nil {
 		// 如果是找不到目录，新建一个
-		log.Println("[Udonese]: Not found database file. Created new one")
+		log.Println("[Udonese] Not found database file. Created new one")
 		SaveUdonese()
-		UdoneseData, UdoneseErr = &Udonese{}, err
+		UdoneseData, UdoneseErr = Udonese{}, err
 		return 
 	}
 	defer file.Close()
@@ -152,13 +154,13 @@ func ReadUdonese() {
 	err = decoder.Decode(&udonese)
 	if err != nil {
 		if err == io.EOF {
-			log.Println("[Udonese]: Udonese list looks empty. now format it")
+			log.Println("[Udonese] Udonese list looks empty. now format it")
 			SaveUdonese()
-			UdoneseData, UdoneseErr = &Udonese{}, nil
+			UdoneseData, UdoneseErr = Udonese{}, nil
 			return
 		}
-		log.Println("(func)ReadUdonese:", err)
-		UdoneseData, UdoneseErr = &Udonese{}, err
+		log.Println("[Udonese] (func)ReadUdonese:", err)
+		UdoneseData, UdoneseErr = Udonese{}, err
 		return
 	}
 	UdoneseData, UdoneseErr = udonese, nil
@@ -174,22 +176,22 @@ func SaveUdonese() error {
 		}
 	}
 
-	if _, err := os.Stat(Udonese_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(Udonese_path + consts.MetadataFileName)
+	if _, err := os.Stat(filepath.Join(Udonese_path, consts.YAMLFileName)); os.IsNotExist(err) {
+		_, err := os.Create(filepath.Join(Udonese_path, consts.YAMLFileName))
 		if err != nil {
 			return err
 		}
 	}
 
-	return os.WriteFile(Udonese_path + consts.MetadataFileName, data, 0644)
+	return os.WriteFile(filepath.Join(Udonese_path, consts.YAMLFileName), data, 0644)
 }
 
 // 如果要添加的意思重复，返回对应意思的单个词结构体指针，否则返回空指针
 // 设计之初可以添加多个意思，但现在不推荐这样
-func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
-	for wordIndex, savedList := range udonese.List {
+func addUdonese(params *UdoneseWord) *UdoneseWord {
+	for wordIndex, savedList := range UdoneseData.List {
 		if strings.EqualFold(savedList.Word, params.Word){
-			log.Printf("发现已存在的词 [%s]，正在检查是否有新增的意思", savedList.Word)
+			log.Printf("[Udonese] 发现已存在的词 [%s]，正在检查是否有新增的意思", savedList.Word)
 			for _, newMeaning := range params.MeaningList {
 				var isreallynew bool = true
 				for _, oldmeanlist := range savedList.MeaningList {
@@ -198,19 +200,19 @@ func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
 					}
 				}
 				if isreallynew {
-					udonese.List[wordIndex].MeaningList = append(udonese.List[wordIndex].MeaningList, newMeaning)
-					log.Printf("正在为 [%s] 添加 [%s] 意思", udonese.List[wordIndex].Word, newMeaning.Meaning)
+					UdoneseData.List[wordIndex].MeaningList = append(UdoneseData.List[wordIndex].MeaningList, newMeaning)
+					log.Printf("[Udonese] 正在为 [%s] 添加 [%s] 意思", UdoneseData.List[wordIndex].Word, newMeaning.Meaning)
 				} else {
-					log.Println("存在的意思，跳过", newMeaning)
+					log.Println("[Udonese] 存在的意思，跳过", newMeaning)
 					return &savedList
 				}
 			}
 			return nil
 		}
 	}
-	log.Printf("发现新的词 [%s]，正在添加 %v", params.Word, params.MeaningList)
-	udonese.List = append(udonese.List, *params)
-	udonese.Count++
+	log.Printf("[Udonese] 发现新的词 [%s]，正在添加 %v", params.Word, params.MeaningList)
+	UdoneseData.List = append(UdoneseData.List, *params)
+	UdoneseData.Count++
 	return nil
 }
 
@@ -231,7 +233,7 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) {
 			DisableNotification: true,
 		})
 		if err != nil {
-			log.Println("error sending /udonese not allowed group:", err)
+			log.Println("[Udonese] error sending /udonese not allowed group:", err)
 		}
 		return
 	}
@@ -265,7 +267,7 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) {
 					DisableNotification: true,
 				})
 				if err != nil {
-					log.Println("error sending /udonese word not found:", err)
+					log.Println("[Udonese] error sending /udonese word not found:", err)
 				}
 				return
 			}
@@ -382,7 +384,7 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) {
 	var pendingMessage string
 	var botMessage *models.Message
 
-	oldMeaning := addUdonese(UdoneseData, &UdoneseWord{
+	oldMeaning := addUdonese(&UdoneseWord{
 		Word: opts.Fields[1],
 		MeaningList: []UdoneseMeaning{{
 			Meaning:      meaning,
@@ -570,7 +572,7 @@ func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 	}
 
 	if UdoneseErr != nil {
-		log.Println("some error in while read udonese list: ", UdoneseErr)
+		log.Println("[Udonese] some error in while read udonese list: ", UdoneseErr)
 		ReadUdonese()
 	}
 
@@ -580,9 +582,8 @@ func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 			UdoneseData.List[i].Used++
 			err := SaveUdonese()
 			if err != nil {
-				log.Println("get some error when add udonese used count:", err)
+				log.Println("[Udonese] get some error when add udonese used count:", err)
 			}
-			// fmt.Println(udon.List[i].Word, "+1", udon.List[i].Used)
 		}
 	}
 
@@ -597,7 +598,7 @@ func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 				DisableNotification: true,
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击浏览全部词与意思",
-					SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "sms ",
+					SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "sms ",
 				}}}},
 			})
 			return
@@ -614,7 +615,7 @@ func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 					DisableNotification: true,
 				})
 				if err != nil {
-					log.Println("get some error when answer udonese meaning:", err)
+					log.Println("[Udonese] get some error when answer udonese meaning:", err)
 				}
 				return
 			}
@@ -743,7 +744,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
 		wordAndIndexList := strings.Split(wordAndIndex, "_")
 		meanningIndex, err := strconv.Atoi(wordAndIndexList[1])
 		if err != nil {
-			log.Println("covert meanning index error:", err)
+			log.Println("[Udonese] covert meanning index error:", err)
 		}
 
 		var targetMeaning UdoneseMeaning
@@ -799,7 +800,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			}}},
 		})
 		if err != nil {
-			log.Println(err)
+			log.Println("[Udonese] error when editing message:",err)
 		}
 
 		return
@@ -808,7 +809,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
 		wordAndIndexList := strings.Split(wordAndIndex, "_")
 		meanningIndex, err := strconv.Atoi(wordAndIndexList[1])
 		if err != nil {
-			log.Println("covert meanning index error:", err)
+			log.Println("[Udonese] covert meanning index error:", err)
 		}
 		var newMeaningList []UdoneseMeaning
 		var targetWord UdoneseWord
@@ -838,7 +839,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
 		})
 		if err != nil {
-			log.Println("error when edit deleted meaning keyboard:", err)
+			log.Println("[Udonese] error when edit deleted meaning keyboard:", err)
 		}
 
 		SaveUdonese()
@@ -866,7 +867,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			}}}},
 		})
 		if err != nil {
-			log.Println("error when edit deleted word message:", err)
+			log.Println("[Udonese] error when edit deleted word message:", err)
 		}
 
 		SaveUdonese()

@@ -22,6 +22,10 @@ type DatabaseBackend struct {
 	IsInitialized  bool
 	InitializedErr error
 
+	// 数据库保存和读取函数
+	SaveDatabase func(ctx context.Context) error
+	ReadDatabase func(ctx context.Context) error
+
 	// 操作数据库的函数
 	InitUser              func(ctx context.Context, user *models.User) error
 	InitChat              func(ctx context.Context, chat *models.Chat) error
@@ -76,6 +80,9 @@ func InitAndListDatabases() {
 		Name:        "yaml",
 		IsLowLevel:  true,
 		Initializer: yaml_db.InitializeDB,
+
+		SaveDatabase: yaml_db.SaveDatabase,
+		ReadDatabase: yaml_db.ReadDatabase,
 
 		InitUser:              yaml_db.InitUser,
 		InitChat:              yaml_db.InitChat,

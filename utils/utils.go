@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 	"trbot/database/db_struct"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
@@ -18,13 +17,19 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"gopkg.in/yaml.v3"
 )
 
 // 如果 target 是 candidates 的一部分, 返回 true
 // 常规类型会判定值是否相等，字符串如果包含也符合条件，例如 "bc" 在 "abcd" 中
+// this is a bad function
 func AnyContains(target any, candidates ...any) bool {
 	for _, candidate := range candidates {
+		switch c := candidate.(type) {
+		case reflect.Kind:
+			if len(c.String()) == 0 { continue }
+		case []int64:
+			if len(c) == 0 { continue }
+		}
 		if candidate == nil { continue }
 		// fmt.Println(reflect.ValueOf(target).Kind(), reflect.ValueOf(candidate).Kind(), reflect.Array, reflect.Slice)
 		targetKind := reflect.ValueOf(target).Kind()
@@ -174,10 +179,10 @@ func UserHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatI
 func InlineResultPagination(queryFields []string, results []models.InlineQueryResult) []models.InlineQueryResult {
 	// 当 result 的数量超过 InlineResultsPerPage 时，进行分页
 	// fmt.Println(len(results), InlineResultsPerPage)
-	if len(results) > consts.InlineResultsPerPage {
+	if len(results) > configs.BotConfig.InlineResultsPerPage {
 		// 获取 update.InlineQuery.Query 末尾的 `<分页符号><数字>` 来选择输出第几页
 		var pageNow int = 1
-		var pageSize = (consts.InlineResultsPerPage - 1)
+		var pageSize = (configs.BotConfig.InlineResultsPerPage - 1)
 
 		pageNow, err := InlineExtractPageNumber(queryFields)
 		// 读取页码发生错误
@@ -198,7 +203,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 				return []models.InlineQueryResult{&models.InlineQueryResultArticle{
 					ID:          "noThisOperation",
 					Title:       "无效的操作",
-					Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", consts.InlinePaginationSymbol),
+					Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", configs.BotConfig.InlinePaginationSymbol),
 					InputMessageContent: &models.InputTextMessageContent{
 						MessageText: "用户在尝试进行分页时输入了错误的页码并点击了分页提示...",
 						ParseMode:   models.ParseModeMarkdownV1,
@@ -233,7 +238,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 			pageResults = append(pageResults, &models.InlineQueryResultArticle{
 				ID:          "paginationPage",
 				Title:       fmt.Sprintf("当前您在第 %d 页", pageNow),
-				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages-pageNow, consts.InlinePaginationSymbol, pageNow+1),
+				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages-pageNow, configs.BotConfig.InlinePaginationSymbol, pageNow+1),
 				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: "用户在挑选内容时点击了分页提示...",
 					ParseMode:   models.ParseModeMarkdownV1,
@@ -252,7 +257,7 @@ func InlineResultPagination(queryFields []string, results []models.InlineQueryRe
 		}
 
 		return pageResults
-	} else if len(queryFields) > 0 && strings.HasPrefix(queryFields[len(queryFields)-1], consts.InlinePaginationSymbol) {
+	} else if len(queryFields) > 0 && strings.HasPrefix(queryFields[len(queryFields)-1], configs.BotConfig.InlinePaginationSymbol) {
 		return []models.InlineQueryResult{&models.InlineQueryResultArticle{
 			ID:          "noNeedPagination",
 			Title:       "没有多余的内容",
@@ -274,8 +279,8 @@ func InlineExtractSubCommand(fields []string) string {
 	}
 
 	// 判断是不是子命令
-	if strings.HasPrefix(fields[0], consts.InlineSubCommandSymbol) {
-		return strings.TrimPrefix(fields[0], consts.InlineSubCommandSymbol)
+	if strings.HasPrefix(fields[0], configs.BotConfig.InlineSubCommandSymbol) {
+		return strings.TrimPrefix(fields[0], configs.BotConfig.InlineSubCommandSymbol)
 	}
 	return ""
 }
@@ -287,11 +292,11 @@ func InlineExtractKeywords(fields []string) []string {
 	}
 
 	// 判断是不是子命令
-	if strings.HasPrefix(fields[0], consts.InlineSubCommandSymbol) {
+	if strings.HasPrefix(fields[0], configs.BotConfig.InlineSubCommandSymbol) {
 		fields = fields[1:]
 	}
 	// 判断有没有分页符号
-	if len(fields) > 0 && strings.HasPrefix(fields[len(fields)-1], consts.InlinePaginationSymbol) {
+	if len(fields) > 0 && strings.HasPrefix(fields[len(fields)-1], configs.BotConfig.InlinePaginationSymbol) {
 		fields = fields[:len(fields)-1]
 	}
 
@@ -305,7 +310,7 @@ func InlineExtractPageNumber(fields []string) (int, error) {
 	}
 
 	// 判断有没有分页符号
-	if strings.HasPrefix(fields[len(fields)-1], consts.InlinePaginationSymbol) {
+	if strings.HasPrefix(fields[len(fields)-1], configs.BotConfig.InlinePaginationSymbol) {
 		return strconv.Atoi(fields[len(fields)-1][1:])
 	}
 	return 1, nil
@@ -382,12 +387,12 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 		}
 		if chatInfo.DefaultInlinePlugin == v.Command {
 			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("✅ [ %s%s ] - %s", consts.InlineSubCommandSymbol, v.Command, v.Description),
+				Text: fmt.Sprintf("✅ [ %s%s ] - %s", configs.BotConfig.InlineSubCommandSymbol, v.Command, v.Description),
 				CallbackData: "inline_default_" + v.Command,
 			}})
 		} else {
 			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("[ %s%s ] - %s", consts.InlineSubCommandSymbol, v.Command, v.Description),
+				Text: fmt.Sprintf("[ %s%s ] - %s", configs.BotConfig.InlineSubCommandSymbol, v.Command, v.Description),
 				CallbackData: "inline_default_" + v.Command,
 			}})
 		}
@@ -453,39 +458,6 @@ func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) st
 		}
 	}
 	return senderLink
-}
-
-// 一个通用的 yaml 结构体读取函数
-func LoadYAML(pathToFile string, out interface{}) error {
-	file, err := os.ReadFile(pathToFile)
-	if err != nil {
-		return fmt.Errorf("读取文件失败: %w", err)
-	}
-
-	if err := yaml.Unmarshal(file, out); err != nil {
-		return fmt.Errorf("解析 YAML 失败: %w", err)
-	}
-
-	return nil
-}
-
-// 一个通用的 yaml 结构体保存函数，目录和文件不存在则创建，并以结构体类型保存
-func SaveYAML(pathToFile string, data interface{}) error {
-	out, err := yaml.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("编码 YAML 失败: %w", err)
-	}
-
-	dir := filepath.Dir(pathToFile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("创建目录失败: %w", err)
-	}
-
-	if err := os.WriteFile(pathToFile, out, 0644); err != nil {
-		return fmt.Errorf("写入文件失败: %w", err)
-	}
-
-	return nil
 }
 
 // https://jasonkayzk.github.io/2021/09/26/在Golang发生Panic后打印出堆栈信息/

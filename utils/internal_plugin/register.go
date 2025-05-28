@@ -9,10 +9,12 @@ import (
 	"trbot/database/db_struct"
 	"trbot/plugins"
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/signals"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -144,7 +146,7 @@ func Register() {
 			Handler: func(opts *handler_structs.SubHandlerParams) {
 				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
-					Text:   fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", consts.InlineSubCommandSymbol),
+					Text:   fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", configs.BotConfig.InlineSubCommandSymbol),
 					ParseMode: models.ParseModeHTML,
 					ReplyMarkup: utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
@@ -194,7 +196,7 @@ func Register() {
 					}
 				}
 				
-				consts.SignalsChannel.Database_save <- true
+				signals.SIGNALS.Database_save <- true
 			},
 		},
 		{
@@ -276,7 +278,7 @@ func Register() {
 						&models.InlineQueryResultArticle{
 							ID:          "error",
 							Title:       "参数过多，请注意空格",
-							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", consts.BotMe.Username, consts.InlineSubCommandSymbol),
+							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", consts.BotMe.Username, configs.BotConfig.InlineSubCommandSymbol),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 								ParseMode:   models.ParseModeMarkdownV1,
@@ -341,7 +343,7 @@ func Register() {
 				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) {
-				consts.SignalsChannel.PluginDB_reload <- true
+				signals.SIGNALS.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
@@ -372,7 +374,7 @@ func Register() {
 				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) {
-				consts.SignalsChannel.PluginDB_save <- true
+				signals.SIGNALS.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
@@ -403,7 +405,7 @@ func Register() {
 				IsOnlyAllowAdmin:    true,
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) {
-				consts.SignalsChannel.Database_save <- true
+				signals.SIGNALS.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{

@@ -2,98 +2,102 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"trbot/database"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/mess"
 	"trbot/utils/internal_plugin"
 	"trbot/utils/signals"
 
 	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
-
 func main() {
-	consts.BotToken = mess.WhereIsBotToken()
-
-	consts.IsDebugMode = os.Getenv("DEBUG") == "true"
-	if consts.IsDebugMode {
-		log.Println("running in debug mode, all log will be printed to stdout")
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	allowedUpdates := bot.AllowedUpdates{
-		models.AllowedUpdateMessage,
-		models.AllowedUpdateEditedMessage,
-		models.AllowedUpdateChannelPost,
-		models.AllowedUpdateEditedChannelPost,
-		models.AllowedUpdateInlineQuery,
-		models.AllowedUpdateChosenInlineResult,
-		models.AllowedUpdateCallbackQuery,
+	// create a logger and attached it into ctx
+	logger := log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	ctx = logger.WithContext(ctx)
+
+	// read configs
+	if err := configs.InitBot(ctx); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to read bot configs")
+	}
+
+	// set log level from config
+	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog())
+	if zerolog.GlobalLevel() == zerolog.DebugLevel {
+		consts.IsDebugMode = true
 	}
 
 	opts := []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),
-		bot.WithAllowedUpdates(allowedUpdates),
+		bot.WithAllowedUpdates(configs.BotConfig.AllowedUpdates),
 	}
 
-	thebot, err := bot.New(consts.BotToken, opts...)
-	if err != nil { panic(err) }
+	thebot, err := bot.New(configs.BotConfig.BotToken, opts...)
+	if err != nil { logger.Panic().Err(err).Msg("Failed to initialize bot") }
 
-	consts.BotMe, _ = thebot.GetMe(ctx)
-	log.Printf("name[%s] [@%s] id[%d]", consts.BotMe.FirstName, consts.BotMe.Username, consts.BotMe.ID)
-
-	log.Printf("starting %d\n", consts.BotMe.ID)
-	log.Printf("logChat_ID: %v", consts.LogChat_ID)
+	consts.BotMe, err = thebot.GetMe(ctx)
+	if err != nil { logger.Panic().Err(err).Msg("Failed to get bot info") }
+	logger.Info().
+		Str("name", consts.BotMe.FirstName).
+		Str("username", consts.BotMe.Username).
+		Int64("ID", consts.BotMe.ID).
+		Msg("bot initialized")
+	if configs.BotConfig.LogChatID != 0 {
+		logger.Info().
+			Int64("LogChatID", configs.BotConfig.LogChatID).
+			Msg("Enabled log to chat")
+	}
 
 	database.InitAndListDatabases()
 
-	go signals.SignalsHandler(ctx, consts.SignalsChannel)
+	// start handler custom signals
+	go signals.SignalsHandler(ctx)
 
-	// 初始化插件
+	// register plugin (internal first, then external)
 	internal_plugin.Register()
 
-	// 检查是否设定了 webhookURL 环境变量
-	if mess.UsingWebhook() { // Webhook
-		mess.SetUpWebhook(ctx, thebot, &bot.SetWebhookParams{
-			URL: consts.WebhookURL,
-			AllowedUpdates: allowedUpdates,
+	// Select mode by Webhook config
+	if configs.IsUsingWebhook(ctx) { // Webhook
+		configs.SetUpWebhook(ctx, thebot, &bot.SetWebhookParams{
+			URL: configs.BotConfig.WebhookURL,
+			AllowedUpdates: configs.BotConfig.AllowedUpdates,
 		})
-		log.Println("Working at Webhook Mode")
+		logger.Info().
+			Str("listenAddress", consts.WebhookListenPort).
+			Msg("Working at Webhook Mode")
 		go thebot.StartWebhook(ctx)
-		go func() {
-			err := http.ListenAndServe(consts.WebhookPort, thebot.WebhookHandler())
-			if err != nil { log.Panicln(err) }
-		}()
-	} else { // getUpdate, aka Long Polling
-		// 保存并清理云端 Webhook URL，否则该模式会不生效 https://core.telegram.org/bots/api#getupdates
-		mess.SaveAndCleanRemoteWebhookURL(ctx, thebot)
-		log.Println("Working at Long Polling Mode")
-		if consts.IsDebugMode {
-			fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/getWebhookInfo to check infos \n", consts.BotToken)
-			fmt.Printf("If in debug, visit https://api.telegram.org/bot%s/setWebhook?url=https://api.trle5.xyz/webhook-trbot to reset webhook\n", consts.BotToken)
+		err := http.ListenAndServe(consts.WebhookListenPort, thebot.WebhookHandler())
+		if err != nil {
+			logger.Panic().
+				Err(err).
+				Msg("webhook server failed")
 		}
+	} else { // getUpdate, aka Long Polling
+		// save and clean remove Webhook URL befor using getUpdate https://core.telegram.org/bots/api#getupdates
+		configs.SaveAndCleanRemoteWebhookURL(ctx, thebot)
+		logger.Info().
+			Msg("Working at Long Polling Mode")
+		logger.Debug().
+			Msgf("visit https://api.telegram.org/bot%s/getWebhookInfo to check infos", configs.BotConfig.BotToken)
 		thebot.Start(ctx)
 	}
 
+	// a loop wait for getUpdate mode, this program will exit in `utils\signals\signals.go`.
+	// This loop will only run when the exit signal is received in getUpdate mode.
+	// Webhook won't reach here, http.ListenAndServe() will keep program running till exit.
+	// They use the same code to exit, this loop is to give some time to save the database when receive exit signal.
 	for {
-		select {
-		case <- consts.SignalsChannel.WorkDone:
-			log.Println("manually stopped")
-			return
-		default:
-			// log.Println("still waiting...") // 不在调式模式下，这个日志会非常频繁
-			time.Sleep(1 * time.Second)
-		}
+		logger.Info().Msg("still waiting...")
+		time.Sleep(2 * time.Second)
 	}
-
 }

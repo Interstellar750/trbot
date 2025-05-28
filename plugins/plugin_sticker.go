@@ -12,6 +12,7 @@ import (
 	"strings"
 	"trbot/database"
 	"trbot/database/db_struct"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
@@ -22,9 +23,9 @@ import (
 	"golang.org/x/image/webp"
 )
 
-var StickerCache_path    string = consts.Cache_path + "sticker/"
-var StickerCachePNG_path string = consts.Cache_path + "sticker_png/"
-var StickerCacheZip_path string = consts.Cache_path + "sticker_zip/"
+var StickerCache_path    string = filepath.Join(consts.CacheDirectory, "sticker/")
+var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_png/")
+var StickerCacheZip_path string = filepath.Join(consts.CacheDirectory, "sticker_zip/")
 
 func init() {
 	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
@@ -112,11 +113,11 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 		stickerFileNameWithDot = fmt.Sprintf("%s.", opts.Update.Message.Sticker.FileID)
 	}
 
-	var filePath       string = StickerCache_path + stickerSetNamePrivate + "/"       // 保存贴纸源文件的目录 .cache/sticker/setName/
-	var originFullPath string = filePath + stickerFileNameWithDot + fileSuffix // 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
+	var filePath       string = StickerCache_path + stickerSetNamePrivate + "/" // 保存贴纸源文件的目录 .cache/sticker/setName/
+	var originFullPath string = filePath + stickerFileNameWithDot + fileSuffix  // 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
 
-	var filePathPNG   string = StickerCachePNG_path + stickerSetNamePrivate + "/"  // 转码后为 png 格式的目录 .cache/sticker_png/setName/
-	var toPNGFullPath string = filePathPNG + stickerFileNameWithDot + "png" // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
+	var filePathPNG   string = StickerCachePNG_path + stickerSetNamePrivate + "/" // 转码后为 png 格式的目录 .cache/sticker_png/setName/
+	var toPNGFullPath string = filePathPNG + stickerFileNameWithDot + "png"       // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
 
 	_, err := os.Stat(originFullPath) // 检查贴纸源文件是否已缓存
 	// 如果文件不存在，进行下载，否则跳过
@@ -129,7 +130,7 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 		if consts.IsDebugMode { log.Printf("file [%s] doesn't exist, downloading %s", originFullPath, fileinfo.FilePath) }
 
 		// 组合链接下载贴纸源文件
-		resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", consts.BotToken, fileinfo.FilePath))
+		resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", configs.BotConfig.BotToken, fileinfo.FilePath))
 		if err != nil { return nil, fmt.Errorf("error downloading file %s: %v", fileinfo.FilePath, err) }
 		defer resp.Body.Close()
 
@@ -236,7 +237,7 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 			}
 
 			// 下载贴纸文件
-			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", consts.BotToken, fileinfo.FilePath))
+			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", configs.BotConfig.BotToken, fileinfo.FilePath))
 			if err != nil { return nil, fmt.Errorf("error downloading file %s: %v", fileinfo.FilePath, err) }
 			defer resp.Body.Close()
 

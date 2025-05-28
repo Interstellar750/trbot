@@ -10,6 +10,7 @@ import (
 	"trbot/database"
 	"trbot/database/db_struct"
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/mess"
@@ -18,23 +19,19 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 )
 
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	defer utils.PanicCatcher("defaultHandler")
+	logger := zerolog.Ctx(ctx)
 
-	var opts = handler_structs.SubHandlerParams{
-		Ctx:      ctx,
-		Thebot:   thebot,
-		Update:   update,
-	}
+
 	var err error
-
-	if update.Message != nil {
-		// fmt.Println(getMessageType(update.Message))
-		if update.Message.Chat.Type == "private" {
-			// plugin_utils.AllPlugins.DefaultHandlerByMessageTypeForPrivate
-		}
+	var opts = handler_structs.SubHandlerParams{
+		Ctx:    ctx,
+		Thebot: thebot,
+		Update: update,
 	}
 
 	// 需要重写来配合 handler by update type
@@ -46,28 +43,35 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, db_struct.LatestMessage, update.Message.Text)
 		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
 		if err != nil {
-			log.Println(err)
+			logger.Warn().
+				Err(err).
+				Int64("chatID", update.Message.Chat.ID).
+				Msg("Get chatinfo error")	
 		}
-
 		if consts.IsDebugMode {
 			if update.Message.Photo != nil {
-				log.Printf("photo message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) caption: [%s]", 
-					utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
-					utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-					update.Message.ID, update.Message.Caption,
-				)
+				logger.Debug().
+					Str("user", fmt.Sprintf("%s(%s)[%d]", utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID)).
+					Str("chat", fmt.Sprintf("%s(%s)[%d]", utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID)).
+					Int("messageID", update.Message.ID).
+					Str("caption", update.Message.Caption).
+					Msg("photo message")
 			} else if update.Message.Sticker != nil {
-				log.Printf("sticker message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) sticker: %s[%s:%s]", 
-					utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
-					utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-					update.Message.ID, update.Message.Sticker.Emoji, update.Message.Sticker.SetName, update.Message.Sticker.FileID,
-				)
+				logger.Debug().
+					Str("user", fmt.Sprintf("%s(%s)[%d]", utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID)).
+					Str("chat", fmt.Sprintf("%s(%s)[%d]", utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID)).
+					Int("messageID", update.Message.ID).
+					Str("sticker emoji", update.Message.Sticker.Emoji).
+					Str("sticker setname", update.Message.Sticker.SetName).
+					Str("sticker file ID", update.Message.Sticker.FileID).
+					Msg("sticker message")
 			} else {
-				log.Printf("message from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) message: [%s]", 
-					utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID,
-					utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID,
-					update.Message.ID, update.Message.Text,
-				)
+				logger.Debug().
+					Str("user", fmt.Sprintf("%s(%s)[%d]", utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID)).
+					Str("chat", fmt.Sprintf("%s(%s)[%d]", utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID)).
+					Int("messageID", update.Message.ID).
+					Str("text", update.Message.Text).
+					Msg("message")
 			}
 		}
 
@@ -328,7 +332,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				Text:      "不存在的命令",
 			})
 			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-			if consts.Private_log { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
+			if configs.BotConfig.LogChatID != 0 { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 		} else if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
@@ -438,9 +442,9 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 func inlineHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("inlineHandler")
 
-	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, consts.LogMan_IDs)
+	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, configs.BotConfig.AdminIDs)
 
-	if opts.Update.InlineQuery.Query == consts.InlineSubCommandSymbol {
+	if opts.Update.InlineQuery.Query == configs.BotConfig.InlineSubCommandSymbol {
 		// 仅输入了命令符号，展示命令列表
 		var inlineButton = &models.InlineQueryResultsButton{
 			Text: "点击此处修改默认命令",
@@ -486,7 +490,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			log.Printf("Error sending inline query response: %v", err)
 			return
 		}
-	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol) {
+	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
 		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则提示错误
 
 		// 插件处理完后返回全部列表，由设定好的函数进行分页输出
@@ -526,7 +530,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
 				continue
 			}
-			if strings.HasPrefix(opts.Update.InlineQuery.Query, consts.InlineSubCommandSymbol + plugin.PrefixCommand) {
+			if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol + plugin.PrefixCommand) {
 				if plugin.Handler == nil { continue }
 				plugin.Handler(opts)
 				return
@@ -620,7 +624,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				log.Println("Error when answering inline default command invailid:", err)
 			}
 			return
-		} else if consts.InlineDefaultHandler != "" {
+		} else if configs.BotConfig.InlineDefaultHandler != "" {
 			// 全局设定里设定的默认命令
 
 			// 插件处理完后返回全部列表，由设定好的函数进行分页输出
@@ -628,7 +632,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
 					continue
 				}
-				if consts.InlineDefaultHandler == plugin.Command {
+				if configs.BotConfig.InlineDefaultHandler == plugin.Command {
 					if plugin.Handler == nil { continue }
 					ResultList := plugin.Handler(opts)
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -653,7 +657,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin {
 					continue
 				}
-				if consts.InlineDefaultHandler == plugin.Command {
+				if configs.BotConfig.InlineDefaultHandler == plugin.Command {
 					if plugin.Handler == nil { continue }
 					plugin.Handler(opts)
 					return
@@ -676,7 +680,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			if len(plugin_utils.AllPlugins.InlineCommandList) == 0 {
 				pendingMessage = "此 bot 似乎并没有使用任何 inline 模式插件，请联系管理员"
 			} else {
-				pendingMessage = fmt.Sprintf("您可以继续输入 %s 号来查看其他可用的命令", consts.InlineSubCommandSymbol)
+				pendingMessage = fmt.Sprintf("您可以继续输入 %s 号来查看其他可用的命令", configs.BotConfig.InlineSubCommandSymbol)
 			}
 			 _, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.Update.InlineQuery.ID,
@@ -711,7 +715,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			if command.Attr.IsHideInCommandList {
 				continue
 			}
-			message += fmt.Sprintf("命令: <code>%s%s</code>\n", consts.InlineSubCommandSymbol, command.Command)
+			message += fmt.Sprintf("命令: <code>%s%s</code>\n", configs.BotConfig.InlineSubCommandSymbol, command.Command)
 			if command.Description != "" {
 				message += fmt.Sprintf("描述: %s\n", command.Description)
 			}
@@ -722,7 +726,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			InlineQueryID: opts.Update.InlineQuery.ID,
 			Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 				ID:    "nodefaulthandler",
-				Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", consts.InlineSubCommandSymbol),
+				Title: fmt.Sprintf("请继续输入 %s 来查看可用的命令", configs.BotConfig.InlineSubCommandSymbol),
 				Description: "由于管理员没有设定默认命令，您需要手动选择一个命令，点击此处查看命令列表",
 				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: message,

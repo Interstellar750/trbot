@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ import (
 var LimitMessageList map[int64]AllowMessages
 var LimitMessageErr  error
 
-var LimitMessage_path string = consts.DB_path + "limitmessage/"
+var LimitMessage_path string = filepath.Join(consts.YAMLDataBasePath, "limitmessage/")
 
 type AllowMessages struct {
 	IsEnable            bool                        `yaml:"IsEnable"`
@@ -70,20 +71,20 @@ func SaveLimitMessageList() error {
 		}
 	}
 
-	if _, err := os.Stat(LimitMessage_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(LimitMessage_path + consts.MetadataFileName)
+	if _, err := os.Stat(filepath.Join(LimitMessage_path, consts.YAMLFileName)); os.IsNotExist(err) {
+		_, err := os.Create(filepath.Join(LimitMessage_path, consts.YAMLFileName))
 		if err != nil {
 			return err
 		}
 	}
 
-	return os.WriteFile(LimitMessage_path + consts.MetadataFileName, data, 0644)
+	return os.WriteFile(filepath.Join(LimitMessage_path, consts.YAMLFileName), data, 0644)
 }
 
 func ReadLimitMessageList() {
 	var limitMessageList map[int64]AllowMessages
 
-	file, err := os.Open(LimitMessage_path + consts.MetadataFileName)
+	file, err := os.Open(filepath.Join(LimitMessage_path, consts.YAMLFileName))
 	if err != nil {
 		// 如果是找不到目录，新建一个
 		log.Println("[LimitMessage]: Not found database file. Created new one")

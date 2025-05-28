@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ var KeywordDataList KeywordData = KeywordData{
 	Users: map[int64]KeywordUserList{},
 }
 var KeywordDataErr error
-var KeywordData_path string = consts.DB_path + "detectkeyword/"
+var KeywordData_path string = filepath.Join(consts.YAMLDataBasePath, "detectkeyword/")
 
 func init() {
 	ReadKeywordList()
@@ -151,7 +152,7 @@ type ChatForUser struct {
 func ReadKeywordList() {
 	var lists KeywordData
 
-	file, err := os.Open(KeywordData_path + consts.MetadataFileName)
+	file, err := os.Open(filepath.Join(KeywordData_path, consts.YAMLFileName))
 	if err != nil {
 		// 如果是找不到目录，新建一个
 		log.Println("[DetectKeyword]: Not found database file. Created new one")
@@ -189,14 +190,14 @@ func SaveKeywordList() error {
 		}
 	}
 
-	if _, err := os.Stat(KeywordData_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(KeywordData_path + consts.MetadataFileName)
+	if _, err := os.Stat(filepath.Join(KeywordData_path, consts.YAMLFileName)); os.IsNotExist(err) {
+		_, err := os.Create(filepath.Join(KeywordData_path, consts.YAMLFileName))
 		if err != nil {
 			return err
 		}
 	}
 
-	return os.WriteFile(KeywordData_path + consts.MetadataFileName, data, 0644)
+	return os.WriteFile(filepath.Join(KeywordData_path, consts.YAMLFileName), data, 0644)
 }
 
 func addKeywordHandler(opts *handler_structs.SubHandlerParams) {

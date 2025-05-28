@@ -10,7 +10,7 @@ import (
 
 	"trbot/database/db_struct"
 	"trbot/utils"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/redis/go-redis/v9"
@@ -22,23 +22,23 @@ var UserDB *redis.Client // 用户数据
 var ctxbg = context.Background()
 
 func InitializeDB() (bool, error) {
-	if consts.RedisURL != "" {
-		if consts.RedisMainDB != -1 {
+	if configs.BotConfig.RedisURL != "" {
+		if configs.BotConfig.RedisMainDB != -1 {
 			MainDB = redis.NewClient(&redis.Options{
-				Addr:     consts.RedisURL,
-				Password: consts.RedisPassword,
-				DB:       consts.RedisMainDB,
+				Addr:     configs.BotConfig.RedisURL,
+				Password: configs.BotConfig.RedisPassword,
+				DB:       configs.BotConfig.RedisMainDB,
 			})
 			err := PingRedis(ctxbg, MainDB)
 			if err != nil {
 				return false, fmt.Errorf("error ping Redis MainDB: %s", err)
 			}
 		}
-		if consts.RedisUserInfoDB != -1 {
+		if configs.BotConfig.RedisUserInfoDB != -1 {
 			UserDB = redis.NewClient(&redis.Options{
-				Addr:     consts.RedisURL,
-				Password: consts.RedisPassword,
-				DB:       consts.RedisUserInfoDB,
+				Addr:     configs.BotConfig.RedisURL,
+				Password: configs.BotConfig.RedisPassword,
+				DB:       configs.BotConfig.RedisUserInfoDB,
 			})
 			err := PingRedis(ctxbg, UserDB)
 			if err != nil {

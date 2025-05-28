@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"trbot/utils"
 	"trbot/utils/consts"
@@ -17,7 +18,7 @@ import (
 var SavedMessageSet map[int64]SavedMessage
 var SavedMessageErr error
 
-var SavedMessage_path string = consts.DB_path + "savedmessage/"
+var SavedMessage_path string = filepath.Join(consts.YAMLDataBasePath, "savedmessage/")
 
 var textExpandableLength int = 150
 
@@ -43,20 +44,20 @@ func SaveSavedMessageList() error {
 		}
 	}
 
-	if _, err := os.Stat(SavedMessage_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(SavedMessage_path + consts.MetadataFileName)
+	if _, err := os.Stat(filepath.Join(SavedMessage_path, consts.YAMLFileName)); os.IsNotExist(err) {
+		_, err := os.Create(filepath.Join(SavedMessage_path, consts.YAMLFileName))
 		if err != nil {
 			return err
 		}
 	}
 
-	return os.WriteFile(SavedMessage_path + consts.MetadataFileName, data, 0644)
+	return os.WriteFile(filepath.Join(SavedMessage_path, consts.YAMLFileName), data, 0644)
 }
 
 func ReadSavedMessageList() {
 	var SavedMessages map[int64]SavedMessage
 
-	file, err := os.Open(SavedMessage_path + consts.MetadataFileName)
+	file, err := os.Open(filepath.Join(SavedMessage_path, consts.YAMLFileName))
 	if err != nil {
 		// 如果是找不到目录，新建一个
 		log.Println("[SavedMessage]: Not found database file. Created new one")

@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
-	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -23,7 +24,7 @@ import (
 var tsClient *ts3.Client
 var tsErr     error
 
-var tsData_path string = consts.DB_path + "teamspeak/"
+var tsData_path string = filepath.Join(consts.YAMLDataBasePath, "teamspeak/")
 var botNickName string = "trbot_teamspeak_plugin"
 
 var isCanReInit    bool = true
@@ -52,7 +53,7 @@ func init() {
 	// 初始化不成功时依然注册 `/ts3` 命令，使用命令式输出初始化时的错误
 	if initTeamSpeak() {
 		isSuccessInit = true
-		log.Println("TeamSpeak plugin loaded")
+		log.Println("[TeamSpeak] plugin loaded")
 
 		// 需要以群组 ID 来触发 handler 来获取 opts
 		plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
@@ -62,7 +63,7 @@ func init() {
 		})
 		hasHandlerByChatID = true
 	} else {
-		log.Println("TeamSpeak plugin loaded failed:", tsErr)
+		log.Println("[TeamSpeak] plugin loaded failed:", tsErr)
 	}
 
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
@@ -83,15 +84,16 @@ func initTeamSpeak() bool {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// 不存在，创建一份空文件
-			err = utils.SaveYAML(tsData_path + consts.MetadataFileName, &TSServerQuery{})
+			err = yaml.SaveYAML(filepath.Join(tsData_path, consts.YAMLFileName), &TSServerQuery{})
 			if err != nil {
-				log.Println("[teamspeak] empty config create faild:", err)
+				log.Println("[TeamSpeak] empty config create faild:", err)
 			} else {
-				log.Printf("[teamspeak] empty config created at [ %s ]", tsData_path)
+				log.Printf("[TeamSpeak] empty config created at [ %s ]", tsData_path)
 			}
+			tsErr = fmt.Errorf("config file not exist, created empty config file")
 		} else {
 			// 文件存在，但是遇到了其他错误
-			tsErr = fmt.Errorf("[teamspeak] some error when read config file: %w", err)
+			tsErr = fmt.Errorf("some error when read config file: %w", err)
 		}
 
 		// 无法获取到服务器地址和账号，无法初始化并设定不可重新启动
@@ -99,38 +101,38 @@ func initTeamSpeak() bool {
 		return false
 	}
 
-	err = utils.LoadYAML(tsData_path + consts.MetadataFileName, &tsServerQuery)
+	err = yaml.LoadYAML(filepath.Join(tsData_path, consts.YAMLFileName), &tsServerQuery)
 	if err != nil {
 	// if err != nil || tsServerQuery == nil {
 		// 读取配置文件内容失败也不允许重新启动
-		tsErr = fmt.Errorf("[teamspeak] read config error: %w", err)
+		tsErr = fmt.Errorf("read config error: %w", err)
 		isCanReInit = false
 		return false
 	}
 
 	// 如果服务器地址为空不允许重新启动
 	if tsServerQuery.URL == "" {
-		tsErr = fmt.Errorf("[teamspeak] no URL in config")
+		tsErr = fmt.Errorf("no URL in config")
 		isCanReInit = false
 		return false
 	} else {
 		if tsClient != nil { tsClient.Close() }
 		tsClient, tsErr = ts3.NewClient(tsServerQuery.URL)
 		if tsErr != nil {
-			tsErr = fmt.Errorf("[teamspeak] connect error: %w", tsErr)
+			tsErr = fmt.Errorf("connect error: %w", tsErr)
 			return false
 		}
 	}
 
 	// ServerQuery 账号名或密码为空也不允许重新启动
 	if tsServerQuery.Name == "" || tsServerQuery.Password == "" {
-		tsErr = fmt.Errorf("[teamspeak] no Name/Password in config")
+		tsErr = fmt.Errorf("no Name/Password in config")
 		isCanReInit = false
 		return false
 	} else {
 		err = tsClient.Login(tsServerQuery.Name, tsServerQuery.Password)
 		if err != nil {
-			tsErr = fmt.Errorf("[teamspeak] login error: %w", err)
+			tsErr = fmt.Errorf("login error: %w", err)
 			isLoginFailed = true
 			return false
 		} else {
@@ -140,7 +142,7 @@ func initTeamSpeak() bool {
 
 	// 检查要设定通知的群组 ID 是否存在
 	if tsServerQuery.GroupID == 0 {
-		tsErr = fmt.Errorf("[teamspeak] no GroupID in config")
+		tsErr = fmt.Errorf("no GroupID in config")
 		isCanReInit = false
 		return false
 	}
@@ -148,28 +150,28 @@ func initTeamSpeak() bool {
 	// 显示服务端版本测试一下连接
 	v, err := tsClient.Version()
 	if err != nil {
-		tsErr = fmt.Errorf("[teamspeak] show version error: %w", err)
+		tsErr = fmt.Errorf("show version error: %w", err)
 		return false
 	} else {
-		log.Printf("[teamspeak] running: %v", v)
+		log.Printf("[TeamSpeak] running: %v", v)
 	}
 
 	// 切换默认虚拟服务器
 	err = tsClient.Use(1)
 	if err != nil {
-		tsErr = fmt.Errorf("[teamspeak] switch server error: %w", err)
+		tsErr = fmt.Errorf("switch server error: %w", err)
 		return false
 	}
 
 	// 改一下 bot 自己的 nickname，使得在检测用户列表时默认不显示自己
 	m, err := tsClient.Whoami()
 	if err != nil {
-		tsErr = fmt.Errorf("[teamspeak] get my info error: %w", err)
+		tsErr = fmt.Errorf("get my info error: %w", err)
 	} else if m != nil && m.ClientName != botNickName {
 		// 当 bot 自己的 nickname 不等于配置文件中的 nickname 时，才进行修改
 		err = tsClient.SetNick(botNickName)
 		if err != nil {
-			tsErr = fmt.Errorf("[teamspeak] set nickname error: %w", err)
+			tsErr = fmt.Errorf("set nickname error: %w", err)
 		}
 	}
 
@@ -182,10 +184,10 @@ func getOptsHandler(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		if consts.IsDebugMode { log.Println("[teamspeak] success get opts by handler") }
+		if consts.IsDebugMode { log.Println("[TeamSpeak] success get opts by handler") }
 		if !isLoginFailed {
 			go listenUserStatus()
-			if consts.IsDebugMode { log.Println("[teamspeak] success start listening") }
+			if consts.IsDebugMode { log.Println("[TeamSpeak] success start listening") }
 		}
 	}
 }
@@ -198,10 +200,10 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		if consts.IsDebugMode { log.Println("[teamspeak] success get opts") }
+		if consts.IsDebugMode { log.Println("[TeamSpeak] success get opts") }
 		if !isLoginFailed {
 			go listenUserStatus()
-			if consts.IsDebugMode { log.Println("[teamspeak] success start listening") }
+			if consts.IsDebugMode { log.Println("[TeamSpeak] success start listening") }
 		}
 		// pendingMessage += fmt.Sprintln("已准备好发送用户状态")
 	}
@@ -209,7 +211,7 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 	if isSuccessInit && isCanListening {
 		olClient, err := tsClient.Server.ClientList()
 		if err != nil {
-			log.Println("[teamspeak] get online client error:", err)
+			log.Println("[TeamSpeak] get online client error:", err)
 			pendingMessage = fmt.Sprintf("连接到 teamspeak 服务器发生错误:\n<blockquote expandable>%s</blockquote>", err)
 		} else {
 			pendingMessage += fmt.Sprintln("在线客户端:")
@@ -238,7 +240,7 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 				tsErr = fmt.Errorf("")
 				if !isListening && !isLoginFailed {
 					go listenUserStatus()
-					if consts.IsDebugMode { log.Println("[teamspeak] success start listening") }
+					if consts.IsDebugMode { log.Println("[TeamSpeak] success start listening") }
 				}
 				resetListenTicker <- true
 				pendingMessage = "尝试重新初始化成功，现可正常运行"
@@ -260,7 +262,7 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 	})
 	if err != nil {
-		log.Println("[teamspeak] can't answer `/ts3` command:",err)
+		log.Println("[TeamSpeak] can't answer `/ts3` command:",err)
 	}
 }
 
@@ -288,7 +290,7 @@ func listenUserStatus() {
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(beforeOnlineClient)
 			} else {
-				if consts.IsDebugMode { log.Println("[teamspeak] try reconnect...") }
+				if consts.IsDebugMode { log.Println("[TeamSpeak] try reconnect...") }
 				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
 				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
 				if retryCount < 15 { retryCount++ }
@@ -298,7 +300,7 @@ func listenUserStatus() {
 					// 重新初始化成功则恢复 ticker 速度
 					retryCount = 1
 					listenTicker.Reset(pollingInterval)
-					if consts.IsDebugMode { log.Println("[teamspeak] reconnect success") }
+					if consts.IsDebugMode { log.Println("[TeamSpeak] reconnect success") }
 					privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 						ChatID:    privateOpts.Update.Message.Chat.ID,
 						Text:      "已成功与服务器重新建立连接",
@@ -306,7 +308,7 @@ func listenUserStatus() {
 					})
 				} else {
 					// 无法成功则等待下一个周期继续尝试
-					if consts.IsDebugMode { log.Printf("[teamspeak] connect failed [%s], retry in %ds", tsErr, (retryCount - 1) * 20) }
+					if consts.IsDebugMode { log.Printf("[TeamSpeak] connect failed [%s], retry in %ds", tsErr, (retryCount - 1) * 20) }
 				}
 			}
 		}
@@ -318,7 +320,7 @@ func checkOnlineClientChange(before []string) []string {
 
 	olClient, err := tsClient.Server.ClientList()
 	if err != nil {
-		log.Println("[teamspeak] get online client error:", err)
+		log.Println("[TeamSpeak] get online client error:", err)
 		isCanListening = false
 		privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 			ChatID:    privateOpts.Update.Message.Chat.ID,
@@ -332,7 +334,7 @@ func checkOnlineClientChange(before []string) []string {
 		added, removed := DiffSlices(before, nowOnlineClient)
 		if len(added) + len(removed) > 0 {
 			if consts.IsDebugMode {
-				log.Printf("[teamspeak] online client change: added %v, removed %v", added, removed)
+				log.Printf("[TeamSpeak] online client change: added %v, removed %v", added, removed)
 			}
 			notifyClientChange(privateOpts, tsServerQuery.GroupID, added, removed)
 		}

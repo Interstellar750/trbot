@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
@@ -20,7 +21,7 @@ import (
 var VoiceLists   []VoicePack
 var VoiceListErr error
 
-var VoiceList_path string = consts.DB_path + "voices/"
+var VoiceList_path string = filepath.Join(consts.YAMLDataBasePath, "voices/") 
 
 func init() {
 	ReadVoicePackFromPath()
@@ -50,7 +51,7 @@ func ReadVoicePackFromPath() {
 	var packs []VoicePack
 
 	if _, err := os.Stat(VoiceList_path); os.IsNotExist(err) {
-		log.Printf("No voices dir, create a new one: %s", VoiceList_path)
+		log.Printf("[VoiceList] No voices dir, create a new one: %s", VoiceList_path)
 		if err := os.MkdirAll(VoiceList_path, 0755); err != nil {
 			VoiceLists, VoiceListErr = nil, err
 			return 
@@ -61,13 +62,13 @@ func ReadVoicePackFromPath() {
 		if err != nil { return err }
 		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
 			file, err := os.Open(path)
-			if err != nil { log.Println("(func)readVoicesFromDir:", err) }
+			if err != nil { log.Println("[VoiceList] (func)readVoicesFromDir:", err) }
 			defer file.Close()
 
 			var singlePack VoicePack
 			decoder := yaml.NewDecoder(file)
 			err = decoder.Decode(&singlePack)
-			if err != nil { log.Println("(func)readVoicesFromDir:", err) }
+			if err != nil { log.Println("[VoiceList] (func)readVoicesFromDir:", err) }
 			packs = append(packs, singlePack)
 		}
 		return nil
@@ -85,9 +86,9 @@ func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQue
 	var results []models.InlineQueryResult
 
 	if VoiceLists == nil {
-		log.Printf("No voices file in voices_path: %s", VoiceList_path)
+		log.Printf("[VoiceList] No voices file in voices_path: %s", VoiceList_path)
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    consts.LogChat_ID,
+			ChatID:    configs.BotConfig.LogChatID,
 			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
 		})
 		return []models.InlineQueryResult{&models.InlineQueryResultVoice{
