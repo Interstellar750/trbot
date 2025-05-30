@@ -8,8 +8,9 @@ type SlashStartCommand struct {
 }
 
 type SlashStartHandler struct {
+	Name     string
 	Argument string
-	Handler  func(*handler_structs.SubHandlerParams)
+	Handler  func(*handler_structs.SubHandlerParams) error
 }
 
 func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) int {
@@ -25,9 +26,10 @@ func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) 
 }
 
 type SlashStartWithPrefixHandler struct {
+	Name     string
 	Prefix   string
 	Argument string
-	Handler  func(*handler_structs.SubHandlerParams)
+	Handler  func(*handler_structs.SubHandlerParams) error
 }
 
 func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ...SlashStartWithPrefixHandler) int {

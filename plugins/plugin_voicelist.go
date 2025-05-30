@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,7 +26,10 @@ var VoiceListErr error
 var VoiceList_path string = filepath.Join(consts.YAMLDataBasePath, "voices/") 
 
 func init() {
-	ReadVoicePackFromPath()
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
+		Name: "Voice List",
+		Func: ReadVoicePackFromPath,
+	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name: "Voice List",
 		Loader: ReadVoicePackFromPath,
@@ -47,38 +52,82 @@ type VoicePack struct {
 }
 
 // 读取指定目录下所有结尾为 .yaml 或 .yml 的语音文件
-func ReadVoicePackFromPath() {
+func ReadVoicePackFromPath(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Voice List").
+		Str("funcName", "ReadVoicePackFromPath").
+		Logger()
+
 	var packs []VoicePack
 
-	if _, err := os.Stat(VoiceList_path); os.IsNotExist(err) {
-		log.Printf("[VoiceList] No voices dir, create a new one: %s", VoiceList_path)
-		if err := os.MkdirAll(VoiceList_path, 0755); err != nil {
-			VoiceLists, VoiceListErr = nil, err
-			return 
+	_, err := os.Stat(VoiceList_path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Str("path", VoiceList_path).
+				Msg("VoiceList directory not exist, now create it")
+			err = os.MkdirAll(VoiceList_path, 0755)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", VoiceList_path).
+					Msg("Failed to create VoiceList data directory")
+				VoiceListErr = err
+				return err
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", VoiceList_path).
+				Msg("Open VoiceList data directory failed")
+			VoiceListErr = err
+			return err
 		}
 	}
+	
 
-	err := filepath.Walk(VoiceList_path, func(path string, info os.FileInfo, err error) error {
-		if err != nil { return err }
+	err = filepath.Walk(VoiceList_path, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("path", path).
+				Msg("Failed to read file use `filepath.Walk()`")
+		}
 		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
 			file, err := os.Open(path)
-			if err != nil { log.Println("[VoiceList] (func)readVoicesFromDir:", err) }
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", path).
+					Msg("Failed to open file use `os.Open()`")
+			}
 			defer file.Close()
 
 			var singlePack VoicePack
 			decoder := yaml.NewDecoder(file)
 			err = decoder.Decode(&singlePack)
-			if err != nil { log.Println("[VoiceList] (func)readVoicesFromDir:", err) }
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", path).
+					Msg("Failed to decode file use `yaml.NewDecoder()`")
+			}
 			packs = append(packs, singlePack)
 		}
 		return nil
 	})
 	if err != nil {
-		VoiceLists, VoiceListErr = nil, err
-		return
+		logger.Error().
+			Err(err).
+			Str("path", VoiceList_path).
+			Msg("Failed to read voice packs in VoiceList path")
+		VoiceListErr = err
+		return err
 	}
 
-	VoiceLists, VoiceListErr = packs, nil
+	VoiceLists = packs
+	return nil
 }
 
 func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {

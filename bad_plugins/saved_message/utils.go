@@ -1,6 +1,7 @@
 package saved_message
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"trbot/utils/type_utils"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,15 +36,46 @@ type SavedMessage struct {
 	Item SavedMessageItems `yaml:"Item,omitempty"`
 }
 
-func SaveSavedMessageList() error {
-	data, err := yaml.Marshal(SavedMessageSet)
-	if err != nil { return err }
+func SaveSavedMessageList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "SaveSavedMessageList").
+		Logger()
 
-	if _, err := os.Stat(SavedMessage_path); os.IsNotExist(err) {
-		if err := os.MkdirAll(SavedMessage_path, 0755); err != nil {
+	data, err := yaml.Marshal(SavedMessageSet)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to marshal keyword list")
+		SavedMessageErr = err
+		return err
+	}
+
+	_, err = os.Stat(SavedMessage_path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Msg("Savedmessage data directory not exist, now create it")
+			err = os.MkdirAll(SavedMessage_path, 0755)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to create savedmessage data directory")
+				SavedMessageErr = err
+				return err
+			}
+			logger.Trace().
+				Msg("Savedmessage data directory created successfully")
+		} else {
+			logger.Error().
+				Err(err).
+				Msg("Open savedmessage data directory failed")
+			SavedMessageErr = err
 			return err
 		}
 	}
+	
 
 	if _, err := os.Stat(filepath.Join(SavedMessage_path, consts.YAMLFileName)); os.IsNotExist(err) {
 		_, err := os.Create(filepath.Join(SavedMessage_path, consts.YAMLFileName))
@@ -54,33 +87,62 @@ func SaveSavedMessageList() error {
 	return os.WriteFile(filepath.Join(SavedMessage_path, consts.YAMLFileName), data, 0644)
 }
 
-func ReadSavedMessageList() {
-	var SavedMessages map[int64]SavedMessage
+func ReadSavedMessageList(ctx context.Context) error {
+	var savedList map[int64]SavedMessage
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "ReadSavedMessageList").
+		Logger()
 
 	file, err := os.Open(filepath.Join(SavedMessage_path, consts.YAMLFileName))
 	if err != nil {
-		// 如果是找不到目录，新建一个
-		log.Println("[SavedMessage]: Not found database file. Created new one")
-		SaveSavedMessageList()
-		SavedMessageSet, SavedMessageErr = map[int64]SavedMessage{}, err
-		return
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Msg("Not found database file. Create a new one")
+			// 如果是找不到目录，新建一个
+			err = SaveSavedMessageList(ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Create empty database file failed")
+				SavedMessageErr = err
+				return err
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Msg("Open database file failed")
+			SavedMessageErr = err
+			return err
+		}
 	}
 	defer file.Close()
 
 	decoder := yaml.NewDecoder(file)
-	err = decoder.Decode(&SavedMessages)
+	err = decoder.Decode(&savedList)
 	if err != nil {
 		if err == io.EOF {
-			log.Println("[SavedMessage]: Saved Message list looks empty. now format it")
-			SaveSavedMessageList()
-			SavedMessageSet, SavedMessageErr = map[int64]SavedMessage{}, nil
-			return
+			logger.Warn().
+				Msg("Saved Message list looks empty. now format it")
+			err = SaveSavedMessageList(ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Create empty database file failed")
+				SavedMessageErr = err
+				return err
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Msg("Failed to decode savedmessage list")
+			SavedMessageErr = err
+			return err
 		}
-		log.Println("(func)ReadSavedMessageList:", err)
-		SavedMessageSet, SavedMessageErr = map[int64]SavedMessage{}, err
-		return
 	}
-	SavedMessageSet, SavedMessageErr = SavedMessages, nil
+	SavedMessageSet = savedList
+	return nil
 }
 
 type sortstruct struct {

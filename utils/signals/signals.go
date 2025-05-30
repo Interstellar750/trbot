@@ -6,7 +6,6 @@ import (
 	"time"
 	"trbot/database"
 	"trbot/database/yaml_db"
-	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 
 	"github.com/rs/zerolog"
@@ -59,10 +58,9 @@ func SignalsHandler(ctx context.Context) {
 		case <-SIGNALS.Database_save:
 			database.SaveDatabase(ctx)
 		case <-SIGNALS.PluginDB_reload:
-			plugin_utils.ReloadPluginsDatabase()
-			logger.Info().Msg("Plugin Database reloaded")
+			plugin_utils.ReloadPluginsDatabase(ctx)
 		case <-SIGNALS.PluginDB_save:
-			mess.PrintLogAndSave(plugin_utils.SavePluginsDatabase())
+			plugin_utils.SavePluginsDatabase(ctx)
 		}
 	}
 }

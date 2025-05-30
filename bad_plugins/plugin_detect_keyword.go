@@ -1,9 +1,9 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,7 +28,10 @@ var KeywordDataErr error
 var KeywordData_path string = filepath.Join(consts.YAMLDataBasePath, "detectkeyword/")
 
 func init() {
-	ReadKeywordList()
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
+		Name: "Detect Keyword",
+		Func: ReadKeywordList,
+	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "Detect Keyword",
 		Loader: ReadKeywordList,
@@ -149,58 +153,161 @@ type ChatForUser struct {
 	Keyword         []string `yaml:"Keyword"`
 }
 
-func ReadKeywordList() {
+func ReadKeywordList(ctx context.Context) error {
 	var lists KeywordData
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "ReadKeywordList").
+		Logger()
 
+	// 拼接路径和文件名，打开数据库
 	file, err := os.Open(filepath.Join(KeywordData_path, consts.YAMLFileName))
 	if err != nil {
-		// 如果是找不到目录，新建一个
-		log.Println("[DetectKeyword]: Not found database file. Created new one")
-		SaveKeywordList()
-		KeywordDataErr = err
-		return
+		if os.IsNotExist(err) {
+			// 如果找不到文件，则新建一个
+			logger.Warn().
+				Msg("Not found database file. Create a new one")
+			err = SaveKeywordList(ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Create empty database file failed")
+				KeywordDataErr = err
+				return err
+			}
+		} else {
+			// 其他错误
+			logger.Error().
+				Err(err).
+				Msg("Open database file failed")
+			KeywordDataErr = err
+			return err
+		}
 	}
 	defer file.Close()
 
+	// 解码 yaml 文件
 	decoder := yaml.NewDecoder(file)
 	err = decoder.Decode(&lists)
 	if err != nil {
 		if err == io.EOF {
-			log.Println("[DetectKeyword]: keyword list looks empty. now format it")
-			SaveKeywordList()
-			KeywordDataErr = nil
-			return
+			// 文件存在，但为空，则用空的数据库覆盖保存
+			logger.Warn().
+				Msg("Keyword list looks empty. now format it")
+			err = SaveKeywordList(ctx)
+			if err != nil {
+				// 保存空的数据库失败
+				logger.Error().
+					Err(err).
+					Msg("Create empty database file failed")
+				KeywordDataErr = err
+				return err
+			}
+		} else {
+			// 其他错误
+			logger.Error().
+				Err(err).
+				Msg("Failed to decode keyword list")
+			KeywordDataErr = err
+			return err
 		}
-		log.Println("(func)ReadKeywordList:", err)
-		KeywordDataErr = err
-		return
 	}
-	KeywordDataList, KeywordDataErr = lists, nil
+
+	// 一切正常
+	KeywordDataList = lists
+	return nil
 }
 
-func SaveKeywordList() error {
+func SaveKeywordList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "SaveKeywordList").
+		Logger()
+
 	data, err := yaml.Marshal(KeywordDataList)
 	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to marshal keyword list")
+		KeywordDataErr = err
 		return err
 	}
 
-	if _, err := os.Stat(KeywordData_path); os.IsNotExist(err) {
-		if err := os.MkdirAll(KeywordData_path, 0755); err != nil {
+	_, err = os.Stat(KeywordData_path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Str("path", KeywordData_path).
+				Msg("Keyword data directory not exist, now create it")
+			err = os.MkdirAll(KeywordData_path, 0755)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", KeywordData_path).
+					Msg("Failed to create keyword data directory")
+				KeywordDataErr = err
+				return err
+			}
+			logger.Trace().
+				Msg("Keyword data directory created successfully")
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", KeywordData_path).
+				Msg("Open keyword data directory failed")
+			KeywordDataErr = err
 			return err
 		}
 	}
 
-	if _, err := os.Stat(filepath.Join(KeywordData_path, consts.YAMLFileName)); os.IsNotExist(err) {
-		_, err := os.Create(filepath.Join(KeywordData_path, consts.YAMLFileName))
-		if err != nil {
+	_, err = os.Stat(filepath.Join(KeywordData_path, consts.YAMLFileName))
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Msg("Keyword data file not exist, now create it")
+			_, err := os.Create(filepath.Join(KeywordData_path, consts.YAMLFileName))
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to create keyword data file")
+				KeywordDataErr = err
+				return err
+			}
+			logger.Trace().
+				Msg("Keyword data file created successfully")
+		} else {
+			logger.Error().
+				Err(err).
+				Msg("Open keyword data file failed")
+			KeywordDataErr = err
 			return err
 		}
 	}
+	
 
-	return os.WriteFile(filepath.Join(KeywordData_path, consts.YAMLFileName), data, 0644)
+	err = os.WriteFile(filepath.Join(KeywordData_path, consts.YAMLFileName), data, 0644)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to write keyword data file")
+		KeywordDataErr = err
+		return err
+	}
+	logger.Trace().
+		Msg("Keyword data file write successfully")
+
+	return nil
 }
 
 func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "addKeywordHandler").
+		Logger()
+
 	if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
 		// 在群组中直接使用 /setkeyword 命令
 		chat := KeywordDataList.Chats[opts.Update.Message.Chat.ID]
@@ -217,23 +324,33 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 				}}}},
 			})
 			if err != nil {
-				log.Printf("Error response /setkeyword command disabled : %v", err)
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Msg("Send `function is disabled by admins` message failed")
 			}
 			return
 		} else {
 			if chat.AddTime == "" {
 				// 初始化群组
 				chat = KeywordChatList{
-					ChatID: opts.Update.Message.Chat.ID,
-					ChatName: opts.Update.Message.Chat.Title,
+					ChatID:       opts.Update.Message.Chat.ID,
+					ChatName:     opts.Update.Message.Chat.Title,
 					ChatUsername: opts.Update.Message.Chat.Username,
-					ChatType: opts.Update.Message.Chat.Type,
-					AddTime: time.Now().Format(time.RFC3339),
-					InitByID: opts.Update.Message.From.ID,
-					IsDisable: false,
+					ChatType:     opts.Update.Message.Chat.Type,
+					AddTime:      time.Now().Format(time.RFC3339),
+					InitByID:     opts.Update.Message.From.ID,
+					IsDisable:    false,
 				}
 				KeywordDataList.Chats[opts.Update.Message.Chat.ID] = chat
-				SaveKeywordList()
+				err := SaveKeywordList(opts.Ctx)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Msg("Error init chat and save keyword list")
+				}
 			}
 			if len(opts.Fields) == 1 {
 				// 只有一个 /setkeyword 命令
@@ -254,7 +371,10 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 					}}},
 				})
 				if err != nil {
-					log.Printf("Error response /setkeyword command: %v", err)
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Msg("Send /setkeyword command answer failed")
 				}
 			} else {
 				user := KeywordDataList.Users[opts.Update.Message.From.ID]
@@ -268,7 +388,13 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 						IsNotInit: true,
 					}
 					KeywordDataList.Users[opts.Update.Message.From.ID] = user
-					SaveKeywordList()
+					err := SaveKeywordList(opts.Ctx)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Dict(utils.GetUserDict(opts.Update.Message.From)).
+							Msg("Error add a not init user and save keyword list")
+					}
 				}
 
 				var isChatAdded bool = false
@@ -284,13 +410,21 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 					}
 				}
 				if !isChatAdded {
-					log.Println("init group", chat.ChatID, "to user", opts.Update.Message.From.ID)
+					logger.Debug().
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Msg("User add a chat to listen list by set keyword in group")
 					chatForUser = ChatForUser{
 						ChatID: chat.ChatID,
 					}
 					user.ChatsForUser = append(user.ChatsForUser, chatForUser)
 					KeywordDataList.Users[user.UserID] = user
-					SaveKeywordList()
+					err := SaveKeywordList(opts.Ctx)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Msg("Error add chat to user listen list and save keyword list")
+					}
 				}
 
 				// 限制关键词长度
@@ -302,7 +436,11 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 						ParseMode: models.ParseModeHTML,
 					})
 					if err != nil {
-						log.Printf("Error response /setkeyword command keyword too long: %v", err)
+						logger.Error().
+							Err(err).
+							Dict(utils.GetUserDict(opts.Update.Message.From)).
+							Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+							Msg("Send `keyword is too long` message failed")
 					}
 					return 
 				}
@@ -318,11 +456,23 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 					}
 				}
 				if !isKeywordExist {
-					log.Println("add keyword", keyword, "to user", opts.Update.Message.From.ID, "chat", chatForUser.ChatID)
+					logger.Debug().
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Int64("chatID", chatForUser.ChatID).
+						Str("keyword", keyword).
+						Msg("User add a keyword to chat")
 					chatForUser.Keyword = append(chatForUser.Keyword, keyword)
 					user.ChatsForUser[chatForUserIndex] = chatForUser
 					KeywordDataList.Users[user.UserID] = user
-					SaveKeywordList()
+					err := SaveKeywordList(opts.Ctx)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Dict(utils.GetUserDict(opts.Update.Message.From)).
+							Int64("chatID", chatForUser.ChatID).
+							Str("keyword", keyword).
+							Msg("Error add keyword and save keyword list")
+					}
 					if user.IsNotInit {
 						pendingMessage = fmt.Sprintf("已将 [ %s ] 添加到您的关键词列表\n<blockquote>若要在检测到关键词时收到提醒，请点击下方的按钮来初始化您的账号</blockquote>", strings.ToLower(opts.Fields[1]))
 					} else {
@@ -347,10 +497,13 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 					}}}},
 				})
 				if err != nil {
-					log.Printf("Error response /setkeyword command: %v", err)
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Msg("Send `keyword added` message failed")
 				}
 			}
-			
 		}
 	} else {
 		// 与机器人的私聊对话
@@ -365,7 +518,14 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 				IsSilentNotice: false,
 			}
 			KeywordDataList.Users[opts.Update.Message.From.ID] = user
-			SaveKeywordList()
+			err := SaveKeywordList(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Msg("Error init user and save keyword list")
+			}
+			
 		}
 		if len(user.ChatsForUser) == 0 {
 			// 没有添加群组
@@ -376,7 +536,10 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				log.Printf("Error response /setkeyword command: %v", err)
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Msg("Send `no group for user` message failed")
 			}
 			return
 		}
@@ -401,9 +564,16 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 						ParseMode: models.ParseModeHTML,
 					})
 					if err != nil {
-						log.Printf("Error response /setkeyword command keyword too long: %v", err)
+						logger.Error().
+							Err(err).
+							Dict("user", zerolog.Dict().
+								Str("name", utils.ShowUserName(opts.Update.Message.From)).
+								Str("username", opts.Update.Message.From.Username).
+								Int64("ID", opts.Update.Message.From.ID),
+							).
+							Msg("Send `keyword is too long` message failed")
 					}
-					return 
+					return
 				}
 
 				keyword := strings.ToLower(opts.Fields[1])
@@ -421,10 +591,28 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 						}
 					}
 					if !isKeywordExist {
-						log.Println("add global keyword", keyword, "to user", opts.Update.Message.From.ID)
+						logger.Debug().
+							Dict("user", zerolog.Dict().
+								Str("name", utils.ShowUserName(opts.Update.Message.From)).
+								Str("username", opts.Update.Message.From.Username).
+								Int64("ID", opts.Update.Message.From.ID),
+							).
+							Str("globalKeyword", keyword).
+							Msg("User add a global keyword")
 						user.GlobalKeyword = append(user.GlobalKeyword, keyword)
 						KeywordDataList.Users[user.UserID] = user
-						SaveKeywordList()
+						err := SaveKeywordList(opts.Ctx)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict("user", zerolog.Dict().
+									Str("name", utils.ShowUserName(opts.Update.Message.From)).
+									Str("username", opts.Update.Message.From.Username).
+									Int64("ID", opts.Update.Message.From.ID),
+								).
+								Str("globalKeyword", keyword).
+								Msg("Error add global keyword and save keyword list")
+						}
 						pendingMessage = fmt.Sprintf("已添加全局关键词: [ %s ]", opts.Fields[1])
 					} else {
 						pendingMessage = fmt.Sprintf("此全局关键词 [ %s ] 已存在", opts.Fields[1])
@@ -441,11 +629,32 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 						}
 					}
 					if !isKeywordExist {
-						log.Println("add keyword", keyword, "to user", opts.Update.Message.From.ID, "chat", chatForUser.ChatID)
+						logger.Debug().
+							Dict("user", zerolog.Dict().
+								Str("name", utils.ShowUserName(opts.Update.Message.From)).
+								Str("username", opts.Update.Message.From.Username).
+								Int64("ID", opts.Update.Message.From.ID),
+							).
+							Int64("chatID", chatForUser.ChatID).
+							Str("keyword", keyword).
+							Msg("User add a keyword to chat")
 						chatForUser.Keyword = append(chatForUser.Keyword, keyword)
 						user.ChatsForUser[chatForUserIndex] = chatForUser
 						KeywordDataList.Users[user.UserID] = user
-						SaveKeywordList()
+						err := SaveKeywordList(opts.Ctx)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict("user", zerolog.Dict().
+									Str("name", utils.ShowUserName(opts.Update.Message.From)).
+									Str("username", opts.Update.Message.From.Username).
+									Int64("ID", opts.Update.Message.From.ID),
+								).
+								Int64("chatID", chatForUser.ChatID).
+								Str("keyword", keyword).
+								Msg("Error add keyword and save keyword list")
+						}
+						
 						pendingMessage = fmt.Sprintf("已为 <a href=\"https://t.me/c/%s/\">%s</a> 群组添加关键词 [ %s ]，您可以继续向此群组添加更多关键词\n", utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName, strings.ToLower(opts.Fields[1]))
 					} else {
 						pendingMessage = fmt.Sprintf("此关键词 [ %s ] 已存在于 <a href=\"https://t.me/c/%s/\">%s</a> 群组中，您可以继续向此群组添加其他关键词", opts.Fields[1], utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName)
@@ -477,7 +686,14 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 					ReplyMarkup: button,
 				})
 				if err != nil {
-					log.Printf("Error response /setkeyword command success: %v", err)
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(opts.Update.Message.From)).
+							Str("username", opts.Update.Message.From.Username).
+							Int64("ID", opts.Update.Message.From.ID),
+						).
+						Msg("Send `keyword added` message failed")
 				}
 			} else {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -488,7 +704,14 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 					ReplyMarkup: user.selectChat(),
 				})
 				if err != nil {
-					log.Printf("Error response /setkeyword command: %v", err)
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(opts.Update.Message.From)).
+							Str("username", opts.Update.Message.From.Username).
+							Int64("ID", opts.Update.Message.From.ID),
+						).
+						Msg("Send `not selected chat yet` message failed")
 				}
 			}
 		} else {
@@ -500,7 +723,14 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 				ReplyMarkup: buildUserChatList(user),
 			})
 			if err != nil {
-				log.Printf("Error response /setkeyword command: %v", err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(opts.Update.Message.From)).
+						Str("username", opts.Update.Message.From.Username).
+						Int64("ID", opts.Update.Message.From.ID),
+					).
+					Msg("Send `user group list keyboart` message failed")
 			}
 		}
 	}
@@ -534,7 +764,7 @@ func buildListenList() {
 	}
 }
 
-func KeywordDetector(opts *handler_structs.SubHandlerParams) {
+func KeywordDetector(opts *handler_structs.SubHandlerParams) error {
 	var text string
 	if opts.Update.Message.Caption != "" {
 		text = strings.ToLower(opts.Update.Message.Caption)
@@ -580,6 +810,12 @@ func KeywordDetector(opts *handler_structs.SubHandlerParams) {
 }
 
 func notifyUser(opts *handler_structs.SubHandlerParams, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "notifyUser").
+		Logger()
+
 	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -596,19 +832,37 @@ func notifyUser(opts *handler_structs.SubHandlerParams, user KeywordUserList, ch
 		DisableNotification: user.IsSilentNotice,
 	})
 	if err != nil {
-		log.Printf("Error response /setkeyword command: %v", err)
+		logger.Error().
+			Err(err).
+			Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+			Int64("userID", user.UserID).
+			Str("keyword", keyword).
+			Msg("Send `keyword notice to user` message failed")
 	}
 	user.MentionCount++
 	KeywordDataList.Users[user.UserID] = user
 }
 
 func groupManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "groupManageCallbackHandler").
+		Logger()
+
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.CallbackQuery.Message.Message.Chat.ID, opts.Update.CallbackQuery.From.ID) {
-		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,
 			Text: "您没有权限修改此配置",
 			ShowAlert: true,
 		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+				Msg("Send `no permission to change group functions` callback answer failed")
+		}
 		return
 	}
 
@@ -619,7 +873,14 @@ func groupManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 		chat.IsDisable = !chat.IsDisable
 		KeywordDataList.Chats[opts.Update.CallbackQuery.Message.Message.Chat.ID] = chat
 		buildListenList()
-		SaveKeywordList()
+		err := SaveKeywordList(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+				Msg("Send `the group function switch has changed` callback answer failed")
+		}
 	}
 
 	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
@@ -629,11 +890,20 @@ func groupManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 		ReplyMarkup: buildGroupManageKB(chat),
 	})
 	if err != nil {
-		fmt.Println(err)
+		logger.Error().
+			Err(err).
+			Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+			Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+			Msg("Edit message to `group function manager keyboard` failed")
 	}
 }
 
 func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "userManageCallbackHandler").
+		Logger()
 	user := KeywordDataList.Users[opts.Update.CallbackQuery.From.ID]
 
 	switch opts.Update.CallbackQuery.Data {
@@ -651,11 +921,22 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 		user.AddingChatID = 0
 	case "detectkw_mng_chatdisablebyadmin":
 		// 目标群组的管理员为群组关闭了此功能
-		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,
 			Text:            "此群组的的管理员禁用了此功能，因此，您无法再收到来自该群组的关键词提醒，您可以询问该群组的管理员是否可以重新开启这个功能",
 			ShowAlert:       true,
 		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict("user", zerolog.Dict().
+					Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+					Str("username", opts.Update.CallbackQuery.From.Username).
+					Int64("ID", opts.Update.CallbackQuery.From.ID),
+				).
+				Msg("Send `this group is disable by admins` callback answer failed")
+		}
+		return
 	default:
 		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") || strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_delkw_") {
 		// 撤销添加或删除关键词
@@ -668,10 +949,20 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			chatIDAndKeywordList := strings.Split(chatIDAndKeyword, "_")
 			chatID, err := strconv.ParseInt(chatIDAndKeywordList[0], 10, 64)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Parse chat ID failed when user undo add or delete a keyword")
+				return
 			}
 
+			// 删除关键词过程
 			if chatID == user.UserID {
+				// 全局关键词
 				var tempKeyword []string
 				for _, keyword := range user.GlobalKeyword {
 					if keyword != chatIDAndKeywordList[1] {
@@ -681,6 +972,7 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 				user.GlobalKeyword = tempKeyword
 				KeywordDataList.Users[user.UserID] = user
 			} else {
+				// 群组关键词
 				for index, chatForUser := range KeywordDataList.Users[user.UserID].ChatsForUser {
 					if chatForUser.ChatID == chatID {
 						var tempKeyword []string
@@ -694,7 +986,17 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 					KeywordDataList.Users[user.UserID].ChatsForUser[index] = chatForUser
 				}
 			}
-			SaveKeywordList()
+			err = SaveKeywordList(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Error undo add or remove keyword and save keyword list")
+			}
 
 			if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_undo_") {
 				_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
@@ -704,7 +1006,14 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 					ParseMode: models.ParseModeHTML,
 				})
 				if err != nil {
-					fmt.Println(err)
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+							Str("username", opts.Update.CallbackQuery.From.Username).
+							Int64("ID", opts.Update.CallbackQuery.From.ID),
+						).
+						Msg("Edit message to `add keyword has been canceled` failed")
 				}
 			} else {
 				var buttons [][]models.InlineKeyboardButton
@@ -727,6 +1036,8 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 						}
 					}
 				}
+
+				// bug here
 
 				var pendingMessage string
 				if chatID == user.UserID {
@@ -756,7 +1067,14 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 					},
 				})
 				if err != nil {
-					fmt.Println(err)
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+							Str("username", opts.Update.CallbackQuery.From.Username).
+							Int64("ID", opts.Update.CallbackQuery.From.ID),
+						).
+						Msg("Edit message to `chat keyword list keyboard with deleted keyword notice` failed")
 				}
 			}
 			
@@ -766,13 +1084,32 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			chatID := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_adding_")
 			chatID_int64, err := strconv.ParseInt(chatID, 10, 64)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Parse chat ID failed when user selecting chat to add keyword")
+				return
 			}
 			user := KeywordDataList.Users[user.UserID]
 			user.AddingChatID = chatID_int64
 			KeywordDataList.Users[user.UserID] = user
 			buildListenList()
-			SaveKeywordList()
+			err = SaveKeywordList(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Error set a chat ID for user add keyword and save keyword list")
+
+			}
 
 			var pendingMessage string
 			if chatID_int64 == user.UserID {
@@ -788,7 +1125,14 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Edit message to `already to add keyword` failed")
 			}
 			return
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_switch_chat_") {
@@ -796,7 +1140,15 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			id := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_switch_chat_")
 			id_int64, err := strconv.ParseInt(id, 10, 64)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Parse chat ID failed when user change the group switch")
+				return
 			}
 			for index, chat := range KeywordDataList.Users[opts.Update.CallbackQuery.From.ID].ChatsForUser {
 				if chat.ChatID == id_int64 {
@@ -809,7 +1161,15 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 			chatID := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_chat_")
 			chatID_int64, err := strconv.ParseInt(chatID, 10, 64)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Parse chat ID failed when user wanna manage keyword for group")
+				return
 			}
 			var buttons [][]models.InlineKeyboardButton
 			var tempbutton []models.InlineKeyboardButton
@@ -884,14 +1244,32 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 				},
 			})
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Edit message to `group keyword list keyboard` failed")
 			}
 			return
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_kw_") {
 		// 删除某个关键词
 			chatIDAndKeyword := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "detectkw_mng_kw_")
 			chatIDAndKeywordList := strings.Split(chatIDAndKeyword, "_")
-			chatID, _ := strconv.ParseInt(chatIDAndKeywordList[0], 10, 64)
+			chatID, err := strconv.ParseInt(chatIDAndKeywordList[0], 10, 64)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Parse chat ID failed when user wanna manage a keyword")
+				return
+			}
 
 			var pendingMessage string
 
@@ -901,7 +1279,7 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 				pendingMessage = fmt.Sprintf("[ %s ] 是为 <a href=\"https://t.me/c/%s/\">%s</a> 群组设定的关键词", chatIDAndKeywordList[1], utils.RemoveIDPrefix(chatID), KeywordDataList.Chats[chatID].ChatName)
 			}
 
-			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 				Text: pendingMessage,
@@ -918,7 +1296,14 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+						Str("username", opts.Update.CallbackQuery.From.Username).
+						Int64("ID", opts.Update.CallbackQuery.From.ID),
+					).
+					Msg("Edit message to `keyword manager keyboard` failed")
 			}
 			return
 		}
@@ -931,12 +1316,30 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) {
 		ReplyMarkup: buildUserChatList(user),
 	})
 	if err != nil {
-		fmt.Println(err)
+		logger.Error().
+			Err(err).
+			Dict("user", zerolog.Dict().
+				Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+				Str("username", opts.Update.CallbackQuery.From.Username).
+				Int64("ID", opts.Update.CallbackQuery.From.ID),
+			).
+			Msg("Edit message to `main manager keyboard` failed")
 	}
 
 	KeywordDataList.Users[opts.Update.CallbackQuery.From.ID] = user
 	buildListenList()
-	SaveKeywordList()
+	err = SaveKeywordList(opts.Ctx)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Dict("user", zerolog.Dict().
+				Str("name", utils.ShowUserName(opts.Update.Message.From)).
+				Str("username", opts.Update.Message.From.Username).
+				Int64("ID", opts.Update.Message.From.ID),
+			).
+			Str("callbackQuery", opts.Update.CallbackQuery.Data).
+			Msg("Error add user and save keyword list")
+	}
 }
 
 func buildGroupManageKB(chat KeywordChatList) models.ReplyMarkup {
@@ -953,6 +1356,12 @@ func buildGroupManageKB(chat KeywordChatList) models.ReplyMarkup {
 }
 
 func startPrefixAddGroup(opts *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "startPrefixAddGroup").
+		Logger()
+
 	user := KeywordDataList.Users[opts.Update.Message.From.ID]
 	if user.AddTime == "" {
 		// 初始化用户
@@ -964,20 +1373,45 @@ func startPrefixAddGroup(opts *handler_structs.SubHandlerParams) {
 			IsSilentNotice: false,
 		}
 		KeywordDataList.Users[user.UserID] = user
-		SaveKeywordList()
+		err := SaveKeywordList(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict("user", zerolog.Dict().
+					Str("name", utils.ShowUserName(opts.Update.Message.From)).
+					Str("username", opts.Update.Message.From.Username).
+					Int64("ID", opts.Update.Message.From.ID),
+				).
+				Msg("Error add user and save keyword list")
+		}
 	}
 	if user.IsNotInit {
-		// 用户之前仅在群组内发送了命令，但并没有点击机器人来初始化
+		// 用户之前仅在群组内发送命令添加了关键词，但并没有点击机器人来初始化
 		user.IsNotInit = false
 		KeywordDataList.Users[user.UserID] = user
 		buildListenList()
-		SaveKeywordList()
+		err := SaveKeywordList(opts.Ctx)
+		logger.Error().
+			Err(err).
+			Dict("user", zerolog.Dict().
+				Str("name", utils.ShowUserName(opts.Update.Message.From)).
+				Str("username", opts.Update.Message.From.Username).
+				Int64("ID", opts.Update.Message.From.ID),
+			).
+			Msg("Error init user and save keyword list")
 	}
 	if strings.HasPrefix(opts.Fields[1], "detectkw_addgroup_") {
 		groupID := strings.TrimPrefix(opts.Fields[1], "detectkw_addgroup_")
 		groupID_int64, err := strconv.ParseInt(groupID, 10, 64)
 		if err != nil {
-			fmt.Println("format groupID error:", err)
+			logger.Error().
+				Err(err).
+				Dict("user", zerolog.Dict().
+					Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+					Str("username", opts.Update.CallbackQuery.From.Username).
+					Int64("ID", opts.Update.CallbackQuery.From.ID),
+				).
+				Msg("Parse chat ID failed when user add a group by /start command")
 			return
 		}
 
@@ -992,7 +1426,10 @@ func startPrefixAddGroup(opts *handler_structs.SubHandlerParams) {
 			}
 		}
 		if !IsAdded {
-			log.Println("add group", groupID_int64, "to user", opts.Update.Message.From.ID)
+			logger.Debug().
+				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+				Dict(utils.GetUserDict(opts.Update.Message.From)).
+				Msg("User add a chat to listen list by /start command")
 			user.ChatsForUser = append(user.ChatsForUser, ChatForUser{
 				ChatID: groupID_int64,
 			})
@@ -1009,10 +1446,27 @@ func startPrefixAddGroup(opts *handler_structs.SubHandlerParams) {
 			ReplyMarkup: buildUserChatList(user),
 		})
 		if err != nil {
-			fmt.Println(err)
+			logger.Error().
+				Err(err).
+				Dict("user", zerolog.Dict().
+					Str("name", utils.ShowUserName(opts.Update.Message.From)).
+					Str("username", opts.Update.Message.From.Username).
+					Int64("ID", opts.Update.Message.From.ID),
+				).
+				Msg("Send `added group in user list` message failed")
 		}
 	}
-	SaveKeywordList()
+	err := SaveKeywordList(opts.Ctx)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Dict("user", zerolog.Dict().
+				Str("name", utils.ShowUserName(opts.Update.Message.From)).
+				Str("username", opts.Update.Message.From.Username).
+				Int64("ID", opts.Update.Message.From.ID),
+			).
+			Msg("Error add group for user and save keyword list failed")
+	}
 
 }
 

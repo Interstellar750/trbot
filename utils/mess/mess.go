@@ -37,12 +37,11 @@ func PrintLogAndSave(message string) {
 }
 
 // 从 log.txt 读取文件
-func ReadLog() []string {
+func ReadLog() ([]string, error) {
 	// 打开日志文件
 	file, err := os.Open(consts.LogFilePath)
 	if err != nil {
-		log.Println(err)
-		return nil
+		return nil, err
 	}
 	defer file.Close()
 
@@ -54,10 +53,9 @@ func ReadLog() []string {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Println(err)
-		return nil
+		return nil, err
 	}
-	return lines
+	return lines, nil
 }
 
 func PrivateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Update) {

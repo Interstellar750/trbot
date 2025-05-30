@@ -1,14 +1,16 @@
 package plugin_utils
 
 import (
+	"context"
 	"fmt"
-	"log"
+
+	"github.com/rs/zerolog"
 )
 
 type DatabaseHandler struct {
 	Name   string
-	Loader func()
-	Saver  func() error
+	Loader func(ctx context.Context) error
+	Saver  func(ctx context.Context) error
 }
 
 func AddDataBaseHandler(InlineHandlerPlugins ...DatabaseHandler) int {
@@ -23,31 +25,61 @@ func AddDataBaseHandler(InlineHandlerPlugins ...DatabaseHandler) int {
 	return pluginCount
 }
 
-func ReloadPluginsDatabase() {
-	for _, plugin := range AllPlugins.Databases {
-		if plugin.Loader == nil {
-			log.Printf("Plugin [%s] has no loader function, skipping", plugin.Name)
-			continue
-		}
-		plugin.Loader()
-	}
-}
+func ReloadPluginsDatabase(ctx context.Context) string {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("funcName", "ReloadPluginsDatabase").
+		Logger()
 
-func SavePluginsDatabase() string {
 	dbCount := len(AllPlugins.Databases)
 	successCount := 0
 	for _, plugin := range AllPlugins.Databases {
-		if plugin.Saver == nil { 
-			log.Printf("Plugin [%s] has no saver function, skipping", plugin.Name)
-			successCount++
+		if plugin.Loader == nil {
+			logger.Warn().
+				Str("pluginName", plugin.Name).
+				Msg("Plugin has no loader function, skipping")
 			continue
 		}
-		err := plugin.Saver()
+		err := plugin.Loader(ctx)
 		if err != nil {
-			log.Printf("Plugin [%s] failed to save: %s", plugin.Name, err)
+			logger.Error().
+				Err(err).
+				Str("pluginName", plugin.Name).
+				Msg("Plugin failed to reload database")
 		} else {
 			successCount++
 		}
 	}
-	return fmt.Sprintf("[plugin_utils] Saved (%d/%d) plugins database", successCount, dbCount)
+	return fmt.Sprintf("Reload (%d/%d) plugins database", successCount, dbCount)
+
+}
+
+func SavePluginsDatabase(ctx context.Context) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("funcName", "SavePluginsDatabase").
+		Logger()
+
+	dbCount := len(AllPlugins.Databases)
+	successCount := 0
+	for _, plugin := range AllPlugins.Databases {
+		if plugin.Saver == nil {
+			logger.Warn().
+				Str("pluginName", plugin.Name).
+				Msg("Plugin has no saver function, skipping")
+			successCount++
+			continue
+		}
+		err := plugin.Saver(ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("pluginName", plugin.Name).
+				Msg("Plugin failed to reload database")
+		} else {
+			successCount++
+		}
+	}
+
+	logger.Info().Msgf("[plugin_utils] Saved (%d/%d) plugins database", successCount, dbCount)
 }

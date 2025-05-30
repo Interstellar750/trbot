@@ -2,14 +2,14 @@ package plugin_utils
 
 import (
 	"fmt"
-	"log"
 	"strings"
-	"trbot/utils/consts"
+	"trbot/utils"
 	"trbot/utils/handler_structs"
 	"trbot/utils/type_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 )
 
 type HandlerByMessageTypeFunctions map[string]HandlerByMessageType
@@ -34,7 +34,7 @@ type HandlerByMessageType struct {
 	ChatType         models.ChatType
 	MessageType      type_utils.MessageTypeList
 	AllowAutoTrigger bool // Allow auto trigger when there is only one handler of the same type
-	Handler          func(*handler_structs.SubHandlerParams)
+	Handler          func(*handler_structs.SubHandlerParams) error
 }
 
 /*
@@ -88,33 +88,89 @@ func RemoveHandlerByMessageTypePlugin(chatType models.ChatType, messageType type
 	}
 }
 
-func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerParams) {
+func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerParams) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("funcName", "SelectHandlerByMessageTypeHandlerCallback").
+		Logger()
+
 	var chatType, messageType, pluginName string
-	var chatTypeMessageTypeAndPluginName string
+	var chatTypeMessageTypeAndPluginName  string
+
 	if strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") {
-		chatTypeMessageTypeAndPluginName = strings.TrimPrefix(opts.Update.CallbackQuery.Data, "HBMT_")
-		chatTypeAndPluginNameList := strings.Split(chatTypeMessageTypeAndPluginName, "_")
-		if len(chatTypeAndPluginNameList) < 3 { return }
+		chatTypeMessageTypeAndPluginName =  strings.TrimPrefix(opts.Update.CallbackQuery.Data, "HBMT_")
+		chatTypeAndPluginNameList        := strings.Split(chatTypeMessageTypeAndPluginName, "_")
+		if len(chatTypeAndPluginNameList) < 3 {
+			err := fmt.Errorf("no enough fields")
+			logger.Error().
+				Err(err).
+				Dict("user", zerolog.Dict().
+					Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+					Str("username", opts.Update.CallbackQuery.From.Username).
+					Int64("ID", opts.Update.CallbackQuery.From.ID),
+				).
+				Str("CallbackQuery", opts.Update.CallbackQuery.Data).
+				Msg("User selected callback query doesn't have enough fields")
+			return err
+		}
 		chatType, messageType, pluginName = chatTypeAndPluginNameList[0], chatTypeAndPluginNameList[1], chatTypeAndPluginNameList[2]
 		handler, isExist := AllPlugins.HandlerByMessageType[models.ChatType(chatType)][type_utils.MessageTypeList(messageType)][pluginName]
 		if isExist {
-			if consts.IsDebugMode {
-				log.Printf("select handler by message type [%s] plugin [%s] for chat type [%s]", messageType, pluginName, chatType)
-			}
+			logger.Debug().
+				Dict("user", zerolog.Dict().
+					Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
+					Str("username", opts.Update.CallbackQuery.From.Username).
+					Int64("ID", opts.Update.CallbackQuery.From.ID),
+				).
+				Str("messageType", messageType).
+				Str("pluginName", pluginName).
+				Str("chatType", chatType).
+				Msg("User selected a handler by message")
 			// if opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
 			// 	opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
 			// }
-			handler.Handler(opts)
-			opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+			err := handler.Handler(opts)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("handerChatType", string(handler.ChatType)).
+					Str("handlerMessageType", string(handler.MessageType)).
+					Bool("allowAutoTrigger", handler.AllowAutoTrigger).
+					Str("handlerName", handler.PluginName).
+					Msg("Error in handler by message type")
+				return err
+			}
+			_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 				ChatID:    opts.Update.CallbackQuery.From.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+				Msg("Delete `select handler by message type keyboard` message failed")
+				return err
+			}
 		} else {
-			opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: opts.Update.CallbackQuery.ID,
 				Text: fmt.Sprintf("此功能 [ %s ] 不可用，可能是管理员已经移除了这个功能", pluginName),
 				ShowAlert: true,
 			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+				Msg("Send `handler by message type is not exist` callback answer failed")
+				return err
+			}
 		}
 	}
+	logger.Warn().
+		Str("callbackQuery", opts.Update.CallbackQuery.Data).
+		Msg("Receive an invalid callback query, it should start with `HBMT_`")
+	return nil
 }

@@ -23,6 +23,8 @@ func main() {
 	defer cancel()
 
 	// create a logger and attached it into ctx
+	// logger := log.Output(os.Stderr)
+	// log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	logger := log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	ctx = logger.WithContext(ctx)
 
@@ -64,7 +66,7 @@ func main() {
 	go signals.SignalsHandler(ctx)
 
 	// register plugin (internal first, then external)
-	internal_plugin.Register()
+	internal_plugin.Register(ctx)
 
 	// Select mode by Webhook config
 	if configs.IsUsingWebhook(ctx) { // Webhook

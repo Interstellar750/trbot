@@ -13,9 +13,15 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 )
 
 func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "ReadSavedMessageList").
+		Logger()
 	UserSavedMessage := SavedMessageSet[opts.Update.Message.From.ID]
 
 	messageParams := &bot.SendMessageParams{
@@ -125,7 +131,19 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.OnlyText[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict("user", zerolog.Dict().
+									Str("name", utils.ShowUserName(opts.Update.Message.From)).
+									Str("username", opts.Update.Message.From.Username).
+									Int64("ID", opts.Update.Message.From.ID),
+								).
+								Msg("Update user saved `OnlyText` item keyword and save savedmessage list failed")
+							SavedMessageErr = err
+							return
+						}
 					}
 					break
 				}
@@ -143,7 +161,19 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(opts.Update.Message.From)).
+							Str("username", opts.Update.Message.From.Username).
+							Int64("ID", opts.Update.Message.From.ID),
+						).
+						Msg("Add `OnlyText` item to user saved list and save savedmessage list failed")
+					SavedMessageErr = err
+					return
+				}
 				messageParams.Text = "已保存文本"
 			}
 		} else if opts.Update.Message.ReplyToMessage.Audio != nil {
@@ -163,7 +193,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Audio[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -182,7 +212,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存音乐"
 			}
 		} else if opts.Update.Message.ReplyToMessage.Animation != nil {
@@ -202,7 +232,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Mpeg4gif[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -220,7 +250,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存 GIF"
 			}
 		} else if opts.Update.Message.ReplyToMessage.Document != nil {
@@ -241,7 +271,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 							n.Description = DescriptionText
 							UserSavedMessage.Item.Gif[i] = n
 							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-							SaveSavedMessageList()
+							err := SaveSavedMessageList(opts.Ctx)
 						}
 						break
 					}
@@ -258,7 +288,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 					UserSavedMessage.Count++
 					UserSavedMessage.SavedTimes++
 					SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-					SaveSavedMessageList()
+					err := SaveSavedMessageList(opts.Ctx)
 					messageParams.Text = "已保存 GIF (文件)"
 				}
 			} else {
@@ -278,7 +308,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 							n.Description = DescriptionText
 							UserSavedMessage.Item.Document[i] = n
 							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-							SaveSavedMessageList()
+							err := SaveSavedMessageList(opts.Ctx)
 						}
 						break
 					}
@@ -296,7 +326,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 					UserSavedMessage.Count++
 					UserSavedMessage.SavedTimes++
 					SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-					SaveSavedMessageList()
+					err := SaveSavedMessageList(opts.Ctx)
 					messageParams.Text = "已保存文件"
 				}
 			}
@@ -317,7 +347,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Photo[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -336,7 +366,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存图片"
 			}
 		} else if opts.Update.Message.ReplyToMessage.Sticker != nil {
@@ -356,7 +386,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Sticker[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -388,7 +418,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存贴纸"
 			}
 
@@ -409,7 +439,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Video[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -427,7 +457,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存视频"
 			}
 
@@ -448,7 +478,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.VideoNote[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -464,7 +494,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存圆形视频"
 			}
 
@@ -485,7 +515,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 						n.Description = DescriptionText
 						UserSavedMessage.Item.Voice[i] = n
 						SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-						SaveSavedMessageList()
+						err := SaveSavedMessageList(opts.Ctx)
 					}
 					break
 				}
@@ -503,7 +533,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) {
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
 				SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
-				SaveSavedMessageList()
+				err := SaveSavedMessageList(opts.Ctx)
 				messageParams.Text = "已保存语音"
 			}
 		} else {
@@ -694,6 +724,12 @@ func SendPrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 }
 
 func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "AgreePrivacyPolicy").
+		Logger()
+
 	var UserSavedMessage SavedMessage
 	// , ok := consts.Database.Data.SavedMessage[opts.ChatInfo.ID]
 	if len(SavedMessageSet) == 0 {
@@ -702,8 +738,21 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 	}
 	UserSavedMessage.AgreePrivacyPolicy = true
 	SavedMessageSet[opts.ChatInfo.ID] = UserSavedMessage
-	SaveSavedMessageList()
-	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+	err := SaveSavedMessageList(opts.Ctx)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Dict("user", zerolog.Dict().
+				Str("name", utils.ShowUserName(opts.Update.Message.From)).
+				Str("username", opts.Update.Message.From.Username).
+				Int64("ID", opts.Update.Message.From.ID),
+			).
+			Msg("Change user `AgreePrivacyPolicy` flag to true and save savemessage list failed")
+		SavedMessageErr = err
+		return
+	}
+
+	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID:          opts.Update.Message.Chat.ID,
 		Text:            "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
 		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
@@ -713,12 +762,23 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 		}}}},
 	})
 	if err != nil {
-		log.Println("error when send savedmessage_privacy_policy_agree:", err)
+		logger.Error().
+			Err(err).
+			Dict("user", zerolog.Dict().
+				Str("name", utils.ShowUserName(opts.Update.Message.From)).
+				Str("username", opts.Update.Message.From.Username).
+				Int64("ID", opts.Update.Message.From.ID),
+			).
+			Msg("Send `saved message function enabled` message failed")
 	}
 }
 
 func Init() {
-	ReadSavedMessageList()
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
+		Name: "Saved Message",
+		Func: ReadSavedMessageList,
+	})
+	// ReadSavedMessageList()
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "Saved Message",
 		Saver:  SaveSavedMessageList,

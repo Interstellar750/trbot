@@ -7,6 +7,7 @@ import (
 )
 
 type Plugin_All struct {
+	Initializer         []Initializer
 	Databases           []DatabaseHandler
 
 	HandlerHelp         []HandlerHelp

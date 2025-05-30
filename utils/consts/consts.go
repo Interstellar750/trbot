@@ -8,7 +8,7 @@ var IsDebugMode bool
 
 var WebhookListenPort string = "localhost:2847"
 
-var YAMLDataBasePath string = "./DB_yaml/"
+var YAMLDataBasePath string = "./db_yaml/"
 var YAMLFileName     string = "metadata.yaml"
 
 var CacheDirectory   string = "./cache/"

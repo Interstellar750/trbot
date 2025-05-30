@@ -8,15 +8,14 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"trbot/database/db_struct"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/mess"
-	"trbot/utils/plugin_utils"
 	"trbot/utils/type_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 )
 
 // 如果 target 是 candidates 的一部分, 返回 true
@@ -360,6 +359,7 @@ func CommandMaybeWithSuffixUsername(commandFields []string, command string) bool
 	return false
 }
 
+// return user fullname
 func ShowUserName(user *models.User) string {
 	if user.LastName != "" {
 		return user.FirstName + " " + user.LastName
@@ -368,6 +368,7 @@ func ShowUserName(user *models.User) string {
 	}
 }
 
+// return chat fullname
 func ShowChatName(chat *models.Chat) string {
 	if chat.Title != "" { // 群组
 		return chat.Title
@@ -376,44 +377,6 @@ func ShowChatName(chat *models.Chat) string {
 	} else {
 		return chat.FirstName
 	}
-}
-
-// 构建一个用于选择 Inline 模式下默认命令的按钮键盘
-func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) models.ReplyMarkup {
-	var inlinePlugins [][]models.InlineKeyboardButton
-	for _, v := range plugin_utils.AllPlugins.InlineCommandList {
-		if v.Attr.IsCantBeDefault {
-			continue
-		}
-		if chatInfo.DefaultInlinePlugin == v.Command {
-			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("✅ [ %s%s ] - %s", configs.BotConfig.InlineSubCommandSymbol, v.Command, v.Description),
-				CallbackData: "inline_default_" + v.Command,
-			}})
-		} else {
-			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("[ %s%s ] - %s", configs.BotConfig.InlineSubCommandSymbol, v.Command, v.Description),
-				CallbackData: "inline_default_" + v.Command,
-			}})
-		}
-	}
-	
-	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{
-		{
-			Text: "取消默认命令",
-			CallbackData: "inline_default_none",
-		},
-		{
-			Text: "浏览 inline 命令菜单",
-			SwitchInlineQueryCurrentChat: "+",
-		},
-	})
-
-	kb := &models.InlineKeyboardMarkup{
-		InlineKeyboard: inlinePlugins,
-	}
-
-	return kb
 }
 
 // 如果一个 int64 类型的 ID 为 `-100`` 开头的负数，则去掉 `-100``
@@ -472,4 +435,26 @@ func PanicCatcher(pluginName string) {
 	if panic != nil {
 		mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [%s]: \"%v\"\nStack: %s", pluginName, panic, getCurrentGoroutineStack()))
 	}
+}
+
+// return a "user" string and a `zerolog.Dict()` with `name`(string), `username`(string), `ID`(int64) *zerolog.Event
+func GetUserDict(user *models.User) (string, *zerolog.Event) {
+	if user == nil {
+		return "user", zerolog.Dict()
+	}
+	return "user", zerolog.Dict().
+		Str("name", ShowUserName(user)).
+		Str("username", user.Username).
+		Int64("ID", user.ID)
+}
+
+// return a "chat" string and a `zerolog.Dict()` with `name`(string), `username`(string), `ID`(int64) *zerolog.Event
+func GetChatDict(chat *models.Chat) (string, *zerolog.Event) {
+	if chat == nil {
+		return "chat", zerolog.Dict()
+	}
+	return "chat", zerolog.Dict().
+		Str("name", ShowChatName(chat)).
+		Str("username", chat.Username).
+		Int64("ID", chat.ID)
 }

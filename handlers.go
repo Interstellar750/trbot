@@ -24,8 +24,10 @@ import (
 
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	defer utils.PanicCatcher("defaultHandler")
-	logger := zerolog.Ctx(ctx)
-
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("funcName", "defaultHandler").
+		Logger()
 
 	var err error
 	var opts = handler_structs.SubHandlerParams{
@@ -38,40 +40,58 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	if update.Message != nil {
 		// 正常消息
 		opts.Fields = strings.Fields(update.Message.Text)
-		database.InitChat(opts.Ctx, &update.Message.Chat)
-		database.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, db_struct.MessageNormal)
-		database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, db_struct.LatestMessage, update.Message.Text)
+		err = database.InitChat(opts.Ctx, &update.Message.Chat)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Msg("Init chat failed")
+		}
+		err = database.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, db_struct.MessageNormal)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Msg("Incremental usage count failed")
+		}
+		err = database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, db_struct.LatestMessage, update.Message.Text)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Msg("Record latest message failed")
+		}
 		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
 		if err != nil {
 			logger.Warn().
 				Err(err).
-				Int64("chatID", update.Message.Chat.ID).
-				Msg("Get chatinfo error")	
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Msg("Get chat info error")
 		}
 		if consts.IsDebugMode {
 			if update.Message.Photo != nil {
 				logger.Debug().
-					Str("user", fmt.Sprintf("%s(%s)[%d]", utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID)).
-					Str("chat", fmt.Sprintf("%s(%s)[%d]", utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID)).
+					Dict(utils.GetUserDict(update.Message.From)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("caption", update.Message.Caption).
-					Msg("photo message")
+					Msg("photoMessage")
 			} else if update.Message.Sticker != nil {
 				logger.Debug().
-					Str("user", fmt.Sprintf("%s(%s)[%d]", utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID)).
-					Str("chat", fmt.Sprintf("%s(%s)[%d]", utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID)).
+					Dict(utils.GetUserDict(update.Message.From)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
-					Str("sticker emoji", update.Message.Sticker.Emoji).
-					Str("sticker setname", update.Message.Sticker.SetName).
-					Str("sticker file ID", update.Message.Sticker.FileID).
-					Msg("sticker message")
+					Str("stickerEmoji", update.Message.Sticker.Emoji).
+					Str("stickerSetname", update.Message.Sticker.SetName).
+					Str("stickerFileID", update.Message.Sticker.FileID).
+					Msg("stickerMessage")
 			} else {
 				logger.Debug().
-					Str("user", fmt.Sprintf("%s(%s)[%d]", utils.ShowUserName(update.Message.From), update.Message.From.Username, update.Message.From.ID)).
-					Str("chat", fmt.Sprintf("%s(%s)[%d]", utils.ShowChatName(&update.Message.Chat), update.Message.Chat.Username, update.Message.Chat.ID)).
+					Dict(utils.GetUserDict(update.Message.From)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("text", update.Message.Text).
-					Msg("message")
+					Msg("textMessage")
 			}
 		}
 
@@ -79,18 +99,20 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	} else if update.EditedMessage != nil {
 		// 私聊或群组消息被编辑
 		if consts.IsDebugMode {
-			if update.EditedMessage.Photo != nil {
-				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) edited caption to [%s]", 
-					utils.ShowUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
-					utils.ShowChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
-					update.EditedMessage.ID, update.EditedMessage.Caption,
-				)
+			if update.EditedMessage.Caption != "" {
+				logger.Debug().
+					Dict(utils.GetUserDict(update.EditedMessage.From)).
+					Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
+					Int("messageID", update.EditedMessage.ID).
+					Str("editedCaption", update.EditedMessage.Caption).
+					Msg("editedMessage")
 			} else {
-				log.Printf("edited from \"%s\"(%s)[%d] in \"%s\"(%s)[%d], (%d) edited message to [%s]", 
-					utils.ShowUserName(update.EditedMessage.From), update.EditedMessage.From.Username, update.EditedMessage.From.ID,
-					utils.ShowChatName(&update.EditedMessage.Chat), update.EditedMessage.Chat.Username, update.EditedMessage.Chat.ID,
-					update.EditedMessage.ID, update.EditedMessage.Text,
-				)
+				logger.Debug().
+					Dict(utils.GetUserDict(update.EditedMessage.From)).
+					Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
+					Int("messageID", update.EditedMessage.ID).
+					Str("editedText", update.EditedMessage.Text).
+					Msg("editedMessage")
 			}
 		}
 	} else if update.InlineQuery != nil {

@@ -14,7 +14,7 @@ import (
 type HandlerByChatID struct {
 	ChatID     int64
 	PluginName string
-	Handler    func(*handler_structs.SubHandlerParams)
+	Handler    func(*handler_structs.SubHandlerParams) error
 }
 
 func AddHandlerByChatIDPlugins(handlers ...HandlerByChatID) int {
