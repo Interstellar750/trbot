@@ -1,4 +1,4 @@
-package type_utils
+package message_utils
 
 import (
 	"reflect"

@@ -16,10 +16,11 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
-	"trbot/utils/type_utils"
+	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 	"golang.org/x/image/webp"
 )
 
@@ -48,7 +49,7 @@ func init() {
 	plugin_utils.AddHandlerByMessageTypePlugins(plugin_utils.HandlerByMessageType{
 		PluginName: "StickerDownload",
 		ChatType: models.ChatTypePrivate,
-		MessageType: type_utils.Sticker,
+		MessageType: message_utils.Sticker,
 		AllowAutoTrigger: true,
 		Handler: EchoStickerHandler,
 	})
@@ -65,6 +66,11 @@ type stickerDatas struct {
 
 func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) {
 	var data stickerDatas
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "StickerDownload").
+		Str("funcName", "EchoSticker").
+		Logger()
 
 	var fileSuffix string // `webp`, `webm`, `tgs`
 	// 根据贴纸类型设置文件扩展名
@@ -83,7 +89,17 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 	if opts.Update.Message.Sticker.SetName != "" {
 		// 获取贴纸包信息
 		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: opts.Update.Message.Sticker.SetName })
-		if err == nil {
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("setName", opts.Update.Message.Sticker.SetName).
+				Msg("Get sticker set failed, download it as a custom sticker")
+			
+			// 到这里是因为用户发送的贴纸对应的贴纸包已经被删除了，但贴纸中的信息还有对应的 SetName，会触发查询，但因为贴纸包被删了就查不到，将 index 值设为 -1，缓存后当作自定义贴纸继续
+			data.IsCustomSticker   = true
+			stickerSetNamePrivate  = opts.Update.Message.Sticker.SetName
+			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, -1, opts.Update.Message.Sticker.FileID)
+		} else {
 			data.StickerCount    = len(stickerSet.Stickers)
 			data.StickerSetName  = stickerSet.Name
 			data.StickerSetTitle = stickerSet.Title
@@ -99,12 +115,6 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 			// 在这个条件下，贴纸包名和贴纸索引都存在，赋值完整的贴纸文件名
 			stickerSetNamePrivate  = opts.Update.Message.Sticker.SetName
 			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, data.StickerIndex, opts.Update.Message.Sticker.FileID)
-		} else {
-			// 到这里是因为用户发送的贴纸对应的贴纸包已经被删除了，但贴纸中的信息还有对应的 SetName，会触发查询，但因为贴纸包被删了就查不到，将 index 值设为 -1，缓存后当作自定义贴纸继续
-			log.Println("error getting sticker set:", err)
-			data.IsCustomSticker   = true
-			stickerSetNamePrivate  = opts.Update.Message.Sticker.SetName
-			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, -1, opts.Update.Message.Sticker.FileID)
 		}
 	} else {
 		// 自定义贴纸，防止与普通贴纸包冲突，将贴纸包名设置为 `-custom`，文件名仅有 FileID 用于辨识
@@ -416,7 +426,7 @@ func zipFolder(srcDir, zipFile string) error {
 	return err
 }
 
-func EchoStickerHandler(opts *handler_structs.SubHandlerParams) {
+func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
 		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
 	}
@@ -426,24 +436,33 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) {
 		fmt.Println(opts.Update.Message.Sticker)
 	}
 
-	database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.StickerDownloaded)
+	err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.StickerDownloaded)
+	if err != nil {
+
+	}
 
 	stickerData, err := EchoSticker(opts)
 	if err != nil {
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Update.Message.Chat.ID,
 			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Error downloading sticker: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
+		if err != nil {
+		    
+		}
 	}
 
 	if stickerData == nil || stickerData.Data == nil {
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Update.Message.Chat.ID,
 			Text:      "未能获取到贴纸",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
-		return
+		if err != nil {
+		    
+		}
+		return err
 	}
 
 	documentParams := &bot.SendDocumentParams{
@@ -482,17 +501,28 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) {
 
 	documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s.%s", stickerFilePrefix, stickerFileSuffix), Data: stickerData.Data}
 
-	opts.Thebot.SendDocument(opts.Ctx, documentParams)
+	_, err = opts.Thebot.SendDocument(opts.Ctx, documentParams)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) {
-	botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) error {
+	botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		Text:   "已请求下载，请稍候",
 		ParseMode: models.ParseModeMarkdownV1,
 	})
+	if err != nil {
+		return err
+	}
 
-	database.IncrementalUsageCount(opts.Ctx, opts.Update.CallbackQuery.Message.Message.Chat.ID, db_struct.StickerSetDownloaded)
+	err = database.IncrementalUsageCount(opts.Ctx, opts.Update.CallbackQuery.Message.Message.Chat.ID, db_struct.StickerSetDownloaded)
+	if err != nil {
+		return err
+	}
 
 	var packName string
 	var isOnlyPNG bool
@@ -513,7 +543,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) 
 			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote expandable>Error getting sticker set: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
-		return
+		return err
 	}
 
 	stickerData, err := getStickerPack(opts, stickerSet, isOnlyPNG)
@@ -531,7 +561,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) 
 			Text:   "未能获取到压缩包",
 			ParseMode: models.ParseModeMarkdownV1,
 		})
-		return
+		return err
 	}
 
 	documentParams := &bot.SendDocumentParams{
@@ -547,11 +577,18 @@ func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) 
 		documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data}
 	}
 
-	opts.Thebot.SendDocument(opts.Ctx, documentParams)
+	_, err = opts.Thebot.SendDocument(opts.Ctx, documentParams)
+	if err != nil {
+		return err
+	}
 
-	opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+	_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 		ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 		MessageID: botMessage.ID,
 	})
+	if err != nil {
+		return err
+	}
 
+	return nil
 }

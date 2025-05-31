@@ -26,13 +26,13 @@ func startHandler(params *handler_structs.SubHandlerParams) error {
 				inlineArgument := strings.Split(params.Fields[1], "_")
 				if inlineArgument[1] == n.Argument {
 					if n.Handler == nil {
-						logger.Trace().
+						logger.Debug().
 							Dict(utils.GetUserDict(params.Update.Message.From)).
 							Str("handlerPrefix", n.Prefix).
 							Str("handlerArgument", n.Argument).
 							Str("handlerName", n.Name).
 							Str("fullCommand", params.Update.Message.Text).
-							Msg("tigger start handler by prefix, but this handler function is nil, skip")
+							Msg("tigger /start command handler by prefix, but this handler function is nil, skip")
 						continue
 					}
 					err := n.Handler(params)
@@ -44,7 +44,7 @@ func startHandler(params *handler_structs.SubHandlerParams) error {
 							Str("handlerArgument", n.Argument).
 							Str("handlerName", n.Name).
 							Str("fullCommand", params.Update.Message.Text).
-							Msg("Error in start handler by prefix tigger")
+							Msg("Error in /start command handler by prefix tigger")
 					}
 					return err
 				}
@@ -60,7 +60,7 @@ func startHandler(params *handler_structs.SubHandlerParams) error {
 						Str("handlerArgument", n.Argument).
 						Str("handlerName", n.Name).
 						Str("fullCommand", params.Update.Message.Text).
-						Msg("Error in start handler by argument")
+						Msg("Error in /start command handler by argument")
 				}
 				return err
 			}

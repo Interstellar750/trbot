@@ -5,7 +5,7 @@ import (
 	"strings"
 	"trbot/utils"
 	"trbot/utils/handler_structs"
-	"trbot/utils/type_utils"
+	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -32,7 +32,7 @@ func (funcs HandlerByMessageTypeFunctions) BuildSelectKeyboard() models.ReplyMar
 type HandlerByMessageType struct {
 	PluginName       string
 	ChatType         models.ChatType
-	MessageType      type_utils.MessageTypeList
+	MessageType      message_utils.MessageTypeList
 	AllowAutoTrigger bool // Allow auto trigger when there is only one handler of the same type
 	Handler          func(*handler_structs.SubHandlerParams) error
 }
@@ -62,11 +62,11 @@ type HandlerByMessageType struct {
 	```
 */
 func AddHandlerByMessageTypePlugins(plugins ...HandlerByMessageType) int {
-	if AllPlugins.HandlerByMessageType == nil { AllPlugins.HandlerByMessageType = map[models.ChatType]map[type_utils.MessageTypeList]HandlerByMessageTypeFunctions{} }
+	if AllPlugins.HandlerByMessageType == nil { AllPlugins.HandlerByMessageType = map[models.ChatType]map[message_utils.MessageTypeList]HandlerByMessageTypeFunctions{} }
 
 	var pluginCount int
 	for _, plugin := range plugins {
-		if AllPlugins.HandlerByMessageType[plugin.ChatType] == nil { AllPlugins.HandlerByMessageType[plugin.ChatType] = map[type_utils.MessageTypeList]HandlerByMessageTypeFunctions{} }
+		if AllPlugins.HandlerByMessageType[plugin.ChatType] == nil { AllPlugins.HandlerByMessageType[plugin.ChatType] = map[message_utils.MessageTypeList]HandlerByMessageTypeFunctions{} }
 		if AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType] == nil { AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType] = HandlerByMessageTypeFunctions{} }
 
 		_, isExist := AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType][plugin.PluginName]
@@ -79,7 +79,7 @@ func AddHandlerByMessageTypePlugins(plugins ...HandlerByMessageType) int {
 	return pluginCount
 }
 
-func RemoveHandlerByMessageTypePlugin(chatType models.ChatType, messageType type_utils.MessageTypeList, pluginName string) {
+func RemoveHandlerByMessageTypePlugin(chatType models.ChatType, messageType message_utils.MessageTypeList, pluginName string) {
 	if AllPlugins.HandlerByMessageType == nil { return }
 
 	_, isExist := AllPlugins.HandlerByMessageType[chatType][messageType][pluginName]
@@ -114,7 +114,7 @@ func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerP
 			return err
 		}
 		chatType, messageType, pluginName = chatTypeAndPluginNameList[0], chatTypeAndPluginNameList[1], chatTypeAndPluginNameList[2]
-		handler, isExist := AllPlugins.HandlerByMessageType[models.ChatType(chatType)][type_utils.MessageTypeList(messageType)][pluginName]
+		handler, isExist := AllPlugins.HandlerByMessageType[models.ChatType(chatType)][message_utils.MessageTypeList(messageType)][pluginName]
 		if isExist {
 			logger.Debug().
 				Dict("user", zerolog.Dict().

@@ -13,9 +13,8 @@ import (
 	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
-	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
-	"trbot/utils/type_utils"
+	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -29,45 +28,18 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		Str("funcName", "defaultHandler").
 		Logger()
 
-	var err error
+	// var err error
 	var opts = handler_structs.SubHandlerParams{
 		Ctx:    ctx,
 		Thebot: thebot,
 		Update: update,
 	}
 
+	database.RecordData(&opts)
+
 	// 需要重写来配合 handler by update type
 	if update.Message != nil {
 		// 正常消息
-		opts.Fields = strings.Fields(update.Message.Text)
-		err = database.InitChat(opts.Ctx, &update.Message.Chat)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Msg("Init chat failed")
-		}
-		err = database.IncrementalUsageCount(opts.Ctx, update.Message.Chat.ID, db_struct.MessageNormal)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Msg("Incremental usage count failed")
-		}
-		err = database.RecordLatestData(opts.Ctx, update.Message.Chat.ID, db_struct.LatestMessage, update.Message.Text)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Msg("Record latest message failed")
-		}
-		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.Message.Chat.ID)
-		if err != nil {
-			logger.Warn().
-				Err(err).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Msg("Get chat info error")
-		}
 		if consts.IsDebugMode {
 			if update.Message.Photo != nil {
 				logger.Debug().
@@ -117,90 +89,33 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		}
 	} else if update.InlineQuery != nil {
 		// inline 查询
-		opts.Fields = strings.Fields(update.InlineQuery.Query)
-		database.InitUser(opts.Ctx, update.InlineQuery.From)
-		database.IncrementalUsageCount(opts.Ctx, update.InlineQuery.From.ID, db_struct.InlineRequest)
-		database.RecordLatestData(opts.Ctx, update.InlineQuery.From.ID, db_struct.LatestInlineQuery, update.InlineQuery.Query)
-		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.InlineQuery.From.ID)
-		if err != nil {
-			log.Println(err)
-		}
 
-		log.Printf("inline from: \"%s\"(%s)[%d], query: [%s]", 
-			utils.ShowUserName(update.InlineQuery.From), update.InlineQuery.From.Username, update.InlineQuery.From.ID,
-			update.InlineQuery.Query,
-		)
+		logger.Debug().
+			Dict(utils.GetUserDict(update.InlineQuery.From)).
+			Str("query", update.InlineQuery.Query).
+			Msg("inline request")
 
 		inlineHandler(&opts)
 	} else if update.ChosenInlineResult != nil {
 		// inline 查询结果被选择
-		opts.Fields = strings.Fields(update.ChosenInlineResult.Query)
-		database.InitUser(opts.Ctx, &update.ChosenInlineResult.From)
-		database.IncrementalUsageCount(opts.Ctx, update.ChosenInlineResult.From.ID, db_struct.InlineResult)
-		database.RecordLatestData(opts.Ctx, update.ChosenInlineResult.From.ID, db_struct.LatestInlineResult, update.ChosenInlineResult.ResultID)
-		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.ChosenInlineResult.From.ID)
-		if err != nil {
-			log.Println(err)
-		}
+		logger.Debug().
+			Dict(utils.GetUserDict(&update.ChosenInlineResult.From)).
+			Str("query", update.ChosenInlineResult.Query).
+			Str("resultID", update.ChosenInlineResult.ResultID).
+			Msg("chosen inline result")
 
-		log.Printf("chosen inline from \"%s\"(%s)[%d], ID: [%s] query: [%s]",
-			utils.ShowUserName(&update.ChosenInlineResult.From), update.ChosenInlineResult.From.Username, update.ChosenInlineResult.From.ID,
-			update.ChosenInlineResult.ResultID, update.ChosenInlineResult.Query,
-		)
+		
 	} else if update.CallbackQuery != nil {
 		// replymarkup 回调
+		logger.Debug().
+			Dict(utils.GetUserDict(&update.CallbackQuery.From)).
+			Dict(utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)).
+			Str("query", update.CallbackQuery.Data).
+			Msg("callback query")
+
+		callbackQueryHandler(&opts)
+
 		
-		database.InitUser(opts.Ctx, &update.CallbackQuery.From)
-		database.IncrementalUsageCount(opts.Ctx, update.CallbackQuery.From.ID, db_struct.CallbackQuery)
-		database.RecordLatestData(opts.Ctx, update.CallbackQuery.From.ID, db_struct.LatestCallbackQueryData, update.CallbackQuery.Data)
-		opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, update.CallbackQuery.From.ID)
-		if err != nil {
-			log.Println(err)
-		}
-
-		log.Printf("callback from \"%s\"(%s)[%d] in \"%s\"(%s)[%d] query: [%s]",
-			utils.ShowUserName(&update.CallbackQuery.From), update.CallbackQuery.From.Username, update.CallbackQuery.From.ID,
-			utils.ShowChatName(&update.CallbackQuery.Message.Message.Chat), update.CallbackQuery.Message.Message.Chat.Username, update.CallbackQuery.Message.Message.Chat.ID,
-			update.CallbackQuery.Data,
-		)
-
-		// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
-		if opts.ChatInfo.HasPendingCallbackQuery && update.CallbackQuery.Data == opts.ChatInfo.LatestCallbackQueryData {
-			log.Println("same callback query, ignore")
-			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "当前的请求正在处理，请等待处理完成",
-				ShowAlert:       true,
-			})
-			return
-		} else if opts.ChatInfo.HasPendingCallbackQuery {
-			// 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
-			log.Println("a callback query is pending, ignore")
-			thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "请等待上一个请求处理完成再尝试发送新的请求",
-				ShowAlert:       true,
-			})
-			return
-		} else {
-			// 如果没有正在处理的请求，则接受新的请求
-			log.Println("accept callback query")
-			opts.ChatInfo.HasPendingCallbackQuery = true
-			opts.ChatInfo.LatestCallbackQueryData = update.CallbackQuery.Data
-			// thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			// 	CallbackQueryID: update.CallbackQuery.ID,
-			// 	Text:            "已接受请求",
-			// 	ShowAlert:       false,
-			// })
-		}
-
-		for _, n := range plugin_utils.AllPlugins.CallbackQuery {
-			if strings.HasPrefix(update.CallbackQuery.Data, n.CommandChar) {
-				if n.Handler == nil { continue }
-				n.Handler(&opts)
-				break
-			}
-		}
 
 		opts.ChatInfo.HasPendingCallbackQuery = false
 		return
@@ -330,132 +245,316 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func messageHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("messageHandler")
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("funcName", "messageHandler").
+		Logger()
 
 	// 检测如果消息开头是 / 符号，作为命令来处理
 	if strings.HasPrefix(opts.Update.Message.Text, "/") {
 		// 匹配默认的 `/xxx` 命令
 		for _, plugin := range plugin_utils.AllPlugins.SlashSymbolCommand {
 			if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
-				if consts.IsDebugMode {
-					log.Printf("hit slashcommand: /%s", plugin.SlashCommand)
+				logger.Debug().
+					Str("slashCommand", plugin.SlashCommand).
+					Str("message", opts.Update.Message.Text).
+					Msg("Hit slash command handler")
+				if plugin.Handler == nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("slashCommand", plugin.SlashCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Hit slash symbol command handler, but this handler function is nil, skip")
+					continue
 				}
-				if plugin.Handler == nil { continue }
-				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				plugin.Handler(opts)
+				err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("slashCommand", plugin.SlashCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Incremental message command count error")
+				}
+				err = plugin.Handler(opts)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("slashCommand", plugin.SlashCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Error in slash symbol command handler")
+				}
 				return
 			}
 		}
+		// 不存在以 `/` 作为前缀的命令
 		if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
 			// 非冗余条件，在私聊状态下应处理用户发送的所有开头为 / 的命令
 			// 与群组中不同，群组中命令末尾不指定此 bot 回应的命令无须处理，以防与群组中的其他 bot 冲突
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:    opts.Update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 				Text:      "不存在的命令",
 			})
-			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-			if configs.BotConfig.LogChatID != 0 { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("message", opts.Update.Message.Text).
+					Msg("Send `no this command` message failed")
+			}
+			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("message", opts.Update.Message.Text).
+					Msg("Incremental message command count error")
+			}
+			
+			// if configs.BotConfig.LogChatID != 0 { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 		} else if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			// 为防止与其他 bot 的命令冲突，默认不会处理不在命令列表中的命令
 			// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
-			botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:    opts.Update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 				Text:      "不存在的命令",
 			})
-			database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("message", opts.Update.Message.Text).
+					Msg("Send `no this command` message failed")
+			}
+			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("message", opts.Update.Message.Text).
+					Msg("Incremental message command count error")
+			}
 			time.Sleep(time.Second * 10)
-			opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
 				ChatID:     opts.Update.Message.Chat.ID,
 				MessageIDs: []int{
 					opts.Update.Message.ID,
 					botMessage.ID,
 				},
 			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("message", opts.Update.Message.Text).
+					Msg("Delete `no this command` message failed")
+			}
 			return
 		}
 	} else if len(opts.Update.Message.Text) > 0 {
 		// 没有 `/` 号作为前缀，检查是不是自定义命令
 		for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
 			if utils.CommandMaybeWithSuffixUsername(opts.Fields, plugin.FullCommand) {
-				if consts.IsDebugMode {
-					log.Printf("hit fullcommand: %s", plugin.FullCommand)
+				logger.Debug().
+					Str("fullCommand", plugin.FullCommand).
+					Str("message", opts.Update.Message.Text).
+					Msg("Hit full command handler")
+				if plugin.Handler == nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("fullCommand", plugin.FullCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Hit full command handler, but this handler function is nil, skip")
+					continue
 				}
-				if plugin.Handler == nil { continue }
-				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				plugin.Handler(opts)
+				err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("fullCommand", plugin.FullCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Incremental message command count error")
+				}
+				err = plugin.Handler(opts)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("fullCommand", plugin.FullCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Error in full command handler")
+				}
 				return
 			}
 		}
 		// 以后缀来触发的命令
 		for _, plugin := range plugin_utils.AllPlugins.SuffixCommand {
 			if strings.HasSuffix(opts.Update.Message.Text, plugin.SuffixCommand) {
-				if consts.IsDebugMode {
-					log.Printf("hit suffixcommand: %s", plugin.SuffixCommand)
+				logger.Debug().
+					Str("suffixCommand", plugin.SuffixCommand).
+					Str("message", opts.Update.Message.Text).
+					Msg("Hit suffix command handler")
+				if plugin.Handler == nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("suffixCommand", plugin.SuffixCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Hit suffix command handler, but this handler function is nil, skip")
+					continue
 				}
-				if plugin.Handler == nil { continue }
-				database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				plugin.Handler(opts)
+				err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("suffixCommand", plugin.SuffixCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Incremental message command count error")
+				}
+				err = plugin.Handler(opts)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("suffixCommand", plugin.SuffixCommand).
+						Str("message", opts.Update.Message.Text).
+						Msg("Error in suffix command handler")
+				}
 				return
 			}
 		}
 	}
 
+	// 按消息类型来触发的 handler
+	// handler by message type
 	if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type] != nil {
-		msgTypeInString := type_utils.GetMessageType(opts.Update.Message).InString()
-		var isProcessed bool
+		msgTypeInString := message_utils.GetMessageType(opts.Update.Message).InString()
 
-		// 如果此类型的 handler 数量仅有一个，且允许自动触发
-		if len(plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString]) == 1 {
-			// 虽然是遍历，但实际上只能遍历一次
-			for name, handler := range plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] {
-				isProcessed = true
-				if handler.AllowAutoTrigger {
-					// 允许自动触发的 handler
-					if consts.IsDebugMode {
-						log.Printf("trigger handler by message type [%s] plugin [%s] for chat type [%s]", msgTypeInString, name, opts.Update.Message.Chat.Type)
+		if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] != nil {
+			handlerInThisTypeCount := len(plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString])
+			if handlerInThisTypeCount == 1 {
+				// 虽然是遍历，但实际上只能遍历一次
+				for name, handler := range plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] {
+					if handler.AllowAutoTrigger {
+						// 允许自动触发的 handler
+						logger.Debug().
+							Dict(utils.GetUserDict(opts.Update.Message.From)).
+							Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+							Str("messageType", string(msgTypeInString)).
+							Str("handlerName", name).
+							Str("chatType", string(opts.Update.Message.Chat.Type)).
+							Msg("trigger handler by message type")
+						err := handler.Handler(opts)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict(utils.GetUserDict(opts.Update.Message.From)).
+								Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+								Str("messageType", string(msgTypeInString)).
+								Str("handlerName", name).
+								Str("chatType", string(opts.Update.Message.Chat.Type)).
+								Msg("Error in handler by message type")
+						}
+					} else {
+						// 此 handler 不允许自动触发，回复一条带按钮的消息让用户手动操作
+						_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+							ChatID:    opts.Update.Message.Chat.ID,
+							Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
+							ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+							ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict(utils.GetUserDict(opts.Update.Message.From)).
+								Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+								Str("messageType", string(msgTypeInString)).
+								Str("chatType", string(opts.Update.Message.Chat.Type)).
+								Int("handlerInThisTypeCount", handlerInThisTypeCount).
+								Msg("Send `select a handler by message type keyboard` message failed")
+						}
 					}
-					handler.Handler(opts)
-				} else {
-					// 此 handler 不允许自动触发，回复一条带按钮的消息让用户手动操作
-					opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID:    opts.Update.Message.Chat.ID,
-						Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
-						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-						ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
-					})
+				}
+			} else {
+				// 多个 handler 自动回复一条带按钮的消息让用户手动操作
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:    opts.Update.Message.Chat.ID,
+					Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("messageType", string(msgTypeInString)).
+						Str("chatType", string(opts.Update.Message.Chat.Type)).
+						Int("handlerInThisTypeCount", handlerInThisTypeCount).
+						Msg("Send `select a handler by message type keyboard` message failed")
 				}
 			}
-		} else {
-			// 多个 handler 自动回复一条带按钮的消息让用户手动操作
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:    opts.Update.Message.Chat.ID,
-				Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
-			})
-		}
-
-		// 仅在 private 对话中显示无默认处理插件的消息
-		if !isProcessed && opts.Update.Message.Chat.Type == models.ChatTypePrivate {
-			// 非命令消息，提示无操作可用
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		} else if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+			// 仅在 private 对话中显示无默认处理插件的消息
+			// 如果没有设定任何对于 private 对话按消息来触发的 handler，则代码不会运行到这里
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:    opts.Update.Message.Chat.ID,
 				Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgTypeInString),
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("messageType", string(msgTypeInString)).
+					Str("chatType", string(opts.Update.Message.Chat.Type)).
+					Msg("Send `no handler by message type plugin for this message type` message failed")
+			}
 		}
 	}
 
 	// 最后才运行针对群组 ID 的 handler
-	ByChatIDHandlers, isExist := plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID]
-	if isExist {
-		for name, handler := range ByChatIDHandlers {
-			if consts.IsDebugMode {
-				log.Printf("trigger handler by chatID [%s] for group [%d]", name, handler.ChatID)
+	// handler by chat ID
+	if plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] != nil {
+		for name, handler := range plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] {
+			logger.Debug().
+				Dict(utils.GetUserDict(opts.Update.Message.From)).
+				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+				Str("handlerName", name).
+				Int64("chatID", handler.ChatID).
+				Str("chatType", string(opts.Update.Message.Chat.Type)).
+				Msg("trigger handler by chat ID")
+			err := handler.Handler(opts)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("handlerName", name).
+					Int64("chatID", handler.ChatID).
+					Str("chatType", string(opts.Update.Message.Chat.Type)).
+					Msg("Error in handler by chat ID")
 			}
-			handler.Handler(opts)
 		}
 	}
 }
@@ -463,6 +562,10 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 // 处理 inline 模式下的请求
 func inlineHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher("inlineHandler")
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("funcName", "inlineHandler").
+		Logger()
 
 	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, configs.BotConfig.AdminIDs)
 
@@ -509,6 +612,10 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			IsPersonal:    true,
 		})
 		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+				Msg("Send /setkeyword command answer failed")
 			log.Printf("Error sending inline query response: %v", err)
 			return
 		}
@@ -762,4 +869,88 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			return
 		}
 	}
+}
+
+func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
+	defer utils.PanicCatcher("callbackQueryHandler")
+		logger := zerolog.Ctx(params.Ctx).
+			With().
+			Str("funcName", "callbackQueryHandler").
+			Logger()
+
+	// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
+		if params.ChatInfo.HasPendingCallbackQuery && params.Update.CallbackQuery.Data == params.ChatInfo.LatestCallbackQueryData {
+			logger.Info().
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Str("query", params.Update.CallbackQuery.Data).
+				Msg("this callback request is processing, ignore")
+			_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: params.Update.CallbackQuery.ID,
+				Text:            "当前请求正在处理中，请等待处理完成",
+				ShowAlert:       true,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+					Msg("Send `this callback request is processing` callback answer failed")
+			}
+			return
+		} else if params.ChatInfo.HasPendingCallbackQuery {
+			// 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
+			logger.Info().
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Str("pendingQuery", params.ChatInfo.LatestCallbackQueryData).
+				Str("query", params.Update.CallbackQuery.Data).
+				Msg("another callback request is processing, ignore")
+			_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: params.Update.CallbackQuery.ID,
+				Text:            "请等待上一个请求处理完成后再尝试发送新的请求",
+				ShowAlert:       true,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+					Msg("Send `a callback request is processing, send new request later` callback answer failed")
+			}
+			return
+		} else {
+			// 如果没有正在处理的请求，则接受新的请求
+			logger.Debug().
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Str("query", params.Update.CallbackQuery.Data).
+				Msg("accept callback query")
+
+			params.ChatInfo.HasPendingCallbackQuery = true
+			params.ChatInfo.LatestCallbackQueryData = params.Update.CallbackQuery.Data
+			// params.Thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			// 	CallbackQueryID: params.Update.CallbackQuery.ID,
+			// 	Text:            "已接受请求",
+			// 	ShowAlert:       false,
+			// })
+		}
+
+		for _, n := range plugin_utils.AllPlugins.CallbackQuery {
+			if strings.HasPrefix(params.Update.CallbackQuery.Data, n.CommandChar) {
+				if n.Handler == nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(params.Update.Message.From)).
+						Str("handlerPrefix", n.CommandChar).
+						Str("query", params.Update.CallbackQuery.Data).
+						Msg("tigger a callback query handler, but this handler function is nil, skip")
+					continue
+				}
+				err := n.Handler(params)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(params.Update.Message.From)).
+						Str("handlerPrefix", n.CommandChar).
+						Str("query", params.Update.CallbackQuery.Data).
+						Msg("Error in callback query handler")
+				}
+				break
+			}
+		}
 }

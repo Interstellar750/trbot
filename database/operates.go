@@ -3,9 +3,15 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"trbot/database/db_struct"
+	"trbot/utils"
+	"trbot/utils/handler_structs"
+	"trbot/utils/type/update_utils"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 )
 
 func InitChat(ctx context.Context, chat *models.Chat) error {
@@ -153,4 +159,146 @@ func ReadDatabase(ctx context.Context) error {
 		}
 	}
 	return allErr
+}
+
+
+func RecordData(params *handler_structs.SubHandlerParams) {
+	logger := zerolog.Ctx(params.Ctx).
+		With().
+		Str("funcName", "RecordData").
+		Logger()
+
+	updateType := update_utils.GetUpdateType(params.Update)
+
+	switch {
+	case updateType.Message:
+		if params.Update.Message.Text != "" {
+			params.Fields = strings.Fields(params.Update.Message.Text)
+		}
+		err := InitChat(params.Ctx, &params.Update.Message.Chat)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+				Msg("Init chat failed")
+		}
+		err = IncrementalUsageCount(params.Ctx, params.Update.Message.Chat.ID, db_struct.MessageNormal)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+				Msg("Incremental message count failed")
+		}
+		err = RecordLatestData(params.Ctx, params.Update.Message.Chat.ID, db_struct.LatestMessage, params.Update.Message.Text)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+				Msg("Record latest message failed")
+		}
+		params.ChatInfo, err = GetChatInfo(params.Ctx, params.Update.Message.Chat.ID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+				Msg("Get chat info failed")
+		}
+	case updateType.EditedMessage:
+		// no ?
+	case updateType.InlineQuery:
+		if params.Update.InlineQuery.Query != "" {
+			params.Fields = strings.Fields(params.Update.InlineQuery.Query)
+		}
+
+		err := InitUser(params.Ctx, params.Update.InlineQuery.From)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(params.Update.InlineQuery.From)).
+				Msg("Init user failed")
+		}
+		err = IncrementalUsageCount(params.Ctx, params.Update.InlineQuery.From.ID, db_struct.InlineRequest)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(params.Update.InlineQuery.From)).
+				Msg("Incremental inline request count failed")
+		}
+		err = RecordLatestData(params.Ctx, params.Update.InlineQuery.From.ID, db_struct.LatestInlineQuery, params.Update.InlineQuery.Query)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(params.Update.InlineQuery.From)).
+				Msg("Record latest inline query failed")
+		}
+		params.ChatInfo, err = GetChatInfo(params.Ctx, params.Update.InlineQuery.From.ID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(params.Update.InlineQuery.From)).
+				Msg("Get user info failed")
+		}
+	case updateType.ChosenInlineResult:
+		if params.Update.ChosenInlineResult.Query != "" {
+			params.Fields = strings.Fields(params.Update.ChosenInlineResult.Query)
+		}
+
+		err := InitUser(params.Ctx, &params.Update.ChosenInlineResult.From)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.ChosenInlineResult.From)).
+				Msg("Init user failed")
+		}
+		err = IncrementalUsageCount(params.Ctx, params.Update.ChosenInlineResult.From.ID, db_struct.InlineResult)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.ChosenInlineResult.From)).
+				Msg("Incremental inline result count failed")
+		}
+		err = RecordLatestData(params.Ctx, params.Update.ChosenInlineResult.From.ID, db_struct.LatestInlineResult, params.Update.ChosenInlineResult.ResultID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.ChosenInlineResult.From)).
+				Msg("Record latest inline result failed")
+		}
+		params.ChatInfo, err = GetChatInfo(params.Ctx, params.Update.ChosenInlineResult.From.ID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.ChosenInlineResult.From)).
+				Msg("Get user info failed")
+		}
+	case updateType.CallbackQuery:
+		err := InitUser(params.Ctx, &params.Update.CallbackQuery.From)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Msg("Init user failed")
+		}
+		err = IncrementalUsageCount(params.Ctx, params.Update.CallbackQuery.From.ID, db_struct.CallbackQuery)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Msg("Incremental callback query count failed")
+		}
+		err = RecordLatestData(params.Ctx, params.Update.CallbackQuery.From.ID, db_struct.LatestCallbackQueryData, params.Update.CallbackQuery.Data)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Msg("Record latest callback query failed")
+		}
+		params.ChatInfo, err = GetChatInfo(params.Ctx, params.Update.CallbackQuery.From.ID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.ChosenInlineResult.From)).
+				Msg("Get user info failed")
+		}
+	}
 }

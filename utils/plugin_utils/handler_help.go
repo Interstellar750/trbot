@@ -19,6 +19,9 @@ func BuildHandlerHelpKeyboard() models.ReplyMarkup {
 			},
 		})
 	}
+	if len(button) == 0 {
+		return nil
+	}
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: button,
 	}
