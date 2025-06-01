@@ -2,12 +2,12 @@ package database
 
 import (
 	"context"
-	"log"
 	"trbot/database/db_struct"
 	"trbot/database/redis_db"
 	"trbot/database/yaml_db"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
 )
 
 type DatabaseBackend struct {
@@ -39,7 +39,9 @@ type DatabaseBackend struct {
 var DBBackends []DatabaseBackend
 var DBBackends_LowLevel []DatabaseBackend
 
-func AddDatabaseBackend(backends ...DatabaseBackend) int {
+func AddDatabaseBackend(ctx context.Context, backends ...DatabaseBackend) int {
+	logger := zerolog.Ctx(ctx)
+
 	if DBBackends == nil { DBBackends = []DatabaseBackend{} }
 	if DBBackends_LowLevel == nil { DBBackends_LowLevel = []DatabaseBackend{} }
 
@@ -52,18 +54,24 @@ func AddDatabaseBackend(backends ...DatabaseBackend) int {
 			} else {
 				DBBackends = append(DBBackends, db)
 			}
-			log.Printf("Initialized database backend [%s]", db.Name)
+			logger.Info().
+				Str("database", db.Name).
+				Msg("Database initialized")
 			count++
 		} else {
-			log.Printf("Failed to initialize database backend [%s]: %s", db.Name, db.InitializedErr)
+			logger.Error().
+				Err(db.InitializedErr).
+				Str("database", db.Name).
+				Msg("Database initialize failed")
 		}
 	}
 
 	return count
 }
 
-func InitAndListDatabases() {
-	AddDatabaseBackend(DatabaseBackend{
+func InitAndListDatabases(ctx context.Context) {
+	logger := zerolog.Ctx(ctx)
+	AddDatabaseBackend(ctx, DatabaseBackend{
 		Name:        "redis",
 		Initializer: redis_db.InitializeDB,
 
@@ -76,7 +84,7 @@ func InitAndListDatabases() {
 		SetCustomFlag:         redis_db.SetCustomFlag,
 	})
 
-	AddDatabaseBackend(DatabaseBackend{
+	AddDatabaseBackend(ctx, DatabaseBackend{
 		Name:        "yaml",
 		IsLowLevel:  true,
 		Initializer: yaml_db.InitializeDB,
@@ -93,16 +101,26 @@ func InitAndListDatabases() {
 		SetCustomFlag:         yaml_db.SetCustomFlag,
 	})
 
-	for _, backend := range DBBackends {
-		log.Printf("Database backend [%s] is available (High-level)", backend.Name)
-	}
-	for _, backend := range DBBackends_LowLevel {
-		log.Printf("Database backend [%s] is available (Low-level)", backend.Name)
-	}
+	// for _, backend := range DBBackends {
+	// 	logger.Info().
+	// 		Str("database", backend.Name).
+	// 		Str("level", "high").
+	// 		Msg("database initialized")
+	// }
+	// for _, backend := range DBBackends_LowLevel {
+	// 	logger.Info().
+	// 		Str("database", backend.Name).
+	// 		Str("level", "low").
+	// 		Msg("database initialized")
+	// }
 
 	if len(DBBackends) + len(DBBackends_LowLevel) == 0 {
-		log.Fatalln("No database available")
+		logger.Fatal().
+			Msg("No database available")
 	} else {
-		log.Printf("Available databases: [H: %d, L: %d]", len(DBBackends), len(DBBackends_LowLevel))
+		logger.Info().
+			Int("High-level", len(DBBackends)).
+			Int("Low-level", len(DBBackends_LowLevel)).
+			Msg("Available databases")
 	}
 }

@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"time"
 
 	"trbot/database"
+	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/internal_plugin"
@@ -27,6 +29,9 @@ func main() {
 	// log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	logger := log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	ctx = logger.WithContext(ctx)
+	logger.Info().
+		Str("version", runtime.Version()).
+		Msg("trbot")
 
 	// read configs
 	if err := configs.InitBot(ctx); err != nil {
@@ -45,27 +50,26 @@ func main() {
 	}
 
 	thebot, err := bot.New(configs.BotConfig.BotToken, opts...)
-	if err != nil { logger.Panic().Err(err).Msg("Failed to initialize bot") }
+	if err != nil { logger.Fatal().Err(err).Msg("Failed to initialize bot") }
 
 	consts.BotMe, err = thebot.GetMe(ctx)
-	if err != nil { logger.Panic().Err(err).Msg("Failed to get bot info") }
+	if err != nil { logger.Fatal().Err(err).Msg("Failed to get bot info") }
+
 	logger.Info().
-		Str("name", consts.BotMe.FirstName).
-		Str("username", consts.BotMe.Username).
-		Int64("ID", consts.BotMe.ID).
-		Msg("bot initialized")
+		Dict(utils.GetUserDict(consts.BotMe)).
+		Msg("Bot initialized")
 	if configs.BotConfig.LogChatID != 0 {
 		logger.Info().
 			Int64("LogChatID", configs.BotConfig.LogChatID).
 			Msg("Enabled log to chat")
 	}
 
-	database.InitAndListDatabases()
+	database.InitAndListDatabases(ctx)
 
 	// start handler custom signals
 	go signals.SignalsHandler(ctx)
 
-	// register plugin (internal first, then external)
+	// register plugin (plugin use `init()` first, then plugin user `InitPlugins` second, and internal last)
 	internal_plugin.Register(ctx)
 
 	// Select mode by Webhook config
@@ -80,9 +84,9 @@ func main() {
 		go thebot.StartWebhook(ctx)
 		err := http.ListenAndServe(consts.WebhookListenPort, thebot.WebhookHandler())
 		if err != nil {
-			logger.Panic().
+			logger.Fatal().
 				Err(err).
-				Msg("webhook server failed")
+				Msg("Webhook server failed")
 		}
 	} else { // getUpdate, aka Long Polling
 		// save and clean remove Webhook URL befor using getUpdate https://core.telegram.org/bots/api#getupdates

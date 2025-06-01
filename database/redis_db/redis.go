@@ -166,12 +166,12 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
 	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), string(fieldName)).Int()
 	if err == nil {
-		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, count + 1).Err()
+		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), count + 1).Err()
 		if err == nil {
 			return nil
 		}
 	} else if err == redis.Nil {
-		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, 1).Err()
+		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), 1).Err()
 		if err == nil {
 			log.Printf("[UserDB] Key %s not found, creating in Redis\n", fieldName)
 			return nil
@@ -182,7 +182,7 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struc
 }
 
 func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
-	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
+	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
 	if err == nil {
 		return nil
 	}
@@ -191,7 +191,7 @@ func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.Cha
 }
 
 func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
-	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
+	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
 	if err == nil {
 		return nil
 	}
@@ -200,7 +200,7 @@ func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struc
 }
 
 func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
-    err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), fieldName, value).Err()
+    err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
 	if err == nil {
 		return nil
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// 通过是否设定环境变量和配置文件中的 webhook URL 来决定是否使用 webhook 模式
+// 通过是否设定环境变量和配置文件中的 Webhook URL 来决定是否使用 Webhook 模式
 func IsUsingWebhook(ctx context.Context) bool {
 	logger := zerolog.Ctx(ctx)
 	// 通过 godotenv 库读取 .env 文件后再尝试读取
@@ -43,7 +43,7 @@ func SetUpWebhook(ctx context.Context, thebot *bot.Bot, params *bot.SetWebhookPa
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Get WebHook info error")
+			Msg("Get Webhook info error")
 	}
 	if webHookInfo != nil && webHookInfo.URL != params.URL {
 		if webHookInfo.URL == "" {
@@ -53,13 +53,13 @@ func SetUpWebhook(ctx context.Context, thebot *bot.Bot, params *bot.SetWebhookPa
 			logger.Warn().
 				Str("Remote URL", webHookInfo.URL).
 				Str("Local URL", params.URL).
-				Msg("The remote webhook URL conflicts with the local one, saving and overwriting the remote URL")
+				Msg("The remote Webhook URL conflicts with the local one, saving and overwriting the remote URL")
 		}
 		success, err := thebot.SetWebhook(ctx, params)
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Msg("Set WebHook URL failed")
+				Msg("Set Webhook URL failed")
 			return false
 		}
 		if success {
@@ -84,12 +84,12 @@ func SaveAndCleanRemoteWebhookURL(ctx context.Context, thebot *bot.Bot) *models.
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Get WebHook info error")
+			Msg("Get Webhook info error")
 	}
 	if webHookInfo != nil && webHookInfo.URL != "" {
 		logger.Warn().
 			Str("Remote URL", webHookInfo.URL).
-			Msg("There is a webhook URL remotely, saving and clearing it to use the getUpdate mode")
+			Msg("There is a Webhook URL remotely, saving and clearing it to use the getUpdate mode")
 		ok, err := thebot.DeleteWebhook(ctx, &bot.DeleteWebhookParams{
 			DropPendingUpdates: false,
 		})

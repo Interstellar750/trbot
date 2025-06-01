@@ -24,10 +24,7 @@ func AddInitializer(initializers ...Initializer) int {
 }
 
 func RunPluginInitializers(ctx context.Context) {
-	logger := zerolog.Ctx(ctx).
-		With().
-		Str("funcName", "RunPluginInitializers").
-		Logger()
+	logger := zerolog.Ctx(ctx)
 
 	count := len(AllPlugins.Initializer)
 	successCount := 0
@@ -49,7 +46,7 @@ func RunPluginInitializers(ctx context.Context) {
 		} else {
 			logger.Info().
 				Str("pluginName", initializer.Name).
-				Msg("Plugin initialized success")
+				Msg("Plugin initialize success")
 			successCount++
 		}
 		

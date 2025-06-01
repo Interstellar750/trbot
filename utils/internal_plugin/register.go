@@ -23,7 +23,7 @@ import (
 
 // this function run only once in main
 func Register(ctx context.Context) {
-	// 初始化 /plugins/ 中的插件
+	// 初始化 plugins/ 中的插件
 	plugins.InitPlugins()
 
 	plugin_utils.RunPluginInitializers(ctx)
@@ -230,6 +230,14 @@ func Register(ctx context.Context) {
 							Msg("Remove inline default command flag failed")
 						return err
 					}
+					// if chatinfo get from redis database, it won't be the newst data, need reload it from database
+					opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+							Msg("Get chat info failed")
+					}
 					_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 						ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
 						MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
@@ -281,6 +289,14 @@ func Register(ctx context.Context) {
 									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 									Msg("Change inline default command flag failed")
 								return err
+							}
+							// if chatinfo get from redis database, it won't be the newst data, need reload it from database
+							opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
+							if err != nil {
+								logger.Error().
+									Err(err).
+									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+									Msg("Get chat info failed")
 							}
 							_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 								ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,

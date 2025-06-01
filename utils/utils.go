@@ -10,7 +10,6 @@ import (
 	"strings"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/mess"
 	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
@@ -430,10 +429,18 @@ func getCurrentGoroutineStack() string {
 	return string(buf[:n])
 }
 
-func PanicCatcher(pluginName string) {
+func PanicCatcher(ctx context.Context, pluginName string) {
+	logger := zerolog.Ctx(ctx)
+	
 	panic := recover()
 	if panic != nil {
-		mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [%s]: \"%v\"\nStack: %s", pluginName, panic, getCurrentGoroutineStack()))
+		logger.Error().
+			Interface("panic", panic).
+			// Str("Stack", getCurrentGoroutineStack()).
+			Str("panicFunc", pluginName).
+			Msg("Panic recovered")
+		fmt.Println("Stack", getCurrentGoroutineStack())
+		// mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [%s]: \"%v\"\nStack: %s", pluginName, panic, getCurrentGoroutineStack()))
 	}
 }
 
@@ -448,7 +455,7 @@ func GetUserDict(user *models.User) (string, *zerolog.Event) {
 		Int64("ID", user.ID)
 }
 
-// return a "chat" string and a `zerolog.Dict()` with `name`(string), `username`(string), `ID`(int64) *zerolog.Event
+// return a "chat" string and a `zerolog.Dict()` with `name`(string), `username`(string), `ID`(int64), `type`(string) *zerolog.Event
 func GetChatDict(chat *models.Chat) (string, *zerolog.Event) {
 	if chat == nil {
 		return "chat", zerolog.Dict()
@@ -456,5 +463,6 @@ func GetChatDict(chat *models.Chat) (string, *zerolog.Event) {
 	return "chat", zerolog.Dict().
 		Str("name", ShowChatName(chat)).
 		Str("username", chat.Username).
+		Str("type", string(chat.Type)).
 		Int64("ID", chat.ID)
 }

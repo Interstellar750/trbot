@@ -14,7 +14,7 @@ import (
 
 
 func startHandler(params *handler_structs.SubHandlerParams) error {
-	defer utils.PanicCatcher("startHandler")
+	defer utils.PanicCatcher(params.Ctx, "startHandler")
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "startHandler").
@@ -90,7 +90,7 @@ func startHandler(params *handler_structs.SubHandlerParams) error {
 }
 
 func helpHandler(params *handler_structs.SubHandlerParams) error {
-	defer utils.PanicCatcher("helpHandler")
+	defer utils.PanicCatcher(params.Ctx, "helpHandler")
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "helpHandler").
