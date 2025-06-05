@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -24,10 +23,11 @@ import (
 
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	defer utils.PanicCatcher(ctx, "defaultHandler")
-	logger := zerolog.Ctx(ctx).
-		With().
-		Str("funcName", "defaultHandler").
-		Logger()
+	logger := zerolog.Ctx(ctx)
+	// logger := zerolog.Ctx(ctx).
+	// 	With().
+	// 	Str("funcName", "defaultHandler").
+	// 	Logger()
 
 	// var err error
 	var opts = handler_structs.SubHandlerParams{
@@ -44,14 +44,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		if consts.IsDebugMode {
 			if update.Message.Photo != nil {
 				logger.Debug().
-					Dict(utils.GetUserDict(update.Message.From)).
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("caption", update.Message.Caption).
 					Msg("photoMessage")
 			} else if update.Message.Sticker != nil {
 				logger.Debug().
-					Dict(utils.GetUserDict(update.Message.From)).
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("stickerEmoji", update.Message.Sticker.Emoji).
@@ -60,7 +60,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Msg("stickerMessage")
 			} else {
 				logger.Debug().
-					Dict(utils.GetUserDict(update.Message.From)).
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("text", update.Message.Text).
@@ -73,14 +73,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// 私聊或群组消息被编辑
 		if update.EditedMessage.Caption != "" {
 			logger.Debug().
-				Dict(utils.GetUserDict(update.EditedMessage.From)).
+				Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
 				Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
 				Int("messageID", update.EditedMessage.ID).
 				Str("editedCaption", update.EditedMessage.Caption).
 				Msg("editedMessage")
 		} else {
 			logger.Debug().
-				Dict(utils.GetUserDict(update.EditedMessage.From)).
+				Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
 				Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
 				Int("messageID", update.EditedMessage.ID).
 				Str("editedText", update.EditedMessage.Text).
@@ -224,49 +224,29 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	} else if update.ChannelPost != nil {
 		// 频道信息
 		if consts.IsDebugMode {
-			if update.ChannelPost.From != nil {
-				// 在频道中使用户身份发送
-				log.Printf("channel post from user \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
-					utils.ShowUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
-					utils.ShowChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.ID, update.ChannelPost.Text,
-				)
-			} else if update.ChannelPost.SenderBusinessBot != nil {
-				// 在频道中由商业 bot 发送
-				log.Printf("channel post from businessbot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
-					utils.ShowUserName(update.ChannelPost.SenderBusinessBot), update.ChannelPost.SenderBusinessBot.Username, update.ChannelPost.SenderBusinessBot.ID,
-					utils.ShowChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.ID, update.ChannelPost.Text,
-				)
-			} else if update.ChannelPost.ViaBot != nil {
+			logger.Debug().
+				Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+				Str("text", update.ChannelPost.Text).
+				Int("messageID", update.ChannelPost.ID).
+				Msg("channel post")
+			if update.ChannelPost.ViaBot != nil {
 				// 在频道中由 bot 发送
-				log.Printf("channel post from bot \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
-					utils.ShowUserName(update.ChannelPost.ViaBot), update.ChannelPost.ViaBot.Username, update.ChannelPost.ViaBot.ID,
-					utils.ShowChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.ID, update.ChannelPost.Text,
-				)
-			} else if update.ChannelPost.SenderChat != nil {
-				if update.ChannelPost.SenderChat.ID == update.ChannelPost.Chat.ID {
-					// 在频道中由频道自己发送
-					log.Printf("channel post in \"%s\"(%s)[%d], (%d) message [%s]",
-						utils.ShowChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-						update.ChannelPost.ID, update.ChannelPost.Text,
-					)
-				} else {
-					// 在频道中使用其他频道身份发送
-					log.Printf("channel post from another channel \"%s\"(%s)[%d], in \"%s\"(%s)[%d], (%d) message [%s]",
-						utils.ShowChatName(update.ChannelPost.SenderChat), update.ChannelPost.SenderChat.Username, update.ChannelPost.SenderChat.ID,
-						utils.ShowChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-						update.ChannelPost.ID, update.ChannelPost.Text,
-					)
-				}
-			} else {
+				_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
+				logger.Debug().
+					Dict("viaBot", viaBot).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Str("text", update.ChannelPost.Text).
+					Int("messageID", update.ChannelPost.ID).
+					Msg("channel post send via bot")
+			}
+			if update.ChannelPost.SenderChat == nil {
 				// 没有身份信息
-				log.Printf("channel post from nobody in \"%s\"(%s)[%d], (%d) message [%s]",
-					// utils.ShowUserName(update.ChannelPost.From), update.ChannelPost.From.Username, update.ChannelPost.From.ID,
-					utils.ShowChatName(&update.ChannelPost.Chat), update.ChannelPost.Chat.Username, update.ChannelPost.Chat.ID,
-					update.ChannelPost.ID, update.ChannelPost.Text,
-				)
+				logger.Debug().
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Str("text", update.ChannelPost.Text).
+					Int("messageID", update.ChannelPost.ID).
+					Msg("channel post from nobody")
 			}
 			return
 		}
@@ -274,14 +254,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		// 频道中编辑过的消息
 		if update.EditedChannelPost.Caption != "" {
 			logger.Debug().
-				Dict(utils.GetUserDict(update.EditedChannelPost.From)).
+				Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
 				Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
 				Int("messageID", update.EditedChannelPost.ID).
 				Str("editedCaption", update.EditedChannelPost.Caption).
 				Msg("edited channel post caption")
 		} else {
 			logger.Debug().
-				Dict(utils.GetUserDict(update.EditedChannelPost.From)).
+				Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
 				Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
 				Int("messageID", update.EditedChannelPost.ID).
 				Str("editedText", update.EditedChannelPost.Text).

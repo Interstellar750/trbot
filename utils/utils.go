@@ -466,3 +466,52 @@ func GetChatDict(chat *models.Chat) (string, *zerolog.Event) {
 		Str("type", string(chat.Type)).
 		Int64("ID", chat.ID)
 }
+
+// Can replace GetUserDict(), not for GetChatDict(), and not available for some update type.
+// return a sender type string and a `zerolog.Dict()` to show sender info
+func GetUserOrSenderChatDict(userOrSenderChat *models.Message) (string, *zerolog.Event) {
+	if userOrSenderChat == nil {
+		return "noMessage", zerolog.Dict().Str("error", "no message to check")
+	}
+
+	if userOrSenderChat.From != nil {
+		return "user", zerolog.Dict().
+			Str("name", ShowUserName(userOrSenderChat.From)).
+			Str("username", userOrSenderChat.From.Username).
+			Int64("ID", userOrSenderChat.From.ID)
+	}
+
+	attr := message_utils.GetMessageAttribute(userOrSenderChat)
+
+	if userOrSenderChat.SenderChat != nil {
+		if attr.IsFromAnonymous {
+			return "groupAnonymous", zerolog.Dict().
+				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
+				Str("username", userOrSenderChat.SenderChat.Username).
+				Int64("ID", userOrSenderChat.SenderChat.ID)
+		} else if attr.IsUserAsChannel {
+			return "userAsChannel", zerolog.Dict().
+				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
+				Str("username", userOrSenderChat.SenderChat.Username).
+				Int64("ID", userOrSenderChat.SenderChat.ID)
+		} else if attr.IsFromLinkedChannel {
+			return "linkedChannel", zerolog.Dict().
+				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
+				Str("username", userOrSenderChat.SenderChat.Username).
+				Int64("ID", userOrSenderChat.SenderChat.ID)
+		} else if attr.IsFromBusinessBot {
+			return "businessBot", zerolog.Dict().
+				Str("name", ShowUserName(userOrSenderChat.SenderBusinessBot)).
+				Str("username", userOrSenderChat.SenderBusinessBot.Username).
+				Int64("ID", userOrSenderChat.SenderBusinessBot.ID)
+		} else if attr.IsHasSenderChat && userOrSenderChat.SenderChat.ID != userOrSenderChat.Chat.ID {
+			// use other channel send message in this channel
+			return "senderChat", zerolog.Dict().
+				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
+				Str("username", userOrSenderChat.SenderChat.Username).
+				Int64("ID", userOrSenderChat.SenderChat.ID)
+		}
+	}
+
+	return "noUserOrSender", zerolog.Dict().Str("error", "no user or sender chat")
+}

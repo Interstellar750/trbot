@@ -8,6 +8,7 @@ type MessageAttribute struct {
 	IsFromLinkedChannel  bool `yaml:"IsFromLinkedChannel,omitempty"`  // is automatic forward post from linked channel
 	IsUserAsChannel      bool `yaml:"IsUserAsChannel,omitempty"`      // user selected to send message as a channel
 	IsHasSenderChat      bool `yaml:"IsHasSenderChat,omitempty"`      // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
+	IsFromBusinessBot    bool `yaml:"IsFromBusinessBot,omitempty"`    // the bot that actually sent the message on behalf of the business account
 	IsChatEnableForum    bool `yaml:"IsChatEnableForum,omitempty"`    // group or supergroup is enable topic
 	IsForwardMessage     bool `yaml:"IsForwardMessage,omitempty"`     // not a origin message, forward from somewhere
 	IsTopicMessage       bool `yaml:"IsTopicMessage,omitempty"`       // the message is sent to a forum topic
@@ -48,6 +49,9 @@ func GetMessageAttribute(msg *models.Message) MessageAttribute {
 				attribute.IsFromLinkedChannel = true
 			}
 		}
+	}
+	if msg.SenderBusinessBot != nil {
+		attribute.IsFromBusinessBot = true
 	}
 	if msg.Chat.IsForum {
 		attribute.IsChatEnableForum = true
