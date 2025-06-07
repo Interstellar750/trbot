@@ -63,7 +63,8 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				Dict(utils.GetChatDict(&update.Message.Chat)).
 				Int("messageID", update.Message.ID).
 				Str("text", update.Message.Text).
-				Msg("textMessage")
+				Str("type", string(message_utils.GetMessageType(update.Message).InString())).
+				Msg("message")
 		}
 
 		messageHandler(&opts)

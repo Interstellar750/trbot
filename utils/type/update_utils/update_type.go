@@ -33,9 +33,10 @@ type UpdateType struct {
 	RemovedChatBoost        bool `yaml:"RemovedChatBoost,omitempty"`        // *models.ChatBoostRemoved
 }
 
-func (mt UpdateType)InString() UpdateTypeList {
-	val := reflect.ValueOf(mt)
-	typ := reflect.TypeOf(mt)
+// 将消息类型结构体转换为 UpdateTypeList(string) 类型
+func (ut UpdateType)InString() UpdateTypeList {
+	val := reflect.ValueOf(ut)
+	typ := reflect.TypeOf(ut)
 
 	for i := 0; i < val.NumField(); i++ {
 		if val.Field(i).Bool() {
@@ -74,7 +75,7 @@ const (
 	RemovedChatBoost       	UpdateTypeList = "RemovedChatBoost"
 )
 
-// 判断更新属性
+// 判断更新的类型
 func GetUpdateType(update *models.Update) UpdateType {
 	var updateType UpdateType
 	if update.Message != nil {

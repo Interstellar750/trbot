@@ -5,6 +5,7 @@ import (
 	"trbot/database/db_struct"
 	"trbot/database/redis_db"
 	"trbot/database/yaml_db"
+	"trbot/utils"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
@@ -56,6 +57,7 @@ func AddDatabaseBackend(ctx context.Context, backends ...DatabaseBackend) int {
 			}
 			logger.Info().
 				Str("database", db.Name).
+				Str("databaseLevel", utils.TextForTrueOrFalse(db.IsLowLevel, "low", "high")).
 				Msg("Database initialized")
 			count++
 		} else {

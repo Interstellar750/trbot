@@ -43,10 +43,10 @@ func SignalsHandler(ctx context.Context) {
 					Err(err).
 					Int("retryCount", saveDatabaseRetryCount).
 					Int("maxRetry", saveDatabaseRetryMax).
-					Msg("Save database failed")
+					Msg("Failed to save database, retrying...")
 				time.Sleep(2 * time.Second)
 				if saveDatabaseRetryCount >= saveDatabaseRetryMax {
-					logger.Error().Msg("Save database failed too many times, exiting")
+					logger.Error().Msg("Failed to save database too many times, exiting")
 					os.Exit(1)
 				}
 				continue

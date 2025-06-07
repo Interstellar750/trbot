@@ -31,7 +31,7 @@ type MessageAttribute struct {
 	IsHasInlineKeyboard  bool `yaml:"IsHasInlineKeyboard,omitempty"`  // message has inline keyboard
 }
 
-// 判断消息属性
+// 判断消息的属性
 func GetMessageAttribute(msg *models.Message) MessageAttribute {
 	var attribute MessageAttribute
 	if msg.SenderChat != nil {

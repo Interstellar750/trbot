@@ -2,7 +2,6 @@ package plugin_utils
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog"
 )
@@ -25,7 +24,7 @@ func AddDataBaseHandler(InlineHandlerPlugins ...DatabaseHandler) int {
 	return pluginCount
 }
 
-func ReloadPluginsDatabase(ctx context.Context) string {
+func ReloadPluginsDatabase(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("funcName", "ReloadPluginsDatabase").
@@ -50,8 +49,8 @@ func ReloadPluginsDatabase(ctx context.Context) string {
 			successCount++
 		}
 	}
-	return fmt.Sprintf("Reload (%d/%d) plugins database", successCount, dbCount)
 
+	logger.Info().Msgf("Reloaded (%d/%d) plugins database", successCount, dbCount)
 }
 
 func SavePluginsDatabase(ctx context.Context) {
@@ -81,5 +80,5 @@ func SavePluginsDatabase(ctx context.Context) {
 		}
 	}
 
-	logger.Info().Msgf("[plugin_utils] Saved (%d/%d) plugins database", successCount, dbCount)
+	logger.Info().Msgf("Saved (%d/%d) plugins database", successCount, dbCount)
 }
