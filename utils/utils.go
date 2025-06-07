@@ -513,5 +513,5 @@ func GetUserOrSenderChatDict(userOrSenderChat *models.Message) (string, *zerolog
 		}
 	}
 
-	return "noUserOrSender", zerolog.Dict().Str("error", "no user or sender chat")
+	return "noUserOrSender", zerolog.Dict().Str("warn", "no user or sender chat")
 }

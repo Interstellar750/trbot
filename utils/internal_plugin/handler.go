@@ -83,7 +83,7 @@ func startHandler(params *handler_structs.SubHandlerParams) error {
 			Err(err).
 			Dict(utils.GetChatDict(&params.Update.Message.Chat)).
 			Dict(utils.GetUserDict(params.Update.Message.From)).
-			Msg("Send `bot welcome` message error")
+			Msg("Failed to send `bot welcome` message")
 	}
 
 	return err
@@ -109,7 +109,7 @@ func helpHandler(params *handler_structs.SubHandlerParams) error {
 			Err(err).
 			Dict(utils.GetChatDict(&params.Update.Message.Chat)).
 			Dict(utils.GetUserDict(params.Update.Message.From)).
-			Msg("Send `bot help keyboard` message error")
+			Msg("Failed to send `bot help keyboard` message")
 	}
 	return err
 }
@@ -130,7 +130,7 @@ func helpCallbackHandler(params *handler_structs.SubHandlerParams) error {
 				Err(err).
 				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
 				Dict(utils.GetChatDict(&params.Update.CallbackQuery.Message.Message.Chat)).
-			Msg("Delete `bot help keyboard` message failed")
+			Msg("Failed to delete `bot help keyboard` message")
 		}
 		return err
 	} else if strings.HasPrefix(params.Update.CallbackQuery.Data, "help-handler_") {
@@ -182,7 +182,7 @@ func helpCallbackHandler(params *handler_structs.SubHandlerParams) error {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Msg("Send `help page is not exist` answer failed")
+				Msg("Failed to send `help page is not exist` callback answer")
 		}
 	}
 	

@@ -229,7 +229,7 @@ func showStatus(opts *handler_structs.SubHandlerParams) {
 				pendingMessage += "\n"
 			}
 			if userCount == 0 {
-				pendingMessage += "当前无用户在线"
+				pendingMessage = "当前无用户在线"
 			}
 		}
 	} else {

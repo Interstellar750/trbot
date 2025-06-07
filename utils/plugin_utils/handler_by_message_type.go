@@ -150,7 +150,7 @@ func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerP
 					Err(err).
 					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-				Msg("Delete `select handler by message type keyboard` message failed")
+				Msg("Failed to delete `select handler by message type keyboard` message")
 				return err
 			}
 		} else {
@@ -164,7 +164,7 @@ func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerP
 					Err(err).
 					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-				Msg("Send `handler by message type is not exist` callback answer failed")
+				Msg("Failed to send `handler by message type is not exist` callback answer")
 				return err
 			}
 		}

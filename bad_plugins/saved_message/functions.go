@@ -769,7 +769,7 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) {
 				Str("username", opts.Update.Message.From.Username).
 				Int64("ID", opts.Update.Message.From.ID),
 			).
-			Msg("Send `saved message function enabled` message failed")
+			Msg("Failed to send `saved message function enabled` message")
 	}
 }
 

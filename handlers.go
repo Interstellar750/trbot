@@ -41,31 +41,29 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	// 需要重写来配合 handler by update type
 	if update.Message != nil {
 		// 正常消息
-		if consts.IsDebugMode {
-			if update.Message.Photo != nil {
-				logger.Debug().
-					Dict(utils.GetUserOrSenderChatDict(update.Message)).
-					Dict(utils.GetChatDict(&update.Message.Chat)).
-					Int("messageID", update.Message.ID).
-					Str("caption", update.Message.Caption).
-					Msg("photoMessage")
-			} else if update.Message.Sticker != nil {
-				logger.Debug().
-					Dict(utils.GetUserOrSenderChatDict(update.Message)).
-					Dict(utils.GetChatDict(&update.Message.Chat)).
-					Int("messageID", update.Message.ID).
-					Str("stickerEmoji", update.Message.Sticker.Emoji).
-					Str("stickerSetname", update.Message.Sticker.SetName).
-					Str("stickerFileID", update.Message.Sticker.FileID).
-					Msg("stickerMessage")
-			} else {
-				logger.Debug().
-					Dict(utils.GetUserOrSenderChatDict(update.Message)).
-					Dict(utils.GetChatDict(&update.Message.Chat)).
-					Int("messageID", update.Message.ID).
-					Str("text", update.Message.Text).
-					Msg("textMessage")
-			}
+		if update.Message.Photo != nil {
+			logger.Debug().
+				Dict(utils.GetUserOrSenderChatDict(update.Message)).
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Int("messageID", update.Message.ID).
+				Str("caption", update.Message.Caption).
+				Msg("photoMessage")
+		} else if update.Message.Sticker != nil {
+			logger.Debug().
+				Dict(utils.GetUserOrSenderChatDict(update.Message)).
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Int("messageID", update.Message.ID).
+				Str("stickerEmoji", update.Message.Sticker.Emoji).
+				Str("stickerSetname", update.Message.Sticker.SetName).
+				Str("stickerFileID", update.Message.Sticker.FileID).
+				Msg("stickerMessage")
+		} else {
+			logger.Debug().
+				Dict(utils.GetUserOrSenderChatDict(update.Message)).
+				Dict(utils.GetChatDict(&update.Message.Chat)).
+				Int("messageID", update.Message.ID).
+				Str("text", update.Message.Text).
+				Msg("textMessage")
 		}
 
 		messageHandler(&opts)
@@ -114,73 +112,69 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 		callbackQueryHandler(&opts)
 
-		
-
 		opts.ChatInfo.HasPendingCallbackQuery = false
 		return
 	} else if update.MessageReaction != nil {
 		// 私聊或群组表情回应
-		if consts.IsDebugMode {
-			if len(update.MessageReaction.OldReaction) > 0 {
-				for i, oldReaction := range update.MessageReaction.OldReaction {
-					if oldReaction.ReactionTypeEmoji != nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(update.MessageReaction.User)).
-							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-							Int("messageID", update.MessageReaction.MessageID).
-							Str("removedEmoji", oldReaction.ReactionTypeEmoji.Emoji).
-							Str("emojiType", string(oldReaction.ReactionTypeEmoji.Type)).
-							Int("count", i + 1).
-							Msg("removed emoji reaction")
-					} else if oldReaction.ReactionTypeCustomEmoji != nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(update.MessageReaction.User)).
-							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-							Int("messageID", update.MessageReaction.MessageID).
-							Str("removedEmojiID", oldReaction.ReactionTypeCustomEmoji.CustomEmojiID).
-							Str("emojiType", string(oldReaction.ReactionTypeCustomEmoji.Type)).
-							Int("count", i + 1).
-							Msg("removed custom emoji reaction")
-					} else if oldReaction.ReactionTypePaid != nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(update.MessageReaction.User)).
-							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-							Int("messageID", update.MessageReaction.MessageID).
-							Str("emojiType", string(oldReaction.ReactionTypePaid.Type)).
-							Int("count", i + 1).
-							Msg("removed paid emoji reaction")
-					}
+		if len(update.MessageReaction.OldReaction) > 0 {
+			for i, oldReaction := range update.MessageReaction.OldReaction {
+				if oldReaction.ReactionTypeEmoji != nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(update.MessageReaction.User)).
+						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+						Int("messageID", update.MessageReaction.MessageID).
+						Str("removedEmoji", oldReaction.ReactionTypeEmoji.Emoji).
+						Str("emojiType", string(oldReaction.ReactionTypeEmoji.Type)).
+						Int("count", i + 1).
+						Msg("removed emoji reaction")
+				} else if oldReaction.ReactionTypeCustomEmoji != nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(update.MessageReaction.User)).
+						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+						Int("messageID", update.MessageReaction.MessageID).
+						Str("removedEmojiID", oldReaction.ReactionTypeCustomEmoji.CustomEmojiID).
+						Str("emojiType", string(oldReaction.ReactionTypeCustomEmoji.Type)).
+						Int("count", i + 1).
+						Msg("removed custom emoji reaction")
+				} else if oldReaction.ReactionTypePaid != nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(update.MessageReaction.User)).
+						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+						Int("messageID", update.MessageReaction.MessageID).
+						Str("emojiType", string(oldReaction.ReactionTypePaid.Type)).
+						Int("count", i + 1).
+						Msg("removed paid emoji reaction")
 				}
 			}
-			if len(update.MessageReaction.NewReaction) > 0 {
-				for i, newReaction := range update.MessageReaction.NewReaction {
-					if newReaction.ReactionTypeEmoji != nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(update.MessageReaction.User)).
-							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-							Int("messageID", update.MessageReaction.MessageID).
-							Str("addEmoji", newReaction.ReactionTypeEmoji.Emoji).
-							Str("emojiType", string(newReaction.ReactionTypeEmoji.Type)).
-							Int("count", i + 1).
-							Msg("add emoji reaction")
-					} else if newReaction.ReactionTypeCustomEmoji != nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(update.MessageReaction.User)).
-							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-							Int("messageID", update.MessageReaction.MessageID).
-							Str("addEmojiID", newReaction.ReactionTypeCustomEmoji.CustomEmojiID).
-							Str("emojiType", string(newReaction.ReactionTypeCustomEmoji.Type)).
-							Int("count", i + 1).
-							Msg("add custom emoji reaction")
-					} else if newReaction.ReactionTypePaid != nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(update.MessageReaction.User)).
-							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-							Int("messageID", update.MessageReaction.MessageID).
-							Str("emojiType", string(newReaction.ReactionTypePaid.Type)).
-							Int("count", i + 1).
-							Msg("add paid emoji reaction")
-					}
+		}
+		if len(update.MessageReaction.NewReaction) > 0 {
+			for i, newReaction := range update.MessageReaction.NewReaction {
+				if newReaction.ReactionTypeEmoji != nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(update.MessageReaction.User)).
+						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+						Int("messageID", update.MessageReaction.MessageID).
+						Str("addEmoji", newReaction.ReactionTypeEmoji.Emoji).
+						Str("emojiType", string(newReaction.ReactionTypeEmoji.Type)).
+						Int("count", i + 1).
+						Msg("add emoji reaction")
+				} else if newReaction.ReactionTypeCustomEmoji != nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(update.MessageReaction.User)).
+						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+						Int("messageID", update.MessageReaction.MessageID).
+						Str("addEmojiID", newReaction.ReactionTypeCustomEmoji.CustomEmojiID).
+						Str("emojiType", string(newReaction.ReactionTypeCustomEmoji.Type)).
+						Int("count", i + 1).
+						Msg("add custom emoji reaction")
+				} else if newReaction.ReactionTypePaid != nil {
+					logger.Debug().
+						Dict(utils.GetUserDict(update.MessageReaction.User)).
+						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+						Int("messageID", update.MessageReaction.MessageID).
+						Str("emojiType", string(newReaction.ReactionTypePaid.Type)).
+						Int("count", i + 1).
+						Msg("add paid emoji reaction")
 				}
 			}
 		}
@@ -223,32 +217,29 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			Msg("emoji reaction count updated")
 	} else if update.ChannelPost != nil {
 		// 频道信息
-		if consts.IsDebugMode {
+		logger.Debug().
+			Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+			Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+			Str("text", update.ChannelPost.Text).
+			Int("messageID", update.ChannelPost.ID).
+			Msg("channel post")
+		if update.ChannelPost.ViaBot != nil {
+			// 在频道中由 bot 发送
+			_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
 			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+				Dict("viaBot", viaBot).
 				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
 				Str("text", update.ChannelPost.Text).
 				Int("messageID", update.ChannelPost.ID).
-				Msg("channel post")
-			if update.ChannelPost.ViaBot != nil {
-				// 在频道中由 bot 发送
-				_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
-				logger.Debug().
-					Dict("viaBot", viaBot).
-					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-					Str("text", update.ChannelPost.Text).
-					Int("messageID", update.ChannelPost.ID).
-					Msg("channel post send via bot")
-			}
-			if update.ChannelPost.SenderChat == nil {
-				// 没有身份信息
-				logger.Debug().
-					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-					Str("text", update.ChannelPost.Text).
-					Int("messageID", update.ChannelPost.ID).
-					Msg("channel post from nobody")
-			}
-			return
+				Msg("channel post send via bot")
+		}
+		if update.ChannelPost.SenderChat == nil {
+			// 没有身份信息
+			logger.Debug().
+				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+				Str("text", update.ChannelPost.Text).
+				Int("messageID", update.ChannelPost.ID).
+				Msg("channel post from nobody")
 		}
 	} else if update.EditedChannelPost != nil {
 		// 频道中编辑过的消息
@@ -339,7 +330,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Send `no this command` message failed")
+					Msg("Failed to send `no this command` message")
 			}
 			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 			if err != nil {
@@ -367,7 +358,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Send `no this command` message failed")
+					Msg("Failed to send `no this command` message")
 			}
 			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 			if err != nil {
@@ -392,7 +383,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Delete `no this command` message failed")
+					Msg("Failed to delete `no this command` message")
 			}
 			return
 		}
@@ -523,7 +514,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 								Str("messageType", string(msgTypeInString)).
 								Str("chatType", string(opts.Update.Message.Chat.Type)).
 								Int("handlerInThisTypeCount", handlerInThisTypeCount).
-								Msg("Send `select a handler by message type keyboard` message failed")
+								Msg("Failed to send `select a handler by message type keyboard` message")
 						}
 					}
 				}
@@ -543,7 +534,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 						Str("messageType", string(msgTypeInString)).
 						Str("chatType", string(opts.Update.Message.Chat.Type)).
 						Int("handlerInThisTypeCount", handlerInThisTypeCount).
-						Msg("Send `select a handler by message type keyboard` message failed")
+						Msg("Failed to send `select a handler by message type keyboard` message")
 				}
 			}
 		} else if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
@@ -561,7 +552,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("messageType", string(msgTypeInString)).
 					Str("chatType", string(opts.Update.Message.Chat.Type)).
-					Msg("Send `no handler by message type plugin for this message type` message failed")
+					Msg("Failed to send `no handler by message type plugin for this message type` message")
 			}
 		}
 	}
@@ -645,8 +636,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-				Msg("Send `bot inline handler list` result failed")
-			return
+				Msg("Failed to send `bot inline handler list` inline result")
 		}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
 		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则提示错误
@@ -676,7 +666,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("handlerCommand", plugin.Command).
 						Str("handlerType", "returnResult").
-						Msg("Send `inline handler` inline result failed")
+						Msg("Failed to send `inline handler` inline result")
 					// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 				}
 				return
@@ -719,12 +709,14 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					continue
 				}
 				err := plugin.Handler(opts)
-				logger.Error().
+				if err != nil {
+					logger.Error().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("handlerCommand", plugin.PrefixCommand).
 						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
 						Msg("Error in inline handler")
+				}
 				return
 			}
 		}
@@ -746,7 +738,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-				Msg("Send `no this inline command` result failed")
+				Msg("Failed to send `no this inline command` inline result")
 		}
 		return
 	} else {
@@ -779,7 +771,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
-							Msg("Send `user default inline handler` inline result failed")
+							Msg("Failed to send `user default inline handler result` inline result")
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
@@ -857,7 +849,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					Str("query", opts.Update.InlineQuery.Query).
 					Str("userDefaultInlineCommand", opts.ChatInfo.DefaultInlinePlugin).
 					// Str("result", "invalid user default inline handler").
-					Msg("Send `invalid user default inline handler` inline result failed")
+					Msg("Failed to send `invalid user default inline handler` inline result")
 			}
 			return
 		} else if configs.BotConfig.InlineDefaultHandler != "" {
@@ -892,7 +884,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("defaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
-							Msg("Send `bot default inline handler` inline result failed")
+							Msg("Failed to send `bot default inline handler result` inline result")
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
@@ -975,7 +967,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 					Str("query", opts.Update.InlineQuery.Query).
-					Msg("Send `invalid bot default inline handler` inline result failed")
+					Msg("Failed to send `invalid bot default inline handler` inline result")
 				return
 			}
 			return
@@ -1014,7 +1006,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 				Str("query", opts.Update.InlineQuery.Query).
-				Msg("Send `bot no default inline handler` inline result failed")
+				Msg("Failed to send `bot no default inline handler` inline result")
 			return
 		}
 	}
@@ -1042,7 +1034,7 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 				logger.Error().
 					Err(err).
 					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-					Msg("Send `this callback request is processing` callback answer failed")
+					Msg("Failed to send `this callback request is processing` callback answer")
 			}
 			return
 		} else if params.ChatInfo.HasPendingCallbackQuery {
@@ -1061,7 +1053,7 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 				logger.Error().
 					Err(err).
 					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-					Msg("Send `a callback request is processing, send new request later` callback answer failed")
+					Msg("Failed to send `a callback request is processing, send new request later` callback answer")
 			}
 			return
 		} else {

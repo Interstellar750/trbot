@@ -142,7 +142,7 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "/version").
-						Msg("Send `bot version info` message failed")
+						Msg("Failed to send `bot version info` message")
 					return err
 				}
 				time.Sleep(time.Second * 20)
@@ -157,7 +157,7 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "/version").
-						Msg("Delete command message and `bot version info` message failed")
+						Msg("Failed to delete `command message and bot version info` message")
 				}
 				if !success {
 					// 如果不能把用户的消息也删了，就单独删 bot 的消息
@@ -169,7 +169,7 @@ func Register(ctx context.Context) {
 						logger.Error().
 							Err(err).
 							Str("command", "/version").
-							Msg("Delete `bot version info` message failed")
+							Msg("Failed to delete `bot version info` message")
 					}
 				}
 				
@@ -200,7 +200,7 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Msg("Send `select inline default command keyboard` message failed")
+						Msg("Failed to send `select inline default command keyboard` message")
 				}
 				return err
 			},
@@ -272,7 +272,7 @@ func Register(ctx context.Context) {
 								logger.Error().
 									Err(err).
 									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-									Msg("Send `inline command changed` callback answer failed")
+									Msg("Failed to send `inline command changed` callback answer")
 								return err
 							}
 							break
@@ -344,7 +344,7 @@ func Register(ctx context.Context) {
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:          "custom voices",
+							ID:          "custom_voices",
 							Title:       "URL as a voice",
 							Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
 							InputMessageContent: &models.InputTextMessageContent{
@@ -358,8 +358,7 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "uaav").
-						Str("result", "command usage tips").
-						Msg("Send inline command result failed")
+						Msg("Failed to send `usage tips` inline result")
 					return err
 				}
 			} else if len(keywords) == 1 {
@@ -378,10 +377,9 @@ func Register(ctx context.Context) {
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Str("callbackQuery", opts.Update.CallbackQuery.Data).
+							Str("query", opts.Update.InlineQuery.Query).
 							Str("command", "uaav").
-							Str("result", "valid voice url").
-							Msg("Send inline command result failed")
+							Msg("Failed to send `valid voice url` inline result")
 						return err
 					}
 				} else {
@@ -402,10 +400,9 @@ func Register(ctx context.Context) {
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Str("callbackQuery", opts.Update.CallbackQuery.Data).
+							Str("query", opts.Update.InlineQuery.Query).
 							Str("command", "uaav").
-							Str("result", "URL invalid").
-							Msg("Send inline command result failed")
+							Msg("Failed to send `URL invalid` inline result")
 						return err
 					}
 				}
@@ -427,10 +424,9 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("callbackQuery", opts.Update.CallbackQuery.Data).
+						Str("query", opts.Update.InlineQuery.Query).
 						Str("command", "uaav").
-						Str("result", "argumunt too much").
-						Msg("Send inline command result failed")
+						Msg("Failed to send `too much argumunt` inline result")
 					return err
 				}
 			}
@@ -454,7 +450,8 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("callbackQuery", opts.Update.CallbackQuery.Data).
+						Str("query", opts.Update.InlineQuery.Query).
+						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("command", "log").
 						Msg("Read log by inline command failed")
 					return err
@@ -483,8 +480,10 @@ func Register(ctx context.Context) {
 					if err != nil {
 						logger.Error().
 							Err(err).
+							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("command", "log").
-							Msg("Send inline command result failed")
+							Msg("Failed to send `log info` inline result")
+							
 						return err
 					}
 				}
@@ -506,8 +505,8 @@ func Register(ctx context.Context) {
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:          "reload",
-							Title:       "已请求更新",
+							ID:          "reloadpdb-back",
+							Title:       "已请求重新加载插件数据库",
 							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: "???",
@@ -521,8 +520,9 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("command", "reload").
-						Msg("Send inline command result failed")
+						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
+						Str("command", "reloadpdb").
+						Msg("Failed to send `reload plugin database info` inline result")
 				}
 				return err
 			},
@@ -542,8 +542,8 @@ func Register(ctx context.Context) {
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:          "reload",
-							Title:       "已请求保存",
+							ID:          "savepdb-back",
+							Title:       "已请求保存插件数据库",
 							Description: fmt.Sprintf("last save at %s", time.Now().Format(time.RFC3339)),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: "???",
@@ -557,8 +557,9 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
+						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("command", "savepdb").
-						Msg("Send inline command result failed")
+						Msg("Failed to send `save plugin database info` inline result")
 				}
 				return err
 			},
@@ -578,8 +579,8 @@ func Register(ctx context.Context) {
 					InlineQueryID: opts.Update.InlineQuery.ID,
 					Results: []models.InlineQueryResult{
 						&models.InlineQueryResultArticle{
-							ID:          "savedb",
-							Title:       "已请求保存",
+							ID:          "savedb-back",
+							Title:       "已请求保存数据库",
 							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: "???",
@@ -593,8 +594,9 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
+						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("command", "savedb").
-						Msg("Send inline command result failed")
+						Msg("Failed to send `save database info` inline result")
 				}
 				return err
 			},
