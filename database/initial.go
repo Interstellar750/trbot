@@ -18,10 +18,9 @@ type DatabaseBackend struct {
 	// 数据库等级，低优先级的数据库不会实时同步更改，程序仅会在高优先级数据库不可用才会尝试使用其中的数据
 	IsLowLevel bool
 
-	// 是否已被成功初始化
-	Initializer    func() (bool, error)
-	IsInitialized  bool
-	InitializedErr error
+	Initializer    func() (bool, error) // 数据库初始化函数
+	IsInitialized  bool                 // 是否已被成功初始化
+	InitializedErr error                // 初始化错误
 
 	// 数据库保存和读取函数
 	SaveDatabase func(ctx context.Context) error
@@ -40,7 +39,7 @@ type DatabaseBackend struct {
 var DBBackends []DatabaseBackend
 var DBBackends_LowLevel []DatabaseBackend
 
-func AddDatabaseBackend(ctx context.Context, backends ...DatabaseBackend) int {
+func AddDatabaseBackends(ctx context.Context, backends ...DatabaseBackend) int {
 	logger := zerolog.Ctx(ctx)
 
 	if DBBackends == nil { DBBackends = []DatabaseBackend{} }
@@ -64,7 +63,7 @@ func AddDatabaseBackend(ctx context.Context, backends ...DatabaseBackend) int {
 			logger.Error().
 				Err(db.InitializedErr).
 				Str("database", db.Name).
-				Msg("Database initialize failed")
+				Msg("Failed to initialize database")
 		}
 	}
 
@@ -73,7 +72,7 @@ func AddDatabaseBackend(ctx context.Context, backends ...DatabaseBackend) int {
 
 func InitAndListDatabases(ctx context.Context) {
 	logger := zerolog.Ctx(ctx)
-	AddDatabaseBackend(ctx, DatabaseBackend{
+	AddDatabaseBackends(ctx, DatabaseBackend{
 		Name:        "redis",
 		Initializer: redis_db.InitializeDB,
 
@@ -86,7 +85,7 @@ func InitAndListDatabases(ctx context.Context) {
 		SetCustomFlag:         redis_db.SetCustomFlag,
 	})
 
-	AddDatabaseBackend(ctx, DatabaseBackend{
+	AddDatabaseBackends(ctx, DatabaseBackend{
 		Name:        "yaml",
 		IsLowLevel:  true,
 		Initializer: yaml_db.InitializeDB,
@@ -103,26 +102,13 @@ func InitAndListDatabases(ctx context.Context) {
 		SetCustomFlag:         yaml_db.SetCustomFlag,
 	})
 
-	// for _, backend := range DBBackends {
-	// 	logger.Info().
-	// 		Str("database", backend.Name).
-	// 		Str("level", "high").
-	// 		Msg("database initialized")
-	// }
-	// for _, backend := range DBBackends_LowLevel {
-	// 	logger.Info().
-	// 		Str("database", backend.Name).
-	// 		Str("level", "low").
-	// 		Msg("database initialized")
-	// }
-
 	if len(DBBackends) + len(DBBackends_LowLevel) == 0 {
 		logger.Fatal().
 			Msg("No database available")
-	} else {
-		logger.Info().
-			Int("High-level", len(DBBackends)).
-			Int("Low-level", len(DBBackends_LowLevel)).
-			Msg("Available databases")
 	}
+
+	logger.Info().
+		Int("highLevel", len(DBBackends)).
+		Int("lowLevel", len(DBBackends_LowLevel)).
+		Msg("Available databases")
 }

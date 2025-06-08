@@ -27,9 +27,7 @@ type config struct {
 	// redis database
 	RedisURL        string `yaml:"RedisURL"`
 	RedisPassword   string `yaml:"RedisPassword"`
-	RedisMainDB     int    `yaml:"RedisMainDB"`
-	RedisUserInfoDB int    `yaml:"RedisUserInfoDB"`
-	RedisSubDB      int    `yaml:"RedisSubDB"`
+	RedisDatabaseID int    `yaml:"RedisDatabaseID"`
 
 	// inline mode config
 	InlineDefaultHandler   string `yaml:"InlineDefaultHandler"`   // Leave empty to show inline menu

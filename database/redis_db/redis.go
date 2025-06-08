@@ -3,7 +3,6 @@ package redis_db
 import (
 	"context"
 	"fmt"
-	"log"
 	"reflect"
 	"strconv"
 	"time"
@@ -16,33 +15,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var MainDB *redis.Client // 配置文件
 var UserDB *redis.Client // 用户数据
-
-var ctxbg = context.Background()
 
 func InitializeDB() (bool, error) {
 	if configs.BotConfig.RedisURL != "" {
-		if configs.BotConfig.RedisMainDB != -1 {
-			MainDB = redis.NewClient(&redis.Options{
-				Addr:     configs.BotConfig.RedisURL,
-				Password: configs.BotConfig.RedisPassword,
-				DB:       configs.BotConfig.RedisMainDB,
-			})
-			err := PingRedis(ctxbg, MainDB)
-			if err != nil {
-				return false, fmt.Errorf("error ping Redis MainDB: %s", err)
-			}
-		}
-		if configs.BotConfig.RedisUserInfoDB != -1 {
+		if configs.BotConfig.RedisDatabaseID != -1 {
 			UserDB = redis.NewClient(&redis.Options{
 				Addr:     configs.BotConfig.RedisURL,
 				Password: configs.BotConfig.RedisPassword,
-				DB:       configs.BotConfig.RedisUserInfoDB,
+				DB:       configs.BotConfig.RedisDatabaseID,
 			})
-			err := PingRedis(ctxbg, UserDB)
+			err := UserDB.Ping(context.Background()).Err()
 			if err != nil {
-				return false, fmt.Errorf("error ping Redis UserDB: %s", err)
+				return false, fmt.Errorf("failed to ping Redis [%d] database: %w", configs.BotConfig.RedisDatabaseID, err)
 			}
 		}
 
@@ -52,19 +37,14 @@ func InitializeDB() (bool, error) {
 	}
 }
 
-func PingRedis(ctx context.Context, db *redis.Client) error {
-	_, err := db.Ping(ctx).Result()
-	return err
-}
-
 // 保存用户信息
 func SaveChatInfo(ctx context.Context, chatInfo *db_struct.ChatInfo) error {
 	if chatInfo == nil {
-		return fmt.Errorf("chatInfo 不能为空")
+		return fmt.Errorf("failed to save chat info: chatInfo is nil")
 	}
 
 	key := strconv.FormatInt(chatInfo.ID, 10)
-	v := reflect.ValueOf(*chatInfo) // 解除指针获取值
+	v := reflect.ValueOf(*chatInfo)
 	t := reflect.TypeOf(*chatInfo)
 
 	data := make(map[string]interface{})
@@ -82,7 +62,7 @@ func GetChatInfo(ctx context.Context, chatID int64) (*db_struct.ChatInfo, error)
 	key := strconv.FormatInt(chatID, 10)
 	data, err := UserDB.HGetAll(ctx, key).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get chat info: %w", err)
 	}
 	if len(data) == 0 {
 		return nil, nil
@@ -116,7 +96,7 @@ func GetChatInfo(ctx context.Context, chatID int64) (*db_struct.ChatInfo, error)
 func InitUser(ctx context.Context, user *models.User) error {
 	chatData, err := GetChatInfo(ctx, user.ID)
 	if err != nil {
-		return fmt.Errorf("[UserDB] Error getting chat info from Redis: %v", err)
+		return fmt.Errorf("failed to get chat info: %w", err)
 	}
 	if chatData == nil {
 		var newUser = db_struct.ChatInfo{
@@ -128,82 +108,77 @@ func InitUser(ctx context.Context, user *models.User) error {
 
 		err = SaveChatInfo(ctx, &newUser)
 		if err != nil {
-			return fmt.Errorf("[UserDB] Error saving user info to Redis: %v", err)
+			return fmt.Errorf("failed to init new user: %w", err)
 		}
-		log.Printf("newUser: \"%s\"(%d)\n", newUser.ChatName, user.ID)
-		return nil
-	} else {
-		log.Printf("oldUser: \"%s\"(%d)\n", chatData.ChatName, chatData.ID)
-		return nil
 	}
+	return nil
 }
 
 func InitChat(ctx context.Context, chat *models.Chat) error {
 	chatData, err := GetChatInfo(ctx, chat.ID)
 	if err != nil {
-		return fmt.Errorf("[UserDB] Error getting chat info from Redis: %v", err)
+		return fmt.Errorf("failed to get chat info: %w", err)
 	}
 	if chatData == nil {
 		var newChat = db_struct.ChatInfo{
 			ID:       chat.ID,
 			ChatName: utils.ShowChatName(chat),
-			ChatType: models.ChatTypePrivate,
+			ChatType: chat.Type,
 			AddTime:  time.Now().Format(time.RFC3339),
 		}
 
 		err = SaveChatInfo(ctx, &newChat)
 		if err != nil {
-			return fmt.Errorf("[UserDB] Error saving chat info to Redis: %v", err)
+			return fmt.Errorf("failed to init new chat: %w", err)
 		}
-		log.Printf("newChat: \"%s\"(%d)\n", newChat.ChatName, newChat.ID)
-		return nil
-	} else {
-		log.Printf("oldChat: \"%s\"(%d)\n", chatData.ChatName, chatData.ID)
-		return nil
 	}
+	return nil
 }
 
 func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
 	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), string(fieldName)).Int()
-	if err == nil {
-		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), count + 1).Err()
-		if err == nil {
-			return nil
-		}
-	} else if err == redis.Nil {
-		err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), 1).Err()
-		if err == nil {
-			log.Printf("[UserDB] Key %s not found, creating in Redis\n", fieldName)
-			return nil
+	if err != nil {
+		if err == redis.Nil {
+			err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), 0).Err()
+			if err != nil {
+				return fmt.Errorf("failed to create empty [%s] key: %w", string(fieldName), err)
+			}
+		} else {
+			return fmt.Errorf("failed to get [%s] usage count: %w", string(fieldName), err)
 		}
 	}
 
-	return fmt.Errorf("[UserDB] Error incrementing usage count to Redis: %v", err)
+	err = UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), count + 1).Err()
+	if err != nil {
+		return fmt.Errorf("failed to incrementing [%s] usage count: %w", string(fieldName), err)
+	}
+
+	return nil
 }
 
 func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
-	if err == nil {
-		return nil
+	if err != nil {
+		return fmt.Errorf("failed to record latest [%s] data: %w", string(fieldName), err)
 	}
-	
-	return fmt.Errorf("[UserDB] Error saving chat info to Redis: %v", err)
+
+	return nil
 }
 
 func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
-	if err == nil {
-		return nil
+	if err != nil {
+		return fmt.Errorf("failed to update operation [%s] status: %w", string(fieldName), err)
 	}
 
-	return fmt.Errorf("[UserDB] Error update operation status to Redis: %v", err)
+	return nil
 }
 
 func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
-    err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
-	if err == nil {
-		return nil
+	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
+	if err != nil {
+		return fmt.Errorf("failed to set custom [%s] flag: %w", string(fieldName), err)
 	}
 
-	return fmt.Errorf("[UserDB] Error setting custom flag to Redis: %v", err)
+	return nil
 }

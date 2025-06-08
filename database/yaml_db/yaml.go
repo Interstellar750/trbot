@@ -20,6 +20,8 @@ import (
 
 var Database DataBaseYaml
 
+// 需要重构，错误信息不足
+
 type DataBaseYaml struct {
 	// 如果运行中希望程序强制读取新数据，在 YAML 数据库文件的开头添加 FORCEOVERWRITE: true 即可
 	ForceOverwrite bool `yaml:"FORCEOVERWRITE,omitempty"`
@@ -35,11 +37,11 @@ func InitializeDB() (bool, error) {
 		var err error
 		Database, err = ReadYamlDB(filepath.Join(consts.YAMLDataBasePath, consts.YAMLFileName))
 		if err != nil {
-			return false, fmt.Errorf("read yaml db error: %s", err)
+			return false, fmt.Errorf("failed to read yaml databse: %s", err)
 		}
 		return true, nil
 	} else {
-		return false, fmt.Errorf("DB path is empty")
+		return false, fmt.Errorf("yaml database path is empty")
 	}
 }
 
