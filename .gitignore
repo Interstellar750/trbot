@@ -33,3 +33,4 @@ __debug_bin*
 /db_yaml/detectkeyword
 /db_yaml/teamspeak
 config.yaml
+/ffmpeg

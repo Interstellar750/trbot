@@ -29,9 +29,6 @@ func main() {
 	// log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	logger := log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	ctx = logger.WithContext(ctx)
-	logger.Info().
-		Str("version", runtime.Version()).
-		Msg("trbot")
 
 	// read configs
 	if err := configs.InitBot(ctx); err != nil {
@@ -40,9 +37,11 @@ func main() {
 
 	// set log level from config
 	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog())
-	if zerolog.GlobalLevel() == zerolog.DebugLevel {
-		consts.IsDebugMode = true
-	}
+
+	logger.Warn().
+		Str("runtime", runtime.Version()).
+		Str("logLevel", zerolog.GlobalLevel().String()).
+		Msg("trbot")
 
 	opts := []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),

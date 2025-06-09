@@ -4,8 +4,6 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-var IsDebugMode bool
-
 var WebhookListenPort string = "localhost:2847"
 
 var YAMLDataBasePath string = "./db_yaml/"

@@ -128,7 +128,7 @@ func AutoSaveDatabaseHandler() {
 		}
 	}
 	// 没有修改就跳过保存
-	if reflect.DeepEqual(savedDatabase, Database) && consts.IsDebugMode {
+	if reflect.DeepEqual(savedDatabase, Database) {
 		log.Println("looks Database no any change, skip autosave this time")
 	} else {
 		// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记，无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
@@ -188,7 +188,7 @@ func AutoSaveDatabaseHandler() {
 			err := SaveYamlDB(consts.YAMLDataBasePath, consts.YAMLFileName, Database)
 			if err != nil {
 				mess.PrintLogAndSave(fmt.Sprintln("some issues happend when auto saving Database:", err))
-			} else if consts.IsDebugMode {
+			} else {
 				mess.PrintLogAndSave("auto save at " + time.Now().Format(time.RFC3339))
 			}
 		}

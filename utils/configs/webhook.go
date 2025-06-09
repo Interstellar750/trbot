@@ -32,7 +32,7 @@ func IsUsingWebhook(ctx context.Context) bool {
 		return true
 	}
 
-	logger.Info().
+	logger.Warn().
 		Msg("No Webhook URL in environment and .env file, using getUpdate mode")
 	return false
 }

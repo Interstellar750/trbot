@@ -24,247 +24,250 @@ import (
 func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update) {
 	defer utils.PanicCatcher(ctx, "defaultHandler")
 	logger := zerolog.Ctx(ctx)
-	// logger := zerolog.Ctx(ctx).
-	// 	With().
-	// 	Str("funcName", "defaultHandler").
-	// 	Logger()
 
-	// var err error
 	var opts = handler_structs.SubHandlerParams{
 		Ctx:    ctx,
 		Thebot: thebot,
 		Update: update,
 	}
 
+	// Debug level or Trace Level
+	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+		if update.Message != nil {
+			// 正常消息
+			if update.Message.Photo != nil {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Str("caption", update.Message.Caption).
+					Msg("photoMessage")
+			} else if update.Message.Sticker != nil {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Str("stickerEmoji", update.Message.Sticker.Emoji).
+					Str("stickerSetname", update.Message.Sticker.SetName).
+					Str("stickerFileID", update.Message.Sticker.FileID).
+					Msg("stickerMessage")
+			} else {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Str("text", update.Message.Text).
+					Str("type", string(message_utils.GetMessageType(update.Message).InString())).
+					Msg("message")
+			}
+		} else if update.EditedMessage != nil {
+			// 私聊或群组消息被编辑
+			if update.EditedMessage.Caption != "" {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
+					Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
+					Int("messageID", update.EditedMessage.ID).
+					Str("editedCaption", update.EditedMessage.Caption).
+					Msg("editedMessage")
+			} else {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
+					Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
+					Int("messageID", update.EditedMessage.ID).
+					Str("editedText", update.EditedMessage.Text).
+					Msg("editedMessage")
+			}
+		} else if update.InlineQuery != nil {
+			// inline 查询
+			logger.Debug().
+				Dict(utils.GetUserDict(update.InlineQuery.From)).
+				Str("query", update.InlineQuery.Query).
+				Msg("inline request")
+
+		} else if update.ChosenInlineResult != nil {
+			// inline 查询结果被选择
+			logger.Debug().
+				Dict(utils.GetUserDict(&update.ChosenInlineResult.From)).
+				Str("query", update.ChosenInlineResult.Query).
+				Str("resultID", update.ChosenInlineResult.ResultID).
+				Msg("chosen inline result")
+
+		} else if update.CallbackQuery != nil {
+			// replymarkup 回调
+			logger.Debug().
+				Dict(utils.GetUserDict(&update.CallbackQuery.From)).
+				Dict(utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)).
+				Str("query", update.CallbackQuery.Data).
+				Msg("callback query")
+
+			return
+		} else if update.MessageReaction != nil {
+			// 私聊或群组表情回应
+			if len(update.MessageReaction.OldReaction) > 0 {
+				for i, oldReaction := range update.MessageReaction.OldReaction {
+					if oldReaction.ReactionTypeEmoji != nil {
+						logger.Debug().
+							Dict(utils.GetUserDict(update.MessageReaction.User)).
+							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+							Int("messageID", update.MessageReaction.MessageID).
+							Str("removedEmoji", oldReaction.ReactionTypeEmoji.Emoji).
+							Str("emojiType", string(oldReaction.ReactionTypeEmoji.Type)).
+							Int("count", i + 1).
+							Msg("removed emoji reaction")
+					} else if oldReaction.ReactionTypeCustomEmoji != nil {
+						logger.Debug().
+							Dict(utils.GetUserDict(update.MessageReaction.User)).
+							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+							Int("messageID", update.MessageReaction.MessageID).
+							Str("removedEmojiID", oldReaction.ReactionTypeCustomEmoji.CustomEmojiID).
+							Str("emojiType", string(oldReaction.ReactionTypeCustomEmoji.Type)).
+							Int("count", i + 1).
+							Msg("removed custom emoji reaction")
+					} else if oldReaction.ReactionTypePaid != nil {
+						logger.Debug().
+							Dict(utils.GetUserDict(update.MessageReaction.User)).
+							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+							Int("messageID", update.MessageReaction.MessageID).
+							Str("emojiType", string(oldReaction.ReactionTypePaid.Type)).
+							Int("count", i + 1).
+							Msg("removed paid emoji reaction")
+					}
+				}
+			}
+			if len(update.MessageReaction.NewReaction) > 0 {
+				for i, newReaction := range update.MessageReaction.NewReaction {
+					if newReaction.ReactionTypeEmoji != nil {
+						logger.Debug().
+							Dict(utils.GetUserDict(update.MessageReaction.User)).
+							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+							Int("messageID", update.MessageReaction.MessageID).
+							Str("addEmoji", newReaction.ReactionTypeEmoji.Emoji).
+							Str("emojiType", string(newReaction.ReactionTypeEmoji.Type)).
+							Int("count", i + 1).
+							Msg("add emoji reaction")
+					} else if newReaction.ReactionTypeCustomEmoji != nil {
+						logger.Debug().
+							Dict(utils.GetUserDict(update.MessageReaction.User)).
+							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+							Int("messageID", update.MessageReaction.MessageID).
+							Str("addEmojiID", newReaction.ReactionTypeCustomEmoji.CustomEmojiID).
+							Str("emojiType", string(newReaction.ReactionTypeCustomEmoji.Type)).
+							Int("count", i + 1).
+							Msg("add custom emoji reaction")
+					} else if newReaction.ReactionTypePaid != nil {
+						logger.Debug().
+							Dict(utils.GetUserDict(update.MessageReaction.User)).
+							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
+							Int("messageID", update.MessageReaction.MessageID).
+							Str("emojiType", string(newReaction.ReactionTypePaid.Type)).
+							Int("count", i + 1).
+							Msg("add paid emoji reaction")
+					}
+				}
+			}
+		} else if update.MessageReactionCount != nil {
+			// 频道消息表情回应数量
+			var emoji        = zerolog.Dict()
+			var customEmoji  = zerolog.Dict()
+			var paid         = zerolog.Dict()
+			for _, n := range update.MessageReactionCount.Reactions {
+				switch n.Type.Type {
+				case models.ReactionTypeTypeEmoji:
+					emoji.Dict(n.Type.ReactionTypeEmoji.Emoji, zerolog.Dict().
+						// Str("type", string(n.Type.ReactionTypeEmoji.Type)).
+						// Str("emoji", n.Type.ReactionTypeEmoji.Emoji).
+						Int("count", n.TotalCount),
+					)
+				case models.ReactionTypeTypeCustomEmoji:
+					customEmoji.Dict(n.Type.ReactionTypeCustomEmoji.CustomEmojiID, zerolog.Dict().
+						// Str("type", string(n.Type.ReactionTypeCustomEmoji.Type)).
+						// Str("customEmojiID", n.Type.ReactionTypeCustomEmoji.CustomEmojiID).
+						Int("count", n.TotalCount),
+					)
+				case models.ReactionTypeTypePaid:
+					paid.Dict(n.Type.ReactionTypePaid.Type, zerolog.Dict().
+						// Str("type", n.Type.ReactionTypePaid.Type).
+						Int("count", n.TotalCount),
+					)
+				}
+				
+			}
+
+			logger.Debug().
+				Dict(utils.GetChatDict(&update.MessageReactionCount.Chat)).
+				Dict("reactions", zerolog.Dict().
+					Dict("emoji", emoji).
+					Dict("customEmoji", customEmoji).
+					Dict("paid", paid),
+				).
+				Int("messageID", update.MessageReactionCount.MessageID).
+				Msg("emoji reaction count updated")
+		} else if update.ChannelPost != nil {
+			// 频道信息
+			logger.Debug().
+				Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+				Str("text", update.ChannelPost.Text).
+				Int("messageID", update.ChannelPost.ID).
+				Msg("channel post")
+			if update.ChannelPost.ViaBot != nil {
+				// 在频道中由 bot 发送
+				_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
+				logger.Debug().
+					Dict("viaBot", viaBot).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Str("text", update.ChannelPost.Text).
+					Int("messageID", update.ChannelPost.ID).
+					Msg("channel post send via bot")
+			}
+			if update.ChannelPost.SenderChat == nil {
+				// 没有身份信息
+				logger.Debug().
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Str("text", update.ChannelPost.Text).
+					Int("messageID", update.ChannelPost.ID).
+					Msg("channel post from nobody")
+			}
+		} else if update.EditedChannelPost != nil {
+			// 频道中编辑过的消息
+			if update.EditedChannelPost.Caption != "" {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
+					Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
+					Int("messageID", update.EditedChannelPost.ID).
+					Str("editedCaption", update.EditedChannelPost.Caption).
+					Msg("edited channel post caption")
+			} else {
+				logger.Debug().
+					Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
+					Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
+					Int("messageID", update.EditedChannelPost.ID).
+					Str("editedText", update.EditedChannelPost.Text).
+					Msg("edited channel post")
+			}
+		} else {
+			// 其他没有加入的更新类型
+			logger.Warn().
+				Str("updateType", string(update_utils.GetUpdateType(update).InString())).
+				Msg("Receive a no tagged update type")
+		}
+	}
+
+	// 记录数据和读取信息
 	database.RecordData(&opts)
 
-	// 需要重写来配合 handler by update type
-	if update.Message != nil {
-		// 正常消息
-		if update.Message.Photo != nil {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.Message)).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Int("messageID", update.Message.ID).
-				Str("caption", update.Message.Caption).
-				Msg("photoMessage")
-		} else if update.Message.Sticker != nil {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.Message)).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Int("messageID", update.Message.ID).
-				Str("stickerEmoji", update.Message.Sticker.Emoji).
-				Str("stickerSetname", update.Message.Sticker.SetName).
-				Str("stickerFileID", update.Message.Sticker.FileID).
-				Msg("stickerMessage")
-		} else {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.Message)).
-				Dict(utils.GetChatDict(&update.Message.Chat)).
-				Int("messageID", update.Message.ID).
-				Str("text", update.Message.Text).
-				Str("type", string(message_utils.GetMessageType(update.Message).InString())).
-				Msg("message")
-		}
-
+	updateType := update_utils.GetUpdateType(update)
+	switch {
+	case updateType.Message:
 		messageHandler(&opts)
-	} else if update.EditedMessage != nil {
-		// 私聊或群组消息被编辑
-		if update.EditedMessage.Caption != "" {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
-				Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
-				Int("messageID", update.EditedMessage.ID).
-				Str("editedCaption", update.EditedMessage.Caption).
-				Msg("editedMessage")
-		} else {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
-				Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
-				Int("messageID", update.EditedMessage.ID).
-				Str("editedText", update.EditedMessage.Text).
-				Msg("editedMessage")
-		}
-	} else if update.InlineQuery != nil {
-		// inline 查询
-
-		logger.Debug().
-			Dict(utils.GetUserDict(update.InlineQuery.From)).
-			Str("query", update.InlineQuery.Query).
-			Msg("inline request")
-
+	case updateType.InlineQuery:
 		inlineHandler(&opts)
-	} else if update.ChosenInlineResult != nil {
-		// inline 查询结果被选择
-		logger.Debug().
-			Dict(utils.GetUserDict(&update.ChosenInlineResult.From)).
-			Str("query", update.ChosenInlineResult.Query).
-			Str("resultID", update.ChosenInlineResult.ResultID).
-			Msg("chosen inline result")
-
-		
-	} else if update.CallbackQuery != nil {
-		// replymarkup 回调
-		logger.Debug().
-			Dict(utils.GetUserDict(&update.CallbackQuery.From)).
-			Dict(utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)).
-			Str("query", update.CallbackQuery.Data).
-			Msg("callback query")
-
+	case updateType.CallbackQuery:
 		callbackQueryHandler(&opts)
-
 		opts.ChatInfo.HasPendingCallbackQuery = false
-		return
-	} else if update.MessageReaction != nil {
-		// 私聊或群组表情回应
-		if len(update.MessageReaction.OldReaction) > 0 {
-			for i, oldReaction := range update.MessageReaction.OldReaction {
-				if oldReaction.ReactionTypeEmoji != nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(update.MessageReaction.User)).
-						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-						Int("messageID", update.MessageReaction.MessageID).
-						Str("removedEmoji", oldReaction.ReactionTypeEmoji.Emoji).
-						Str("emojiType", string(oldReaction.ReactionTypeEmoji.Type)).
-						Int("count", i + 1).
-						Msg("removed emoji reaction")
-				} else if oldReaction.ReactionTypeCustomEmoji != nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(update.MessageReaction.User)).
-						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-						Int("messageID", update.MessageReaction.MessageID).
-						Str("removedEmojiID", oldReaction.ReactionTypeCustomEmoji.CustomEmojiID).
-						Str("emojiType", string(oldReaction.ReactionTypeCustomEmoji.Type)).
-						Int("count", i + 1).
-						Msg("removed custom emoji reaction")
-				} else if oldReaction.ReactionTypePaid != nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(update.MessageReaction.User)).
-						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-						Int("messageID", update.MessageReaction.MessageID).
-						Str("emojiType", string(oldReaction.ReactionTypePaid.Type)).
-						Int("count", i + 1).
-						Msg("removed paid emoji reaction")
-				}
-			}
-		}
-		if len(update.MessageReaction.NewReaction) > 0 {
-			for i, newReaction := range update.MessageReaction.NewReaction {
-				if newReaction.ReactionTypeEmoji != nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(update.MessageReaction.User)).
-						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-						Int("messageID", update.MessageReaction.MessageID).
-						Str("addEmoji", newReaction.ReactionTypeEmoji.Emoji).
-						Str("emojiType", string(newReaction.ReactionTypeEmoji.Type)).
-						Int("count", i + 1).
-						Msg("add emoji reaction")
-				} else if newReaction.ReactionTypeCustomEmoji != nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(update.MessageReaction.User)).
-						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-						Int("messageID", update.MessageReaction.MessageID).
-						Str("addEmojiID", newReaction.ReactionTypeCustomEmoji.CustomEmojiID).
-						Str("emojiType", string(newReaction.ReactionTypeCustomEmoji.Type)).
-						Int("count", i + 1).
-						Msg("add custom emoji reaction")
-				} else if newReaction.ReactionTypePaid != nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(update.MessageReaction.User)).
-						Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
-						Int("messageID", update.MessageReaction.MessageID).
-						Str("emojiType", string(newReaction.ReactionTypePaid.Type)).
-						Int("count", i + 1).
-						Msg("add paid emoji reaction")
-				}
-			}
-		}
-	} else if update.MessageReactionCount != nil {
-		// 频道消息表情回应数量
-		var emoji        = zerolog.Dict()
-		var customEmoji  = zerolog.Dict()
-		var paid         = zerolog.Dict()
-		for _, n := range update.MessageReactionCount.Reactions {
-			switch n.Type.Type {
-			case models.ReactionTypeTypeEmoji:
-				emoji.Dict(n.Type.ReactionTypeEmoji.Emoji, zerolog.Dict().
-					// Str("type", string(n.Type.ReactionTypeEmoji.Type)).
-					// Str("emoji", n.Type.ReactionTypeEmoji.Emoji).
-					Int("count", n.TotalCount),
-				)
-			case models.ReactionTypeTypeCustomEmoji:
-				customEmoji.Dict(n.Type.ReactionTypeCustomEmoji.CustomEmojiID, zerolog.Dict().
-					// Str("type", string(n.Type.ReactionTypeCustomEmoji.Type)).
-					// Str("customEmojiID", n.Type.ReactionTypeCustomEmoji.CustomEmojiID).
-					Int("count", n.TotalCount),
-				)
-			case models.ReactionTypeTypePaid:
-				paid.Dict(n.Type.ReactionTypePaid.Type, zerolog.Dict().
-					// Str("type", n.Type.ReactionTypePaid.Type).
-					Int("count", n.TotalCount),
-				)
-			}
-			
-		}
-
-		logger.Debug().
-			Dict(utils.GetChatDict(&update.MessageReactionCount.Chat)).
-			Dict("reactions", zerolog.Dict().
-				Dict("emoji", emoji).
-				Dict("customEmoji", customEmoji).
-				Dict("paid", paid),
-			).
-			Int("messageID", update.MessageReactionCount.MessageID).
-			Msg("emoji reaction count updated")
-	} else if update.ChannelPost != nil {
-		// 频道信息
-		logger.Debug().
-			Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
-			Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-			Str("text", update.ChannelPost.Text).
-			Int("messageID", update.ChannelPost.ID).
-			Msg("channel post")
-		if update.ChannelPost.ViaBot != nil {
-			// 在频道中由 bot 发送
-			_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
-			logger.Debug().
-				Dict("viaBot", viaBot).
-				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-				Str("text", update.ChannelPost.Text).
-				Int("messageID", update.ChannelPost.ID).
-				Msg("channel post send via bot")
-		}
-		if update.ChannelPost.SenderChat == nil {
-			// 没有身份信息
-			logger.Debug().
-				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-				Str("text", update.ChannelPost.Text).
-				Int("messageID", update.ChannelPost.ID).
-				Msg("channel post from nobody")
-		}
-	} else if update.EditedChannelPost != nil {
-		// 频道中编辑过的消息
-		if update.EditedChannelPost.Caption != "" {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
-				Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
-				Int("messageID", update.EditedChannelPost.ID).
-				Str("editedCaption", update.EditedChannelPost.Caption).
-				Msg("edited channel post caption")
-		} else {
-			logger.Debug().
-				Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
-				Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
-				Int("messageID", update.EditedChannelPost.ID).
-				Str("editedText", update.EditedChannelPost.Text).
-				Msg("edited channel post")
-		}
-	} else {
-		// 其他没有加入的更新类型
-		logger.Warn().
-			Str("updateType", string(update_utils.GetUpdateType(update).InString())).
-			Msg("Receive a no tagged update type")
 	}
+
+	
 }
 
 // 处理所有信息请求的处理函数，触发条件为任何消息

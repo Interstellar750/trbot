@@ -198,7 +198,7 @@ func readEnvironment(ctx context.Context) error {
 	if os.Getenv("DEBUG") != "" {
 		BotConfig.LogLevel = "debug"
 		logger.Warn().
-			Msg("DEBUG environment variable is set, set log level to debug")
+			Msg("The DEBUG environment variable is set")
 	}
 
 	logLevel := os.Getenv("LOG_LEVEL")

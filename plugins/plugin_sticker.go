@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"image/png"
 	"io"
-	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"trbot/database"
@@ -27,6 +27,7 @@ import (
 
 var StickerCache_path    string = filepath.Join(consts.CacheDirectory, "sticker/")
 var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_png/")
+var StickerCacheGIF_path string = filepath.Join(consts.CacheDirectory, "sticker_gif/")
 var StickerCacheZip_path string = filepath.Join(consts.CacheDirectory, "sticker_zip/")
 
 func init() {
@@ -58,6 +59,7 @@ func init() {
 
 type stickerDatas struct {
 	Data            io.Reader
+	IsConverted     bool
 	IsCustomSticker bool
 	StickerCount    int
 	StickerIndex    int
@@ -102,7 +104,7 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Update.Message.From.ID,
-			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Error downloading sticker: %s</blockquote>", err),
+			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
@@ -126,6 +128,7 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 	if opts.Update.Message.Sticker.IsVideo {
 		documentParams.Caption = "<blockquote>see <a href=\"https://wikipedia.org/wiki/WebM\">wikipedia/WebM</a></blockquote>"
 		stickerFileSuffix = "webm"
+		// stickerFileSuffix = "gif"
 	} else if opts.Update.Message.Sticker.IsAnimated {
 		documentParams.Caption = "<blockquote>see <a href=\"https://core.telegram.org/stickers#animated-stickers\">stickers/animated-stickers</a></blockquote>"
 		stickerFileSuffix = "tgs.file"
@@ -157,7 +160,7 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 		logger.Error().
 			Err(err).
 			Dict(utils.GetUserDict(opts.Update.Message.From)).
-			Msg("Failed to send sticker png file to user")
+			Msg("Failed to send sticker file to user")
 		return err
 	}
 
@@ -196,7 +199,7 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 			logger.Warn().
 				Err(err).
 				Str("setName", opts.Update.Message.Sticker.SetName).
-				Msg("Get sticker set failed, download it as a custom sticker")
+				Msg("Failed to get sticker set info, download it as a custom sticker")
 			
 			// 到这里是因为用户发送的贴纸对应的贴纸包已经被删除了，但贴纸中的信息还有对应的 SetName，会触发查询，但因为贴纸包被删了就查不到，将 index 值设为 -1，缓存后当作自定义贴纸继续
 			data.IsCustomSticker   = true
@@ -228,11 +231,14 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 		stickerFileNameWithDot = fmt.Sprintf("%s.", opts.Update.Message.Sticker.FileID)
 	}
 
-	var filePath       string = StickerCache_path + stickerSetNamePrivate + "/" // 保存贴纸源文件的目录 .cache/sticker/setName/
-	var originFullPath string = filePath + stickerFileNameWithDot + fileSuffix  // 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
+	var filePath       string = filepath.Join(StickerCache_path, stickerSetNamePrivate)      // 保存贴纸源文件的目录 .cache/sticker/setName/
+	var originFullPath string = filepath.Join(filePath, stickerFileNameWithDot + fileSuffix) // 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
 
-	var PNGFilePath   string = StickerCachePNG_path + stickerSetNamePrivate + "/" // 转码后为 png 格式的目录 .cache/sticker_png/setName/
-	var toPNGFullPath string = PNGFilePath + stickerFileNameWithDot + "png"       // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
+	var PNGFilePath   string = filepath.Join(StickerCachePNG_path, stickerSetNamePrivate) // 转码后为 png 格式的目录 .cache/sticker_png/setName/
+	var toPNGFullPath string = filepath.Join(PNGFilePath, stickerFileNameWithDot + "png") // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
+
+	var GIFFilePath   string = filepath.Join(StickerCacheGIF_path, stickerSetNamePrivate) // 转码后为 png 格式的目录 .cache/sticker_png/setName/
+	var toGIFFullPath string = filepath.Join(GIFFilePath, stickerFileNameWithDot + "gif") // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
 
 	_, err := os.Stat(originFullPath) // 检查贴纸源文件是否已缓存
 	if err != nil {
@@ -249,8 +255,8 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				logger.Error().
 					Err(err).
 					Str("fileID", opts.Update.Message.Sticker.FileID).
-					Msg("error getting sticker file info")
-				return nil, fmt.Errorf("error getting sticker fileinfo %s: %v", opts.Update.Message.Sticker.FileID, err)
+					Msg("Failed to get sticker file info")
+				return nil, fmt.Errorf("failed to get sticker file [%s] info: %w", opts.Update.Message.Sticker.FileID, err)
 			}
 
 			// 组合链接下载贴纸源文件
@@ -259,8 +265,8 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				logger.Error().
 					Err(err).
 					Str("filePath", fileinfo.FilePath).
-					Msg("error downloading sticker file")
-				return nil, fmt.Errorf("error downloading file %s: %v", fileinfo.FilePath, err)
+					Msg("Failed to download sticker file")
+				return nil, fmt.Errorf("failed to download sticker file [%s]: %w", fileinfo.FilePath, err)
 			}
 			defer resp.Body.Close()
 
@@ -270,8 +276,8 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				logger.Error().
 					Err(err).
 					Str("filePath", filePath).
-					Msg("error creating directory")
-				return nil, fmt.Errorf("error creating directory %s: %w", filePath, err)
+					Msg("Failed to create sticker directory to save sticker")
+				return nil, fmt.Errorf("failed to create directory [%s] to save sticker: %w", filePath, err)
 			}
 
 			// 创建贴纸空文件
@@ -280,8 +286,8 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				logger.Error().
 					Err(err).
 					Str("originFullPath", originFullPath).
-					Msg("error creating file")
-				return nil, fmt.Errorf("error creating file %s: %w", originFullPath, err)
+					Msg("Failed to create sticker file")
+				return nil, fmt.Errorf("failed to create sticker file [%s]: %w", originFullPath, err)
 			}
 			defer downloadedSticker.Close()
 
@@ -291,15 +297,15 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				logger.Error().
 					Err(err).
 					Str("originFullPath", originFullPath).
-					Msg("error writing sticker data to file")
-				return nil, fmt.Errorf("error writing to file %s: %w", originFullPath, err)
+					Msg("Failed to writing sticker data to file")
+				return nil, fmt.Errorf("failed to writing sticker data to file [%s]: %w", originFullPath, err)
 			}
 		} else {
 			logger.Error().
 				Err(err).
 				Str("originFullPath", originFullPath).
-				Msg("error when reading cached file info")
-			return nil, fmt.Errorf("error when reading cached file info: %w", err)
+				Msg("Failed to read cached sticker file info")
+			return nil, fmt.Errorf("failed to read cached sticker file [%s] info: %w", originFullPath, err)
 		}
 	} else {
 		// 文件已存在，跳过下载
@@ -310,8 +316,58 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 
 	var finalFullPath string // 存放最后读取并发送的文件完整目录 .cache/sticker/setName/stickerFileName.webp
 
-	// 如果贴纸类型不是视频和矢量，进行转换
-	if !opts.Update.Message.Sticker.IsVideo && !opts.Update.Message.Sticker.IsAnimated {
+	if opts.Update.Message.Sticker.IsAnimated {
+		// tgs
+		// 不需要转码，直接读取原贴纸文件
+		finalFullPath = originFullPath
+	} else if opts.Update.Message.Sticker.IsVideo {
+		// webm, convert to gif
+		_, err = os.Stat(toGIFFullPath) // 使用目录提前检查一下是否已经转换过
+		if err != nil {
+			// 如果提示不存在，进行转换
+			if os.IsNotExist(err) {
+				// 日志提示该文件没转换，正在转换
+				logger.Trace().
+					Str("toGIFFullPath", toGIFFullPath).
+					Msg("sticker file does not convert, converting")
+
+				// 创建保存贴纸的目录
+				err = os.MkdirAll(GIFFilePath, 0755)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("GIFFilePath", GIFFilePath).
+						Msg("Failed to create directory to convert file")
+					return nil, fmt.Errorf("failed to create directory [%s] to convert sticker file: %w", GIFFilePath, err)
+				}
+
+				// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
+				err = convertWebmToGif(originFullPath, toGIFFullPath)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("originFullPath", originFullPath).
+						Msg("Failed to convert webm to gif")
+					return nil, fmt.Errorf("failed to convert webm [%s] to gif: %w", originFullPath, err)
+				}
+			} else {
+				// 其他错误
+				logger.Error().
+					Err(err).
+					Str("toGIFFullPath", toGIFFullPath).
+					Msg("Failed to read converted file info")
+				return nil, fmt.Errorf("failed to read converted sticker file [%s] info: %w", toGIFFullPath, err)
+			}
+		} else {
+			// 文件存在，跳过转换
+			logger.Trace().
+				Str("toGIFFullPath", toGIFFullPath).
+				Msg("sticker file already converted to gif")
+		}
+		// 处理完成，将最后要读取的目录设为转码后 gif 格式贴纸的完整目录
+		finalFullPath = toGIFFullPath
+	} else {
+		// webp, need convert to png
 		_, err = os.Stat(toPNGFullPath) // 使用目录提前检查一下是否已经转换过
 		if err != nil {
 			// 如果提示不存在，进行转换
@@ -319,7 +375,7 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				// 日志提示该文件没转换，正在转换
 				logger.Trace().
 					Str("toPNGFullPath", toPNGFullPath).
-					Msg("file does not convert, converting")
+					Msg("sticker file does not convert, converting")
 
 				// 创建保存贴纸的目录
 				err = os.MkdirAll(PNGFilePath, 0755)
@@ -327,8 +383,8 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 					logger.Error().
 						Err(err).
 						Str("PNGFilePath", PNGFilePath).
-						Msg("error creating directory to convert file")
-					return nil, fmt.Errorf("error creating directory to convert file %s: %w", PNGFilePath, err)
+						Msg("Failed to create directory to convert sticker")
+					return nil, fmt.Errorf("failed to create directory [%s] to convert sticker: %w", PNGFilePath, err)
 				}
 
 				// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
@@ -337,28 +393,25 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 					logger.Error().
 						Err(err).
 						Str("originFullPath", originFullPath).
-						Msg("error converting webp to png")
-					return nil, fmt.Errorf("error converting webp to png %s: %w", originFullPath, err)
+						Msg("Failed to convert webp to png")
+					return nil, fmt.Errorf("failed to convert webp [%s] to png: %w", originFullPath, err)
 				}
 			} else {
 				// 其他错误
 				logger.Error().
 					Err(err).
 					Str("toPNGFullPath", toPNGFullPath).
-					Msg("error when reading converted file info")
-				return nil, fmt.Errorf("error when reading converted file info: %w", err)
+					Msg("Failed to read converted sticker file info")
+				return nil, fmt.Errorf("failed to read converted png sticker file [%s] info : %w", toPNGFullPath, err)
 			}
 		} else {
 			// 文件存在，跳过转换
 			logger.Trace().
 				Str("toPNGFullPath", toPNGFullPath).
-				Msg("file already converted")
+				Msg("sticker file already converted to png")
 		}
 		// 处理完成，将最后要读取的目录设为转码后 png 格式贴纸的完整目录
 		finalFullPath = toPNGFullPath
-	} else {
-		// 不需要转码，直接读取原贴纸文件
-		finalFullPath = originFullPath
 	}
 
 	// 逻辑完成，读取最后的文件，返回给上一级函数
@@ -367,7 +420,8 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 		logger.Error().
 			Err(err).
 			Str("finalFullPath", finalFullPath).
-			Msg("error opening sticker file")
+			Msg("Failed to open sticker file")
+		return nil, fmt.Errorf("failed to open sticker file [%s]: %w", finalFullPath, err)
 	}
 
 	return &data, nil
@@ -511,8 +565,8 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 		).
 		Msg("start download sticker set")
 
-	filePath    := StickerCache_path + stickerSet.Name + "/"
-	PNGFilePath := StickerCachePNG_path + stickerSet.Name + "/"
+	filePath    := filepath.Join(StickerCache_path, stickerSet.Name)
+	PNGFilePath := filepath.Join(StickerCachePNG_path, stickerSet.Name)
 
 	var allCached    bool = true
 	var allConverted bool = true
@@ -537,8 +591,8 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 			stickerCount_webp++
 		}
 
-		var originFullPath string = filePath    + stickerfileName + fileSuffix
-		var toPNGFullPath  string = PNGFilePath + stickerfileName + "png"
+		var originFullPath string = filepath.Join(filePath,    stickerfileName + fileSuffix)
+		var toPNGFullPath  string = filepath.Join(PNGFilePath, stickerfileName + "png")
 
 		_, err := os.Stat(originFullPath) // 检查单个贴纸是否已缓存
 		if err != nil {
@@ -579,8 +633,8 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 						Err(err).
 						Int("stickerIndex", i).
 						Str("filePath", filePath).
-						Msg("error creating directory")
-					return nil, fmt.Errorf("error creating directory %s: %w", filePath, err)
+						Msg("Failed to creat directory to save sticker")
+					return nil, fmt.Errorf("failed to create directory [%s] to save sticker: %w", filePath, err)
 				}
 
 				// 创建文件并保存
@@ -590,8 +644,8 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 						Err(err).
 						Int("stickerIndex", i).
 						Str("originFullPath", originFullPath).
-						Msg("error creating file")
-					return nil, fmt.Errorf("error creating file %s: %w", originFullPath, err)
+						Msg("Failed to create sticker file")
+					return nil, fmt.Errorf("failed to create sticker file [%s]: %w", originFullPath, err)
 				}
 				defer downloadedSticker.Close()
 
@@ -602,17 +656,17 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 						Err(err).
 						Int("stickerIndex", i).
 						Str("originFullPath", originFullPath).
-						Msg("error writing sticker data to file")
+						Msg("Failed to writing sticker data to file")
 
-					return nil, fmt.Errorf("error writing to file %s: %w", originFullPath, err)
+					return nil, fmt.Errorf("failed to writing sticker data to file [%s]: %w", originFullPath, err)
 				}
 			} else {
 				logger.Error().
 					Err(err).
 					Int("stickerIndex", i).
 					Str("originFullPath", originFullPath).
-					Msg("error when reading cached file info")
-				return nil, fmt.Errorf("error when reading cached file info: %w", err)
+					Msg("Failed to read cached sticker file info")
+				return nil, fmt.Errorf("failed to read cached sticker file [%s] info: %w", originFullPath, err)
 			}
 		} else {
 			// 存在跳过下载过程
@@ -696,7 +750,9 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 		compressFolderPath = filePath
 	}
 
-	_, err := os.Stat(StickerCacheZip_path + zipFileName) // 检查压缩包文件是否存在
+	var zipFileFullPath string = filepath.Join(StickerCacheZip_path, zipFileName)
+
+	_, err := os.Stat(zipFileFullPath) // 检查压缩包文件是否存在
 	if err != nil {
 		if os.IsNotExist(err) {
 			isZiped = false
@@ -704,75 +760,79 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("zipFilePath", StickerCacheZip_path).
-					Msg("error creating zip file directory")
-				return nil, fmt.Errorf("error creating zip file directory %s: %w", StickerCacheZip_path, err)
+					Str("StickerCacheZip_path", StickerCacheZip_path).
+					Msg("Failed to create zip file directory")
+				return nil, fmt.Errorf("failed to create zip file directory [%s]: %w", StickerCacheZip_path, err)
 			}
-			err = zipFolder(compressFolderPath, StickerCacheZip_path + zipFileName)
+			err = zipFolder(compressFolderPath, zipFileFullPath)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("zipFilePath", StickerCacheZip_path + zipFileName).
-					Msg("error zipping sticker folder")
-				return nil, fmt.Errorf("error zipping folder %s: %w", compressFolderPath, err)
+					Str("compressFolderPath", compressFolderPath).
+					Msg("Failed to compress sticker folder")
+				return nil, fmt.Errorf("failed to compress sticker folder [%s]: %w", compressFolderPath, err)
 			}
 			logger.Trace().
-				Str("zipFilePath", StickerCacheZip_path + zipFileName).
-				Msg("successfully zipped folder")
+				Str("compressFolderPath", compressFolderPath).
+				Str("zipFileFullPath", zipFileFullPath).
+				Msg("Compress sticker folder successfully")
 		} else {
 			logger.Error().
 				Err(err).
-				Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
-				Msg("error when reading sticker set zip file info")
-			return nil, fmt.Errorf("error when reading sticker set zip file info: %w", err)
+				Str("zipFileFullPath", zipFileFullPath).
+				Msg("Failed to read compressed sticker set zip file info")
+			return nil, fmt.Errorf("failed to read compressed sticker set zip file [%s] info: %w", zipFileFullPath, err)
 		}
 	} else {
 		logger.Trace().
-			Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
-			Msg("sticker set zip file already cached")
+			Str("zipFileFullPath", zipFileFullPath).
+			Msg("sticker set zip file already compressed")
 	}
 
 	// 读取压缩后的贴纸包
-	data.Data, err = os.Open(StickerCacheZip_path + zipFileName)
+	data.Data, err = os.Open(zipFileFullPath)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
-			Msg("error opening zip file")
-		return nil, fmt.Errorf("error opening zip file %s: %w", StickerCacheZip_path + zipFileName, err)
+			Str("zipFileFullPath", zipFileFullPath).
+			Msg("Failed to open compressed sticker set zip file")
+		return nil, fmt.Errorf("failed to open compressed sticker set zip file [%s]: %w", zipFileFullPath, err)
 	}
 
-	if isZiped { // 存在已经完成压缩的贴纸包
+	if isZiped {
+		// 存在已经完成压缩的贴纸包（原始格式或已转换）
 		logger.Info().
-			Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
+			Str("zipFileFullPath", zipFileFullPath).
 			Dict("stickerSet", zerolog.Dict().
 				Str("title", data.StickerSetTitle).
 				Str("name", data.StickerSetName).
 				Int("count", data.StickerCount),
 			).
 			Msg("sticker set already zipped")
-	} else if isOnlyPNG && allConverted { // 仅需要 PNG 格式，且贴纸包完全转换成 PNG 格式，但尚未压缩
+	} else if isOnlyPNG && allConverted {
+		// 仅需要 PNG 格式，且贴纸包完全转换成 PNG 格式，但尚未压缩
 		logger.Info().
-			Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
+			Str("zipFileFullPath", zipFileFullPath).
 			Dict("stickerSet", zerolog.Dict().
 				Str("title", data.StickerSetTitle).
 				Str("name", data.StickerSetName).
 				Int("count", data.StickerCount),
 			).
 			Msg("sticker set already converted")
-	} else if allCached { // 贴纸包中的贴纸已经全部缓存了
+	} else if allCached {
+		// 贴纸包中的贴纸已经全部缓存了
 		logger.Info().
-			Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
+			Str("zipFileFullPath", zipFileFullPath).
 			Dict("stickerSet", zerolog.Dict().
 				Str("title", data.StickerSetTitle).
 				Str("name", data.StickerSetName).
 				Int("count", data.StickerCount),
 			).
 			Msg("sticker set already cached")
-		log.Printf("sticker set \"%s\"[%s](%d) is already cached", stickerSet.Title, stickerSet.Name, data.StickerCount)
-	} else { // 新下载的贴纸包（如果有部分已经下载了也是这个）
+	} else {
+		// 新下载的贴纸包（如果有部分已经下载了也是这个）
 		logger.Info().
-			Str("stickerSetZipPath", StickerCacheZip_path + zipFileName).
+			Str("zipFileFullPath", zipFileFullPath).
 			Dict("stickerSet", zerolog.Dict().
 				Str("title", data.StickerSetTitle).
 				Str("name", data.StickerSetName).
@@ -814,12 +874,19 @@ func convertWebPToPNG(webpPath, pngPath string) error {
 	return nil
 }
 
-func zipFolder(srcDir, zipFile string) error {
-	// 创建 ZIP 文件
-	outFile, err := os.Create(zipFile)
+func convertWebmToGif(webmPath, gifPath string) error {
+	cmd := exec.Command("./ffmpeg/bin/ffmpeg.exe", "-i", webmPath, "-vf", "fps=10", gifPath)
+	err := cmd.Run()
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func zipFolder(srcDir, zipFile string) error {
+	// 创建 ZIP 文件
+	outFile, err := os.Create(zipFile)
+	if err != nil { return err }
 	defer outFile.Close()
 
 	// 创建 ZIP 写入器
@@ -828,33 +895,23 @@ func zipFolder(srcDir, zipFile string) error {
 
 	// 遍历文件夹并添加文件到 ZIP
 	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+		if err != nil { return err }
 
 		// 计算文件在 ZIP 中的相对路径
 		relPath, err := filepath.Rel(srcDir, path)
-		if err != nil {
-			return err
-		}
+		if err != nil { return err }
 
 		// 如果是目录，则跳过
-		if info.IsDir() {
-			return nil
-		}
+		if info.IsDir() { return nil }
 
 		// 打开文件
 		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
+		if err != nil { return err }
 		defer file.Close()
 
 		// 创建 ZIP 内的文件
 		zipFileWriter, err := zipWriter.Create(relPath)
-		if err != nil {
-			return err
-		}
+		if err != nil { return err }
 
 		// 复制文件内容到 ZIP
 		_, err = io.Copy(zipFileWriter, file)
