@@ -24,8 +24,9 @@ var KeywordDataList KeywordData = KeywordData{
 	Chats: map[int64]KeywordChatList{},
 	Users: map[int64]KeywordUserList{},
 }
-var KeywordDataErr error
-var KeywordData_path string = filepath.Join(consts.YAMLDataBasePath, "detectkeyword/")
+var KeywordDataErr  error
+var KeywordDataDir  string = filepath.Join(consts.YAMLDataBasePath, "detectkeyword/")
+var KeywordDataPath string = filepath.Join(KeywordDataDir, consts.YAMLFileName)
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
@@ -149,7 +150,7 @@ func (user KeywordUserList)selectChat() models.ReplyMarkup {
 type ChatForUser struct {
 	ChatID          int64    `yaml:"ChatID"`
 	IsDisable       bool     `yaml:"IsDisable,omitempty"`
-	IsConfirmDelete bool     `yaml:"IsConfirmDelete,omitempty"`
+	IsConfirmDelete bool     `yaml:"IsConfirmDelete,omitempty"` // todo
 	Keyword         []string `yaml:"Keyword"`
 }
 
@@ -161,56 +162,60 @@ func ReadKeywordList(ctx context.Context) error {
 		Str("funcName", "ReadKeywordList").
 		Logger()
 
-	// 拼接路径和文件名，打开数据库
-	file, err := os.Open(filepath.Join(KeywordData_path, consts.YAMLFileName))
+	// 打开数据库文件
+	file, err := os.Open(KeywordDataPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// 如果找不到文件，则新建一个
 			logger.Warn().
-				Msg("Not found database file. Create a new one")
+				Str("path", KeywordDataPath).
+				Msg("Not found keyword data file. Create a new one")
 			err = SaveKeywordList(ctx)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Msg("Create empty database file failed")
-				KeywordDataErr = err
-				return err
+					Str("path", KeywordDataPath).
+					Msg("Failed to create empty keyword data file")
+				KeywordDataErr = fmt.Errorf("failed to create empty keyword data file: %w", err)
+				return KeywordDataErr
 			}
 		} else {
 			// 其他错误
 			logger.Error().
 				Err(err).
-				Msg("Open database file failed")
-			KeywordDataErr = err
-			return err
+				Str("path", KeywordDataPath).
+				Msg("Failed to open keyword data file")
+			KeywordDataErr = fmt.Errorf("failed to open keyword data file: %w", err)
+			return KeywordDataErr
 		}
 	}
 	defer file.Close()
 
 	// 解码 yaml 文件
-	decoder := yaml.NewDecoder(file)
-	err = decoder.Decode(&lists)
+	err = yaml.NewDecoder(file).Decode(&lists)
 	if err != nil {
 		if err == io.EOF {
 			// 文件存在，但为空，则用空的数据库覆盖保存
 			logger.Warn().
-				Msg("Keyword list looks empty. now format it")
+				Str("path", KeywordDataPath).
+				Msg("Keyword data file looks empty. now format it")
 			err = SaveKeywordList(ctx)
 			if err != nil {
 				// 保存空的数据库失败
 				logger.Error().
 					Err(err).
-					Msg("Create empty database file failed")
-				KeywordDataErr = err
-				return err
+					Str("path", KeywordDataPath).
+					Msg("Failed to create empty keyword data file")
+				KeywordDataErr = fmt.Errorf("failed to create empty keyword data file: %w", err) 
+				return KeywordDataErr
 			}
 		} else {
 			// 其他错误
 			logger.Error().
 				Err(err).
-				Msg("Failed to decode keyword list")
-			KeywordDataErr = err
-			return err
+				Msg("Failed to decode keyword data list")
+			KeywordDataErr = fmt.Errorf("failed to decode keyword data list: %w", err)
+			return KeywordDataErr
 		}
 	}
 
@@ -230,85 +235,321 @@ func SaveKeywordList(ctx context.Context) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to marshal keyword list")
-		KeywordDataErr = err
-		return err
+			Msg("Failed to marshal keyword data list")
+		KeywordDataErr = fmt.Errorf("failed to marshal keyword data list: %w", err)
+		return KeywordDataErr
 	}
 
-	_, err = os.Stat(KeywordData_path)
+	// 检查数据库目录是否存在，不然则创建
+	_, err = os.Stat(KeywordDataDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Warn().
-				Str("path", KeywordData_path).
-				Msg("Keyword data directory not exist, now create it")
-			err = os.MkdirAll(KeywordData_path, 0755)
+				Str("directory", KeywordDataDir).
+				Msg("Not found keyword data directory, now create it")
+			err = os.MkdirAll(KeywordDataDir, 0755)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("path", KeywordData_path).
+					Str("directory", KeywordDataDir).
 					Msg("Failed to create keyword data directory")
-				KeywordDataErr = err
-				return err
+				KeywordDataErr = fmt.Errorf("failed to create keyword data directory: %s", err)
+				return KeywordDataErr
 			}
 			logger.Trace().
-				Msg("Keyword data directory created successfully")
+				Str("directory", KeywordDataDir).
+				Msg("Create keyword data directory success")
 		} else {
 			logger.Error().
 				Err(err).
-				Str("path", KeywordData_path).
-				Msg("Open keyword data directory failed")
-			KeywordDataErr = err
-			return err
+				Str("directory", KeywordDataDir).
+				Msg("Failed to open keyword data directory")
+			KeywordDataErr = fmt.Errorf("failed to open keyword data directory: %s", err)
+			return KeywordDataErr
 		}
 	}
 
-	_, err = os.Stat(filepath.Join(KeywordData_path, consts.YAMLFileName))
+	// 检查数据库文件是否存在，不然则创建
+	_, err = os.Stat(KeywordDataPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Warn().
-				Msg("Keyword data file not exist, now create it")
-			_, err := os.Create(filepath.Join(KeywordData_path, consts.YAMLFileName))
+				Str("path", KeywordDataPath).
+				Msg("Not found keyword data file. Create a new one")
+			_, err := os.Create(KeywordDataPath)
 			if err != nil {
 				logger.Error().
 					Err(err).
 					Msg("Failed to create keyword data file")
-				KeywordDataErr = err
-				return err
+				KeywordDataErr = fmt.Errorf("failed to create keyword data file: %w", err)
+				return KeywordDataErr
 			}
 			logger.Trace().
-				Msg("Keyword data file created successfully")
+				Str("path", KeywordDataPath).
+				Msg("Created keyword data file success")
 		} else {
 			logger.Error().
 				Err(err).
-				Msg("Open keyword data file failed")
-			KeywordDataErr = err
-			return err
+				Str("path", KeywordDataPath).
+				Msg("Failed to open keyword data file")
+			KeywordDataErr = fmt.Errorf("failed to open keyword data file: %w", err)
+			return KeywordDataErr
 		}
 	}
 	
 
-	err = os.WriteFile(filepath.Join(KeywordData_path, consts.YAMLFileName), data, 0644)
+	err = os.WriteFile(KeywordDataPath, data, 0644)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Msg("Failed to write keyword data file")
-		KeywordDataErr = err
-		return err
+			Str("path", KeywordDataPath).
+			Msg("Failed to write keyword data list into file")
+		KeywordDataErr = fmt.Errorf("failed to write keyword data list into file: %w", err)
+		return KeywordDataErr
 	}
 	logger.Trace().
-		Msg("Keyword data file write successfully")
-
+		Str("path", KeywordDataPath).
+		Msg("Save keyword data success")
 	return nil
 }
 
-func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
+func addKeywordHandler(opts *handler_structs.SubHandlerParams) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
 		Str("funcName", "addKeywordHandler").
 		Logger()
 
-	if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
+	if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+		// 与机器人的私聊对话
+		user := KeywordDataList.Users[opts.Update.Message.From.ID]
+		if user.AddTime == "" {
+			// 初始化用户
+			user = KeywordUserList{
+				UserID: opts.Update.Message.From.ID,
+				AddTime: time.Now().Format(time.RFC3339),
+				Limit: 50,
+				IsDisable: false,
+				IsSilentNotice: false,
+			}
+			KeywordDataList.Users[opts.Update.Message.From.ID] = user
+			err := SaveKeywordList(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Msg("Failed to init user and save keyword list")
+				return nil
+			}
+		}
+
+		// 用户没有添加任何群组
+		if len(user.ChatsForUser) == 0 {
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:          opts.Update.Message.Chat.ID,
+				Text:            "您还没有添加任何群组，请在群组中使用 `/setkeyword` 命令来记录群组\n若发送信息后没有回应，请检查机器人是否在对应群组中",
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				ParseMode:       models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Msg("Failed to send `no group for user` message")
+			}
+			return nil
+		}
+
+		if len(opts.Fields) > 1 {
+			if user.AddingChatID != 0 {
+				var chatForUser ChatForUser
+				var chatForUserIndex int
+				for i, c := range user.ChatsForUser {
+					if c.ChatID == user.AddingChatID {
+						chatForUser = c
+						chatForUserIndex = i
+					}
+				}
+
+				// 限制关键词长度
+				if len(opts.Fields[1]) > 30 {
+					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						Text: "抱歉，单个关键词长度不能超过 30 个字符",
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						ParseMode: models.ParseModeHTML,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Dict("user", zerolog.Dict().
+								Str("name", utils.ShowUserName(opts.Update.Message.From)).
+								Str("username", opts.Update.Message.From.Username).
+								Int64("ID", opts.Update.Message.From.ID),
+							).
+							Msg("Send `keyword is too long` message failed")
+					}
+					return nil
+				}
+
+				keyword := strings.ToLower(opts.Fields[1])
+				var pendingMessage string
+				var button models.ReplyMarkup
+				var isKeywordExist bool
+
+				// 判断是全局关键词还是群组关键词
+				if user.AddingChatID == user.UserID {
+					// 全局关键词
+					for _, k := range user.GlobalKeyword {
+						if k == keyword {
+							isKeywordExist = true
+							break
+						}
+					}
+					if !isKeywordExist {
+						logger.Debug().
+							Dict("user", zerolog.Dict().
+								Str("name", utils.ShowUserName(opts.Update.Message.From)).
+								Str("username", opts.Update.Message.From.Username).
+								Int64("ID", opts.Update.Message.From.ID),
+							).
+							Str("globalKeyword", keyword).
+							Msg("User add a global keyword")
+						user.GlobalKeyword = append(user.GlobalKeyword, keyword)
+						KeywordDataList.Users[user.UserID] = user
+						err := SaveKeywordList(opts.Ctx)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict("user", zerolog.Dict().
+									Str("name", utils.ShowUserName(opts.Update.Message.From)).
+									Str("username", opts.Update.Message.From.Username).
+									Int64("ID", opts.Update.Message.From.ID),
+								).
+								Str("globalKeyword", keyword).
+								Msg("Failed to add global keyword and save keyword list")
+						}
+						pendingMessage = fmt.Sprintf("已添加全局关键词: [ %s ]", opts.Fields[1])
+					} else {
+						pendingMessage = fmt.Sprintf("此全局关键词 [ %s ] 已存在", opts.Fields[1])
+					}
+
+				} else {
+					targetChat := KeywordDataList.Chats[chatForUser.ChatID]
+
+					// 群组关键词
+					for _, k := range chatForUser.Keyword {
+						if k == keyword {
+							isKeywordExist = true
+							break
+						}
+					}
+					if !isKeywordExist {
+						logger.Debug().
+							Dict("user", zerolog.Dict().
+								Str("name", utils.ShowUserName(opts.Update.Message.From)).
+								Str("username", opts.Update.Message.From.Username).
+								Int64("ID", opts.Update.Message.From.ID),
+							).
+							Int64("chatID", chatForUser.ChatID).
+							Str("keyword", keyword).
+							Msg("User add a keyword to chat")
+						chatForUser.Keyword = append(chatForUser.Keyword, keyword)
+						user.ChatsForUser[chatForUserIndex] = chatForUser
+						KeywordDataList.Users[user.UserID] = user
+						err := SaveKeywordList(opts.Ctx)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Dict("user", zerolog.Dict().
+									Str("name", utils.ShowUserName(opts.Update.Message.From)).
+									Str("username", opts.Update.Message.From.Username).
+									Int64("ID", opts.Update.Message.From.ID),
+								).
+								Int64("chatID", chatForUser.ChatID).
+								Str("keyword", keyword).
+								Msg("Error add keyword and save keyword list")
+						}
+						
+						pendingMessage = fmt.Sprintf("已为 <a href=\"https://t.me/c/%s/\">%s</a> 群组添加关键词 [ %s ]，您可以继续向此群组添加更多关键词\n", utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName, strings.ToLower(opts.Fields[1]))
+					} else {
+						pendingMessage = fmt.Sprintf("此关键词 [ %s ] 已存在于 <a href=\"https://t.me/c/%s/\">%s</a> 群组中，您可以继续向此群组添加其他关键词", opts.Fields[1], utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName)
+					}
+				}
+				if isKeywordExist {
+					button = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "完成",
+						CallbackData: "detectkw_mng_finish",
+					}}}}
+				} else {
+					button = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+						{
+							Text: "撤销操作",
+							CallbackData: fmt.Sprintf("detectkw_mng_undo_%d_%s", user.AddingChatID, opts.Fields[1]),
+						},
+						{
+							Text: "完成",
+							CallbackData: "detectkw_mng_finish",
+						},
+					}}}
+				}
+				
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text: pendingMessage,
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					ParseMode: models.ParseModeHTML,
+					ReplyMarkup: button,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(opts.Update.Message.From)).
+							Str("username", opts.Update.Message.From.Username).
+							Int64("ID", opts.Update.Message.From.ID),
+						).
+						Msg("Send `keyword added` message failed")
+				}
+			} else {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text: "您还没有选定要将关键词添加到哪个群组，请在下方挑选一个您已经添加的群组",
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					ParseMode: models.ParseModeHTML,
+					ReplyMarkup: user.selectChat(),
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict("user", zerolog.Dict().
+							Str("name", utils.ShowUserName(opts.Update.Message.From)).
+							Str("username", opts.Update.Message.From.Username).
+							Int64("ID", opts.Update.Message.From.ID),
+						).
+						Msg("Send `not selected chat yet` message failed")
+				}
+			}
+		} else {
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.Message.Chat.ID,
+				Text: user.userStatus(),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				ParseMode: models.ParseModeHTML,
+				ReplyMarkup: buildUserChatList(user),
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict("user", zerolog.Dict().
+						Str("name", utils.ShowUserName(opts.Update.Message.From)).
+						Str("username", opts.Update.Message.From.Username).
+						Int64("ID", opts.Update.Message.From.ID),
+					).
+					Msg("Send `user group list keyboart` message failed")
+			}
+		}
+	} else {
 		// 在群组中直接使用 /setkeyword 命令
 		chat := KeywordDataList.Chats[opts.Update.Message.Chat.ID]
 		if chat.IsDisable {
@@ -505,235 +746,8 @@ func addKeywordHandler(opts *handler_structs.SubHandlerParams) {
 				}
 			}
 		}
-	} else {
-		// 与机器人的私聊对话
-		user := KeywordDataList.Users[opts.Update.Message.From.ID]
-		if user.AddTime == "" {
-			// 初始化用户
-			user = KeywordUserList{
-				UserID: opts.Update.Message.From.ID,
-				AddTime: time.Now().Format(time.RFC3339),
-				Limit: 50,
-				IsDisable: false,
-				IsSilentNotice: false,
-			}
-			KeywordDataList.Users[opts.Update.Message.From.ID] = user
-			err := SaveKeywordList(opts.Ctx)
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Dict(utils.GetUserDict(opts.Update.Message.From)).
-					Msg("Error init user and save keyword list")
-			}
-			
-		}
-		if len(user.ChatsForUser) == 0 {
-			// 没有添加群组
-			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Update.Message.Chat.ID,
-				Text: "您还没有添加任何群组，请在群组中使用 `/setkeyword` 命令来记录群组\n若发送信息后没有回应，请检查机器人是否在对应群组中",
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				ParseMode: models.ParseModeHTML,
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Dict(utils.GetUserDict(opts.Update.Message.From)).
-					Msg("Send `no group for user` message failed")
-			}
-			return
-		}
-
-		if len(opts.Fields) > 1 {
-			if user.AddingChatID != 0 {
-				var chatForUser ChatForUser
-				var chatForUserIndex int
-				for i, c := range user.ChatsForUser {
-					if c.ChatID == user.AddingChatID {
-						chatForUser = c
-						chatForUserIndex = i
-					}
-				}
-
-				// 限制关键词长度
-				if len(opts.Fields[1]) > 30 {
-					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID: opts.Update.Message.Chat.ID,
-						Text: "抱歉，单个关键词长度不能超过 30 个字符",
-						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-						ParseMode: models.ParseModeHTML,
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Dict("user", zerolog.Dict().
-								Str("name", utils.ShowUserName(opts.Update.Message.From)).
-								Str("username", opts.Update.Message.From.Username).
-								Int64("ID", opts.Update.Message.From.ID),
-							).
-							Msg("Send `keyword is too long` message failed")
-					}
-					return
-				}
-
-				keyword := strings.ToLower(opts.Fields[1])
-				var pendingMessage string
-				var button models.ReplyMarkup
-				var isKeywordExist bool
-
-				// 判断是全局关键词还是群组关键词
-				if user.AddingChatID == user.UserID {
-					// 全局关键词
-					for _, k := range user.GlobalKeyword {
-						if k == keyword {
-							isKeywordExist = true
-							break
-						}
-					}
-					if !isKeywordExist {
-						logger.Debug().
-							Dict("user", zerolog.Dict().
-								Str("name", utils.ShowUserName(opts.Update.Message.From)).
-								Str("username", opts.Update.Message.From.Username).
-								Int64("ID", opts.Update.Message.From.ID),
-							).
-							Str("globalKeyword", keyword).
-							Msg("User add a global keyword")
-						user.GlobalKeyword = append(user.GlobalKeyword, keyword)
-						KeywordDataList.Users[user.UserID] = user
-						err := SaveKeywordList(opts.Ctx)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Dict("user", zerolog.Dict().
-									Str("name", utils.ShowUserName(opts.Update.Message.From)).
-									Str("username", opts.Update.Message.From.Username).
-									Int64("ID", opts.Update.Message.From.ID),
-								).
-								Str("globalKeyword", keyword).
-								Msg("Error add global keyword and save keyword list")
-						}
-						pendingMessage = fmt.Sprintf("已添加全局关键词: [ %s ]", opts.Fields[1])
-					} else {
-						pendingMessage = fmt.Sprintf("此全局关键词 [ %s ] 已存在", opts.Fields[1])
-					}
-
-				} else {
-					targetChat := KeywordDataList.Chats[chatForUser.ChatID]
-
-					// 群组关键词
-					for _, k := range chatForUser.Keyword {
-						if k == keyword {
-							isKeywordExist = true
-							break
-						}
-					}
-					if !isKeywordExist {
-						logger.Debug().
-							Dict("user", zerolog.Dict().
-								Str("name", utils.ShowUserName(opts.Update.Message.From)).
-								Str("username", opts.Update.Message.From.Username).
-								Int64("ID", opts.Update.Message.From.ID),
-							).
-							Int64("chatID", chatForUser.ChatID).
-							Str("keyword", keyword).
-							Msg("User add a keyword to chat")
-						chatForUser.Keyword = append(chatForUser.Keyword, keyword)
-						user.ChatsForUser[chatForUserIndex] = chatForUser
-						KeywordDataList.Users[user.UserID] = user
-						err := SaveKeywordList(opts.Ctx)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Dict("user", zerolog.Dict().
-									Str("name", utils.ShowUserName(opts.Update.Message.From)).
-									Str("username", opts.Update.Message.From.Username).
-									Int64("ID", opts.Update.Message.From.ID),
-								).
-								Int64("chatID", chatForUser.ChatID).
-								Str("keyword", keyword).
-								Msg("Error add keyword and save keyword list")
-						}
-						
-						pendingMessage = fmt.Sprintf("已为 <a href=\"https://t.me/c/%s/\">%s</a> 群组添加关键词 [ %s ]，您可以继续向此群组添加更多关键词\n", utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName, strings.ToLower(opts.Fields[1]))
-					} else {
-						pendingMessage = fmt.Sprintf("此关键词 [ %s ] 已存在于 <a href=\"https://t.me/c/%s/\">%s</a> 群组中，您可以继续向此群组添加其他关键词", opts.Fields[1], utils.RemoveIDPrefix(targetChat.ChatID), targetChat.ChatName)
-					}
-				}
-				if isKeywordExist {
-					button = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "完成",
-						CallbackData: "detectkw_mng_finish",
-					}}}}
-				} else {
-					button = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-						{
-							Text: "撤销操作",
-							CallbackData: fmt.Sprintf("detectkw_mng_undo_%d_%s", user.AddingChatID, opts.Fields[1]),
-						},
-						{
-							Text: "完成",
-							CallbackData: "detectkw_mng_finish",
-						},
-					}}}
-				}
-				
-				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					Text: pendingMessage,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					ParseMode: models.ParseModeHTML,
-					ReplyMarkup: button,
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Dict("user", zerolog.Dict().
-							Str("name", utils.ShowUserName(opts.Update.Message.From)).
-							Str("username", opts.Update.Message.From.Username).
-							Int64("ID", opts.Update.Message.From.ID),
-						).
-						Msg("Send `keyword added` message failed")
-				}
-			} else {
-				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					Text: "您还没有选定要将关键词添加到哪个群组，请在下方挑选一个您已经添加的群组",
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					ParseMode: models.ParseModeHTML,
-					ReplyMarkup: user.selectChat(),
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Dict("user", zerolog.Dict().
-							Str("name", utils.ShowUserName(opts.Update.Message.From)).
-							Str("username", opts.Update.Message.From.Username).
-							Int64("ID", opts.Update.Message.From.ID),
-						).
-						Msg("Send `not selected chat yet` message failed")
-				}
-			}
-		} else {
-			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Update.Message.Chat.ID,
-				Text: user.userStatus(),
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				ParseMode: models.ParseModeHTML,
-				ReplyMarkup: buildUserChatList(user),
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Dict("user", zerolog.Dict().
-						Str("name", utils.ShowUserName(opts.Update.Message.From)).
-						Str("username", opts.Update.Message.From.Username).
-						Int64("ID", opts.Update.Message.From.ID),
-					).
-					Msg("Send `user group list keyboart` message failed")
-			}
-		}
 	}
+	return nil
 }
 
 func buildListenList() {

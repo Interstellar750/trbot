@@ -1,4 +1,4 @@
-bot.SendMessage:         Failed to send `` message
-bot.DeleteMessages:      Failed to delete `` message
-bot.AnswerInlineQuery:   Failed to send `` inline result (sub handler can add a `Str("command", "log")` )
-bot.AnswerCallbackQuery: Failed to send `` callback answer
+bot.SendMessage:         Failed to send [%s] message
+bot.DeleteMessages:      Failed to delete [%s] message
+bot.AnswerInlineQuery:   Failed to send [%s] inline result (sub handler can add a `Str("command", "log")` )
+bot.AnswerCallbackQuery: Failed to send [%s] callback answer
