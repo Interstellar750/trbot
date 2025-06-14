@@ -16,8 +16,6 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-
-
 func PrintLogAndSave(message string) {
 	log.Println(message)
 	// 打开日志文件，如果不存在则创建

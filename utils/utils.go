@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
 
@@ -435,11 +436,10 @@ func PanicCatcher(ctx context.Context, pluginName string) {
 	panic := recover()
 	if panic != nil {
 		logger.Error().
-			Interface("panic", panic).
-			// Str("Stack", getCurrentGoroutineStack()).
-			Str("panicFunc", pluginName).
+			Stack().
+			Err(errors.WithStack(fmt.Errorf("%v", panic))).
+			Str("catchFunc", pluginName).
 			Msg("Panic recovered")
-		fmt.Println("Stack", getCurrentGoroutineStack())
 		// mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [%s]: \"%v\"\nStack: %s", pluginName, panic, getCurrentGoroutineStack()))
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 )
 
 func main() {
@@ -25,9 +26,28 @@ func main() {
 	defer cancel()
 
 	// create a logger and attached it into ctx
-	// logger := log.Output(os.Stderr)
-	// log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	logger := log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	var logger zerolog.Logger
+	file, err := os.OpenFile(consts.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err == nil {
+		fileWriter := &zerolog.FilteredLevelWriter{
+			Writer: zerolog.MultiLevelWriter(file),
+			Level: zerolog.WarnLevel,
+		}
+
+		multWriter := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, fileWriter)
+		logger = zerolog.New(multWriter).With().Timestamp().Logger()
+		logger.Info().
+			Str("logFile", consts.LogFilePath).
+			Str("levelForLogFile", zerolog.WarnLevel.String()).
+			Msg("Use mult log writer")
+	} else {
+		logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		logger.Error().
+			Err(err).
+			Str("logFile", consts.LogFilePath).
+			Msg("Failed to open log file, use console writer only")
+	}
+
 	ctx = logger.WithContext(ctx)
 
 	// read configs
@@ -37,8 +57,13 @@ func main() {
 
 	// set log level from config
 	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog())
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	logger.Warn().
+		Str("version", consts.Version).
+		Str("commit", consts.Commit[:13]).
+		Str("buildTime", consts.BuildTime).
+		Str("changes", consts.Changes).
 		Str("runtime", runtime.Version()).
 		Str("logLevel", zerolog.GlobalLevel().String()).
 		Msg("trbot")
@@ -68,7 +93,7 @@ func main() {
 	// start handler custom signals
 	go signals.SignalsHandler(ctx)
 
-	// register plugin (plugin use `init()` first, then plugin user `InitPlugins` second, and internal last)
+	// register plugin (plugin use `init()` first, then plugin use `InitPlugins` second, and internal last)
 	internal_plugin.Register(ctx)
 
 	// Select mode by Webhook config
