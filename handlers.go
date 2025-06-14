@@ -32,18 +32,18 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 	}
 
 	// Debug level or Trace Level
-	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+	if zerolog.GlobalLevel() <= zerolog.InfoLevel {
 		if update.Message != nil {
 			// 正常消息
 			if update.Message.Photo != nil {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("caption", update.Message.Caption).
 					Msg("photoMessage")
 			} else if update.Message.Sticker != nil {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
@@ -52,7 +52,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Str("stickerFileID", update.Message.Sticker.FileID).
 					Msg("stickerMessage")
 			} else {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
@@ -63,14 +63,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		} else if update.EditedMessage != nil {
 			// 私聊或群组消息被编辑
 			if update.EditedMessage.Caption != "" {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
 					Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
 					Int("messageID", update.EditedMessage.ID).
 					Str("editedCaption", update.EditedMessage.Caption).
 					Msg("editedMessage")
 			} else {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.EditedMessage)).
 					Dict(utils.GetChatDict(&update.EditedMessage.Chat)).
 					Int("messageID", update.EditedMessage.ID).
@@ -79,14 +79,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			}
 		} else if update.InlineQuery != nil {
 			// inline 查询
-			logger.Debug().
+			logger.Info().
 				Dict(utils.GetUserDict(update.InlineQuery.From)).
 				Str("query", update.InlineQuery.Query).
 				Msg("inline request")
 
 		} else if update.ChosenInlineResult != nil {
 			// inline 查询结果被选择
-			logger.Debug().
+			logger.Info().
 				Dict(utils.GetUserDict(&update.ChosenInlineResult.From)).
 				Str("query", update.ChosenInlineResult.Query).
 				Str("resultID", update.ChosenInlineResult.ResultID).
@@ -94,7 +94,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 
 		} else if update.CallbackQuery != nil {
 			// replymarkup 回调
-			logger.Debug().
+			logger.Info().
 				Dict(utils.GetUserDict(&update.CallbackQuery.From)).
 				Dict(utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)).
 				Str("query", update.CallbackQuery.Data).
@@ -106,7 +106,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			if len(update.MessageReaction.OldReaction) > 0 {
 				for i, oldReaction := range update.MessageReaction.OldReaction {
 					if oldReaction.ReactionTypeEmoji != nil {
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(update.MessageReaction.User)).
 							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
 							Int("messageID", update.MessageReaction.MessageID).
@@ -115,7 +115,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 							Int("count", i + 1).
 							Msg("removed emoji reaction")
 					} else if oldReaction.ReactionTypeCustomEmoji != nil {
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(update.MessageReaction.User)).
 							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
 							Int("messageID", update.MessageReaction.MessageID).
@@ -124,7 +124,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 							Int("count", i + 1).
 							Msg("removed custom emoji reaction")
 					} else if oldReaction.ReactionTypePaid != nil {
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(update.MessageReaction.User)).
 							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
 							Int("messageID", update.MessageReaction.MessageID).
@@ -137,7 +137,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			if len(update.MessageReaction.NewReaction) > 0 {
 				for i, newReaction := range update.MessageReaction.NewReaction {
 					if newReaction.ReactionTypeEmoji != nil {
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(update.MessageReaction.User)).
 							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
 							Int("messageID", update.MessageReaction.MessageID).
@@ -146,7 +146,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 							Int("count", i + 1).
 							Msg("add emoji reaction")
 					} else if newReaction.ReactionTypeCustomEmoji != nil {
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(update.MessageReaction.User)).
 							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
 							Int("messageID", update.MessageReaction.MessageID).
@@ -155,7 +155,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 							Int("count", i + 1).
 							Msg("add custom emoji reaction")
 					} else if newReaction.ReactionTypePaid != nil {
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(update.MessageReaction.User)).
 							Dict(utils.GetChatDict(&update.MessageReaction.Chat)).
 							Int("messageID", update.MessageReaction.MessageID).
@@ -193,7 +193,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				
 			}
 
-			logger.Debug().
+			logger.Info().
 				Dict(utils.GetChatDict(&update.MessageReactionCount.Chat)).
 				Dict("reactions", zerolog.Dict().
 					Dict("emoji", emoji).
@@ -204,7 +204,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				Msg("emoji reaction count updated")
 		} else if update.ChannelPost != nil {
 			// 频道信息
-			logger.Debug().
+			logger.Info().
 				Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
 				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
 				Str("text", update.ChannelPost.Text).
@@ -213,7 +213,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			if update.ChannelPost.ViaBot != nil {
 				// 在频道中由 bot 发送
 				_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
-				logger.Debug().
+				logger.Info().
 					Dict("viaBot", viaBot).
 					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
 					Str("text", update.ChannelPost.Text).
@@ -222,7 +222,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			}
 			if update.ChannelPost.SenderChat == nil {
 				// 没有身份信息
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
 					Str("text", update.ChannelPost.Text).
 					Int("messageID", update.ChannelPost.ID).
@@ -231,14 +231,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		} else if update.EditedChannelPost != nil {
 			// 频道中编辑过的消息
 			if update.EditedChannelPost.Caption != "" {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
 					Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
 					Int("messageID", update.EditedChannelPost.ID).
 					Str("editedCaption", update.EditedChannelPost.Caption).
 					Msg("edited channel post caption")
 			} else {
-				logger.Debug().
+				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.EditedChannelPost)).
 					Dict(utils.GetChatDict(&update.EditedChannelPost.Chat)).
 					Int("messageID", update.EditedChannelPost.ID).
@@ -267,28 +267,24 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		opts.ChatInfo.HasPendingCallbackQuery = false
 	}
 
-	
 }
 
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func messageHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher(opts.Ctx, "messageHandler")
-	logger := zerolog.Ctx(opts.Ctx).
-		With().
-		Str("funcName", "messageHandler").
-		Logger()
+	logger := zerolog.Ctx(opts.Ctx)
 
 	// 检测如果消息开头是 / 符号，作为命令来处理
 	if strings.HasPrefix(opts.Update.Message.Text, "/") {
 		// 匹配默认的 `/xxx` 命令
 		for _, plugin := range plugin_utils.AllPlugins.SlashSymbolCommand {
 			if utils.CommandMaybeWithSuffixUsername(opts.Fields, "/" + plugin.SlashCommand) {
-				logger.Debug().
+				logger.Info().
 					Str("slashCommand", plugin.SlashCommand).
 					Str("message", opts.Update.Message.Text).
 					Msg("Hit slash command handler")
 				if plugin.Handler == nil {
-					logger.Debug().
+					logger.Warn().
 						Dict(utils.GetUserDict(opts.Update.Message.From)).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("slashCommand", plugin.SlashCommand).
@@ -298,7 +294,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				}
 				err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 				if err != nil {
-					logger.Error().
+					logger.Warn().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.Message.From)).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
@@ -338,7 +334,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 			}
 			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 			if err != nil {
-				logger.Error().
+				logger.Warn().
 					Err(err).
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
@@ -366,7 +362,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 			}
 			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 			if err != nil {
-				logger.Error().
+				logger.Warn().
 					Err(err).
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
@@ -395,12 +391,12 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 		// 没有 `/` 号作为前缀，检查是不是自定义命令
 		for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
 			if utils.CommandMaybeWithSuffixUsername(opts.Fields, plugin.FullCommand) {
-				logger.Debug().
+				logger.Info().
 					Str("fullCommand", plugin.FullCommand).
 					Str("message", opts.Update.Message.Text).
 					Msg("Hit full command handler")
 				if plugin.Handler == nil {
-					logger.Debug().
+					logger.Warn().
 						Dict(utils.GetUserDict(opts.Update.Message.From)).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("fullCommand", plugin.FullCommand).
@@ -410,7 +406,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				}
 				err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 				if err != nil {
-					logger.Error().
+					logger.Warn().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.Message.From)).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
@@ -434,12 +430,12 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 		// 以后缀来触发的命令
 		for _, plugin := range plugin_utils.AllPlugins.SuffixCommand {
 			if strings.HasSuffix(opts.Update.Message.Text, plugin.SuffixCommand) {
-				logger.Debug().
+				logger.Info().
 					Str("suffixCommand", plugin.SuffixCommand).
 					Str("message", opts.Update.Message.Text).
 					Msg("Hit suffix command handler")
 				if plugin.Handler == nil {
-					logger.Debug().
+					logger.Warn().
 						Dict(utils.GetUserDict(opts.Update.Message.From)).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("suffixCommand", plugin.SuffixCommand).
@@ -449,7 +445,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				}
 				err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 				if err != nil {
-					logger.Error().
+					logger.Warn().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.Message.From)).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
@@ -484,13 +480,13 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 				for name, handler := range plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] {
 					if handler.AllowAutoTrigger {
 						// 允许自动触发的 handler
-						logger.Debug().
+						logger.Info().
 							Dict(utils.GetUserDict(opts.Update.Message.From)).
 							Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 							Str("messageType", string(msgTypeInString)).
 							Str("handlerName", name).
 							Str("chatType", string(opts.Update.Message.Chat.Type)).
-							Msg("trigger handler by message type")
+							Msg("Hit handler by message type")
 						err := handler.Handler(opts)
 						if err != nil {
 							logger.Error().
@@ -565,13 +561,13 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 	// handler by chat ID
 	if plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] != nil {
 		for name, handler := range plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] {
-			logger.Debug().
+			logger.Info().
 				Dict(utils.GetUserDict(opts.Update.Message.From)).
 				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 				Str("handlerName", name).
 				Int64("chatID", handler.ChatID).
 				Str("chatType", string(opts.Update.Message.Chat.Type)).
-				Msg("trigger handler by chat ID")
+				Msg("Hit handler by chat ID")
 			err := handler.Handler(opts)
 			if err != nil {
 				logger.Error().
@@ -590,10 +586,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 // 处理 inline 模式下的请求
 func inlineHandler(opts *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher(opts.Ctx, "inlineHandler")
-	logger := zerolog.Ctx(opts.Ctx).
-		With().
-		Str("funcName", "inlineHandler").
-		Logger()
+	logger := zerolog.Ctx(opts.Ctx)
 
 	var IsAdmin bool = utils.AnyContains(opts.Update.InlineQuery.From.ID, configs.BotConfig.AdminIDs)
 
@@ -640,6 +633,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
+				Str("query", opts.Update.InlineQuery.Query).
 				Msg("Failed to send `bot inline handler list` inline result")
 		}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
@@ -649,11 +643,17 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 		for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
 			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 			if opts.Fields[0][1:] == plugin.Command {
+				logger.Info().
+					Str("handlerCommand", plugin.Command).
+					Str("handlerType", "returnResult").
+					Str("query", opts.Update.InlineQuery.Query).
+					Msg("Hit inline handler")
 				if plugin.Handler == nil {
-					logger.Debug().
+					logger.Warn().
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("handlerCommand", plugin.Command).
 						Str("handlerType", "returnResult").
+						Str("query", opts.Update.InlineQuery.Query).
 						Msg("Hit inline handler, but this handler function is nil, skip")
 					continue
 				}
@@ -670,6 +670,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("handlerCommand", plugin.Command).
 						Str("handlerType", "returnResult").
+						Str("query", opts.Update.InlineQuery.Query).
 						Msg("Failed to send `inline handler` inline result")
 					// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 				}
@@ -680,12 +681,18 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 		for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
 			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 			if opts.Fields[0][1:] == plugin.Command {
+				logger.Info().
+					Str("handlerCommand", plugin.Command).
+					Str("handlerType", "manuallyAnswerResult").
+					Str("query", opts.Update.InlineQuery.Query).
+					Msg("Hit inline manual answer handler")
 				if plugin.Handler == nil {
-					logger.Debug().
+					logger.Warn().
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("handlerCommand", plugin.Command).
 						Str("handlerType", "manuallyAnswerResult").
-						Msg("Hit inline handler, but this handler function is nil, skip")
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit inline manual answer handler, but this handler function is nil, skip")
 					continue
 				}
 				err := plugin.Handler(opts)
@@ -695,7 +702,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("defaultHandlerCommand", plugin.Command).
 						Str("handlerType", "manuallyAnswerResult").
-						Msg("Error in inline handler")
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Error in inline manual answer handler")
 				}
 				return
 			}
@@ -704,12 +712,18 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 		for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
 			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 			if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol + plugin.PrefixCommand) {
+				logger.Info().
+					Str("handlerPrefixCommand", plugin.PrefixCommand).
+					Str("handlerType", "manuallyAnswerResult_PrefixCommand").
+					Str("query", opts.Update.InlineQuery.Query).
+					Msg("Hit inline prefix manual answer handler")
 				if plugin.Handler == nil {
-					logger.Debug().
+					logger.Warn().
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("handlerCommand", plugin.PrefixCommand).
+						Str("handlerPrefixCommand", plugin.PrefixCommand).
 						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-						Msg("Hit inline handler, but this handler function is nil, skip")
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit inline prefix manual answer handler, but this handler function is nil, skip")
 					continue
 				}
 				err := plugin.Handler(opts)
@@ -717,13 +731,19 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					logger.Error().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("handlerCommand", plugin.PrefixCommand).
+						Str("handlerPrefixCommand", plugin.PrefixCommand).
 						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-						Msg("Error in inline handler")
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Error in inline prefix manual answer handler")
 				}
 				return
 			}
 		}
+
+		// 没有触发任何 handler
+		logger.Debug().
+			Str("query", opts.Update.InlineQuery.Query).
+			Msg("No any handler is hit")
 
 		// 没有匹配到任何命令
 		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -742,6 +762,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
+				Str("query", opts.Update.InlineQuery.Query).
 				Msg("Failed to send `no this inline command` inline result")
 		}
 		return
@@ -754,11 +775,17 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
+					logger.Info().
+						Str("userDefaultHandlerCommand", plugin.Command).
+						Str("handlerType", "returnResult").
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit user default inline handler")
 					if plugin.Handler == nil {
-						logger.Debug().
+						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
+							Str("query", opts.Update.InlineQuery.Query).
 							Msg("Hit user default inline handler, but this handler function is nil, skip")
 						continue
 					}
@@ -775,6 +802,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
+							Str("query", opts.Update.InlineQuery.Query).
 							Msg("Failed to send `user default inline handler result` inline result")
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
@@ -785,12 +813,18 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
+					logger.Info().
+						Str("userDefaultHandlerCommand", plugin.Command).
+						Str("handlerType", "manuallyAnswerResult").
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit user default inline manual answer handler")
 					if plugin.Handler == nil {
-						logger.Debug().
+						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.Command).
 							Str("handlerType", "manuallyAnswerResult").
-							Msg("Hit user default inline handler, but this handler function is nil, skip")
+							Str("query", opts.Update.InlineQuery.Query).
+							Msg("Hit user default inline manual answer handler, but this handler function is nil, skip")
 						continue
 					}
 					err := plugin.Handler(opts)
@@ -800,7 +834,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.Command).
 							Str("handlerType", "manuallyAnswerResult").
-							Msg("Error in user default inline handler")
+							Str("query", opts.Update.InlineQuery.Query).
+							Msg("Error in user default inline manual answer handler")
 					}
 					return
 				}
@@ -810,12 +845,18 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 				if opts.ChatInfo.DefaultInlinePlugin == plugin.PrefixCommand {
+					logger.Info().
+						Str("userDefaultHandlerPrefixCommand", plugin.PrefixCommand).
+						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit user default inline prefix manual answer handler")
 					if plugin.Handler == nil {
-						logger.Debug().
+						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.PrefixCommand).
 							Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-							Msg("Hit user inline handler, but this handler function is nil, skip")
+							Str("query", opts.Update.InlineQuery.Query).
+							Msg("Hit user inline prefix manual answer handler, but this handler function is nil, skip")
 						continue
 					}
 					err := plugin.Handler(opts)
@@ -824,7 +865,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("userDefaultHandlerCommand", plugin.PrefixCommand).
 							Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-							Msg("Error in user inline handler")
+							Str("query", opts.Update.InlineQuery.Query).
+							Msg("Error in user inline prefix manual answer handler")
 					return
 				}
 			}
@@ -863,11 +905,17 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 				if configs.BotConfig.InlineDefaultHandler == plugin.Command {
+					logger.Info().
+						Str("defaultHandlerCommand", plugin.Command).
+						Str("handlerType", "returnResult").
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit bot default inline handler")
 					if plugin.Handler == nil {
-						logger.Debug().
+						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("defaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
+							Str("query", opts.Update.InlineQuery.Query).
 							Msg("Hit bot default inline handler, but this handler function is nil, skip")
 						continue
 					}
@@ -888,6 +936,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("defaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
+							Str("query", opts.Update.InlineQuery.Query).
 							Msg("Failed to send `bot default inline handler result` inline result")
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
@@ -898,12 +947,18 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 				if configs.BotConfig.InlineDefaultHandler == plugin.Command {
+					logger.Info().
+						Str("defaultHandlerCommand", plugin.Command).
+						Str("handlerType", "manuallyAnswerResult").
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit bot default inline manual answer handler")
 					if plugin.Handler == nil {
-						logger.Debug().
+						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("defaultHandlerCommand", plugin.Command).
 							Str("handlerType", "manuallyAnswerResult").
-							Msg("Hit bot default inline handler, but this handler function is nil, skip")
+							Str("query", opts.Update.InlineQuery.Query).
+							Msg("Hit bot default inline manual answer handler, but this handler function is nil, skip")
 						continue
 					}
 					err := plugin.Handler(opts)
@@ -913,7 +968,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("defaultHandlerCommand", plugin.Command).
 							Str("handlerType", "manuallyAnswerResult").
-							Msg("Error in bot default inline handler")
+							Str("query", opts.Update.InlineQuery.Query).
+							Msg("Error in bot default inline manual answer handler")
 					}
 					return
 				}
@@ -922,12 +978,17 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
 				if opts.ChatInfo.DefaultInlinePlugin == plugin.PrefixCommand {
+					logger.Info().
+						Str("defaultHandlerPrefixCommand", plugin.PrefixCommand).
+						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
+						Str("query", opts.Update.InlineQuery.Query).
+						Msg("Hit bot default inline prefix manual answer handler")
 					if plugin.Handler == nil {
-						logger.Debug().
+						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-							Str("defaultHandlerCommand", plugin.PrefixCommand).
+							Str("defaultHandlerPrefixCommand", plugin.PrefixCommand).
 							Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-							Msg("Hit bot default inline handler, but this handler function is nil, skip")
+							Msg("Hit bot default inline prefix manual answer handler, but this handler function is nil, skip")
 						continue
 					}
 					err := plugin.Handler(opts)
@@ -935,9 +996,9 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 						logger.Error().
 							Err(err).
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-							Str("defaultHandlerCommand", plugin.PrefixCommand).
+							Str("defaultHandlerPrefixCommand", plugin.PrefixCommand).
 							Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-							Msg("Error in bot default inline handler")
+							Msg("Error in bot default inline prefix manual answer handler")
 					}
 					return
 				}
@@ -1018,10 +1079,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 
 func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 	defer utils.PanicCatcher(params.Ctx, "callbackQueryHandler")
-	logger := zerolog.Ctx(params.Ctx).
-		With().
-		Str("funcName", "callbackQueryHandler").
-		Logger()
+	logger := zerolog.Ctx(params.Ctx)
 
 	// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
 		if params.ChatInfo.HasPendingCallbackQuery && params.Update.CallbackQuery.Data == params.ChatInfo.LatestCallbackQueryData {
@@ -1078,12 +1136,16 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 
 		for _, n := range plugin_utils.AllPlugins.CallbackQuery {
 			if strings.HasPrefix(params.Update.CallbackQuery.Data, n.CommandChar) {
+				logger.Info().
+						Str("handlerPrefix", n.CommandChar).
+						Str("callbackData", params.Update.CallbackQuery.Data).
+						Msg("Hit callback query handler")
 				if n.Handler == nil {
 					logger.Debug().
 						Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
 						Str("handlerPrefix", n.CommandChar).
-						Str("query", params.Update.CallbackQuery.Data).
-						Msg("tigger a callback query handler, but this handler function is nil, skip")
+						Str("callbackData", params.Update.CallbackQuery.Data).
+						Msg("Hit callback query handler, but this handler function is nil, skip")
 					continue
 				}
 				err := n.Handler(params)
@@ -1092,7 +1154,7 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 						Err(err).
 						Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
 						Str("handlerPrefix", n.CommandChar).
-						Str("query", params.Update.CallbackQuery.Data).
+						Str("callbackData", params.Update.CallbackQuery.Data).
 						Msg("Error in callback query handler")
 				}
 				break

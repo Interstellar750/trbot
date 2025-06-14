@@ -437,6 +437,7 @@ func PanicCatcher(ctx context.Context, pluginName string) {
 	if panic != nil {
 		logger.Error().
 			Stack().
+			Str("commit", consts.Commit).
 			Err(errors.WithStack(fmt.Errorf("%v", panic))).
 			Str("catchFunc", pluginName).
 			Msg("Panic recovered")

@@ -14,8 +14,9 @@ var LogFilePath      string = YAMLDataBasePath + "log.txt"
 
 var BotMe *models.User // 用于存储 bot 信息
 
-var Version      string = "unknownVersion"
-var Commit       string = "unknownCommit"
-var BuildTime    string = "unknownTime"
-var BuildMachine string = "unknownMachine"
-var Changes      string = "noChanges"
+var Commit       string
+var Branch       string
+var Version      string
+var BuildTime    string
+var BuildMachine string
+var Changes      string

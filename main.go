@@ -59,14 +59,23 @@ func main() {
 	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog())
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
-	logger.Warn().
-		Str("version", consts.Version).
-		Str("commit", consts.Commit[:13]).
-		Str("buildTime", consts.BuildTime).
-		Str("changes", consts.Changes).
-		Str("runtime", runtime.Version()).
-		Str("logLevel", zerolog.GlobalLevel().String()).
-		Msg("trbot")
+	if consts.BuildTime == "" {
+		logger.Warn().
+			Str("runtime", runtime.Version()).
+			Str("logLevel", zerolog.GlobalLevel().String()).
+			Str("error", "Remind: You are using a version without build info").
+			Msg("trbot")
+	} else {
+		logger.Warn().
+			Str("commit", consts.Commit).
+			Str("branch", consts.Branch).
+			Str("version", consts.Version).
+			Str("buildTime", consts.BuildTime).
+			Str("changes", consts.Changes).
+			Str("runtime", runtime.Version()).
+			Str("logLevel", zerolog.GlobalLevel().String()).
+			Msg("trbot")
+	}
 
 	opts := []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),

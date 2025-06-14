@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"runtime"
 
 	"trbot/utils/configs"
@@ -65,15 +64,24 @@ func PrivateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 }
 
 func OutputVersionInfo() string {
-	// 获取 git sha 和 commit 时间
-	c, _ := exec.Command("git", "rev-parse", "HEAD").Output()
-	// 获取 git 分支
-	b, _ := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
-	// 获取 commit 说明
-	m, _ := exec.Command("git", "log", "-1", "--pretty=%s").Output()
-	r := runtime.Version()
-	grs := runtime.NumGoroutine()
-	h, _ := os.Hostname()
-	info := fmt.Sprintf("Branch: %sCommit: [%s - %s](https://gitea.trle5.xyz/trle5/trbot/commit/%s)\nRuntime: %s\nGoroutine: %d\nHostname: %s", b, m, c[:10], c, r, grs, h)
-	return info
+	hostname, _ := os.Hostname()
+	var gitURL string = "https://gitea.trle5.xyz/trle5/trbot/commit/"
+	var info string
+	if consts.BuildTime != "" {
+		info += fmt.Sprintf("`Version:      `%s\n", consts.Version)
+		info += fmt.Sprintf("`Branch:       `%s\n", consts.Branch)
+		info += fmt.Sprintf("`Commit:       `[%s](%s%s) (%s)\n", consts.Commit[:10], gitURL, consts.Commit, consts.Changes)
+		info += fmt.Sprintf("`BuildTime:    `%s\n", consts.BuildTime)
+		info += fmt.Sprintf("`BuildMachine: `%s\n", consts.BuildMachine)
+		info += fmt.Sprintf("`Runtime:      `%s\n", runtime.Version())
+		info += fmt.Sprintf("`Goroutine:    `%d\n", runtime.NumGoroutine())
+		info += fmt.Sprintf("`Hostname:     `%s\n", hostname)
+		return info
+	}
+	return fmt.Sprintln(
+		"Warning: No build info\n",
+		"\n`Runtime:   `", runtime.Version(),
+		"\n`Goroutine: `", runtime.NumGoroutine(),
+		"\n`Hostname:  `", hostname,
+	)
 }
