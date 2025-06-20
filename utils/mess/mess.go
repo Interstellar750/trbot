@@ -66,7 +66,7 @@ func PrivateLogToChat(ctx context.Context, thebot *bot.Bot, update *models.Updat
 func OutputVersionInfo() string {
 	hostname, _ := os.Hostname()
 	var gitURL string = "https://gitea.trle5.xyz/trle5/trbot/commit/"
-	var info string
+	var info   string
 	if consts.BuildTime != "" {
 		info += fmt.Sprintf("`Version:      `%s\n", consts.Version)
 		info += fmt.Sprintf("`Branch:       `%s\n", consts.Branch)

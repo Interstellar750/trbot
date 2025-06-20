@@ -19,6 +19,7 @@ func InitBot(ctx context.Context) error {
 		readEnvironment,
 	}
 
+	godotenv.Load()
 	for _, initfunc := range initFuncs {
 		err := initfunc(ctx)
 		if err != nil { return err }
@@ -30,7 +31,6 @@ func InitBot(ctx context.Context) error {
 // 从 yaml 文件读取配置文件
 func readConfig(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
-	godotenv.Load()
 	// 先检查一下环境变量里有没有指定配置目录
 	configPathToFile := os.Getenv("CONFIG_PATH_TO_FILE")
 	configDirectory  := os.Getenv("CONFIG_DIRECTORY")
@@ -52,7 +52,7 @@ func readConfig(ctx context.Context) error {
 				} else {
 					logger.Warn().
 						Str("configPathToFile", configPathToFile).
-						Msg("The config file is created, please fill the bot token and restart.")
+						Msg("The config file is created, please fill the bot token and restart")
 					// 创建完成目录就跳到下方读取配置文件
 					// 默认配置文件没 bot token 的错误就留后面处理
 				}
@@ -166,8 +166,6 @@ func readConfig(ctx context.Context) error {
 // 查找 bot token，优先级为 环境变量 > .env 文件 > 配置文件
 func readBotToken(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
-	// 通过 godotenv 库读取 .env 文件后再尝试读取
-	godotenv.Load()
 	botToken := os.Getenv("BOT_TOKEN")
 	if botToken != "" {
 		BotConfig.BotToken = botToken
@@ -194,7 +192,6 @@ func readBotToken(ctx context.Context) error {
 
 func readEnvironment(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
-	godotenv.Load()
 	if os.Getenv("DEBUG") != "" {
 		BotConfig.LogLevel = "debug"
 		logger.Warn().
@@ -222,4 +219,61 @@ func showBotID() string {
 		}
 	}
 	return botID
+}
+
+func ShowConfigs(ctx context.Context) {
+	logger := zerolog.Ctx(ctx)
+
+	if len(BotConfig.AllowedUpdates) != 0 {
+		logger.Info().
+			Strs("allowedUpdates", BotConfig.AllowedUpdates).
+			Msg("Allowed updates list is set")
+	}
+
+	if len(BotConfig.AdminIDs) != 0 {
+		logger.Info().
+			Ints64("AdminIDs", BotConfig.AdminIDs).
+			Msg("Admin list is set")
+	}
+
+	if BotConfig.LogChatID != 0 {
+		logger.Info().
+			Int64("LogChatID", BotConfig.LogChatID).
+			Msg("Enabled log to chat")
+	}
+
+	if BotConfig.InlineDefaultHandler == "" {
+		logger.Info().
+			Msg("Inline default handler is not set, default show all commands")
+	}
+
+	if BotConfig.InlineSubCommandSymbol == "" {
+		BotConfig.InlineSubCommandSymbol = "+"
+		logger.Info().
+			Msg("Inline sub command symbol is not set, set it to `+` (plus sign)")
+	}
+
+	if BotConfig.InlinePaginationSymbol == "" {
+		BotConfig.InlinePaginationSymbol = "-"
+		logger.Info().
+			Msg("Inline pagination symbol is not set, set it to `-` (minus sign)")
+	}
+
+	if BotConfig.InlineResultsPerPage == 0 {
+		BotConfig.InlineResultsPerPage = 50
+		logger.Info().
+			Msg("Inline results per page number is not set, set it to 50")
+	} else if BotConfig.InlineResultsPerPage < 1 || BotConfig.InlineResultsPerPage > 50 {
+		logger.Warn().
+			Int("invalidNumber", BotConfig.InlineResultsPerPage).
+			Msg("Inline results per page number is invalid, set it to 50")
+		BotConfig.InlineResultsPerPage = 50
+	}
+
+	logger.Info().
+		Str("DefaultHandler",   BotConfig.InlineDefaultHandler).
+		Str("SubCommandSymbol", BotConfig.InlineSubCommandSymbol).
+		Str("PaginationSymbol", BotConfig.InlinePaginationSymbol).
+		Int("ResultsPerPage",   BotConfig.InlineResultsPerPage).
+		Msg("Inline mode config has been read")
 }
