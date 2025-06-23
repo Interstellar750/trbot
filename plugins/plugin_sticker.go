@@ -55,6 +55,10 @@ func init() {
 		AllowAutoTrigger: true,
 		Handler:          EchoStickerHandler,
 	})
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
+		SlashCommand: "cachedsticker",
+		Handler:      showCachedStickers,
+	})
 }
 
 type stickerDatas struct {
@@ -926,5 +930,38 @@ func zipFolder(srcDir, zipFile string) error {
 		return err
 	})
 
+	return err
+}
+
+func showCachedStickers(opts *handler_structs.SubHandlerParams) error {
+	var button [][]models.InlineKeyboardButton
+	var tempButtom []models.InlineKeyboardButton
+
+	entries, err := os.ReadDir(StickerCache_path)
+	if err != nil { return err }
+
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "-custom" {
+			if len(tempButtom) == 4 {
+				button = append(button, tempButtom)
+				tempButtom = []models.InlineKeyboardButton{}
+			}
+			tempButtom = append(tempButtom, models.InlineKeyboardButton{
+				Text: entry.Name(),
+				URL:  "https://t.me/addstickers/" + entry.Name(),
+			})
+		}
+	}
+
+	if len(tempButtom) > 0 { button = append(button, tempButtom) }
+
+	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID: opts.Update.Message.Chat.ID,
+		Text: "请选择要查看的贴纸包",
+		ReplyMarkup: models.InlineKeyboardMarkup{
+			InlineKeyboard: button,
+		},
+		MessageEffectID: "5104841245755180586",
+	})
 	return err
 }
