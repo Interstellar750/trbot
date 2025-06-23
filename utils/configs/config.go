@@ -11,6 +11,7 @@ import (
 
 // default "./config.yaml", can be changed by env
 var ConfigPath string = "./config.yaml"
+var BotConfig config
 
 type config struct {
 	// bot config
@@ -18,8 +19,9 @@ type config struct {
 	WebhookURL string `yaml:"WebhookURL"`
 
 	// log
-	LogLevel  string `yaml:"LogLevel"` // `trace` `debug` `info` `warn` `error` `fatal` `panic`, default "info"
-	LogChatID int64  `yaml:"LogChatID"`
+	LogLevel     string `yaml:"LogLevel"` // `trace` `debug` `info` `warn` `error` `fatal` `panic`, default "info"
+	LogFileLevel string `yaml:"LogFileLevel"`
+	LogChatID    int64  `yaml:"LogChatID"`
 
 	// admin
 	AdminIDs []int64 `yaml:"AdminIDs"`
@@ -38,8 +40,15 @@ type config struct {
 	AllowedUpdates bot.AllowedUpdates `yaml:"AllowedUpdates"`
 }
 
-func (c config)LevelForZeroLog() zerolog.Level {
-	switch strings.ToLower(c.LogLevel) {
+func (c config)LevelForZeroLog(forLogFile bool) zerolog.Level {
+	var levelText string
+	if forLogFile {
+		levelText = c.LogFileLevel
+	} else {
+		levelText = c.LogLevel
+	}
+
+	switch strings.ToLower(levelText) {
 	case "trace":
 		return zerolog.TraceLevel
 	case "debug":
@@ -55,8 +64,13 @@ func (c config)LevelForZeroLog() zerolog.Level {
 	case "panic":
 		return zerolog.PanicLevel
 	default:
-		log.Printf("Unknown log level [ %s ], using info level", c.LogLevel)
-		return zerolog.InfoLevel
+		if forLogFile {
+			log.Printf("Unknown log level [ %s ], using error level for log file", c.LogLevel)
+			return zerolog.ErrorLevel
+		} else {
+			log.Printf("Unknown log level [ %s ], using info level for console", c.LogLevel)
+			return zerolog.InfoLevel
+		}
 	}
 }
 
@@ -64,6 +78,7 @@ func CreateDefaultConfig() config {
 	return config{
 		BotToken: "REPLACE_THIS_USE_YOUR_BOT_TOKEN",
 		LogLevel: "info",
+		LogFileLevel: "warn",
 
 		InlineSubCommandSymbol: "+",
 		InlinePaginationSymbol: "-",
@@ -79,5 +94,3 @@ func CreateDefaultConfig() config {
 		},
 	}
 }
-
-var BotConfig config

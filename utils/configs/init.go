@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"trbot/utils/consts"
 	"trbot/utils/yaml"
 	"unicode"
 
@@ -163,7 +165,7 @@ func readConfig(ctx context.Context) error {
 	}
 }
 
-// 查找 bot token，优先级为 环境变量 > .env 文件 > 配置文件
+// 查找 bot token
 func readBotToken(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
 	botToken := os.Getenv("BOT_TOKEN")
@@ -171,7 +173,7 @@ func readBotToken(ctx context.Context) error {
 		BotConfig.BotToken = botToken
 		logger.Info().
 			Str("botTokenID", showBotID()).
-			Msg("Get token from environment or .env file")
+			Msg("Get token from environment")
 		return nil
 	}
 
@@ -206,6 +208,14 @@ func readEnvironment(ctx context.Context) error {
 			Msg("Get log level from environment")
 	}
 
+	logFileLevel := os.Getenv("LOG_FILE_LEVEL")
+	if logFileLevel != "" {
+		BotConfig.LogFileLevel = logFileLevel
+		logger.Warn().
+			Str("logFileLevel", logFileLevel).
+			Msg("Get log file level from environment")
+	}
+
 	return nil
 }
 
@@ -221,25 +231,47 @@ func showBotID() string {
 	return botID
 }
 
-func ShowConfigs(ctx context.Context) {
+func IsUseMultiLogWriter(logger *zerolog.Logger) bool {
+	file, err := os.OpenFile(consts.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err == nil {
+		multLogger := zerolog.New(zerolog.MultiLevelWriter(
+			zerolog.ConsoleWriter{Out: os.Stdout},
+			&zerolog.FilteredLevelWriter{
+				Writer: zerolog.MultiLevelWriter(file),
+				Level:  BotConfig.LevelForZeroLog(true),
+			},
+		)).With().Timestamp().Logger()
+
+		*logger = multLogger
+
+		logger.Info().
+			Str("logFilePath", consts.LogFilePath).
+			Str("logFileLevel", BotConfig.LogFileLevel).
+			Msg("Use mult log writer")
+		return true
+	} else {
+		logger.Error().
+			Err(err).
+			Str("logFilePath", consts.LogFilePath).
+			Msg("Failed to open log file, use console log writer only")
+		return false
+	}
+}
+
+// 只检查部分必要但可以留空的配置
+func CheckConfig(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
 
-	if len(BotConfig.AllowedUpdates) != 0 {
-		logger.Info().
-			Strs("allowedUpdates", BotConfig.AllowedUpdates).
-			Msg("Allowed updates list is set")
+	if BotConfig.LogLevel == "" {
+		BotConfig.LogLevel = "info"
+		logger.Warn().
+			Msg("LogLevel is not set, use default value: info")
 	}
 
-	if len(BotConfig.AdminIDs) != 0 {
-		logger.Info().
-			Ints64("AdminIDs", BotConfig.AdminIDs).
-			Msg("Admin list is set")
-	}
-
-	if BotConfig.LogChatID != 0 {
-		logger.Info().
-			Int64("LogChatID", BotConfig.LogChatID).
-			Msg("Enabled log to chat")
+	if BotConfig.LogFileLevel == "" {
+		BotConfig.LogFileLevel = "warn"
+		logger.Warn().
+			Msg("LogFileLevel is not set, use default value: warn")
 	}
 
 	if BotConfig.InlineDefaultHandler == "" {
@@ -250,13 +282,13 @@ func ShowConfigs(ctx context.Context) {
 	if BotConfig.InlineSubCommandSymbol == "" {
 		BotConfig.InlineSubCommandSymbol = "+"
 		logger.Info().
-			Msg("Inline sub command symbol is not set, set it to `+` (plus sign)")
+			Msg("Inline sub command symbol is not set, use default value: `+` (plus sign)")
 	}
 
 	if BotConfig.InlinePaginationSymbol == "" {
 		BotConfig.InlinePaginationSymbol = "-"
 		logger.Info().
-			Msg("Inline pagination symbol is not set, set it to `-` (minus sign)")
+			Msg("Inline pagination symbol is not set, use default value: `-` (minus sign)")
 	}
 
 	if BotConfig.InlineResultsPerPage == 0 {
@@ -270,10 +302,53 @@ func ShowConfigs(ctx context.Context) {
 		BotConfig.InlineResultsPerPage = 50
 	}
 
+	// 以下为可有可无的配置，主要是提醒下用户
+
+	if len(BotConfig.AdminIDs) != 0 {
+		logger.Info().
+			Ints64("AdminIDs", BotConfig.AdminIDs).
+			Msg("Admin list is set")
+	}
+
+	if len(BotConfig.AllowedUpdates) != 0 {
+		logger.Info().
+			Strs("allowedUpdates", BotConfig.AllowedUpdates).
+			Msg("Allowed updates list is set")
+	}
+
+	if BotConfig.LogChatID != 0 {
+		logger.Info().
+			Int64("LogChatID", BotConfig.LogChatID).
+			Msg("Enabled log to chat")
+	}
+
 	logger.Info().
 		Str("DefaultHandler",   BotConfig.InlineDefaultHandler).
 		Str("SubCommandSymbol", BotConfig.InlineSubCommandSymbol).
 		Str("PaginationSymbol", BotConfig.InlinePaginationSymbol).
 		Int("ResultsPerPage",   BotConfig.InlineResultsPerPage).
 		Msg("Inline mode config has been read")
+
+	return nil
+}
+
+func ShowConst(ctx context.Context) {
+	logger := zerolog.Ctx(ctx)
+	if consts.BuildTime == "" {
+		logger.Warn().
+			Str("runtime", runtime.Version()).
+			Str("logLevel", BotConfig.LogLevel).
+			Str("error", "Remind: You are using a version without build info").
+			Msg("trbot")
+	} else {
+		logger.Info().
+			Str("commit",    consts.Commit).
+			Str("branch",    consts.Branch).
+			Str("version",   consts.Version).
+			Str("buildTime", consts.BuildTime).
+			Str("changes",   consts.Changes).
+			Str("runtime",   runtime.Version()).
+			Str("logLevel",  BotConfig.LogLevel).
+			Msg("trbot")
+	}
 }

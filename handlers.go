@@ -31,7 +31,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		Update: update,
 	}
 
-	// Debug level or Trace Level
+	// Debug or Trace Level
 	if zerolog.GlobalLevel() <= zerolog.InfoLevel {
 		if update.Message != nil {
 			// 正常消息
@@ -1082,82 +1082,82 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 	logger := zerolog.Ctx(params.Ctx)
 
 	// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
-		if params.ChatInfo.HasPendingCallbackQuery && params.Update.CallbackQuery.Data == params.ChatInfo.LatestCallbackQueryData {
-			logger.Info().
+	if params.ChatInfo.HasPendingCallbackQuery && params.Update.CallbackQuery.Data == params.ChatInfo.LatestCallbackQueryData {
+		logger.Info().
+			Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+			Str("query", params.Update.CallbackQuery.Data).
+			Msg("this callback request is processing, ignore")
+		_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: params.Update.CallbackQuery.ID,
+			Text:            "当前请求正在处理中，请等待处理完成",
+			ShowAlert:       true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
 				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Str("query", params.Update.CallbackQuery.Data).
-				Msg("this callback request is processing, ignore")
-			_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: params.Update.CallbackQuery.ID,
-				Text:            "当前请求正在处理中，请等待处理完成",
-				ShowAlert:       true,
-			})
+				Msg("Failed to send `this callback request is processing` callback answer")
+		}
+		return
+	} else if params.ChatInfo.HasPendingCallbackQuery {
+		// 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
+		logger.Info().
+			Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+			Str("pendingQuery", params.ChatInfo.LatestCallbackQueryData).
+			Str("query", params.Update.CallbackQuery.Data).
+			Msg("another callback request is processing, ignore")
+		_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: params.Update.CallbackQuery.ID,
+			Text:            "请等待上一个请求处理完成后再尝试发送新的请求",
+			ShowAlert:       true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+				Msg("Failed to send `a callback request is processing, send new request later` callback answer")
+		}
+		return
+	} else {
+		// 如果没有正在处理的请求，则接受新的请求
+		logger.Debug().
+			Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+			Str("query", params.Update.CallbackQuery.Data).
+			Msg("accept callback query")
+
+		params.ChatInfo.HasPendingCallbackQuery = true
+		params.ChatInfo.LatestCallbackQueryData = params.Update.CallbackQuery.Data
+		// params.Thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+		// 	CallbackQueryID: params.Update.CallbackQuery.ID,
+		// 	Text:            "已接受请求",
+		// 	ShowAlert:       false,
+		// })
+	}
+
+	for _, n := range plugin_utils.AllPlugins.CallbackQuery {
+		if strings.HasPrefix(params.Update.CallbackQuery.Data, n.CommandChar) {
+			logger.Info().
+					Str("handlerPrefix", n.CommandChar).
+					Str("callbackData", params.Update.CallbackQuery.Data).
+					Msg("Hit callback query handler")
+			if n.Handler == nil {
+				logger.Debug().
+					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
+					Str("handlerPrefix", n.CommandChar).
+					Str("callbackData", params.Update.CallbackQuery.Data).
+					Msg("Hit callback query handler, but this handler function is nil, skip")
+				continue
+			}
+			err := n.Handler(params)
 			if err != nil {
 				logger.Error().
 					Err(err).
 					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-					Msg("Failed to send `this callback request is processing` callback answer")
+					Str("handlerPrefix", n.CommandChar).
+					Str("callbackData", params.Update.CallbackQuery.Data).
+					Msg("Error in callback query handler")
 			}
-			return
-		} else if params.ChatInfo.HasPendingCallbackQuery {
-			// 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
-			logger.Info().
-				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Str("pendingQuery", params.ChatInfo.LatestCallbackQueryData).
-				Str("query", params.Update.CallbackQuery.Data).
-				Msg("another callback request is processing, ignore")
-			_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: params.Update.CallbackQuery.ID,
-				Text:            "请等待上一个请求处理完成后再尝试发送新的请求",
-				ShowAlert:       true,
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-					Msg("Failed to send `a callback request is processing, send new request later` callback answer")
-			}
-			return
-		} else {
-			// 如果没有正在处理的请求，则接受新的请求
-			logger.Debug().
-				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Str("query", params.Update.CallbackQuery.Data).
-				Msg("accept callback query")
-
-			params.ChatInfo.HasPendingCallbackQuery = true
-			params.ChatInfo.LatestCallbackQueryData = params.Update.CallbackQuery.Data
-			// params.Thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-			// 	CallbackQueryID: params.Update.CallbackQuery.ID,
-			// 	Text:            "已接受请求",
-			// 	ShowAlert:       false,
-			// })
+			break
 		}
-
-		for _, n := range plugin_utils.AllPlugins.CallbackQuery {
-			if strings.HasPrefix(params.Update.CallbackQuery.Data, n.CommandChar) {
-				logger.Info().
-						Str("handlerPrefix", n.CommandChar).
-						Str("callbackData", params.Update.CallbackQuery.Data).
-						Msg("Hit callback query handler")
-				if n.Handler == nil {
-					logger.Debug().
-						Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-						Str("handlerPrefix", n.CommandChar).
-						Str("callbackData", params.Update.CallbackQuery.Data).
-						Msg("Hit callback query handler, but this handler function is nil, skip")
-					continue
-				}
-				err := n.Handler(params)
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-						Str("handlerPrefix", n.CommandChar).
-						Str("callbackData", params.Update.CallbackQuery.Data).
-						Msg("Error in callback query handler")
-				}
-				break
-			}
-		}
+	}
 }

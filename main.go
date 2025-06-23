@@ -24,29 +24,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// create a logger
-	var logger zerolog.Logger
-	file, err := os.OpenFile(consts.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// if can create a log file, use mult log writer
-	if err == nil {
-		fileWriter := &zerolog.FilteredLevelWriter{
-			Writer: zerolog.MultiLevelWriter(file),
-			Level: zerolog.WarnLevel,
-		}
-		multWriter := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, fileWriter)
-		logger = zerolog.New(multWriter).With().Timestamp().Logger()
-		logger.Info().
-			Str("logFilePath", consts.LogFilePath).
-			Str("levelForLogFile", zerolog.WarnLevel.String()).
-			Msg("Use mult log writer")
-	} else {
-		logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-		logger.Error().
-			Err(err).
-			Str("logFilePath", consts.LogFilePath).
-			Msg("Failed to open log file, use console log writer only")
-	}
-
+	// set stack trace func
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	var logger zerolog.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 	// attach logger into ctx
 	ctx = logger.WithContext(ctx)
 
@@ -55,17 +35,10 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to read bot configs")
 	}
 
-	// set log level from config
-	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog())
-	// set stack trace func
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-
-	// show build info
-	consts.ShowConsts(ctx)
-
-	// show configs
-	configs.ShowConfigs(ctx)
-
+	// writer log to a file or only display on console
+	if configs.IsUseMultiLogWriter(&logger) { ctx = logger.WithContext(ctx) } // re-attach logger into ctx
+	configs.CheckConfig(ctx) // check and auto fill some config
+	configs.ShowConst(ctx)   // show build info
 
 	thebot, err := bot.New(configs.BotConfig.BotToken, []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),
@@ -82,6 +55,9 @@ func main() {
 
 	database.InitAndListDatabases(ctx)
 
+	// set log level after bot initialized
+	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog(false))
+
 	// start handler custom signals
 	go signals.SignalsHandler(ctx)
 
@@ -89,7 +65,7 @@ func main() {
 	internal_plugin.Register(ctx)
 
 	// Select mode by Webhook config
-	if configs.IsUsingWebhook(ctx) { // Webhook
+	if configs.IsUsingWebhook(ctx) /* Webhook */ {
 		configs.SetUpWebhook(ctx, thebot, &bot.SetWebhookParams{
 			URL: configs.BotConfig.WebhookURL,
 			AllowedUpdates: configs.BotConfig.AllowedUpdates,
@@ -114,7 +90,7 @@ func main() {
 		thebot.Start(ctx)
 	}
 
-	// a loop wait for getUpdate mode, this program will exit in `utils\signals\signals.go`.
+	// A loop wait for getUpdate mode, this program will exit in `utils\signals\signals.go`.
 	// This loop will only run when the exit signal is received in getUpdate mode.
 	// Webhook won't reach here, http.ListenAndServe() will keep program running till exit.
 	// They use the same code to exit, this loop is to give some time to save the database when receive exit signal.

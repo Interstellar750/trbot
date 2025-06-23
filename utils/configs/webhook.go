@@ -16,7 +16,7 @@ func IsUsingWebhook(ctx context.Context) bool {
 		BotConfig.WebhookURL = webhookURL
 		logger.Info().
 			Str("WebhookURL", BotConfig.WebhookURL).
-			Msg("Get Webhook URL from environment or .env file")
+			Msg("Get Webhook URL from environment")
 		return true
 	}
 
