@@ -41,7 +41,7 @@ func RunPluginInitializers(ctx context.Context) {
 			logger.Error().
 				Err(err).
 				Str("pluginName", initializer.Name).
-				Msg("Failed to initialize plugin, skipping")
+				Msg("Failed to initialize plugin")
 			continue
 		} else {
 			logger.Info().

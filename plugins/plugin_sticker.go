@@ -102,14 +102,14 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 			Dict(utils.GetUserDict(opts.Update.Message.From)).
 			Msg("Failed to download sticker")
 
-		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		_, msgerr := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Update.Message.From.ID,
 			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
-		if err != nil {
+		if msgerr != nil {
 			logger.Error().
-				Err(err).
+				Err(msgerr).
 				Dict(utils.GetUserDict(opts.Update.Message.From)).
 				Msg("Failed to send `sticker download error` message")
 		}
@@ -117,18 +117,22 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 	}
 
 	documentParams := &bot.SendDocumentParams{
-		ChatID:              opts.Update.Message.From.ID,
-		ParseMode:           models.ParseModeHTML,
-		ReplyParameters:     &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-		DisableNotification: true,
+		ChatID:                      opts.Update.Message.From.ID,
+		ParseMode:                   models.ParseModeHTML,
+		ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+		DisableNotification:         true,
+		DisableContentTypeDetection: true, // Prevent the server convert gif to mp4
 	}
 
 	var stickerFilePrefix, stickerFileSuffix string
 
 	if opts.Update.Message.Sticker.IsVideo {
-		documentParams.Caption = "<blockquote>see <a href=\"https://wikipedia.org/wiki/WebM\">wikipedia/WebM</a></blockquote>"
-		stickerFileSuffix = "webm"
-		// stickerFileSuffix = "gif"
+		if stickerData.IsConverted {
+			stickerFileSuffix = "gif"
+		} else {
+			documentParams.Caption = "<blockquote>see <a href=\"https://wikipedia.org/wiki/WebM\">wikipedia/WebM</a></blockquote>"
+			stickerFileSuffix = "webm"
+		}
 	} else if opts.Update.Message.Sticker.IsAnimated {
 		documentParams.Caption = "<blockquote>see <a href=\"https://core.telegram.org/stickers#animated-stickers\">stickers/animated-stickers</a></blockquote>"
 		stickerFileSuffix = "tgs.file"
@@ -321,51 +325,58 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 		// 不需要转码，直接读取原贴纸文件
 		finalFullPath = originFullPath
 	} else if opts.Update.Message.Sticker.IsVideo {
-		// webm, convert to gif
-		_, err = os.Stat(toGIFFullPath) // 使用目录提前检查一下是否已经转换过
-		if err != nil {
-			// 如果提示不存在，进行转换
-			if os.IsNotExist(err) {
-				// 日志提示该文件没转换，正在转换
-				logger.Trace().
-					Str("toGIFFullPath", toGIFFullPath).
-					Msg("sticker file does not convert, converting")
+		if configs.BotConfig.FFmpegPath != "" {
+			// webm, convert to gif
+			_, err = os.Stat(toGIFFullPath) // 使用目录提前检查一下是否已经转换过
+			if err != nil {
+				// 如果提示不存在，进行转换
+				if os.IsNotExist(err) {
+					// 日志提示该文件没转换，正在转换
+					logger.Trace().
+						Str("toGIFFullPath", toGIFFullPath).
+						Msg("sticker file does not convert, converting")
 
-				// 创建保存贴纸的目录
-				err = os.MkdirAll(GIFFilePath, 0755)
-				if err != nil {
+					// 创建保存贴纸的目录
+					err = os.MkdirAll(GIFFilePath, 0755)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("GIFFilePath", GIFFilePath).
+							Msg("Failed to create directory to convert file")
+						return nil, fmt.Errorf("failed to create directory [%s] to convert sticker file: %w", GIFFilePath, err)
+					}
+
+					// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
+					err = convertWebmToGif(originFullPath, toGIFFullPath)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("originFullPath", originFullPath).
+							Msg("Failed to convert webm to gif")
+						return nil, fmt.Errorf("failed to convert webm [%s] to gif: %w", originFullPath, err)
+					}
+				} else {
+					// 其他错误
 					logger.Error().
 						Err(err).
-						Str("GIFFilePath", GIFFilePath).
-						Msg("Failed to create directory to convert file")
-					return nil, fmt.Errorf("failed to create directory [%s] to convert sticker file: %w", GIFFilePath, err)
-				}
-
-				// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
-				err = convertWebmToGif(originFullPath, toGIFFullPath)
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("originFullPath", originFullPath).
-						Msg("Failed to convert webm to gif")
-					return nil, fmt.Errorf("failed to convert webm [%s] to gif: %w", originFullPath, err)
+						Str("toGIFFullPath", toGIFFullPath).
+						Msg("Failed to read converted file info")
+					return nil, fmt.Errorf("failed to read converted sticker file [%s] info: %w", toGIFFullPath, err)
 				}
 			} else {
-				// 其他错误
-				logger.Error().
-					Err(err).
+				// 文件存在，跳过转换
+				logger.Trace().
 					Str("toGIFFullPath", toGIFFullPath).
-					Msg("Failed to read converted file info")
-				return nil, fmt.Errorf("failed to read converted sticker file [%s] info: %w", toGIFFullPath, err)
+					Msg("sticker file already converted to gif")
 			}
+
+			// 处理完成，将最后要读取的目录设为转码后 gif 格式贴纸的完整目录
+			data.IsConverted = true
+			finalFullPath = toGIFFullPath
 		} else {
-			// 文件存在，跳过转换
-			logger.Trace().
-				Str("toGIFFullPath", toGIFFullPath).
-				Msg("sticker file already converted to gif")
+			// 没有 ffmpeg 能用来转码，直接读取原贴纸文件
+			finalFullPath = originFullPath
 		}
-		// 处理完成，将最后要读取的目录设为转码后 gif 格式贴纸的完整目录
-		finalFullPath = toGIFFullPath
 	} else {
 		// webp, need convert to png
 		_, err = os.Stat(toPNGFullPath) // 使用目录提前检查一下是否已经转换过
@@ -410,7 +421,9 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 				Str("toPNGFullPath", toPNGFullPath).
 				Msg("sticker file already converted to png")
 		}
+
 		// 处理完成，将最后要读取的目录设为转码后 png 格式贴纸的完整目录
+		data.IsConverted = true
 		finalFullPath = toPNGFullPath
 	}
 
@@ -426,7 +439,6 @@ func EchoSticker(opts *handler_structs.SubHandlerParams) (*stickerDatas, error) 
 
 	return &data, nil
 }
-
 
 func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) error {
 	logger := zerolog.Ctx(opts.Ctx).
@@ -474,14 +486,14 @@ func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) 
 			Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 			Msg("Failed to get sticker set info")
 
-		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		_, msgerr := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Update.CallbackQuery.From.ID,
 			Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
-		if err != nil {
+		if msgerr != nil {
 			logger.Error().
-				Err(err).
+				Err(msgerr).
 				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 				Msg("Failed to send `get sticker set info error` message")
 		}
@@ -874,8 +886,9 @@ func convertWebPToPNG(webpPath, pngPath string) error {
 	return nil
 }
 
+// use ffmpeg
 func convertWebmToGif(webmPath, gifPath string) error {
-	cmd := exec.Command("./ffmpeg/bin/ffmpeg.exe", "-i", webmPath, "-vf", "fps=10", gifPath)
+	cmd := exec.Command(configs.BotConfig.FFmpegPath, "-i", webmPath, "-vf", "fps=10", gifPath)
 	err := cmd.Run()
 	if err != nil {
 		return err

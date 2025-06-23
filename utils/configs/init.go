@@ -216,6 +216,14 @@ func readEnvironment(ctx context.Context) error {
 			Msg("Get log file level from environment")
 	}
 
+	FFmpegPath := os.Getenv("FFMPEG_PATH")
+	if FFmpegPath != "" {
+		BotConfig.FFmpegPath = FFmpegPath
+		logger.Warn().
+			Str("FFmpegPath", FFmpegPath).
+			Msg("Get FFmpegPath from environment")
+	}
+
 	return nil
 }
 
@@ -258,9 +266,10 @@ func IsUseMultiLogWriter(logger *zerolog.Logger) bool {
 	}
 }
 
-// 只检查部分必要但可以留空的配置
 func CheckConfig(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx)
+
+	// 部分必要但可以留空的配置
 
 	if BotConfig.LogLevel == "" {
 		BotConfig.LogLevel = "info"
@@ -320,6 +329,12 @@ func CheckConfig(ctx context.Context) error {
 		logger.Info().
 			Int64("LogChatID", BotConfig.LogChatID).
 			Msg("Enabled log to chat")
+	}
+
+	if BotConfig.FFmpegPath != "" {
+		logger.Info().
+			Str("FFmpegPath", BotConfig.FFmpegPath).
+			Msg("FFmpeg path is set")
 	}
 
 	logger.Info().

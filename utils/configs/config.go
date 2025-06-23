@@ -38,6 +38,8 @@ type config struct {
 	InlineResultsPerPage   int    `yaml:"InlineResultsPerPage"`   // default 50, maxinum 50, see https://core.telegram.org/bots/api#answerinlinequery
 
 	AllowedUpdates bot.AllowedUpdates `yaml:"AllowedUpdates"`
+
+	FFmpegPath string `yaml:"FFmpegPath"`
 }
 
 func (c config)LevelForZeroLog(forLogFile bool) zerolog.Level {

@@ -100,7 +100,6 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				Str("query", update.CallbackQuery.Data).
 				Msg("callback query")
 
-			return
 		} else if update.MessageReaction != nil {
 			// 私聊或群组表情回应
 			if len(update.MessageReaction.OldReaction) > 0 {

@@ -3,7 +3,6 @@ package plugins
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,21 +12,21 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
-	"gopkg.in/yaml.v3"
 )
 
 var VoiceLists   []VoicePack
 var VoiceListErr error
 
-var VoiceList_path string = filepath.Join(consts.YAMLDataBasePath, "voices/") 
+var VoiceListDir string = filepath.Join(consts.YAMLDataBasePath, "voices/") 
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
-		Name: "Voice List",
+		Name: "VoiceList",
 		Func: ReadVoicePackFromPath,
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
@@ -61,17 +60,17 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 
 	var packs []VoicePack
 
-	_, err := os.Stat(VoiceList_path)
+	_, err := os.Stat(VoiceListDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Warn().
-				Str("path", VoiceList_path).
+				Str("directory", VoiceListDir).
 				Msg("VoiceList directory not exist, now create it")
-			err = os.MkdirAll(VoiceList_path, 0755)
+			err = os.MkdirAll(VoiceListDir, 0755)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("path", VoiceList_path).
+					Str("directory", VoiceListDir).
 					Msg("Failed to create VoiceList data directory")
 				VoiceListErr = err
 				return err
@@ -79,7 +78,7 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 		} else {
 			logger.Error().
 				Err(err).
-				Str("path", VoiceList_path).
+				Str("directory", VoiceListDir).
 				Msg("Open VoiceList data directory failed")
 			VoiceListErr = err
 			return err
@@ -87,7 +86,7 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 	}
 	
 
-	err = filepath.Walk(VoiceList_path, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(VoiceListDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -95,18 +94,9 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 				Msg("Failed to read file use `filepath.Walk()`")
 		}
 		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
-			file, err := os.Open(path)
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("path", path).
-					Msg("Failed to open file use `os.Open()`")
-			}
-			defer file.Close()
-
 			var singlePack VoicePack
-			decoder := yaml.NewDecoder(file)
-			err = decoder.Decode(&singlePack)
+			
+			err = yaml.LoadYAML(path, &singlePack)
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -120,8 +110,8 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("path", VoiceList_path).
-			Msg("Failed to read voice packs in VoiceList path")
+			Str("directory", VoiceListDir).
+			Msg("Failed to read voice packs in VoiceList directory")
 		VoiceListErr = err
 		return err
 	}
@@ -135,7 +125,13 @@ func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQue
 	var results []models.InlineQueryResult
 
 	if VoiceLists == nil {
-		log.Printf("[VoiceList] No voices file in voices_path: %s", VoiceList_path)
+		zerolog.Ctx(opts.Ctx).
+			Warn().
+			Str("pluginName", "Voice List").
+			Str("funcName", "VoiceListHandler").
+			Str("VoiceListDir", VoiceListDir).
+			Msg("No voices file in VoiceListDir")
+
 		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    configs.BotConfig.LogChatID,
 			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
