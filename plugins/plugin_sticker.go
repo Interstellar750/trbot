@@ -888,12 +888,7 @@ func convertWebPToPNG(webpPath, pngPath string) error {
 
 // use ffmpeg
 func convertWebmToGif(webmPath, gifPath string) error {
-	cmd := exec.Command(configs.BotConfig.FFmpegPath, "-i", webmPath, "-vf", "fps=10", gifPath)
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-	return nil
+	return exec.Command(configs.BotConfig.FFmpegPath, "-i", webmPath, gifPath).Run()
 }
 
 func zipFolder(srcDir, zipFile string) error {
