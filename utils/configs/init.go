@@ -349,7 +349,7 @@ func CheckConfig(ctx context.Context) error {
 
 func ShowConst(ctx context.Context) {
 	logger := zerolog.Ctx(ctx)
-	if consts.BuildTime == "" {
+	if consts.BuildAt == "" {
 		logger.Warn().
 			Str("runtime", runtime.Version()).
 			Str("logLevel", BotConfig.LogLevel).
@@ -357,13 +357,14 @@ func ShowConst(ctx context.Context) {
 			Msg("trbot")
 	} else {
 		logger.Info().
-			Str("commit",    consts.Commit).
-			Str("branch",    consts.Branch).
-			Str("version",   consts.Version).
-			Str("buildTime", consts.BuildTime).
-			Str("changes",   consts.Changes).
-			Str("runtime",   runtime.Version()).
-			Str("logLevel",  BotConfig.LogLevel).
+			Str("commit",   consts.Commit).
+			Str("branch",   consts.Branch).
+			Str("version",  consts.Version).
+			Str("buildAt",  consts.BuildAt).
+			Str("buildOn",  consts.BuildOn).
+			Str("changes",  consts.Changes).
+			Str("runtime",  runtime.Version()).
+			Str("logLevel", BotConfig.LogLevel).
 			Msg("trbot")
 	}
 }

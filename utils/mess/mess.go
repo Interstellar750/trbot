@@ -67,15 +67,15 @@ func OutputVersionInfo() string {
 	hostname, _ := os.Hostname()
 	var gitURL string = "https://gitea.trle5.xyz/trle5/trbot/commit/"
 	var info   string
-	if consts.BuildTime != "" {
-		info += fmt.Sprintf("`Version:      `%s\n", consts.Version)
-		info += fmt.Sprintf("`Branch:       `%s\n", consts.Branch)
-		info += fmt.Sprintf("`Commit:       `[%s](%s%s) (%s)\n", consts.Commit[:10], gitURL, consts.Commit, consts.Changes)
-		info += fmt.Sprintf("`BuildTime:    `%s\n", consts.BuildTime)
-		info += fmt.Sprintf("`BuildMachine: `%s\n", consts.BuildMachine)
-		info += fmt.Sprintf("`Runtime:      `%s\n", runtime.Version())
-		info += fmt.Sprintf("`Goroutine:    `%d\n", runtime.NumGoroutine())
-		info += fmt.Sprintf("`Hostname:     `%s\n", hostname)
+	if consts.BuildAt != "" {
+		info += fmt.Sprintf("`Version:   `%s\n", consts.Version)
+		info += fmt.Sprintf("`Branch:    `%s\n", consts.Branch)
+		info += fmt.Sprintf("`Commit:    `[%s](%s%s) (%s)\n", consts.Commit[:10], gitURL, consts.Commit, consts.Changes)
+		info += fmt.Sprintf("`BuildAt:   `%s\n", consts.BuildAt)
+		info += fmt.Sprintf("`BuildOn:   `%s\n", consts.BuildOn)
+		info += fmt.Sprintf("`Runtime:   `%s\n", runtime.Version())
+		info += fmt.Sprintf("`Goroutine: `%d\n", runtime.NumGoroutine())
+		info += fmt.Sprintf("`Hostname:  `%s\n", hostname)
 		return info
 	}
 	return fmt.Sprintln(

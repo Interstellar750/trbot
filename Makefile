@@ -8,8 +8,8 @@ LDFLAGS  := -X 'trbot/utils/consts.Commit=$(COMMIT)' \
             -X 'trbot/utils/consts.Branch=$(BRANCH)' \
             -X 'trbot/utils/consts.Version=$(VERSION)' \
             -X 'trbot/utils/consts.Changes=$(CHANGES)' \
-            -X 'trbot/utils/consts.BuildTime=$(TIME)' \
-            -X 'trbot/utils/consts.BuildMachine=$(HOSTNAME)'
+            -X 'trbot/utils/consts.BuildAt=$(TIME)' \
+            -X 'trbot/utils/consts.BuildOn=$(HOSTNAME)'
 
 build:
 	go build -ldflags "$(LDFLAGS)"

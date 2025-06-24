@@ -190,7 +190,7 @@ func ReadUdonese(ctx context.Context) error {
 					Err(err).
 					Str("path", UdonesePath).
 					Msg("Failed to create empty udonese list file")
-				UdoneseErr = fmt.Errorf("failed to create empty udonese list file: %w", err) 
+				UdoneseErr = fmt.Errorf("failed to create empty udonese list file: %w", err)
 				return UdoneseErr
 			}
 		} else {
@@ -212,7 +212,7 @@ func SaveUdonese(ctx context.Context) error {
 		Str("pluginName", "Udonese").
 		Str("funcName", "SaveUdonese").
 		Logger()
-	
+
 	data, err := yaml.Marshal(UdoneseData)
 	if err != nil {
 		logger.Error().
@@ -945,7 +945,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) error {
 		}
 		return nil
 	}
-	
+
 	if opts.Update.CallbackQuery.Data == "udonese_done" {
 		_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
@@ -995,8 +995,8 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) error {
 			logger.Error().
 				Err(err).
 				Str("callbackQueryData", opts.Update.CallbackQuery.Data).
-				Msg("Failed to covert meanning index")
-			return fmt.Errorf("failed to covert meanning index: %w", err)
+				Msg("Failed to parse meanning index")
+			return fmt.Errorf("failed to parse meanning index: %w", err)
 		}
 
 		var targetMeaning UdoneseMeaning
@@ -1070,8 +1070,8 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) error {
 			logger.Error().
 				Err(err).
 				Str("callbackQueryData", opts.Update.CallbackQuery.Data).
-				Msg("Failed to covert meanning index")
-			return fmt.Errorf("failed to covert meanning index: %w", err)
+				Msg("Failed to parse meanning index")
+			return fmt.Errorf("failed to parse meanning index: %w", err)
 		}
 		var newMeaningList []UdoneseMeaning
 		var targetWord UdoneseWord
@@ -1106,7 +1106,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) error {
 					Err(msgerr).
 					Msg(logt.AnswerCallback)
 			}
-			
+
 			return fmt.Errorf("failed to save udonese data after delete meaning: %w", err)
 		}
 

@@ -132,7 +132,7 @@ func Register(ctx context.Context) {
 				// info, err := opts.Thebot.GetWebhookInfo(ctx)
 				// fmt.Println(info)
 				// return
-				botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Update.Message.Chat.ID,
 					Text:            mess.OutputVersionInfo(),
 					ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
@@ -145,35 +145,7 @@ func Register(ctx context.Context) {
 						Msg("Failed to send `bot version info` message")
 					return err
 				}
-				time.Sleep(time.Second * 20)
-				success, err := opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					MessageIDs: []int{
-						opts.Update.Message.ID,
-						botMessage.ID,
-					},
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("command", "/version").
-						Msg("Failed to delete `command message and bot version info` message")
-				}
-				if !success {
-					// 如果不能把用户的消息也删了，就单独删 bot 的消息
-					_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-						ChatID: opts.Update.Message.Chat.ID,
-						MessageID: botMessage.ID,
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Str("command", "/version").
-							Msg("Failed to delete `bot version info` message")
-					}
-				}
-				
-				return err
+				return nil
 			},
 		},
 	}...)
