@@ -432,7 +432,7 @@ func getCurrentGoroutineStack() string {
 
 func PanicCatcher(ctx context.Context, pluginName string) {
 	logger := zerolog.Ctx(ctx)
-	
+
 	panic := recover()
 	if panic != nil {
 		logger.Error().

@@ -6,15 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"trbot/utils"
-	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
 
-	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
 )
@@ -22,7 +19,7 @@ import (
 var VoiceLists   []VoicePack
 var VoiceListErr error
 
-var VoiceListDir string = filepath.Join(consts.YAMLDataBasePath, "voices/") 
+var VoiceListDir string = filepath.Join(consts.YAMLDataBasePath, "voices/")
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
@@ -84,7 +81,7 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 			return err
 		}
 	}
-	
+
 
 	err = filepath.Walk(VoiceListDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -95,7 +92,7 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 		}
 		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
 			var singlePack VoicePack
-			
+
 			err = yaml.LoadYAML(path, &singlePack)
 			if err != nil {
 				logger.Error().
@@ -132,10 +129,6 @@ func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQue
 			Str("VoiceListDir", VoiceListDir).
 			Msg("No voices file in VoiceListDir")
 
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    configs.BotConfig.LogChatID,
-			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
-		})
 		return []models.InlineQueryResult{&models.InlineQueryResultVoice{
 			ID:       "none",
 			Title:    "无法读取到语音文件，请联系机器人管理员",

@@ -8,6 +8,8 @@ type MessageAttribute struct {
 	IsFromLinkedChannel  bool `yaml:"IsFromLinkedChannel,omitempty"`  // is automatic forward post from linked channel
 	IsUserAsChannel      bool `yaml:"IsUserAsChannel,omitempty"`      // user selected to send message as a channel
 	IsHasSenderChat      bool `yaml:"IsHasSenderChat,omitempty"`      // sender of the message when sent on behalf of a chat, eg current group/supergroup or linked channel
+	IsFromBot            bool `yaml:"IsFromBot,omitempty"`            // message send by bot
+	IsFromPremium        bool `yaml:"IsFromPremium,omitempty"`        // message from a premium account
 	IsFromBusinessBot    bool `yaml:"IsFromBusinessBot,omitempty"`    // the bot that actually sent the message on behalf of the business account
 	IsChatEnableForum    bool `yaml:"IsChatEnableForum,omitempty"`    // group or supergroup is enable topic
 	IsForwardMessage     bool `yaml:"IsForwardMessage,omitempty"`     // not a origin message, forward from somewhere
@@ -19,7 +21,7 @@ type MessageAttribute struct {
 	IsQuoteHasEntities   bool `yaml:"IsQuoteHasEntities,omitempty"`   // is quote message has entities
 	IsManualQuote        bool `yaml:"IsManualQuote,omitempty"`        // user manually select text to quote a message. if false, just use 'reply to other chat'
 	IsReplyToStory       bool `yaml:"IsReplyToStory,omitempty"`       // TODO
-	IsViaBot             bool `yaml:"IsViaBot,omitempty"`             // message by inline mode
+	IsViaBot             bool `yaml:"IsViaBot,omitempty"`             // message by using bot inline mode
 	IsEdited             bool `yaml:"IsEdited,omitempty"`             // message aready edited
 	IsFromOffline        bool `yaml:"IsFromOffline,omitempty"`        // eg scheduled message
 	IsGroupedMedia       bool `yaml:"IsGroupedMedia,omitempty"`       // media group, like select more than one file or photo to send
@@ -48,6 +50,14 @@ func GetMessageAttribute(msg *models.Message) MessageAttribute {
 			if msg.From.ID == 777000 && msg.ForwardOrigin != nil && msg.ForwardOrigin.MessageOriginChannel != nil && msg.SenderChat.ID == msg.ForwardOrigin.MessageOriginChannel.Chat.ID {
 				attribute.IsFromLinkedChannel = true
 			}
+		}
+	}
+	if msg.From != nil {
+		if msg.From.IsBot {
+			attribute.IsFromBot = true
+		}
+		if msg.From.IsPremium {
+			attribute.IsFromPremium = true
 		}
 	}
 	if msg.SenderBusinessBot != nil {

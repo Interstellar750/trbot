@@ -1414,7 +1414,12 @@ func userManageCallbackHandler(opts *handler_structs.SubHandlerParams) error {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				fmt.Println(err)
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Str("content", "keyword added notice").
+					Msg(logt.EditMessage)
 			}
 			return nil
 		}

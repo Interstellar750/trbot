@@ -90,7 +90,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str("pluginName", "teamspeak3").
 		Str("funcName", "initTeamSpeak").
 		Logger()
-	
+
 	// 判断配置文件是否存在
 	_, err := os.Stat(tsDataDir)
 	if err != nil {
@@ -153,7 +153,7 @@ func initTeamSpeak(ctx context.Context) bool {
 				Err(tsErr).
 				Str("path", tsDataPath).
 				Msg("Failed to connect to server")
-			tsErr = fmt.Errorf("connect error: %w", tsErr)
+			tsErr = fmt.Errorf("failed to connnect to server: %w", tsErr)
 			return false
 		}
 	}
@@ -173,7 +173,7 @@ func initTeamSpeak(ctx context.Context) bool {
 				Err(err).
 				Str("path", tsDataPath).
 				Msg("Failed to login to server")
-			tsErr = fmt.Errorf("login error: %w", err)
+			tsErr = fmt.Errorf("failed to login to server: %w", err)
 			isLoginFailed = true
 			return false
 		} else {
@@ -214,7 +214,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Err(err).
 			Msg("Failed to switch server")
-		tsErr = fmt.Errorf("switch server error: %w", err)
+		tsErr = fmt.Errorf("failed to switch server: %w", err)
 		return false
 	}
 
@@ -231,7 +231,7 @@ func initTeamSpeak(ctx context.Context) bool {
 			logger.Error().
 				Err(err).
 				Msg("Failed to set bot nickname")
-			tsErr = fmt.Errorf("set nickname error: %w", err)
+			tsErr = fmt.Errorf("failed to set nickname: %w", err)
 		}
 	}
 
