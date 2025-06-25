@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"time"
 	"trbot/utils/consts"
+	"trbot/utils/errt"
 	"trbot/utils/handler_structs"
-	"trbot/utils/logt"
+	"trbot/utils/multe"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
 
@@ -65,10 +66,8 @@ func init() {
 					Handler:     getOptsHandler,
 				})
 				hasHandlerByChatID = true
-				return nil
-			} else {
-				return tsErr
 			}
+			return tsErr
 		},
 	})
 
@@ -91,50 +90,34 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str("funcName", "initTeamSpeak").
 		Logger()
 
-	// 判断配置文件是否存在
-	_, err := os.Stat(tsDataDir)
+	var handlerErr multe.MultiError
+
+	err := yaml.LoadYAML(tsDataPath, &tsData)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// 不存在，创建一份空文件
 			logger.Warn().
 				Err(err).
 				Str("path", tsDataPath).
-				Msg("Not found config file. Created new one")
+				Msg("Not found teamspeak config file. Created new one")
 			err = yaml.SaveYAML(tsDataPath, &TSServerQuery{})
 			if err != nil {
 				logger.Error().
 					Err(err).
 					Str("path", tsDataPath).
 					Msg("Failed to create empty config")
-				tsErr = fmt.Errorf("failed to create empty config: %w", err)
+				handlerErr.Addf("failed to create empty config: %w", err)
 			}
-			logger.Warn().
-				Str("path", tsDataPath).
-				Msg("Empty config file created, please fill in the config")
 		} else {
-			// 文件存在，但是遇到了其他错误
 			logger.Error().
 				Err(err).
 				Str("path", tsDataPath).
 				Msg("Failed to read config file")
-			tsErr = fmt.Errorf("failed to read config file: %w", err)
+
+			// 读取配置文件内容失败也不允许重新启动
+			tsErr = handlerErr.Addf("failed to read config file: %w", err).Flat()
+			isCanReInit = false
+			return false
 		}
-
-		// 无法获取到服务器地址和账号，无法初始化并设定不可重新启动
-		isCanReInit = false
-		return false
-	}
-
-	err = yaml.LoadYAML(tsDataPath, &tsData)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("path", tsDataPath).
-			Msg("Failed to read config file")
-		// 读取配置文件内容失败也不允许重新启动
-		tsErr = fmt.Errorf("failed to read config file: %w", err)
-		isCanReInit = false
-		return false
 	}
 
 	// 如果服务器地址为空不允许重新启动
@@ -142,18 +125,18 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Str("path", tsDataPath).
 			Msg("No URL in config")
-		tsErr = fmt.Errorf("no URL in config")
+		tsErr = handlerErr.Addf("no URL in config").Flat()
 		isCanReInit = false
 		return false
 	} else {
 		if tsClient != nil { tsClient.Close() }
-		tsClient, tsErr = ts3.NewClient(tsData.URL)
-		if tsErr != nil {
+		tsClient, err = ts3.NewClient(tsData.URL)
+		if err != nil {
 			logger.Error().
-				Err(tsErr).
+				Err(err).
 				Str("path", tsDataPath).
 				Msg("Failed to connect to server")
-			tsErr = fmt.Errorf("failed to connnect to server: %w", tsErr)
+			tsErr = handlerErr.Addf("failed to connnect to server: %w", err).Flat()
 			return false
 		}
 	}
@@ -163,7 +146,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Str("path", tsDataPath).
 			Msg("No Name/Password in config")
-		tsErr = fmt.Errorf("no Name/Password in config")
+		tsErr = handlerErr.Addf("no Name/Password in config").Flat()
 		isCanReInit = false
 		return false
 	} else {
@@ -173,7 +156,7 @@ func initTeamSpeak(ctx context.Context) bool {
 				Err(err).
 				Str("path", tsDataPath).
 				Msg("Failed to login to server")
-			tsErr = fmt.Errorf("failed to login to server: %w", err)
+			tsErr = handlerErr.Addf("failed to login to server: %w", err).Flat()
 			isLoginFailed = true
 			return false
 		} else {
@@ -186,7 +169,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Str("path", tsDataPath).
 			Msg("No GroupID in config")
-		tsErr = fmt.Errorf("no GroupID in config")
+		tsErr = handlerErr.Addf("no GroupID in config").Flat()
 		isCanReInit = false
 		return false
 	}
@@ -198,7 +181,7 @@ func initTeamSpeak(ctx context.Context) bool {
 			Err(err).
 			Str("path", tsDataPath).
 			Msg("Failed to get server version")
-		tsErr = fmt.Errorf("failed to get server version: %w", err)
+		tsErr = handlerErr.Addf("failed to get server version: %w", err).Flat()
 		return false
 	} else {
 		logger.Info().
@@ -214,7 +197,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Err(err).
 			Msg("Failed to switch server")
-		tsErr = fmt.Errorf("failed to switch server: %w", err)
+		tsErr = handlerErr.Addf("failed to switch server: %w", err).Flat()
 		return false
 	}
 
@@ -224,6 +207,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Err(err).
 			Msg("Failed to get bot info")
+		tsErr = handlerErr.Addf("failed to get bot info: %w", err).Flat()
 	} else if m != nil && m.ClientName != botNickName {
 		// 当 bot 自己的 nickname 不等于配置文件中的 nickname 时，才进行修改
 		err = tsClient.SetNick(botNickName)
@@ -231,7 +215,7 @@ func initTeamSpeak(ctx context.Context) bool {
 			logger.Error().
 				Err(err).
 				Msg("Failed to set bot nickname")
-			tsErr = fmt.Errorf("failed to set nickname: %w", err)
+			tsErr = handlerErr.Addf("failed to set nickname: %w", err).Flat()
 		}
 	}
 
@@ -268,6 +252,8 @@ func showStatus(opts *handler_structs.SubHandlerParams) error {
 		Str("funcName", "showStatus").
 		Logger()
 
+	var handlerErr multe.MultiError
+
 	var pendingMessage string
 
 	// 如果首次初始化没成功，没有添加根据群组 ID 来触发的 handler，用户发送 /ts3 后可以通过这个来自动获取 opts 并启动监听
@@ -291,6 +277,7 @@ func showStatus(opts *handler_structs.SubHandlerParams) error {
 			logger.Error().
 				Err(err).
 				Msg("Failed to get online client")
+			handlerErr.Addf("failed to get online client: %w", err)
 			pendingMessage = fmt.Sprintf("连接到 teamspeak 服务器发生错误:\n<blockquote expandable>%s</blockquote>", err)
 		} else {
 			pendingMessage += fmt.Sprintln("在线客户端:")
@@ -323,10 +310,13 @@ func showStatus(opts *handler_structs.SubHandlerParams) error {
 				}
 				resetListenTicker <- true
 				pendingMessage = "尝试重新初始化成功，现可正常运行"
-			} else if isListening {
-				pendingMessage += "尝试重新初始化失败，您可以使用 /ts3 命令来尝试手动初始化，或等待自动重连"
 			} else {
-				pendingMessage += "尝试重新初始化失败，您需要在服务器在线时手动使用 /ts3 命令来尝试初始化"
+				handlerErr.Addf("failed to reinit teamspeak plugin: %w", tsErr)
+				if isListening {
+					pendingMessage += "尝试重新初始化失败，您可以使用 /ts3 命令来尝试手动初始化，或等待自动重连"
+				} else {
+					pendingMessage += "尝试重新初始化失败，您需要在服务器在线时手动使用 /ts3 命令来尝试初始化"
+				}
 			}
 		} else {
 			pendingMessage += "这是一个无法恢复的错误，您可能需要联系机器人管理员"
@@ -343,10 +333,12 @@ func showStatus(opts *handler_structs.SubHandlerParams) error {
 		logger.Error().
 			Err(err).
 			Int64("chatID", opts.Update.Message.Chat.ID).
-			Str("content", "teamspeak status").
-			Msg(logt.SendMessage)
+			Str("content", "teamspeak online client status").
+			Msg(errt.SendMessage)
+		handlerErr.Addf("failed to send `teamspeak online client status: %w`", err)
 	}
-	return nil
+
+	return handlerErr.Flat()
 }
 
 func listenUserStatus(ctx context.Context) {
@@ -367,6 +359,7 @@ func listenUserStatus(ctx context.Context) {
 	}
 
 	var retryCount int = 1
+	var checkFailedCount int = 0
 	var beforeOnlineClient []string
 
 	for {
@@ -377,7 +370,7 @@ func listenUserStatus(ctx context.Context) {
 			retryCount = 1
 		case <-listenTicker.C:
 			if isSuccessInit && isCanListening {
-				beforeOnlineClient = checkOnlineClientChange(ctx, beforeOnlineClient)
+				beforeOnlineClient = checkOnlineClientChange(ctx, &checkFailedCount, beforeOnlineClient)
 			} else {
 				logger.Info().
 					Msg("try reconnect...")
@@ -402,7 +395,7 @@ func listenUserStatus(ctx context.Context) {
 							Err(err).
 							Int64("chatID", tsData.GroupID).
 							Str("content", "success reconnect to server").
-							Msg(logt.SendMessage)
+							Msg(errt.SendMessage)
 					}
 				} else {
 					// 无法成功则等待下一个周期继续尝试
@@ -417,7 +410,7 @@ func listenUserStatus(ctx context.Context) {
 	}
 }
 
-func checkOnlineClientChange(ctx context.Context, before []string) []string {
+func checkOnlineClientChange(ctx context.Context, count *int, before []string) []string {
 	var nowOnlineClient []string
 	logger := zerolog.Ctx(ctx).
 		With().
@@ -427,21 +420,26 @@ func checkOnlineClientChange(ctx context.Context, before []string) []string {
 
 	olClient, err := tsClient.Server.ClientList()
 	if err != nil {
+		*count++
 		logger.Error().
 			Err(err).
+			Int("failedCount", *count).
 			Msg("Failed to get online client")
-		isCanListening = false
-		_, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
-			ChatID:    tsData.GroupID,
-			Text:      "已断开与服务器的连接，开始尝试自动重连",
-			ParseMode: models.ParseModeHTML,
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("chatID", tsData.GroupID).
-				Str("content", "disconnect to server").
-				Msg(logt.SendMessage)
+		if *count == 5 {
+			*count = 0
+			isCanListening = false
+			_, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
+				ChatID:    tsData.GroupID,
+				Text:      "已连续五次检查在线客户端失败，开始尝试自动重连",
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", tsData.GroupID).
+					Str("content", "failed to check online client 5 times, start auto reconnect").
+					Msg(errt.SendMessage)
+			}
 		}
 	} else {
 		for _, n := range olClient {
@@ -512,6 +510,6 @@ func notifyClientChange(opts *handler_structs.SubHandlerParams, add, remove []st
 			Err(err).
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
-			Msg(logt.SendMessage)
+			Msg(errt.SendMessage)
 	}
 }

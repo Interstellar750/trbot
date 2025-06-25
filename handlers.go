@@ -11,6 +11,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
+	"trbot/utils/errt"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -189,7 +190,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 						Int("count", n.TotalCount),
 					)
 				}
-				
+
 			}
 
 			logger.Info().
@@ -299,7 +300,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("slashCommand", plugin.SlashCommand).
 						Str("message", opts.Update.Message.Text).
-						Msg("Incremental message command count error")
+						Msg("Failed to incremental message command count")
 				}
 				err = plugin.Handler(opts)
 				if err != nil {
@@ -329,7 +330,8 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Failed to send `no this command` message")
+					Str("content", "no this command").
+					Msg(errt.SendMessage)
 			}
 			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 			if err != nil {
@@ -338,9 +340,9 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Incremental message command count error")
+					Msg("Failed to incremental message command count")
 			}
-			
+
 			// if configs.BotConfig.LogChatID != 0 { mess.PrivateLogToChat(opts.Ctx, opts.Thebot, opts.Update) }
 		} else if strings.HasSuffix(opts.Fields[0], "@" + consts.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
@@ -357,7 +359,8 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Failed to send `no this command` message")
+					Str("content", "no this command").
+					Msg(errt.SendMessage)
 			}
 			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
 			if err != nil {
@@ -366,7 +369,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Incremental message command count error")
+					Msg("Failed to incremental message command count")
 			}
 			time.Sleep(time.Second * 10)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
@@ -382,7 +385,8 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("message", opts.Update.Message.Text).
-					Msg("Failed to delete `no this command` message")
+					Str("content", "no this command").
+					Msg(errt.DeleteMessages)
 			}
 			return
 		}
@@ -411,7 +415,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("fullCommand", plugin.FullCommand).
 						Str("message", opts.Update.Message.Text).
-						Msg("Incremental message command count error")
+						Msg("Failed to incremental message command count")
 				}
 				err = plugin.Handler(opts)
 				if err != nil {
@@ -450,7 +454,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("suffixCommand", plugin.SuffixCommand).
 						Str("message", opts.Update.Message.Text).
-						Msg("Incremental message command count error")
+						Msg("Failed to incremental message command count")
 				}
 				err = plugin.Handler(opts)
 				if err != nil {
@@ -472,9 +476,11 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 	if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type] != nil {
 		msgTypeInString := message_utils.GetMessageType(opts.Update.Message).InString()
 
+		var needBuildSelectKeyboard bool
+
 		if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] != nil {
-			handlerInThisTypeCount := len(plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString])
-			if handlerInThisTypeCount == 1 {
+			handlersInThisTypeCount := len(plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString])
+			if handlersInThisTypeCount == 1 {
 				// 虽然是遍历，但实际上只能遍历一次
 				for name, handler := range plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] {
 					if handler.AllowAutoTrigger {
@@ -498,26 +504,11 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 								Msg("Error in handler by message type")
 						}
 					} else {
-						// 此 handler 不允许自动触发，回复一条带按钮的消息让用户手动操作
-						_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-							ChatID:    opts.Update.Message.Chat.ID,
-							Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
-							ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-							ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
-						})
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Dict(utils.GetUserDict(opts.Update.Message.From)).
-								Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
-								Str("messageType", string(msgTypeInString)).
-								Str("chatType", string(opts.Update.Message.Chat.Type)).
-								Int("handlerInThisTypeCount", handlerInThisTypeCount).
-								Msg("Failed to send `select a handler by message type keyboard` message")
-						}
+						needBuildSelectKeyboard = true
 					}
 				}
-			} else {
+			}
+			if needBuildSelectKeyboard {
 				// 多个 handler 自动回复一条带按钮的消息让用户手动操作
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:    opts.Update.Message.Chat.ID,
@@ -532,8 +523,9 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("messageType", string(msgTypeInString)).
 						Str("chatType", string(opts.Update.Message.Chat.Type)).
-						Int("handlerInThisTypeCount", handlerInThisTypeCount).
-						Msg("Failed to send `select a handler by message type keyboard` message")
+						Int("handlerInThisTypeCount", handlersInThisTypeCount).
+						Str("content", "select a handler by message type keyboard").
+						Msg(errt.SendMessage)
 				}
 			}
 		} else if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
@@ -551,7 +543,8 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 					Str("messageType", string(msgTypeInString)).
 					Str("chatType", string(opts.Update.Message.Chat.Type)).
-					Msg("Failed to send `no handler by message type plugin for this message type` message")
+					Str("content", "no handler by message type plugin for this message type").
+					Msg(errt.SendMessage)
 			}
 		}
 	}
@@ -633,7 +626,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 				Str("query", opts.Update.InlineQuery.Query).
-				Msg("Failed to send `bot inline handler list` inline result")
+				Str("content", "bot inline handler list").
+				Msg(errt.AnswerInlineQuery)
 		}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
 		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则提示错误
@@ -670,7 +664,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 						Str("handlerCommand", plugin.Command).
 						Str("handlerType", "returnResult").
 						Str("query", opts.Update.InlineQuery.Query).
-						Msg("Failed to send `inline handler` inline result")
+						Str("content", "sub inline handler").
+						Msg(errt.AnswerInlineQuery)
 					// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 				}
 				return
@@ -752,7 +747,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				Title: fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
 				Description: "请检查命令是否正确",
 				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "您在使用 inline 模式时没有选择正确的命令...",
+					MessageText: "您在使用 inline 模式时没有输入正确的命令...",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			}},
@@ -762,11 +757,12 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 				Str("query", opts.Update.InlineQuery.Query).
-				Msg("Failed to send `no this inline command` inline result")
+				Str("content", "no this inline command").
+				Msg(errt.AnswerInlineQuery)
 		}
 		return
 	} else {
-		// inline query 不以命令符号开头
+		// inline query 不以命令符号开头，检查是否有默认 handler
 		if opts.ChatInfo.DefaultInlinePlugin != "" {
 			// 来自用户设定的默认命令
 
@@ -802,7 +798,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Str("userDefaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
 							Str("query", opts.Update.InlineQuery.Query).
-							Msg("Failed to send `user default inline handler result` inline result")
+							Str("content", "user default inline handler result").
+							Msg(errt.AnswerInlineQuery)
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
@@ -852,20 +849,23 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					if plugin.Handler == nil {
 						logger.Warn().
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-							Str("userDefaultHandlerCommand", plugin.PrefixCommand).
+							Str("userDefaultHandlerPrefixCommand", plugin.PrefixCommand).
 							Str("handlerType", "manuallyAnswerResult_PrefixCommand").
 							Str("query", opts.Update.InlineQuery.Query).
 							Msg("Hit user inline prefix manual answer handler, but this handler function is nil, skip")
 						continue
 					}
 					err := plugin.Handler(opts)
-					logger.Error().
+					if err != nil {
+						logger.Error().
 							Err(err).
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-							Str("userDefaultHandlerCommand", plugin.PrefixCommand).
+							Str("userDefaultHandlerPrefixCommand", plugin.PrefixCommand).
 							Str("handlerType", "manuallyAnswerResult_PrefixCommand").
 							Str("query", opts.Update.InlineQuery.Query).
 							Msg("Error in user inline prefix manual answer handler")
+					}
+
 					return
 				}
 			}
@@ -893,8 +893,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 					Str("query", opts.Update.InlineQuery.Query).
 					Str("userDefaultInlineCommand", opts.ChatInfo.DefaultInlinePlugin).
-					// Str("result", "invalid user default inline handler").
-					Msg("Failed to send `invalid user default inline handler` inline result")
+					Str("content", "invalid user default inline handler").
+					Msg(errt.AnswerInlineQuery)
 			}
 			return
 		} else if configs.BotConfig.InlineDefaultHandler != "" {
@@ -936,7 +936,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 							Str("defaultHandlerCommand", plugin.Command).
 							Str("handlerType", "returnResult").
 							Str("query", opts.Update.InlineQuery.Query).
-							Msg("Failed to send `bot default inline handler result` inline result")
+							Str("content", "bot default inline handler result").
+							Msg(errt.AnswerInlineQuery)
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
@@ -976,7 +977,7 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 			// 符合命令前缀，完全由插件自行控制输出
 			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-				if opts.ChatInfo.DefaultInlinePlugin == plugin.PrefixCommand {
+				if configs.BotConfig.InlineDefaultHandler == plugin.PrefixCommand {
 					logger.Info().
 						Str("defaultHandlerPrefixCommand", plugin.PrefixCommand).
 						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
@@ -1031,7 +1032,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 					Str("query", opts.Update.InlineQuery.Query).
-					Msg("Failed to send `invalid bot default inline handler` inline result")
+					Str("content", "invalid bot default inline handler").
+					Msg(errt.AnswerInlineQuery)
 				return
 			}
 			return
@@ -1070,7 +1072,8 @@ func inlineHandler(opts *handler_structs.SubHandlerParams) {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 				Str("query", opts.Update.InlineQuery.Query).
-				Msg("Failed to send `bot no default inline handler` inline result")
+				Str("content", "bot no default inline handler").
+				Msg(errt.AnswerInlineQuery)
 			return
 		}
 	}
@@ -1095,7 +1098,8 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Msg("Failed to send `this callback request is processing` callback answer")
+				Str("content", "this callback request is processing").
+				Msg(errt.AnswerCallbackQuery)
 		}
 		return
 	} else if params.ChatInfo.HasPendingCallbackQuery {
@@ -1114,7 +1118,8 @@ func callbackQueryHandler(params *handler_structs.SubHandlerParams) {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Msg("Failed to send `a callback request is processing, send new request later` callback answer")
+				Str("content", "a callback request is processing, send new request later").
+				Msg(errt.AnswerCallbackQuery)
 		}
 		return
 	} else {

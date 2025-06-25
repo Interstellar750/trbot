@@ -1,4 +1,4 @@
-package mterr
+package multe
 
 import (
 	"errors"

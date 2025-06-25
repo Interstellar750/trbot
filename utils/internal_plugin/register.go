@@ -286,7 +286,7 @@ func Register(ctx context.Context) {
 						}
 					}
 				}
-				
+
 				signals.SIGNALS.Database_save <- true
 				return nil
 			},
@@ -455,7 +455,7 @@ func Register(ctx context.Context) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("command", "log").
 							Msg("Failed to send `log info` inline result")
-							
+
 						return err
 					}
 				}

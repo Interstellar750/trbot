@@ -352,6 +352,7 @@ func InlineQueryMatchMultKeyword(fields []string, keywords []string) bool {
 
 // 允许响应带有机器人用户名后缀的命令，例如 /help@examplebot
 func CommandMaybeWithSuffixUsername(commandFields []string, command string) bool {
+	if len(commandFields) == 0 { return false }
 	atBotUsername := "@" + consts.BotMe.Username
 	if commandFields[0] == command || commandFields[0] == command + atBotUsername {
 		return true
