@@ -266,7 +266,7 @@ func IsUseMultiLogWriter(logger *zerolog.Logger) bool {
 	}
 }
 
-func CheckConfig(ctx context.Context) error {
+func CheckConfig(ctx context.Context) {
 	logger := zerolog.Ctx(ctx)
 
 	// 部分必要但可以留空的配置
@@ -343,8 +343,6 @@ func CheckConfig(ctx context.Context) error {
 		Str("PaginationSymbol", BotConfig.InlinePaginationSymbol).
 		Int("ResultsPerPage",   BotConfig.InlineResultsPerPage).
 		Msg("Inline mode config has been read")
-
-	return nil
 }
 
 func ShowConst(ctx context.Context) {

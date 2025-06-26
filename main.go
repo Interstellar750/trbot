@@ -16,7 +16,6 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
 )
 
@@ -24,16 +23,13 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	// set stack trace func
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	var logger zerolog.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
-	// attach logger into ctx
-	ctx = logger.WithContext(ctx)
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack // set stack trace func
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
+	ctx     = logger.WithContext(ctx) // attach logger into ctx
 
 	// read bot configs
-	if err := configs.InitBot(ctx); err != nil {
-		logger.Fatal().Err(err).Msg("Failed to read bot configs")
-	}
+	err := configs.InitBot(ctx)
+	if err != nil { logger.Fatal().Err(err).Msg("Failed to read bot configs") }
 
 	// writer log to a file or only display on console
 	if configs.IsUseMultiLogWriter(&logger) { ctx = logger.WithContext(ctx) } // re-attach logger into ctx

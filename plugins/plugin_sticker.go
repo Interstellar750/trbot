@@ -90,9 +90,10 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 			Msg("copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`")
 	}
 
-	logger.Debug().
+	logger.Info().
 		Str("emoji", opts.Update.Message.Sticker.Emoji).
 		Str("setName", opts.Update.Message.Sticker.SetName).
+		Dict(utils.GetUserDict(opts.Update.Message.From)).
 		Msg("Start download sticker")
 
 	err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.From.ID, db_struct.StickerDownloaded)
@@ -517,6 +518,15 @@ func DownloadStickerPackCallBackHandler(opts *handler_structs.SubHandlerParams) 
 			handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
 		}
 	} else {
+		logger.Info().
+			Dict("stickerSet", zerolog.Dict().
+				Str("title", stickerSet.Title).
+				Str("name", stickerSet.Name).
+				Int("allCount", len(stickerSet.Stickers)),
+			).
+			Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+			Msg("Start download sticker set")
+
 		stickerData, err := getStickerPack(opts, stickerSet, isOnlyPNG)
 		if err != nil {
 			logger.Error().
