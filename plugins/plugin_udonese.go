@@ -29,8 +29,8 @@ var UdoneseErr  error
 
 var UdoneseDir  string = filepath.Join(consts.YAMLDataBasePath, "udonese/")
 var UdonesePath string = filepath.Join(UdoneseDir, consts.YAMLFileName)
-// var UdonGroupID  int64 = -1002205667779
-var UdonGroupID  int64 = -1002499888124 // trbot
+var UdonGroupID  int64 = -1002205667779
+// var UdonGroupID  int64 = -1002499888124 // trbot
 var UdoneseManagerIDs []int64 = []int64{
 	872082796,  // akaudon
 	1086395364, // trle5
@@ -272,7 +272,7 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Int64("chatID", opts.Update.Message.Chat.ID).
+				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 				Str("content", "/udonese not allowed group").
 				Msg(errt.SendMessage)
 			handlerErr.Addf("failed to send `/udonese not allowed group` message: %w", err)
@@ -985,7 +985,7 @@ func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) error {
 
 					_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 						CallbackQueryID: opts.Update.CallbackQuery.ID,
-						Text:            "删除意思时保存数据库失败，请重试\n" + err.Error(),
+						Text:            "删除意思时保存数据库失败，请重试或联系机器人管理员\n" + err.Error(),
 						ShowAlert:       true,
 					})
 					if err != nil {
