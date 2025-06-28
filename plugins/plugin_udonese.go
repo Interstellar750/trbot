@@ -606,10 +606,10 @@ func udoneseInlineHandler(opts *handler_structs.SubHandlerParams) []models.Inlin
 			}
 			// 通过意思查找词
 			if utils.InlineQueryMatchMultKeyword(keywordFields, data.OnlyMeaning()) {
-				for _, n := range data.MeaningList {
+				for i, n := range data.MeaningList {
 					if utils.InlineQueryMatchMultKeyword(keywordFields, []string{strings.ToLower(n.Meaning)}) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-							ID:    n.Meaning + "-meaning",
+							ID:    fmt.Sprintf("%s-meaning-%d", data.Word, i),
 							Title: n.Meaning,
 							Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
 							InputMessageContent: models.InputTextMessageContent{
