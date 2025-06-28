@@ -10,6 +10,7 @@ type SavedMessageSharedData struct {
 	Description string
 }
 
+// models.InlineQueryResultArticle
 type SavedMessageTypeCachedOnlyText struct {
 	ID                  string                     `yaml:"ID"`
 	TitleAndMessageText string                     `yaml:"TitleAndMessageText"`
@@ -21,12 +22,14 @@ type SavedMessageTypeCachedOnlyText struct {
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedAudio
 type SavedMessageTypeCachedAudio struct {
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
 	Caption           string                 `yaml:"Caption,omitempty"`
 	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 
+	// SharedData
 	Title       string `yaml:"Title,omitempty"`
 	FileName    string `yaml:"FileName,omitempty"`
 	Description string `yaml:"Description,omitempty"`
@@ -35,6 +38,7 @@ type SavedMessageTypeCachedAudio struct {
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedDocument
 type SavedMessageTypeCachedDocument struct {
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
@@ -47,6 +51,7 @@ type SavedMessageTypeCachedDocument struct {
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedGif
 type SavedMessageTypeCachedGif struct {
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
@@ -54,12 +59,29 @@ type SavedMessageTypeCachedGif struct {
 	Caption           string                 `yaml:"Caption,omitempty"`
 	CaptionEntities   []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 
+	// SharedData
 	Description string `yaml:"Description,omitempty"`
 
 	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedMpeg4Gif
+type SavedMessageTypeCachedMpeg4Gif struct {
+	ID              string                 `yaml:"ID"`
+	FileID          string                 `yaml:"FileID"`
+	Title           string                 `yaml:"Title,omitempty"`
+	Caption         string                 `yaml:"Caption,omitempty"`
+	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	// SharedData
+	Description string `yaml:"Description,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
+}
+
+// models.InlineQueryResultCachedPhoto
 type SavedMessageTypeCachedPhoto struct {
 	ID                string                 `yaml:"ID"`
 	FileID            string                 `yaml:"FileID"`
@@ -73,18 +95,22 @@ type SavedMessageTypeCachedPhoto struct {
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedSticker
 type SavedMessageTypeCachedSticker struct {
 	ID     string `yaml:"ID"`
 	FileID string `yaml:"FileID"`
 
+	// SharedData
 	SetName     string `yaml:"SetName,omitempty"`
 	SetTitle    string `yaml:"SetTitle,omitempty"`
 	Description string `yaml:"Description,omitempty"`
+	Emoji       string `yaml:"Emoji,omitempty"` // store in sharedata.FileName
 
 	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedVideo
 type SavedMessageTypeCachedVideo struct {
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
@@ -97,18 +123,20 @@ type SavedMessageTypeCachedVideo struct {
 	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedDocument
 type SavedMessageTypeCachedVideoNote struct {
-	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
 	Title           string                 `yaml:"Title"`
 	Description     string                 `yaml:"Description,omitempty"`
 	Caption         string                 `yaml:"Caption,omitempty"` // 利用 bot 修改信息可以发出带文字的圆形视频，但是发送后不带文字
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
+
+	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
+	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
 }
 
+// models.InlineQueryResultCachedVoice
 type SavedMessageTypeCachedVoice struct {
 	ID              string                 `yaml:"ID"`
 	FileID          string                 `yaml:"FileID"`
@@ -116,19 +144,7 @@ type SavedMessageTypeCachedVoice struct {
 	Caption         string                 `yaml:"Caption,omitempty"`
 	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
 
-	Description string `yaml:"Description,omitempty"`
-
-	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`
-	OriginInfo *OriginInfo `yaml:"OriginInfo,omitempty"`
-}
-
-type SavedMessageTypeCachedMpeg4Gif struct {
-	ID              string                 `yaml:"ID"`
-	FileID          string                 `yaml:"FileID"`
-	Title           string                 `yaml:"Title,omitempty"`
-	Caption         string                 `yaml:"Caption,omitempty"`
-	CaptionEntities []models.MessageEntity `yaml:"CaptionEntities,omitempty"`
-
+	// SharedData
 	Description string `yaml:"Description,omitempty"`
 
 	IsDeleted  bool        `yaml:"IsDeleted,omitempty"`

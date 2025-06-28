@@ -11,8 +11,10 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
+	"trbot/utils/errt"
 	"trbot/utils/handler_structs"
 	"trbot/utils/mess"
+	"trbot/utils/multe"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/signals"
 
@@ -310,6 +312,7 @@ func Register(ctx context.Context) {
 		},
 		Handler: func(opts *handler_structs.SubHandlerParams) error {
 			logger := zerolog.Ctx(opts.Ctx)
+			var handlerErr multe.MultiError
 			keywords := utils.InlineExtractKeywords(opts.Fields)
 			if len(keywords) == 0 {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -329,9 +332,10 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("command", "uaav").
-						Msg("Failed to send `usage tips` inline result")
-					return err
+						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
+						Str("content", "uaav command usage tips").
+						Msg(errt.AnswerInlineQuery)
+					handlerErr.Addf("failed to send `uaav command usage tips` inline answer: %w", err)
 				}
 			} else if len(keywords) == 1 {
 				if strings.HasPrefix(keywords[0], "https://") {
@@ -349,10 +353,11 @@ func Register(ctx context.Context) {
 					if err != nil {
 						logger.Error().
 							Err(err).
+							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("query", opts.Update.InlineQuery.Query).
-							Str("command", "uaav").
-							Msg("Failed to send `valid voice url` inline result")
-						return err
+							Str("content", "uaav valid voice url").
+							Msg(errt.AnswerInlineQuery)
+						handlerErr.Addf("failed to send `uaav valid voice url` inline answer: %w", err)
 					}
 				} else {
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -372,10 +377,11 @@ func Register(ctx context.Context) {
 					if err != nil {
 						logger.Error().
 							Err(err).
+							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("query", opts.Update.InlineQuery.Query).
-							Str("command", "uaav").
-							Msg("Failed to send `URL invalid` inline result")
-						return err
+							Str("content", "uaav invalid URL").
+							Msg(errt.AnswerInlineQuery)
+						handlerErr.Addf("failed to send `uaav invalid URL` inline answer: %w", err)
 					}
 				}
 			} else {
@@ -396,19 +402,33 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
+						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("query", opts.Update.InlineQuery.Query).
 						Str("command", "uaav").
 						Msg("Failed to send `too much argumunt` inline result")
 					return err
 				}
 			}
-			return nil
+			return handlerErr.Flat()
 		},
 		Description: "将一个音频链接作为语音格式发送",
 	})
 
 	// inline 模式中以前缀触发的命令，需要自行处理输出。
 	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.InlinePrefixHandler{
+		{
+			PrefixCommand: "panic",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault:     true,
+				IsOnlyAllowAdmin:    true,
+			},
+			Handler: func(opts *handler_structs.SubHandlerParams) error {
+				// zerolog.Ctx(ctx).Error().Stack().Err(errors.WithStack(errors.New("test panic"))).Msg("")
+				panic("test panic")
+			},
+			Description: "测试 panic",
+		},
 		{
 			PrefixCommand: "log",
 			Attr: plugin_utils.InlineHandlerAttr{
@@ -418,6 +438,7 @@ func Register(ctx context.Context) {
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) error {
 				logger := zerolog.Ctx(opts.Ctx)
+				var handlerErr multe.MultiError
 				logs, err := mess.ReadLog()
 				if err != nil {
 					logger.Error().
@@ -425,8 +446,8 @@ func Register(ctx context.Context) {
 						Str("query", opts.Update.InlineQuery.Query).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("command", "log").
-						Msg("Read log by inline command failed")
-					return err
+						Msg("Failed to read log by inline command")
+					handlerErr.Addf("failed to read log: %w", err)
 				}
 				if logs != nil {
 					log_count := len(logs)
@@ -453,13 +474,13 @@ func Register(ctx context.Context) {
 						logger.Error().
 							Err(err).
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-							Str("command", "log").
-							Msg("Failed to send `log info` inline result")
-
-						return err
+							Str("query", opts.Update.InlineQuery.Query).
+							Str("content", "log infos").
+							Msg(errt.AnswerInlineQuery)
+						handlerErr.Addf("failed to send `log infos` inline answer: %w", err)
 					}
 				}
-				return nil
+				return handlerErr.Flat()
 			},
 			Description: "显示日志",
 		},
@@ -472,6 +493,7 @@ func Register(ctx context.Context) {
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) error {
 				logger := zerolog.Ctx(opts.Ctx)
+				var handlerErr multe.MultiError
 				signals.SIGNALS.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -493,10 +515,12 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("command", "reloadpdb").
-						Msg("Failed to send `reload plugin database info` inline result")
+						Str("query", opts.Update.InlineQuery.Query).
+						Str("content", "plugin database reloaded").
+						Msg(errt.AnswerInlineQuery)
+					handlerErr.Addf("failed to send `plugin database reloaded` inline answer: %w", err)
 				}
-				return err
+				return handlerErr.Flat()
 			},
 			Description: "重新读取插件数据库",
 		},
@@ -509,6 +533,7 @@ func Register(ctx context.Context) {
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) error {
 				logger := zerolog.Ctx(opts.Ctx)
+				var handlerErr multe.MultiError
 				signals.SIGNALS.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -530,10 +555,12 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("command", "savepdb").
-						Msg("Failed to send `save plugin database info` inline result")
+						Str("query", opts.Update.InlineQuery.Query).
+						Str("content", "plugin database saved").
+						Msg(errt.AnswerInlineQuery)
+					handlerErr.Addf("failed to send `plugin database saved` inline answer: %w", err)
 				}
-				return err
+				return handlerErr.Flat()
 			},
 			Description: "保存插件数据库",
 		},
@@ -546,6 +573,7 @@ func Register(ctx context.Context) {
 			},
 			Handler: func(opts *handler_structs.SubHandlerParams) error {
 				logger := zerolog.Ctx(opts.Ctx)
+				var handlerErr multe.MultiError
 				signals.SIGNALS.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -567,10 +595,12 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("command", "savedb").
-						Msg("Failed to send `save database info` inline result")
+						Str("query", opts.Update.InlineQuery.Query).
+						Str("content", "database saved").
+						Msg(errt.AnswerInlineQuery)
+					handlerErr.Addf("failed to send `database saved` inline answer: %w", err)
 				}
-				return err
+				return handlerErr.Flat()
 			},
 			Description: "保存数据库",
 		},

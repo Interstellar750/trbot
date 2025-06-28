@@ -472,7 +472,22 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) error {
 						Msg("Failed to save udonese list after add word")
 					handlerErr.Addf("failed to save udonese list after add word: %w", err)
 
-					pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
+					pendingMessage += fmt.Sprintf("保存语句时似乎发生了一些错误: <blockquote expandable>%s</blockquote>", err.Error())
+					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						Text: pendingMessage,
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						ParseMode: models.ParseModeHTML,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("messageText", opts.Update.Message.Text).
+							Str("content", "failed save udonese list notice").
+							Msg(errt.SendMessage)
+						handlerErr.Addf("failed to send `failed to save udonese list notice` message: %w", err)
+					}
+					return handlerErr.Flat()
 				} else {
 					pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.Fields[1])
 					pendingMessage += fmt.Sprintf("[%s] ", meaning)
@@ -512,10 +527,10 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Int64("chatID", opts.Update.Message.Chat.ID).
-					Str("content", "/udonese keyword added").
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("content", "udonese keyword added").
 					Msg(errt.SendMessage)
-				handlerErr.Addf("failed to send `/udonese keyword added` message: %w", err)
+				handlerErr.Addf("failed to send `udonese keyword added` message: %w", err)
 			} else {
 				time.Sleep(time.Second * 10)
 				_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
@@ -528,11 +543,11 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) error {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Int64("chatID", opts.Update.Message.Chat.ID).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Ints("messageIDs", []int{ opts.Update.Message.ID, botMessage.ID }).
-						Str("content", "/udonese keyword added").
+						Str("content", "udonese keyword added").
 						Msg(errt.DeleteMessages)
-					handlerErr.Addf("failed to delete `/udonese keyword added` messages: %w", err)
+					handlerErr.Addf("failed to delete `udonese keyword added` messages: %w", err)
 				}
 			}
 		}

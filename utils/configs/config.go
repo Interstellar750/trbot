@@ -1,7 +1,7 @@
 package configs
 
 import (
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -67,10 +67,10 @@ func (c config)LevelForZeroLog(forLogFile bool) zerolog.Level {
 		return zerolog.PanicLevel
 	default:
 		if forLogFile {
-			log.Printf("Unknown log level [ %s ], using error level for log file", c.LogLevel)
+			fmt.Printf("Unknown log level [ %s ], using error level for log file", c.LogLevel)
 			return zerolog.ErrorLevel
 		} else {
-			log.Printf("Unknown log level [ %s ], using info level for console", c.LogLevel)
+			fmt.Printf("Unknown log level [ %s ], using info level for console", c.LogLevel)
 			return zerolog.InfoLevel
 		}
 	}

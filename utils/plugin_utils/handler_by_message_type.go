@@ -40,7 +40,7 @@ type HandlerByMessageType struct {
 /*
 	If more than one such plugin is registered
 	or the `AllowAutoTrigger`` flag is not `true`
-	
+
 	The bot will reply to the message that triggered
 	this plugin and send a keyboard to let the
 	user choose which plugin they want to use.
@@ -48,7 +48,7 @@ type HandlerByMessageType struct {
 	In this case, the data that the plugin needs
 	to process will change from `update.Message` to
 	in `opts.Update.CallbackQuery.Message.Message.ReplyToMessage`.
-	
+
 	But I'm not sure whether this field will be empty,
 	so need to manually judge it in the plugin.
 
@@ -104,11 +104,7 @@ func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerP
 			err := fmt.Errorf("no enough fields")
 			logger.Error().
 				Err(err).
-				Dict("user", zerolog.Dict().
-					Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
-					Str("username", opts.Update.CallbackQuery.From.Username).
-					Int64("ID", opts.Update.CallbackQuery.From.ID),
-				).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 				Str("CallbackQuery", opts.Update.CallbackQuery.Data).
 				Msg("User selected callback query doesn't have enough fields")
 			return err
@@ -117,11 +113,7 @@ func SelectHandlerByMessageTypeHandlerCallback(opts *handler_structs.SubHandlerP
 		handler, isExist := AllPlugins.HandlerByMessageType[models.ChatType(chatType)][message_utils.MessageTypeList(messageType)][pluginName]
 		if isExist {
 			logger.Debug().
-				Dict("user", zerolog.Dict().
-					Str("name", utils.ShowUserName(&opts.Update.CallbackQuery.From)).
-					Str("username", opts.Update.CallbackQuery.From.Username).
-					Int64("ID", opts.Update.CallbackQuery.From.ID),
-				).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 				Str("messageType", messageType).
 				Str("pluginName", pluginName).
 				Str("chatType", chatType).
