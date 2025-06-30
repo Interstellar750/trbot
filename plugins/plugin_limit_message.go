@@ -100,6 +100,10 @@ func ReadLimitMessageList(ctx context.Context) error {
 		LimitMessageErr = nil
 	}
 
+	if LimitMessageList == nil {
+		LimitMessageList = map[int64]AllowMessages{}
+	}
+
 	buildLimitGroupList()
 
 	return LimitMessageErr

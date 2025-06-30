@@ -42,6 +42,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("caption", update.Message.Caption).
+					Str("photoID", update.Message.Photo[len(update.Message.Photo)-1].FileID).
 					Msg("photoMessage")
 			} else if update.Message.Sticker != nil {
 				logger.Info().

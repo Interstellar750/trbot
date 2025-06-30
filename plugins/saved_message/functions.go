@@ -794,7 +794,6 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
 	var handlerErr multe.MultiError
 
 	var UserSavedMessage SavedMessage
-	if len(SavedMessageSet) == 0 { SavedMessageSet = map[int64]SavedMessage{} }
 	UserSavedMessage.AgreePrivacyPolicy = true
 	SavedMessageSet[opts.ChatInfo.ID] = UserSavedMessage
 

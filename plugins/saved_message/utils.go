@@ -89,6 +89,10 @@ func ReadSavedMessageList(ctx context.Context) error {
 		SavedMessageErr = nil
 	}
 
+	if SavedMessageSet == nil {
+		SavedMessageSet = map[int64]SavedMessage{}
+	}
+
 	return SavedMessageErr
 }
 
