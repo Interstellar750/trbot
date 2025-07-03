@@ -394,7 +394,7 @@ func messageHandler(opts *handler_structs.SubHandlerParams) {
 	} else if len(opts.Update.Message.Text) > 0 {
 		// 没有 `/` 号作为前缀，检查是不是自定义命令
 		for _, plugin := range plugin_utils.AllPlugins.CustomSymbolCommand {
-			if utils.CommandMaybeWithSuffixUsername(opts.Fields, plugin.FullCommand) {
+			if strings.HasPrefix(opts.Update.Message.Text, plugin.FullCommand) {
 				logger.Info().
 					Str("fullCommand", plugin.FullCommand).
 					Str("message", opts.Update.Message.Text).

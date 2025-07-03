@@ -17,7 +17,7 @@ import (
 
 var UserDB *redis.Client // 用户数据
 
-func InitializeDB() (bool, error) {
+func InitializeDB(ctx context.Context) error {
 	if configs.BotConfig.RedisURL != "" {
 		if configs.BotConfig.RedisDatabaseID != -1 {
 			UserDB = redis.NewClient(&redis.Options{
@@ -25,15 +25,15 @@ func InitializeDB() (bool, error) {
 				Password: configs.BotConfig.RedisPassword,
 				DB:       configs.BotConfig.RedisDatabaseID,
 			})
-			err := UserDB.Ping(context.Background()).Err()
+			err := UserDB.Ping(ctx).Err()
 			if err != nil {
-				return false, fmt.Errorf("failed to ping Redis [%d] database: %w", configs.BotConfig.RedisDatabaseID, err)
+				return fmt.Errorf("failed to ping Redis [%d] database: %w", configs.BotConfig.RedisDatabaseID, err)
 			}
 		}
 
-		return true, nil
+		return nil
 	} else {
-		return false, fmt.Errorf("RedisURL is empty")
+		return fmt.Errorf("RedisURL is empty")
 	}
 }
 

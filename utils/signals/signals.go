@@ -33,7 +33,7 @@ func SignalsHandler(ctx context.Context) {
 	for {
 		select {
 		case <-every10Min.C: // 每次 Ticker 触发时执行任务
-			yaml_db.AutoSaveDatabaseHandler()
+			yaml_db.AutoSaveDatabaseHandler(ctx)
 		case <-ctx.Done():
 			if saveDatabaseRetryCount == 0 { logger.Warn().Msg("Cancle signal received") }
 			err := database.SaveDatabase(ctx)

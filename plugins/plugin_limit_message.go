@@ -26,7 +26,7 @@ import (
 var LimitMessageList map[int64]AllowMessages
 var LimitMessageErr  error
 
-var LimitMessageDir string = filepath.Join(consts.YAMLDataBasePath, "limitmessage/")
+var LimitMessageDir string = filepath.Join(consts.YAMLDataBaseDir, "limitmessage/")
 var LimitMessagePath string = filepath.Join(LimitMessageDir, consts.YAMLFileName)
 
 type AllowMessages struct {

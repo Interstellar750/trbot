@@ -26,7 +26,7 @@ var KeywordDataList KeywordData = KeywordData{
 	Users: map[int64]KeywordUserList{},
 }
 var KeywordDataErr  error
-var KeywordDataDir  string = filepath.Join(consts.YAMLDataBasePath, "detectkeyword/")
+var KeywordDataDir  string = filepath.Join(consts.YAMLDataBaseDir, "detectkeyword/")
 var KeywordDataPath string = filepath.Join(KeywordDataDir, consts.YAMLFileName)
 
 func init() {

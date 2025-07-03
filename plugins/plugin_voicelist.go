@@ -19,7 +19,7 @@ import (
 var VoiceLists   []VoicePack
 var VoiceListErr error
 
-var VoiceListDir string = filepath.Join(consts.YAMLDataBasePath, "voices/")
+var VoiceListDir string = filepath.Join(consts.YAMLDataBaseDir, "voices/")
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{

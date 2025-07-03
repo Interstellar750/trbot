@@ -6,11 +6,11 @@ import (
 
 var WebhookListenPort string = "localhost:2847"
 
-var YAMLDataBasePath string = "./db_yaml/"
+var YAMLDataBaseDir string = "./db_yaml/"
 var YAMLFileName     string = "metadata.yaml"
 
 var CacheDirectory   string = "./cache/"
-var LogFilePath      string = YAMLDataBasePath + "log.txt"
+var LogFilePath      string = YAMLDataBaseDir + "log.txt"
 
 var BotMe *models.User // 用于存储 bot 信息
 

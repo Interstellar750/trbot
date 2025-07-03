@@ -18,9 +18,7 @@ type DatabaseBackend struct {
 	// 数据库等级，低优先级的数据库不会实时同步更改，程序仅会在高优先级数据库不可用才会尝试使用其中的数据
 	IsLowLevel bool
 
-	Initializer    func() (bool, error) // 数据库初始化函数
-	IsInitialized  bool                 // 是否已被成功初始化
-	InitializedErr error                // 初始化错误
+	Initializer func(ctx context.Context) error // 数据库初始化函数
 
 	// 数据库保存和读取函数
 	SaveDatabase func(ctx context.Context) error
@@ -47,8 +45,13 @@ func AddDatabaseBackends(ctx context.Context, backends ...DatabaseBackend) int {
 
 	var count int
 	for _, db := range backends {
-		db.IsInitialized, db.InitializedErr = db.Initializer()
-		if db.IsInitialized {
+		err := db.Initializer(ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("database", db.Name).
+				Msg("Failed to initialize database")
+		} else {
  			if db.IsLowLevel {
 				DBBackends_LowLevel = append(DBBackends_LowLevel, db)
 			} else {
@@ -59,11 +62,6 @@ func AddDatabaseBackends(ctx context.Context, backends ...DatabaseBackend) int {
 				Str("databaseLevel", utils.TextForTrueOrFalse(db.IsLowLevel, "low", "high")).
 				Msg("Database initialized")
 			count++
-		} else {
-			logger.Error().
-				Err(db.InitializedErr).
-				Str("database", db.Name).
-				Msg("Failed to initialize database")
 		}
 	}
 

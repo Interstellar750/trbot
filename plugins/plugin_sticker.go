@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 	"trbot/database"
 	"trbot/database/db_struct"
 	"trbot/utils"
@@ -27,6 +28,8 @@ import (
 	"golang.org/x/image/webp"
 )
 
+var StickerCollectionChannelID int64 = -1002506914682
+
 var StickerCache_path    string = filepath.Join(consts.CacheDirectory, "sticker/")
 var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_png/")
 var StickerCacheGIF_path string = filepath.Join(consts.CacheDirectory, "sticker_gif/")
@@ -43,6 +46,20 @@ func init() {
 			// 将贴纸包中的静态贴纸全部转换为 PNG 格式并打包
 			CommandChar: "S",
 			Handler: DownloadStickerPackCallBackHandler,
+		},
+		{
+			CommandChar: "c",
+			Handler: collectStickerSet,
+		},
+	}...)
+	plugin_utils.AddCustomSymbolCommandPlugins([]plugin_utils.CustomSymbolCommand{
+		{
+			FullCommand: "https://t.me/addstickers/",
+			Handler:     getStickerPackInfo,
+		},
+		{
+			FullCommand: "t.me/addstickers/",
+			Handler:     getStickerPackInfo,
 		},
 	}...)
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
@@ -71,6 +88,10 @@ type stickerDatas struct {
 	StickerIndex    int
 	StickerSetName  string // 贴纸包的 urlname
 	StickerSetTitle string // 贴纸包名称
+
+	WebP int
+	WebM int
+	tgs  int
 }
 
 func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
@@ -154,18 +175,27 @@ func EchoStickerHandler(opts *handler_structs.SubHandlerParams) error {
 		if stickerData.IsCustomSticker {
 			stickerFilePrefix = "sticker"
 		} else {
-			stickerFilePrefix = fmt.Sprintf("%s_%d", stickerData.StickerSetName, stickerData.StickerIndex)
-
-			// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
-			documentParams.Caption += fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
-			documentParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+			var button [][]models.InlineKeyboardButton = [][]models.InlineKeyboardButton{
 				{
 					{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.Update.Message.Sticker.SetName) },
 				},
 				{
 					{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Update.Message.Sticker.SetName) },
 				},
-			}}
+			}
+
+			if StickerCollectionChannelID != 0 && utils.AnyContains(opts.Update.Message.From.ID, configs.BotConfig.AdminIDs) {
+				button = append(button, []models.InlineKeyboardButton{{
+					Text: "⭐️ 收藏至频道",
+					CallbackData: fmt.Sprintf("c_%s", stickerData.StickerSetName),
+				}})
+			}
+
+			stickerFilePrefix = fmt.Sprintf("%s_%d", stickerData.StickerSetName, stickerData.StickerIndex)
+
+			// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
+			documentParams.Caption += fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
+			documentParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: button }
 		}
 
 		documentParams.Document = &models.InputFileUpload{ Filename: fmt.Sprintf("%s.%s", stickerFilePrefix, stickerFileSuffix), Data: stickerData.Data }
@@ -617,10 +647,6 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 	var allCached    bool = true
 	var allConverted bool = true
 
-	var stickerCount_webm int
-	var stickerCount_tgs  int
-	var stickerCount_webp int
-
 	for i, sticker := range stickerSet.Stickers {
 		stickerfileName := fmt.Sprintf("%s %d %s.", sticker.SetName, i, sticker.FileID)
 		var fileSuffix string
@@ -628,13 +654,13 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 		// 根据贴纸类型设置文件扩展名和统计贴纸数量
 		if sticker.IsVideo {
 			fileSuffix = "webm"
-			stickerCount_webm++
+			data.WebM++
 		} else if sticker.IsAnimated {
 			fileSuffix = "tgs"
-			stickerCount_tgs++
+			data.tgs++
 		} else {
 			fileSuffix = "webp"
-			stickerCount_webp++
+			data.WebP++
 		}
 
 		var originFullPath string = filepath.Join(filePath, stickerfileName + fileSuffix)
@@ -776,22 +802,22 @@ func getStickerPack(opts *handler_structs.SubHandlerParams, stickerSet *models.S
 
 	// 根据要下载的类型设置压缩包的文件名和路径以及压缩包中的贴纸数量
 	if isOnlyPNG {
-		if stickerCount_webp == 0 {
+		if data.WebP == 0 {
 			logger.Warn().
 				Dict("stickerSet", zerolog.Dict().
 					Str("stickerSetName", stickerSet.Name).
-					Int("WebP", stickerCount_webp).
-					Int("tgs", stickerCount_tgs).
-					Int("WebM", stickerCount_webm),
+					Int("WebP", data.WebP).
+					Int("tgs", data.tgs).
+					Int("WebM", data.WebM),
 				).
 				Msg("There are no static stickers in the sticker set")
 			return nil, fmt.Errorf("there are no static stickers in the sticker set [%s]", stickerSet.Name)
 		}
-		data.StickerCount = stickerCount_webp
+		data.StickerCount = data.WebP
 		zipFileName = fmt.Sprintf("%s(%d)_png.zip", stickerSet.Name, data.StickerCount)
 		compressFolderPath = PNGFilePath
 	} else {
-		data.StickerCount = stickerCount_webp + stickerCount_webm + stickerCount_tgs
+		data.StickerCount = data.WebP + data.WebM + data.tgs
 		zipFileName = fmt.Sprintf("%s(%d).zip", stickerSet.Name, data.StickerCount)
 		compressFolderPath = filePath
 	}
@@ -994,4 +1020,226 @@ func showCachedStickers(opts *handler_structs.SubHandlerParams) error {
 		MessageEffectID: "5104841245755180586",
 	})
 	return err
+}
+
+func collectStickerSet(opts *handler_structs.SubHandlerParams) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "StickerDownload").
+		Str("funcName", "collectStickerSet").
+		Logger()
+
+	var handlerErr multe.MultiError
+
+	if StickerCollectionChannelID == 0 {
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: opts.Update.CallbackQuery.ID,
+			Text:            "未设置贴纸包收集频道",
+			ShowAlert:       true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+				Str("callbackQuery", opts.Update.CallbackQuery.Data).
+				Str("content", "collect channel ID not set").
+				Msg(errt.AnswerCallbackQuery)
+		}
+	} else {
+		stickerSetName := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "c_")
+
+		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: stickerSetName })
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+				Msg("Failed to get sticker set info")
+			handlerErr.Addf("Failed to get sticker set info: %w", err)
+
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.CallbackQuery.From.ID,
+				Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", err),
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("content", "get sticker set info error").
+					Msg(errt.SendMessage)
+				handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
+			}
+		} else {
+			_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: opts.Update.CallbackQuery.ID,
+				Text:             "已开始下载贴纸包",
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("content", "start downloading sticker pack notice").
+					Msg(errt.AnswerCallbackQuery)
+				handlerErr.Addf("Failed to send `start downloading sticker pack notice` callback answer: %w", err)
+			}
+			stickerData, err := getStickerPack(opts, stickerSet, false)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Msg("Failed to download sticker set")
+				handlerErr.Addf("failed to download sticker set: %w", err)
+
+				_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.CallbackQuery.From.ID,
+					Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote expandable>Failed to download sticker set: %s</blockquote>", err),
+					ParseMode: models.ParseModeHTML,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+						Str("content", "download sticker set error").
+						Msg(errt.SendMessage)
+					handlerErr.Addf("Failed to send `download sticker set error` message: %w", err)
+				}
+			} else {
+				var pendingMessage string = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n", stickerData.StickerSetTitle, stickerData.StickerSetName)
+				if stickerData.WebP > 0 {
+					pendingMessage += fmt.Sprintf("%d(静态) ", stickerData.WebP)
+				}
+				if stickerData.WebM > 0 {
+					pendingMessage += fmt.Sprintf("%d(动态) ", stickerData.WebM)
+				}
+				if stickerData.tgs > 0 {
+					pendingMessage += fmt.Sprintf("%d(矢量) ", stickerData.tgs)
+				}
+				_, err := opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
+					ChatID: StickerCollectionChannelID,
+					ParseMode: models.ParseModeMarkdownV1,
+					Caption: fmt.Sprintf("%s 共 %d 个贴纸\n存档时间 %s", pendingMessage, stickerData.StickerCount, time.Now().Format(time.RFC3339)),
+					Document: &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data},
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "查看贴纸包", URL: "https://t.me/addstickers/" + stickerData.StickerSetName },
+					}}},
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int64("channelID", StickerCollectionChannelID).
+						Str("stickerSetName", stickerSetName).
+						Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+						Str("content", "collect sticker set file").
+						Msg(errt.SendDocument)
+					handlerErr.Addf("Failed to send `collect sticker set` file: %w", err)
+					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.CallbackQuery.From.ID,
+						Text: fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
+						ParseMode: models.ParseModeHTML,
+						DisableNotification: true,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Int64("channelID", StickerCollectionChannelID).
+							Str("stickerSetName", stickerSetName).
+							Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+							Str("content", "collect sticker set failed notice").
+							Msg(errt.SendMessage)
+						handlerErr.Addf("Failed to send `collect sticker set failed notice` message: %w", err)
+					}
+				}
+			}
+		}
+
+	}
+
+	return handlerErr.Flat()
+}
+
+func getStickerPackInfo(opts *handler_structs.SubHandlerParams) error {
+	if opts.Update.Message == nil || opts.Update.Message.Text == "" {
+		return nil
+	}
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "StickerDownload").
+		Str("funcName", "getStickerPackInfo").
+		Logger()
+
+	var handlerErr multe.MultiError
+	var stickerSetName string
+
+	if strings.HasPrefix(opts.Update.Message.Text, "https://t.me/addstickers/") {
+		stickerSetName = strings.TrimPrefix(opts.Update.Message.Text, "https://t.me/addstickers/")
+	} else if strings.HasPrefix(opts.Update.Message.Text, "t.me/addstickers/") {
+		stickerSetName = strings.TrimPrefix(opts.Update.Message.Text, "t.me/addstickers/")
+	}
+
+	if stickerSetName != "" {
+		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: stickerSetName })
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(opts.Update.Message.From)).
+				Msg("Failed to get sticker set info")
+			handlerErr.Addf("Failed to get sticker set info: %w", err)
+
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.Message.From.ID,
+				Text:   fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", err),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Str("content", "get sticker set info error").
+					Msg(errt.SendMessage)
+				handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
+			}
+		} else {
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.Message.From.ID,
+				Text:   fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerSet.Name, stickerSet.Title, len(stickerSet.Stickers)),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				DisableNotification: true,
+				ParseMode: models.ParseModeHTML,
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+					{
+						{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", stickerSet.Name) },
+					},
+					{
+						{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) },
+					},
+				}},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Str("content", "sticker set info").
+					Msg(errt.SendMessage)
+				handlerErr.Addf("Failed to send `sticker set info` message: %w", err)
+			}
+		}
+	} else {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.Message.From.ID,
+			Text:   "请发送一个有效的贴纸链接",
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(opts.Update.Message.From)).
+				Str("content", "empty sticker link notice").
+				Msg(errt.SendMessage)
+			handlerErr.Addf("Failed to send `empty sticker link notice` message: %w", err)
+		}
+	}
+
+	return handlerErr.Flat()
 }

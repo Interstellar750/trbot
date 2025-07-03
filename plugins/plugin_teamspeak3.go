@@ -27,7 +27,7 @@ import (
 var tsClient *ts3.Client
 var tsErr     error
 
-var tsDataDir   string = filepath.Join(consts.YAMLDataBasePath, "teamspeak/")
+var tsDataDir   string = filepath.Join(consts.YAMLDataBaseDir, "teamspeak/")
 var tsDataPath  string = filepath.Join(tsDataDir, consts.YAMLFileName)
 var botNickName string = "trbot_teamspeak_plugin"
 

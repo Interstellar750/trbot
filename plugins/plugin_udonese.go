@@ -27,7 +27,7 @@ import (
 var UdoneseData Udonese
 var UdoneseErr  error
 
-var UdoneseDir  string = filepath.Join(consts.YAMLDataBasePath, "udonese/")
+var UdoneseDir  string = filepath.Join(consts.YAMLDataBaseDir, "udonese/")
 var UdonesePath string = filepath.Join(UdoneseDir, consts.YAMLFileName)
 var UdonGroupID  int64 = -1002205667779
 // var UdonGroupID  int64 = -1002499888124 // trbot

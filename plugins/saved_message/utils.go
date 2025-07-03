@@ -18,7 +18,7 @@ import (
 var SavedMessageSet map[int64]SavedMessage
 var SavedMessageErr error
 
-var SavedMessagePath string = filepath.Join(consts.YAMLDataBasePath, "savedmessage/", consts.YAMLFileName)
+var SavedMessagePath string = filepath.Join(consts.YAMLDataBaseDir, "savedmessage/", consts.YAMLFileName)
 
 var textExpandableLength int = 150
 

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
 
@@ -14,24 +13,6 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
-
-func PrintLogAndSave(message string) {
-	log.Println(message)
-	// 打开日志文件，如果不存在则创建
-	file, err := os.OpenFile(consts.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer file.Close()
-
-	// 将文本写入日志文件
-	_, err = file.WriteString(message + "\n")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-}
 
 // 从 log.txt 读取文件
 func ReadLog() ([]string, error) {
