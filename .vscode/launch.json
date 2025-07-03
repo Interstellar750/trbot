@@ -12,7 +12,7 @@
       "env": {},
       "args": [],
       "cwd": "${workspaceFolder}",
-      "output": "${workspaceFolder}/output/debug_app"
+      "output": "${workspaceFolder}/__debug_bin"
     }
   ]
 }

@@ -1,31 +1,38 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
+	"trbot/utils/errt"
 	"trbot/utils/handler_structs"
+	"trbot/utils/multe"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/message_utils"
+	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"gopkg.in/yaml.v3"
+	"github.com/rs/zerolog"
 )
 
-var UdoneseData *Udonese
-var UdoneseErr   error
+var UdoneseData Udonese
+var UdoneseErr  error
 
-var Udonese_path string = consts.DB_path + "udonese/"
-var UdonGroupID  int64  = -1002205667779
+var UdoneseDir  string = filepath.Join(consts.YAMLDataBaseDir, "udonese/")
+var UdonesePath string = filepath.Join(UdoneseDir, consts.YAMLFileName)
+var UdonGroupID  int64 = -1002205667779
+// var UdonGroupID  int64 = -1002499888124 // trbot
 var UdoneseManagerIDs []int64 = []int64{
-	872082796, // akaudon
+	872082796,  // akaudon
 	1086395364, // trle5
 }
 
@@ -64,7 +71,7 @@ func (list UdoneseWord) OutputMeanings() string {
 	if len(list.MeaningList) != 0 {
 		pendingMessage += "它的意思有\n"
 	} else {
-		pendingMessage += "还没有添加任何意思\n"
+		pendingMessage += "它还没有添加任何意思\n"
 	}
 	for i, s := range list.MeaningList {
 		// 先加意思
@@ -98,6 +105,7 @@ func (list UdoneseWord) OutputMeanings() string {
 	return pendingMessage
 }
 
+// 管理一个词和其所有意思的键盘
 func (list UdoneseWord) buildUdoneseWordKeyboard() models.ReplyMarkup {
 	var buttons [][]models.InlineKeyboardButton
 	for index, singleMeaning := range list.MeaningList {
@@ -135,61 +143,77 @@ type UdoneseMeaning struct {
 	ViaName      string `yaml:"ViaName,omitempty"`
 }
 
-func ReadUdonese() {
-	var udonese *Udonese
+func ReadUdonese(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Udonese").
+		Str("funcName", "ReadUdonese").
+		Logger()
 
-	file, err := os.Open(Udonese_path + consts.MetadataFileName)
+	err := yaml.LoadYAML(UdonesePath, &UdoneseData)
 	if err != nil {
-		// 如果是找不到目录，新建一个
-		log.Println("[Udonese]: Not found database file. Created new one")
-		SaveUdonese()
-		UdoneseData, UdoneseErr = &Udonese{}, err
-		return 
-	}
-	defer file.Close()
-
-	decoder := yaml.NewDecoder(file)
-	err = decoder.Decode(&udonese)
-	if err != nil {
-		if err == io.EOF {
-			log.Println("[Udonese]: Udonese list looks empty. now format it")
-			SaveUdonese()
-			UdoneseData, UdoneseErr = &Udonese{}, nil
-			return
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Err(err).
+				Str("path", UdonesePath).
+				Msg("Not found udonese list file. Created new one")
+			// 如果是找不到文件，新建一个
+			err = yaml.SaveYAML(UdonesePath, &UdoneseData)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", UdonesePath).
+					Msg("Failed to create empty udonese list file")
+				UdoneseErr = fmt.Errorf("failed to create empty udonese list file: %w", err)
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", UdonesePath).
+				Msg("Failed to load udonese list file")
+			UdoneseErr = fmt.Errorf("failed to load udonese list file: %w", err)
 		}
-		log.Println("(func)ReadUdonese:", err)
-		UdoneseData, UdoneseErr = &Udonese{}, err
-		return
+	} else {
+		UdoneseErr = nil
 	}
-	UdoneseData, UdoneseErr = udonese, nil
+
+	return UdoneseErr
 }
 
-func SaveUdonese() error {
-	data, err := yaml.Marshal(UdoneseData)
-	if err != nil { return err }
+func SaveUdonese(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Udonese").
+		Str("funcName", "SaveUdonese").
+		Logger()
 
-	if _, err := os.Stat(Udonese_path); os.IsNotExist(err) {
-		if err := os.MkdirAll(Udonese_path, 0755); err != nil {
-			return err
-		}
+	err := yaml.SaveYAML(UdonesePath, &UdoneseData)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("path", UdonesePath).
+			Msg("Failed to save udonese list")
+		UdoneseErr = fmt.Errorf("failed to save udonese list: %w", err)
+	} else {
+		UdoneseErr = nil
 	}
-
-	if _, err := os.Stat(Udonese_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(Udonese_path + consts.MetadataFileName)
-		if err != nil {
-			return err
-		}
-	}
-
-	return os.WriteFile(Udonese_path + consts.MetadataFileName, data, 0644)
+	return UdoneseErr
 }
 
 // 如果要添加的意思重复，返回对应意思的单个词结构体指针，否则返回空指针
 // 设计之初可以添加多个意思，但现在不推荐这样
-func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
-	for wordIndex, savedList := range udonese.List {
+func addUdonese(ctx context.Context, params *UdoneseWord) *UdoneseWord {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Udonese").
+		Str("funcName", "SaveUdonese").
+		Logger()
+
+	for wordIndex, savedList := range UdoneseData.List {
 		if strings.EqualFold(savedList.Word, params.Word){
-			log.Printf("发现已存在的词 [%s]，正在检查是否有新增的意思", savedList.Word)
+			logger.Info().
+				Str("word", params.Word).
+				Msg("Found existing word")
 			for _, newMeaning := range params.MeaningList {
 				var isreallynew bool = true
 				for _, oldmeanlist := range savedList.MeaningList {
@@ -198,27 +222,42 @@ func addUdonese(udonese *Udonese, params *UdoneseWord) *UdoneseWord {
 					}
 				}
 				if isreallynew {
-					udonese.List[wordIndex].MeaningList = append(udonese.List[wordIndex].MeaningList, newMeaning)
-					log.Printf("正在为 [%s] 添加 [%s] 意思", udonese.List[wordIndex].Word, newMeaning.Meaning)
+					UdoneseData.List[wordIndex].MeaningList = append(UdoneseData.List[wordIndex].MeaningList, newMeaning)
+					logger.Info().
+						Str("word", params.Word).
+						Str("meaning", newMeaning.Meaning).
+						Msg("Add new meaning")
 				} else {
-					log.Println("存在的意思，跳过", newMeaning)
+					logger.Info().
+						Str("word", params.Word).
+						Str("meaning", newMeaning.Meaning).
+						Msg("Skip existing meaning")
 					return &savedList
 				}
 			}
 			return nil
 		}
 	}
-	log.Printf("发现新的词 [%s]，正在添加 %v", params.Word, params.MeaningList)
-	udonese.List = append(udonese.List, *params)
-	udonese.Count++
+	logger.Info().
+		Str("word", params.Word).
+		Interface("meaningList", params.MeaningList).
+		Msg("Add new word")
+	UdoneseData.List = append(UdoneseData.List, *params)
+	UdoneseData.Count++
 	return nil
 }
 
-func addUdoneseHandler(opts *handler_structs.SubHandlerParams) {
+func addUdoneseHandler(opts *handler_structs.SubHandlerParams) error {
 	// 不响应来自转发的命令
-	if opts.Update.Message.ForwardOrigin != nil {
-		return
-	}
+	if opts.Update.Message.ForwardOrigin != nil { return nil }
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Udonese").
+		Str("funcName", "addUdoneseHandler").
+		Logger()
+
+	var handlerErr multe.MultiError
 
 	isManager := utils.AnyContains(opts.Update.Message.From.ID, UdoneseManagerIDs)
 
@@ -231,251 +270,289 @@ func addUdoneseHandler(opts *handler_structs.SubHandlerParams) {
 			DisableNotification: true,
 		})
 		if err != nil {
-			log.Println("error sending /udonese not allowed group:", err)
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+				Str("content", "/udonese not allowed group").
+				Msg(errt.SendMessage)
+			handlerErr.Addf("failed to send `/udonese not allowed group` message: %w", err)
 		}
-		return
-	}
+	} else {
+		if len(opts.Fields) < 3 {
+			// 如果是管理员，则显示可以管理词的帮助
+			if isManager {
+				if len(opts.Fields) < 2 {
+					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID:    opts.Update.Message.Chat.ID,
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						Text: "使用 `/udonese <词> <单个意思>` 来添加记录\n或使用 `/udonese <词>` 来管理记录",
+						ParseMode: models.ParseModeMarkdownV1,
+						DisableNotification: true,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Int64("chatID", opts.Update.Message.Chat.ID).
+							Str("content", "/udonese admin command help").
+							Msg(errt.SendMessage)
+						handlerErr.Addf("failed to send `/udonese admin command help` message: %w", err)
+					}
+				} else /* 词信息 */ {
+					checkWord := opts.Fields[1]
+					var targetWord UdoneseWord
+					for _, wordlist := range UdoneseData.List {
+						if wordlist.Word == checkWord {
+							targetWord = wordlist
+						}
+					}
 
-
-	if isManager && len(opts.Fields) < 3 {
-		if len(opts.Fields) < 2 {
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:    opts.Update.Message.Chat.ID,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				Text: "使用 `/udonese <词> <单个意思>` 来添加记录\n或使用 `/udonese <词>` 来管理记录",
-				ParseMode: models.ParseModeMarkdownV1,
-				DisableNotification: true,
-			})
-			return
-		} else {
-			checkWord := opts.Fields[1]
-			var targetWord UdoneseWord
-			for _, wordlist := range UdoneseData.List {
-				if wordlist.Word == checkWord {
-					targetWord = wordlist
+					// 如果词存在，则显示词的信息
+					if targetWord.Word == "" {
+						_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+							ChatID:    opts.Update.Message.Chat.ID,
+							Text:      "似乎没有这个词呢...",
+							ParseMode: models.ParseModeMarkdownV1,
+							ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+							DisableNotification: true,
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Int64("chatID", opts.Update.Message.Chat.ID).
+								Str("content", "/udonese admin command no this word").
+								Msg(errt.SendMessage)
+							handlerErr.Addf("failed to send `/udonese admin command no this word` message: %w", err)
+						}
+					} else {
+						_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+							ChatID:    opts.Update.Message.Chat.ID,
+							Text:      fmt.Sprintf("词: [ %s ]\n有 %d 个意思，已使用 %d 次\n", targetWord.Word, len(targetWord.MeaningList), targetWord.Used),
+							ParseMode: models.ParseModeHTML,
+							ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+							ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
+							DisableNotification: true,
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Int64("chatID", opts.Update.Message.Chat.ID).
+								Str("content", "/udonese manage keyboard").
+								Msg(errt.SendMessage)
+							handlerErr.Addf("failed to send `/udonese manage keyboard` message: %w", err)
+						}
+					}
 				}
-			}
-
-			if targetWord.Word == "" {
+			} else /* 普通用户 */ {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:    opts.Update.Message.Chat.ID,
-					Text:      "似乎没有这个词呢...",
-					ParseMode: models.ParseModeMarkdownV1,
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					Text: "使用 `/udonese <词> <单个意思>` 来添加记录",
+					ParseMode: models.ParseModeMarkdownV1,
 					DisableNotification: true,
 				})
 				if err != nil {
-					log.Println("error sending /udonese word not found:", err)
+					logger.Info().
+						Err(err).
+						Int64("chatID", opts.Update.Message.Chat.ID).
+						Str("content", "/udonese command help").
+						Msg(errt.SendMessage)
+					handlerErr.Addf("failed to send `/udonese command help` message: %w", err)
 				}
-				return
+			}
+		} else {
+			meaning := strings.TrimSpace(opts.Update.Message.Text[len(opts.Fields[0]) + len(opts.Fields[1]) + 2:])
+
+			var (
+				fromID       int64
+				fromUsername string
+				fromName     string
+				viaID        int64
+				viaUsername  string
+				viaName      string
+			)
+
+			msgAttr := message_utils.GetMessageAttribute(opts.Update.Message)
+
+			if msgAttr.IsReplyToMessage {
+				replyAttr := message_utils.GetMessageAttribute(opts.Update.Message.ReplyToMessage)
+
+				if replyAttr.IsUserAsChannel || replyAttr.IsFromLinkedChannel || replyAttr.IsFromAnonymous {
+					// 回复给一条频道身份的信息
+					fromID = opts.Update.Message.ReplyToMessage.SenderChat.ID
+					fromUsername = opts.Update.Message.ReplyToMessage.SenderChat.Username
+					fromName = utils.ShowChatName(opts.Update.Message.ReplyToMessage.SenderChat)
+				} else {
+					// 回复给普通用户
+					fromName = utils.ShowUserName(opts.Update.Message.ReplyToMessage.From)
+					fromID = opts.Update.Message.ReplyToMessage.From.ID
+				}
+				if msgAttr.IsUserAsChannel || msgAttr.IsFromLinkedChannel || msgAttr.IsFromAnonymous {
+					// 频道身份
+					viaID = opts.Update.Message.SenderChat.ID
+					viaUsername = opts.Update.Message.SenderChat.Username
+					viaName = utils.ShowChatName(opts.Update.Message.SenderChat)
+				} else {
+					// 普通用户身份
+					viaID = opts.Update.Message.From.ID
+					viaName = utils.ShowUserName(opts.Update.Message.From)
+				}
+			} else {
+				if msgAttr.IsUserAsChannel || msgAttr.IsFromAnonymous {
+					// 频道身份
+					fromID = opts.Update.Message.SenderChat.ID
+					fromUsername = opts.Update.Message.SenderChat.Username
+					fromName = utils.ShowChatName(opts.Update.Message.SenderChat)
+				} else {
+					// 普通用户身份
+					fromID = opts.Update.Message.From.ID
+					fromName = utils.ShowUserName(opts.Update.Message.From)
+				}
 			}
 
-			var pendingMessage string = fmt.Sprintf("词: [ %s ]\n有 %d 个意思\n", targetWord.Word, len(targetWord.MeaningList))
+			// 来源和经过都是同一位用户，删除 via 信息
+			if fromID == viaID {
+				viaID = 0
+				viaUsername = ""
+				viaName = ""
+			}
 
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:    opts.Update.Message.Chat.ID,
-				Text:      pendingMessage,
-				ParseMode: models.ParseModeHTML,
+			var pendingMessage string
+			var err error
+
+			oldMeaning := addUdonese(opts.Ctx, &UdoneseWord{
+				Word: opts.Fields[1],
+				MeaningList: []UdoneseMeaning{{
+					Meaning:      meaning,
+					FromID:       fromID,
+					FromUsername: fromUsername,
+					FromName:     fromName,
+					ViaID:        viaID,
+					ViaUsername:  viaUsername,
+					ViaName:      viaName,
+				}},
+			})
+			if oldMeaning != nil {
+				pendingMessage += fmt.Sprintf("[%s] 意思已存在于 [%s] 中:\n", meaning, oldMeaning.Word)
+				for i, s := range oldMeaning.MeaningList {
+					if meaning == s.Meaning {
+						pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] ", i + 1, s.Meaning)
+
+						// 来源的用户或频道
+						if s.FromUsername != "" {
+							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", s.FromUsername, s.FromName)
+						} else if s.FromID != 0 {
+							if s.FromID < 0 {
+								pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(s.FromID), s.FromName)
+							} else {
+								pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", s.FromID, s.FromName)
+							}
+						}
+
+						// 由其他用户添加时的信息
+						if s.ViaUsername != "" {
+							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", s.ViaUsername, s.ViaName)
+						} else if s.ViaID != 0 {
+							if s.ViaID < 0 {
+								pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(s.ViaID), s.ViaName)
+							} else {
+								pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", s.ViaID, s.ViaName)
+							}
+						}
+
+						// 末尾换行
+						pendingMessage += "\n"
+					}
+				}
+			} else {
+				err = SaveUdonese(opts.Ctx)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("messageText", opts.Update.Message.Text).
+						Msg("Failed to save udonese list after add word")
+					handlerErr.Addf("failed to save udonese list after add word: %w", err)
+
+					pendingMessage += fmt.Sprintf("保存语句时似乎发生了一些错误: <blockquote expandable>%s</blockquote>", err.Error())
+					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						Text: pendingMessage,
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						ParseMode: models.ParseModeHTML,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("messageText", opts.Update.Message.Text).
+							Str("content", "failed save udonese list notice").
+							Msg(errt.SendMessage)
+						handlerErr.Addf("failed to send `failed to save udonese list notice` message: %w", err)
+					}
+					return handlerErr.Flat()
+				} else {
+					pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.Fields[1])
+					pendingMessage += fmt.Sprintf("[%s] ", meaning)
+
+					// 来源的用户或频道
+					if fromUsername != "" {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", fromUsername, fromName)
+					} else if fromID != 0 {
+						if fromID < 0 {
+							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(fromID), fromName)
+						} else {
+							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", fromID, fromName)
+						}
+					}
+
+					// 由其他用户添加时的信息
+					if viaUsername != "" {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", viaUsername, viaName)
+					} else if viaID != 0 {
+						if viaID < 0 {
+							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(viaID), viaName)
+						} else {
+							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", viaID, viaName)
+						}
+					}
+				}
+			}
+
+			pendingMessage += fmt.Sprintln("<blockquote>发送的消息与此消息将在十秒后删除</blockquote>")
+			botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.Message.Chat.ID,
+				Text: pendingMessage,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-				ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
+				ParseMode: models.ParseModeHTML,
 				DisableNotification: true,
 			})
-			return
-		}
-	} else if len(opts.Fields) < 3 {
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    opts.Update.Message.Chat.ID,
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-			Text: "使用 `/udonese <词> <单个意思>` 来添加记录",
-			ParseMode: models.ParseModeMarkdownV1,
-			DisableNotification: true,
-		})
-		return
-	}
-
-	meaning := strings.TrimSpace(opts.Update.Message.Text[len(opts.Fields[0])+len(opts.Fields[1])+2:])
-
-	var (
-		fromID       int64
-		fromUsername string
-		fromName     string
-		viaID        int64
-		viaUsername  string
-		viaName      string
-
-		isVia         bool
-		isFromGroup   bool
-		isViaGroup    bool
-		isFromChannel bool
-		isViaChannel  bool
-	)
-
-	if opts.Update.Message.ReplyToMessage != nil {
-		// 有回复一条信息，通过回复消息添加词
-		isVia = true
-		if opts.Update.Message.ReplyToMessage.From.IsBot {
-			if opts.Update.Message.ReplyToMessage.From.ID == 136817688 {
-				// 频道身份信息
-				isViaChannel = true
-			} else if opts.Update.Message.ReplyToMessage.From.ID == 1087968824 {
-				// 群组匿名身份
-				isViaGroup = true
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("content", "udonese keyword added").
+					Msg(errt.SendMessage)
+				handlerErr.Addf("failed to send `udonese keyword added` message: %w", err)
 			} else {
-				// 有 bot 标识，但不是频道身份也不是群组匿名，则是普通 bot
-				isVia = false
-			}
-		}
-	}
-	// 发送命令的人信息
-	if opts.Update.Message.From.IsBot {
-		if opts.Update.Message.From.ID == 136817688 {
-			// 用频道身份发言
-			isFromChannel = true
-		} else if opts.Update.Message.From.ID == 1087968824 {
-			// 用群组匿名身份发言
-			isFromGroup = true
-		}
-	}
-
-	if isVia {
-		if isViaChannel || isViaGroup {
-			// 回复给一条频道身份的信息
-			fromID = opts.Update.Message.ReplyToMessage.SenderChat.ID
-			fromUsername = opts.Update.Message.ReplyToMessage.SenderChat.Username
-			fromName = utils.ShowChatName(opts.Update.Message.ReplyToMessage.SenderChat)
-		} else {
-			// 回复给普通用户
-			fromName = utils.ShowUserName(opts.Update.Message.ReplyToMessage.From)
-			fromID = opts.Update.Message.ReplyToMessage.From.ID
-		}
-		if isFromChannel || isFromGroup {
-			// 频道身份
-			viaID = opts.Update.Message.SenderChat.ID
-			viaUsername = opts.Update.Message.SenderChat.Username
-			viaName = utils.ShowChatName(opts.Update.Message.SenderChat)
-		} else {
-			// 普通用户身份
-			viaID = opts.Update.Message.From.ID
-			viaName = utils.ShowUserName(opts.Update.Message.From)
-		}
-	} else {
-		if isFromChannel || isFromGroup {
-			// 频道身份
-			fromID = opts.Update.Message.SenderChat.ID
-			fromUsername = opts.Update.Message.SenderChat.Username
-			fromName = utils.ShowChatName(opts.Update.Message.SenderChat)
-		} else {
-			// 普通用户身份
-			fromID = opts.Update.Message.From.ID
-			fromName = utils.ShowUserName(opts.Update.Message.From)
-		}
-	}
-
-	// 来源和经过都是同一位用户，删除 via 信息
-	if fromID == viaID {
-		isVia = false
-		viaID = 0
-		viaUsername = ""
-		viaName = ""
-	}
-
-	var pendingMessage string
-	var botMessage *models.Message
-
-	oldMeaning := addUdonese(UdoneseData, &UdoneseWord{
-		Word: opts.Fields[1],
-		MeaningList: []UdoneseMeaning{{
-			Meaning:      meaning,
-			FromID:       fromID,
-			FromUsername: fromUsername,
-			FromName:     fromName,
-			ViaID:        viaID,
-			ViaUsername:  viaUsername,
-			ViaName:      viaName,
-		}},
-	})
-	if oldMeaning != nil {
-		pendingMessage += fmt.Sprintf("[%s] 意思已存在于 [%s] 中:\n", meaning, oldMeaning.Word)
-		for i, s := range oldMeaning.MeaningList {
-			if meaning == s.Meaning {
-				pendingMessage += fmt.Sprintf("<code>%d</code>. [%s] ", i + 1, s.Meaning)
-
-				// 来源的用户或频道
-				if s.FromUsername != "" {
-					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", s.FromUsername, s.FromName)
-				} else if s.FromID != 0 {
-					if s.FromID < 0 {
-						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(s.FromID), s.FromName)
-					} else {
-						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", s.FromID, s.FromName)
-					}
-				}
-
-				// 由其他用户添加时的信息
-				if s.ViaUsername != "" {
-					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", s.ViaUsername, s.ViaName)
-				} else if s.ViaID != 0 {
-					if s.ViaID < 0 {
-						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(s.ViaID), s.ViaName)
-					} else {
-						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", s.ViaID, s.ViaName)
-					}
-				}
-
-				// 末尾换行
-				pendingMessage += "\n"
-			}
-		}
-	} else {
-		err := SaveUdonese()
-		if err != nil {
-			pendingMessage += fmt.Sprintln("保存语句时似乎发生了一些错误:\n", err)
-		} else {
-			pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.Fields[1])
-			pendingMessage += fmt.Sprintf("[%s] ", meaning)
-
-			// 来源的用户或频道
-			if fromUsername != "" {
-				pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", fromUsername, fromName)
-			} else if fromID != 0 {
-				if fromID < 0 {
-					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(fromID), fromName)
-				} else {
-					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", fromID, fromName)
-				}
-			}
-
-			// 由其他用户添加时的信息
-			if viaUsername != "" {
-				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", viaUsername, viaName)
-			} else if viaID != 0 {
-				if viaID < 0 {
-					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(viaID), viaName)
-				} else {
-					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", viaID, viaName)
+				time.Sleep(time.Second * 10)
+				_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					MessageIDs: []int{
+						opts.Update.Message.ID,
+						botMessage.ID,
+					},
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Ints("messageIDs", []int{ opts.Update.Message.ID, botMessage.ID }).
+						Str("content", "udonese keyword added").
+						Msg(errt.DeleteMessages)
+					handlerErr.Addf("failed to delete `udonese keyword added` messages: %w", err)
 				}
 			}
 		}
 	}
-
-	pendingMessage += fmt.Sprintln("<blockquote>发送的消息与此消息将在十秒后删除</blockquote>")
-	botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID: opts.Update.Message.Chat.ID,
-		Text: pendingMessage,
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-		ParseMode: models.ParseModeHTML,
-		DisableNotification: true,
-	})
-	if err == nil {
-		time.Sleep(time.Second * 10)
-		opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			MessageIDs: []int{
-				opts.Update.Message.ID,
-				botMessage.ID,
-			},
-		})
-	}
+	return handlerErr.Flat()
 }
 
 func udoneseInlineHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {
@@ -529,10 +606,10 @@ func udoneseInlineHandler(opts *handler_structs.SubHandlerParams) []models.Inlin
 			}
 			// 通过意思查找词
 			if utils.InlineQueryMatchMultKeyword(keywordFields, data.OnlyMeaning()) {
-				for _, n := range data.MeaningList {
+				for i, n := range data.MeaningList {
 					if utils.InlineQueryMatchMultKeyword(keywordFields, []string{strings.ToLower(n.Meaning)}) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
-							ID:    n.Meaning + "-meaning",
+							ID:    fmt.Sprintf("%s-meaning-%d", data.Word, i),
 							Title: n.Meaning,
 							Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
 							InputMessageContent: models.InputTextMessageContent{
@@ -556,40 +633,66 @@ func udoneseInlineHandler(opts *handler_structs.SubHandlerParams) []models.Inlin
 			})
 		}
 	}
+	if len(udoneseResultList) == 0 {
+		udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
+			ID:    "none",
+			Title: "没有记录任何内容",
+			Description: "什么都没有，使用 `/udonese <词> <意思>` 来添加吧",
+			InputMessageContent: models.InputTextMessageContent{
+				MessageText: "使用 `/udonese <词> <单个意思>` 来添加记录",
+				ParseMode: models.ParseModeMarkdownV1,
+			},
+		})
+	}
 	return udoneseResultList
 }
 
-func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
-	// 不响应来自转发的命令
-	if opts.Update.Message.ForwardOrigin != nil {
-		return
-	}
-	// 空文本
-	if len(opts.Fields) < 1 {
-		return
-	}
+func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) error {
+	// 不响应来自转发的命令和空文本
+	if opts.Update.Message.ForwardOrigin != nil || len(opts.Fields) < 1 { return nil }
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Udonese").
+		Str("funcName", "udoneseGroupHandler").
+		Logger()
+
+	var handlerErr multe.MultiError
 
 	if UdoneseErr != nil {
-		log.Println("some error in while read udonese list: ", UdoneseErr)
-		ReadUdonese()
+		logger.Warn().
+			Err(UdoneseErr).
+			Msg("Some error in while read udonese list, try to read again")
+
+		err := ReadUdonese(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to read udonese list")
+			return handlerErr.Addf("failed to read udonese list: %w", err).Flat()
+		}
 	}
 
 	// 统计词使用次数
 	for i, n := range UdoneseData.OnlyWord() {
 		if n == opts.Update.Message.Text || strings.HasPrefix(opts.Update.Message.Text, n) {
 			UdoneseData.List[i].Used++
-			err := SaveUdonese()
+			err := SaveUdonese(opts.Ctx)
 			if err != nil {
-				log.Println("get some error when add udonese used count:", err)
+				logger.Error().
+					Err(err).
+					Msg("Failed to save udonese list after add word usage count")
+				handlerErr.Addf("failed to save udonese list after add word usage count: %w", err)
 			}
-			// fmt.Println(udon.List[i].Word, "+1", udon.List[i].Used)
 		}
 	}
+
+	var needNotice bool
 
 	if opts.Fields[0] == "sms" {
 		// 参数过少，提示用法
 		if len(opts.Fields) < 2 {
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Update.Message.Chat.ID,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 				Text:   "使用方法：发送 `sms <词>` 来查看对应的意思",
@@ -597,15 +700,44 @@ func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 				DisableNotification: true,
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击浏览全部词与意思",
-					SwitchInlineQueryCurrentChat: consts.InlineSubCommandSymbol + "sms ",
+					SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "sms ",
 				}}}},
 			})
-			return
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", opts.Update.Message.Chat.ID).
+					Str("content", "sms command usage").
+					Msg(errt.SendMessage)
+				handlerErr.Addf("failed to send `sms command usage` message: %w", err)
+			}
+		} else {
+			// 在数据库循环查找这个词
+			for _, word := range UdoneseData.List {
+				if strings.EqualFold(word.Word, opts.Fields[1]) {
+					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+						ChatID: opts.Update.Message.Chat.ID,
+						Text:   word.OutputMeanings(),
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+						ParseMode: models.ParseModeHTML,
+						DisableNotification: true,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Int64("chatID", opts.Update.Message.Chat.ID).
+							Str("content", "sms keyword meaning").
+							Msg(errt.SendMessage)
+						handlerErr.Addf("failed to send `sms keyword meaning` message: %w", err)
+					}
+				}
+			}
+			needNotice = true
 		}
-
+	} else if len(opts.Fields) == 2 && strings.HasSuffix(opts.Update.Message.Text, "ssm") {
 		// 在数据库循环查找这个词
 		for _, word := range UdoneseData.List {
-			if strings.EqualFold(word.Word, opts.Fields[1]) && len(word.MeaningList) > 0 {
+			if strings.EqualFold(word.Word, opts.Fields[0]) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Update.Message.Chat.ID,
 					Text:   word.OutputMeanings(),
@@ -614,74 +746,69 @@ func udoneseGroupHandler(opts *handler_structs.SubHandlerParams) {
 					DisableNotification: true,
 				})
 				if err != nil {
-					log.Println("get some error when answer udonese meaning:", err)
+					logger.Error().
+						Err(err).
+						Int64("chatID", opts.Update.Message.Chat.ID).
+						Str("content", "sms keyword meaning").
+						Msg(errt.SendMessage)
+					handlerErr.Addf("failed to send `sms keyword meaning` message: %w", err)
 				}
-				return
 			}
 		}
-
-		// 到这里就是没找到，提示没有
-		botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
-			ParseMode: models.ParseModeMarkdownV1,
-			DisableNotification: true,
-		})
-
-		time.Sleep(time.Second * 10)
-		opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			MessageIDs: []int{
-				botMessage.ID,
-			},
-		})
-
-		return
-	} else if len(opts.Fields) > 1 && strings.HasSuffix(opts.Update.Message.Text, "ssm") {
-		// 在数据库循环查找这个词
-		for _, word := range UdoneseData.List {
-			if strings.EqualFold(word.Word, opts.Fields[0]) && len(word.MeaningList) > 0 {
-				opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					Text:   word.OutputMeanings(),
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					ParseMode: models.ParseModeHTML,
-					DisableNotification: true,
-				})
-				return
-			}
-		}
-
-		// 到这里就是没找到，提示没有
-		botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
-			ParseMode: models.ParseModeMarkdownV1,
-			DisableNotification: true,
-		})
-
-		time.Sleep(time.Second * 10)
-		opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			MessageIDs: []int{
-				botMessage.ID,
-			},
-		})
+		needNotice = true
 	}
+
+	if needNotice {
+		// 到这里就是没找到，提示没有
+		botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.Message.Chat.ID,
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
+			ParseMode: models.ParseModeMarkdownV1,
+			DisableNotification: true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int64("chatID", opts.Update.Message.Chat.ID).
+				Int("messageID", botMessage.ID).
+				Str("content", "sms keyword no meaning").
+				Msg(errt.SendMessage)
+			handlerErr.Addf("failed to send `sms keyword no meaning` message: %w", err)
+		} else {
+			time.Sleep(time.Second * 10)
+			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+				ChatID: opts.Update.Message.Chat.ID,
+				MessageIDs: []int{ botMessage.ID },
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", opts.Update.Message.Chat.ID).
+					Int("messageID", botMessage.ID).
+					Str("content", "sms keyword no meaning").
+					Msg(errt.DeleteMessage)
+				handlerErr.Addf("failed to delete `sms keyword no meaning` message: %w", err)
+			}
+		}
+	}
+
+	return handlerErr.Flat()
 }
 
 func init() {
-	ReadUdonese()
-	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Udonese",
-		Saver: SaveUdonese,
+		Func: ReadUdonese,
+	})
+	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+		Name:   "Udonese",
+		Saver:  SaveUdonese,
 		Loader: ReadUdonese,
 	})
 	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
-		Command: "sms",
-		Handler: udoneseInlineHandler,
+		Command:     "sms",
+		Handler:     udoneseInlineHandler,
 		Description: "查询 Udonese 词典",
 	})
 	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
@@ -689,186 +816,269 @@ func init() {
 		Handler:      addUdoneseHandler,
 	})
 	plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
-		ChatID:  UdonGroupID,
+		ChatID:     UdonGroupID,
 		PluginName: "udoneseGroupHandler",
-		Handler: udoneseGroupHandler,
+		Handler:    udoneseGroupHandler,
 	})
 	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
 		CommandChar: "udonese",
 		Handler:      udoneseCallbackHandler,
 	})
-	// plugin_utils.AddSuffixCommandPlugins(plugin_utils.SuffixCommand{
-	// 	SuffixCommand: "ssm",
-	// 	Handler:       udoneseHandler,
-	// })
 }
 
-func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) {
+func udoneseCallbackHandler(opts *handler_structs.SubHandlerParams) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Udonese").
+		Str("funcName", "udoneseCallbackHandler").
+		Logger()
+
+	var handlerErr multe.MultiError
+
 	if !utils.AnyContains(opts.Update.CallbackQuery.From.ID, UdoneseManagerIDs) {
-		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,
 			Text: "不可以！",
 			ShowAlert: true,
 		})
-		return
-	}
-	
-	if opts.Update.CallbackQuery.Data == "udonese_done" {
-		opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-		})
-		return
-	}
-
-	if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_word_") {
-		word := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_word_")
-		var targetWord UdoneseWord
-		for _, wordlist := range UdoneseData.List {
-			if wordlist.Word == word {
-				targetWord = wordlist
-			}
-		}
-
-		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text:      fmt.Sprintf("词: %s\n有 %d 个意思\n", targetWord.Word, len(targetWord.MeaningList)),
-			ParseMode: models.ParseModeMarkdownV1,
-			ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
-		})
-		return
-	} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_meaning_") {
-		wordAndIndex := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_meaning_")
-		wordAndIndexList := strings.Split(wordAndIndex, "_")
-		meanningIndex, err := strconv.Atoi(wordAndIndexList[1])
 		if err != nil {
-			log.Println("covert meanning index error:", err)
+			logger.Error().
+				Err(err).
+				Str("callbackQueryID", opts.Update.CallbackQuery.ID).
+				Str("content", "udonese no edit permissions").
+				Msg(errt.AnswerCallbackQuery)
+			handlerErr.Addf("failed to send `udonese no edit permissions` inline result: %w", err)
 		}
-
-		var targetMeaning UdoneseMeaning
-
-		for _, udonese := range UdoneseData.List {
-			if udonese.Word == wordAndIndexList[0] {
-				for i, meaning := range udonese.MeaningList {
-					if i == meanningIndex {
-						targetMeaning = meaning
-					}
+	} else {
+		if opts.Update.CallbackQuery.Data == "udonese_done" {
+			_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+					Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
+					Str("content", "udonese keyword manage keyboard").
+					Msg(errt.DeleteMessage)
+				handlerErr.Addf("failed to delete `udonese keyword manage keyboard` inline result: %w", err)
+			}
+		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_word_") {
+			word := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_word_")
+			var targetWord UdoneseWord
+			for _, wordlist := range UdoneseData.List {
+				if wordlist.Word == word {
+					targetWord = wordlist
 				}
 			}
-		}
 
-		var pendingMessage string = fmt.Sprintf("意思 [ %s ]\n", targetMeaning.Meaning)
-
-		// 来源的用户或频道
-		if targetMeaning.FromUsername != "" {
-			pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a>\n", targetMeaning.FromUsername, targetMeaning.FromName)
-		} else if targetMeaning.FromID != 0 {
-			if targetMeaning.FromID < 0 {
-				pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a>\n", utils.RemoveIDPrefix(targetMeaning.FromID), targetMeaning.FromName)
-			} else {
-				pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a>\n", targetMeaning.FromID, targetMeaning.FromName)
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				Text:      fmt.Sprintf("词: [ %s ]\n有 %d 个意思，已使用 %d 次\n", targetWord.Word, len(targetWord.MeaningList), targetWord.Used),
+				ParseMode: models.ParseModeHTML,
+				ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+					Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
+					Str("content", "udonese word meaning list").
+					Msg(errt.EditMessageText)
+				handlerErr.Addf("failed to edit message to `udonese keyword manage keyboard`: %w", err)
 			}
-		}
-
-		// 由其他用户添加时的信息
-		if targetMeaning.ViaUsername != "" {
-			pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a>\n", targetMeaning.ViaUsername, targetMeaning.ViaName)
-		} else if targetMeaning.ViaID != 0 {
-			if targetMeaning.ViaID < 0 {
-				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a>\n", utils.RemoveIDPrefix(targetMeaning.ViaID), targetMeaning.ViaName)
+		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_meaning_") {
+			wordAndIndex := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_meaning_")
+			wordAndIndexList := strings.Split(wordAndIndex, "_")
+			meanningIndex, err := strconv.Atoi(wordAndIndexList[1])
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Msg("Failed to parse meanning index")
+				handlerErr.Addf("failed to parse meanning index: %w", err)
 			} else {
-				pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a>\n", targetMeaning.ViaID, targetMeaning.ViaName)
-			}
-		}
+				var targetMeaning UdoneseMeaning
 
-		_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text: pendingMessage,
-			ParseMode: models.ParseModeHTML,
-			ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-				{
-					Text: "删除此意思",
-					CallbackData: fmt.Sprintf("udonese_delmeaning_%s_%d", wordAndIndexList[0], meanningIndex),
-				},
-				{
-					Text: "返回",
-					CallbackData: "udonese_word_" + wordAndIndexList[0],
-				},
-			}}},
-		})
-		if err != nil {
-			log.Println(err)
-		}
+				for _, udonese := range UdoneseData.List {
+					if udonese.Word == wordAndIndexList[0] {
+						for i, meaning := range udonese.MeaningList {
+							if i == meanningIndex {
+								targetMeaning = meaning
+							}
+						}
+					}
+				}
 
-		return
-	} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_delmeaning_") {
-		wordAndIndex := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_delmeaning_")
-		wordAndIndexList := strings.Split(wordAndIndex, "_")
-		meanningIndex, err := strconv.Atoi(wordAndIndexList[1])
-		if err != nil {
-			log.Println("covert meanning index error:", err)
-		}
-		var newMeaningList []UdoneseMeaning
-		var targetWord UdoneseWord
-		var deletedMeaning string
+				var pendingMessage string = fmt.Sprintf("意思: [ %s ]\n", targetMeaning.Meaning)
 
-		for index, udonese := range UdoneseData.List {
-			if udonese.Word == wordAndIndexList[0] {
-				for i, meaning := range udonese.MeaningList {
-					if i == meanningIndex {
-						deletedMeaning = meaning.Meaning
+				// 来源的用户或频道
+				if targetMeaning.FromUsername != "" {
+					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a>\n", targetMeaning.FromUsername, targetMeaning.FromName)
+				} else if targetMeaning.FromID != 0 {
+					if targetMeaning.FromID < 0 {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a>\n", utils.RemoveIDPrefix(targetMeaning.FromID), targetMeaning.FromName)
 					} else {
-						newMeaningList = append(newMeaningList, meaning)
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a>\n", targetMeaning.FromID, targetMeaning.FromName)
 					}
 				}
-				UdoneseData.List[index].MeaningList = newMeaningList
-				targetWord = UdoneseData.List[index]
+
+				// 由其他用户添加时的信息
+				if targetMeaning.ViaUsername != "" {
+					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a>\n", targetMeaning.ViaUsername, targetMeaning.ViaName)
+				} else if targetMeaning.ViaID != 0 {
+					if targetMeaning.ViaID < 0 {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a>\n", utils.RemoveIDPrefix(targetMeaning.ViaID), targetMeaning.ViaName)
+					} else {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a>\n", targetMeaning.ViaID, targetMeaning.ViaName)
+					}
+				}
+
+				_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					Text: pendingMessage,
+					ParseMode: models.ParseModeHTML,
+					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+						{
+							Text: "删除此意思",
+							CallbackData: fmt.Sprintf("udonese_delmeaning_%s_%d", wordAndIndexList[0], meanningIndex),
+						},
+						{
+							Text: "返回",
+							CallbackData: "udonese_word_" + wordAndIndexList[0],
+						},
+					}}},
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+						Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
+						Str("content", "udonese meaning manage keyboard").
+						Msg(errt.EditMessageText)
+					handlerErr.Addf("failed to edit message to `udonese meaning manage keyboard`: %w", err)
+				}
+			}
+		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_delmeaning_") {
+			wordAndIndex := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_delmeaning_")
+			wordAndIndexList := strings.Split(wordAndIndex, "_")
+			meanningIndex, err := strconv.Atoi(wordAndIndexList[1])
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Msg("Failed to parse meanning index")
+				handlerErr.Addf("failed to parse meanning index: %w", err)
+			} else {
+				var newMeaningList []UdoneseMeaning
+				var targetWord UdoneseWord
+				var deletedMeaning string
+
+				for index, udonese := range UdoneseData.List {
+					if udonese.Word == wordAndIndexList[0] {
+						for i, meaning := range udonese.MeaningList {
+							if i == meanningIndex {
+								deletedMeaning = meaning.Meaning
+							} else {
+								newMeaningList = append(newMeaningList, meaning)
+							}
+						}
+						UdoneseData.List[index].MeaningList = newMeaningList
+						targetWord = UdoneseData.List[index]
+					}
+				}
+
+				err = SaveUdonese(opts.Ctx)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Msg("Failed to save udonese data after deleting meaning")
+					handlerErr.Addf("failed to save udonese data after deleting meaning: %w", err)
+
+					_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+						CallbackQueryID: opts.Update.CallbackQuery.ID,
+						Text:            "删除意思时保存数据库失败，请重试或联系机器人管理员\n" + err.Error(),
+						ShowAlert:       true,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("content", "failed to save udonese data after delete meaning").
+							Msg(errt.AnswerCallbackQuery)
+						handlerErr.Addf("failed to send `failed to save udonese data after delete meaning` callback answer: %w", err)
+					}
+				} else {
+					_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+						ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,
+						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+						Text:      fmt.Sprintf("词: [ %s ]\n有 %d 个意思，已使用 %d 次\n<blockquote>已删除 [ %s ] 词中的 [ %s ] 意思</blockquote>", targetWord.Word, len(targetWord.MeaningList), targetWord.Used, targetWord.Word, deletedMeaning),
+						ParseMode: models.ParseModeHTML,
+						ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+							Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
+							Str("content", "udonese meaning manage keyboard after delete meaning").
+							Msg(errt.EditMessageText)
+						handlerErr.Addf("failed to edit message to `udonese meaning manage keyboard after delete meaning`: %w", err)
+					}
+				}
+			}
+		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_delword_") {
+			word := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_delword_")
+			var newWordList []UdoneseWord
+			for _, udonese := range UdoneseData.List {
+				if udonese.Word != word {
+					newWordList = append(newWordList, udonese)
+				}
+			}
+			UdoneseData.List = newWordList
+
+			err := SaveUdonese(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to save udonese data after delete word")
+				handlerErr.Addf("failed to save udonese data after delete word: %w", err)
+
+				_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.Update.CallbackQuery.ID,
+					Text:            "删除词时保存数据库失败，请重试\n" + err.Error(),
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Msg(errt.AnswerCallbackQuery)
+					handlerErr.Addf("failed to send `failed to save udonese data after delete word` callback answer: %w", err)
+				}
+			} else {
+				_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+					ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					Text:      fmt.Sprintf("<blockquote>已删除 [ %s ] 词</blockquote>", word),
+					ParseMode: models.ParseModeHTML,
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "关闭菜单",
+						CallbackData: "udonese_done",
+					}}}},
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+						Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
+						Str("content", "udonese word deleted notice").
+						Msg(errt.EditMessageText)
+					handlerErr.Addf("failed to edit message to `udonese word deleted notice`: %w", err)
+				}
 			}
 		}
-
-		var pendingMessage string = fmt.Sprintf("词: [ %s ]\n有 %d 个意思\n\n<blockquote>已删除 [ %s ] 词中的 %s 意思</blockquote>", targetWord.Word, len(targetWord.MeaningList), wordAndIndexList[0], deletedMeaning)
-
-		_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text:      pendingMessage,
-			ParseMode: models.ParseModeHTML,
-			ReplyMarkup: targetWord.buildUdoneseWordKeyboard(),
-		})
-		if err != nil {
-			log.Println("error when edit deleted meaning keyboard:", err)
-		}
-
-		SaveUdonese()
-		return
-	} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_delword_") {
-		word := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_delword_")
-		var newWordList []UdoneseWord
-		for _, udonese := range UdoneseData.List {
-			if udonese.Word != word {
-				newWordList = append(newWordList, udonese)
-			}
-		}
-		UdoneseData.List = newWordList
-
-		var pendingMessage string = fmt.Sprintf("<blockquote>已删除 [ %s ] 词</blockquote>", word)
-
-		_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID:    opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text:      pendingMessage,
-			ParseMode: models.ParseModeHTML,
-			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "关闭菜单",
-				CallbackData: "udonese_done",
-			}}}},
-		})
-		if err != nil {
-			log.Println("error when edit deleted word message:", err)
-		}
-
-		SaveUdonese()
 	}
+	return handlerErr.Flat()
 }

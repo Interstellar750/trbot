@@ -1,23 +1,24 @@
 package saved_message
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/type_utils"
+	"trbot/utils/type/message_utils"
+	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot/models"
-	"gopkg.in/yaml.v3"
+	"github.com/rs/zerolog"
 )
 
 var SavedMessageSet map[int64]SavedMessage
 var SavedMessageErr error
 
-var SavedMessage_path string = consts.DB_path + "savedmessage/"
+var SavedMessagePath string = filepath.Join(consts.YAMLDataBaseDir, "savedmessage/", consts.YAMLFileName)
 
 var textExpandableLength int = 150
 
@@ -33,53 +34,66 @@ type SavedMessage struct {
 	Item SavedMessageItems `yaml:"Item,omitempty"`
 }
 
-func SaveSavedMessageList() error {
-	data, err := yaml.Marshal(SavedMessageSet)
-	if err != nil { return err }
+func SaveSavedMessageList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "SaveSavedMessageList").
+		Logger()
 
-	if _, err := os.Stat(SavedMessage_path); os.IsNotExist(err) {
-		if err := os.MkdirAll(SavedMessage_path, 0755); err != nil {
-			return err
-		}
+	err := yaml.SaveYAML(SavedMessagePath, &SavedMessageSet)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("path", SavedMessagePath).
+			Msg("Failed to save savedmessage list")
+		SavedMessageErr = fmt.Errorf("failed to save savedmessage list: %w", err)
+	} else {
+		SavedMessageErr = nil
 	}
 
-	if _, err := os.Stat(SavedMessage_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(SavedMessage_path + consts.MetadataFileName)
-		if err != nil {
-			return err
-		}
-	}
-
-	return os.WriteFile(SavedMessage_path + consts.MetadataFileName, data, 0644)
+	return SavedMessageErr
 }
 
-func ReadSavedMessageList() {
-	var SavedMessages map[int64]SavedMessage
+func ReadSavedMessageList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "ReadSavedMessageList").
+		Logger()
 
-	file, err := os.Open(SavedMessage_path + consts.MetadataFileName)
+	err := yaml.LoadYAML(SavedMessagePath, &SavedMessageSet)
 	if err != nil {
-		// 如果是找不到目录，新建一个
-		log.Println("[SavedMessage]: Not found database file. Created new one")
-		SaveSavedMessageList()
-		SavedMessageSet, SavedMessageErr = map[int64]SavedMessage{}, err
-		return
-	}
-	defer file.Close()
-
-	decoder := yaml.NewDecoder(file)
-	err = decoder.Decode(&SavedMessages)
-	if err != nil {
-		if err == io.EOF {
-			log.Println("[SavedMessage]: Saved Message list looks empty. now format it")
-			SaveSavedMessageList()
-			SavedMessageSet, SavedMessageErr = map[int64]SavedMessage{}, nil
-			return
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Err(err).
+				Str("path", SavedMessagePath).
+				Msg("Not found savedmessage list file. Created new one")
+			// 如果是找不到文件，新建一个
+			err = yaml.SaveYAML(SavedMessagePath, &SavedMessageSet)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", SavedMessagePath).
+					Msg("Failed to create empty savedmessage list file")
+				SavedMessageErr = fmt.Errorf("failed to create empty savedmessage list file: %w", err)
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", SavedMessagePath).
+				Msg("Failed to load savedmessage list file")
+			SavedMessageErr = fmt.Errorf("failed to load savedmessage list file: %w", err)
 		}
-		log.Println("(func)ReadSavedMessageList:", err)
-		SavedMessageSet, SavedMessageErr = map[int64]SavedMessage{}, err
-		return
+	} else {
+		SavedMessageErr = nil
 	}
-	SavedMessageSet, SavedMessageErr = SavedMessages, nil
+
+	if SavedMessageSet == nil {
+		SavedMessageSet = map[int64]SavedMessage{}
+	}
+
+	return SavedMessageErr
 }
 
 type sortstruct struct {
@@ -102,12 +116,12 @@ type SavedMessageItems struct {
 	Audio     []SavedMessageTypeCachedAudio     `yaml:"Audio,omitempty"`
 	Document  []SavedMessageTypeCachedDocument  `yaml:"Document,omitempty"`
 	Gif       []SavedMessageTypeCachedGif       `yaml:"Gif,omitempty"`
+	Mpeg4gif  []SavedMessageTypeCachedMpeg4Gif  `yaml:"Mpeg4Gif,omitempty"`
 	Photo     []SavedMessageTypeCachedPhoto     `yaml:"Photo,omitempty"`
 	Sticker   []SavedMessageTypeCachedSticker   `yaml:"Sticker,omitempty"`
 	Video     []SavedMessageTypeCachedVideo     `yaml:"Video,omitempty"`
 	VideoNote []SavedMessageTypeCachedVideoNote `yaml:"VideoNote,omitempty"`
 	Voice     []SavedMessageTypeCachedVoice     `yaml:"Voice,omitempty"`
-	Mpeg4gif  []SavedMessageTypeCachedMpeg4Gif  `yaml:"Mpeg4Gif,omitempty"`
 }
 
 func (s *SavedMessageItems) All() []sortstruct {
@@ -117,14 +131,14 @@ func (s *SavedMessageItems) All() []sortstruct {
 	for _, v := range s.OnlyText {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].onlyText != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		// var pendingTitle string
@@ -146,14 +160,14 @@ func (s *SavedMessageItems) All() []sortstruct {
 	for _, v := range s.Audio {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].audio != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		list[index].audio = &models.InlineQueryResultCachedAudio{
@@ -165,20 +179,22 @@ func (s *SavedMessageItems) All() []sortstruct {
 		}
 
 		list[index].sharedData = &SavedMessageSharedData{
+			Title: v.Title,
+			FileName: v.FileName,
 			Description: v.Description,
 		}
 	}
 	for _, v := range s.Document {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].document != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		list[index].document = &models.InlineQueryResultCachedDocument{
@@ -194,14 +210,14 @@ func (s *SavedMessageItems) All() []sortstruct {
 	for _, v := range s.Gif {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].gif != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		list[index].gif = &models.InlineQueryResultCachedGif{
@@ -217,17 +233,42 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Description: v.Description,
 		}
 	}
+	for _, v := range s.Mpeg4gif {
+		index, err := strconv.Atoi(v.ID)
+		if err != nil {
+			fmt.Println("no an valid id", err)
+			continue
+		}
+		if len(list) <= index {
+			list = append(list, make([]sortstruct, index-len(list)+1)...)
+		}
+		if list[index].mpeg4gif != nil {
+			fmt.Println("duplicate id", v.ID)
+			continue
+		}
+		list[index].mpeg4gif = &models.InlineQueryResultCachedMpeg4Gif{
+			ID:              v.ID,
+			Mpeg4FileID:     v.FileID,
+			Title:           v.Title,
+			Caption:         v.Caption,
+			CaptionEntities: v.CaptionEntities,
+			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
+		}
+		list[index].sharedData = &SavedMessageSharedData{
+			Description: v.Description,
+		}
+	}
 	for _, v := range s.Photo {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].photo != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		list[index].photo = &models.InlineQueryResultCachedPhoto{
@@ -244,14 +285,14 @@ func (s *SavedMessageItems) All() []sortstruct {
 	for _, v := range s.Sticker {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].sticker != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		list[index].sticker = &models.InlineQueryResultCachedSticker{
@@ -264,20 +305,24 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Name:        v.SetName,
 			Title:       v.SetTitle,
 			Description: v.Description,
+			FileName:    v.Emoji,
 		}
 	}
 	for _, v := range s.Video {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].video != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
+		}
+		if v.Title == "" {
+			v.Title = "video.mp4"
 		}
 		list[index].video = &models.InlineQueryResultCachedVideo{
 			ID:              v.ID,
@@ -292,14 +337,14 @@ func (s *SavedMessageItems) All() []sortstruct {
 	for _, v := range s.VideoNote {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].document != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
 		}
 		list[index].document = &models.InlineQueryResultCachedDocument{
@@ -315,15 +360,18 @@ func (s *SavedMessageItems) All() []sortstruct {
 	for _, v := range s.Voice {
 		index, err := strconv.Atoi(v.ID)
 		if err != nil {
-			log.Println("no an valid id", err)
+			fmt.Println("no an valid id", err)
 			continue
 		}
 		if len(list) <= index {
 			list = append(list, make([]sortstruct, index-len(list)+1)...)
 		}
 		if list[index].voice != nil {
-			log.Println("duplicate id", v.ID)
+			fmt.Println("duplicate id", v.ID)
 			continue
+		}
+		if v.Title == "" {
+			v.Title = "audio"
 		}
 		list[index].voice = &models.InlineQueryResultCachedVoice{
 			ID:              v.ID,
@@ -337,31 +385,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			Description: v.Description,
 		}
 	}
-	for _, v := range s.Mpeg4gif {
-		index, err := strconv.Atoi(v.ID)
-		if err != nil {
-			log.Println("no an valid id", err)
-			continue
-		}
-		if len(list) <= index {
-			list = append(list, make([]sortstruct, index-len(list)+1)...)
-		}
-		if list[index].mpeg4gif != nil {
-			log.Println("duplicate id", v.ID)
-			continue
-		}
-		list[index].mpeg4gif = &models.InlineQueryResultCachedMpeg4Gif{
-			ID:              v.ID,
-			Mpeg4FileID:     v.FileID,
-			Title:           v.Title,
-			Caption:         v.Caption,
-			CaptionEntities: v.CaptionEntities,
-			ReplyMarkup:     buildFromInfoButton(v.OriginInfo),
-		}
-		list[index].sharedData = &SavedMessageSharedData{
-			Description: v.Description,
-		}
-	}
+
 
 	// for _, n := range list {
 	// 	if n.audio != nil {
@@ -419,7 +443,7 @@ func getMessageOriginData(msgOrigin *models.MessageOrigin) *OriginInfo {
 func getMessageLink(msg *models.Message) *OriginInfo {
 	// if msg.From.ID == msg.Chat.ID {
 	// }
-	attr := type_utils.GetMessageAttribute(msg)
+	attr := message_utils.GetMessageAttribute(msg)
 	if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsUserAsChannel {
 		return &OriginInfo{
 			FromName: utils.ShowChatName(msg.SenderChat),

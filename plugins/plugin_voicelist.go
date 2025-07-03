@@ -1,29 +1,31 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_structs"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/yaml"
 
-	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"gopkg.in/yaml.v3"
+	"github.com/rs/zerolog"
 )
 
 var VoiceLists   []VoicePack
 var VoiceListErr error
 
-var VoiceList_path string = consts.DB_path + "voices/"
+var VoiceListDir string = filepath.Join(consts.YAMLDataBaseDir, "voices/")
 
 func init() {
-	ReadVoicePackFromPath()
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
+		Name: "VoiceList",
+		Func: ReadVoicePackFromPath,
+	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name: "Voice List",
 		Loader: ReadVoicePackFromPath,
@@ -46,38 +48,73 @@ type VoicePack struct {
 }
 
 // 读取指定目录下所有结尾为 .yaml 或 .yml 的语音文件
-func ReadVoicePackFromPath() {
+func ReadVoicePackFromPath(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "Voice List").
+		Str("funcName", "ReadVoicePackFromPath").
+		Logger()
+
 	var packs []VoicePack
 
-	if _, err := os.Stat(VoiceList_path); os.IsNotExist(err) {
-		log.Printf("No voices dir, create a new one: %s", VoiceList_path)
-		if err := os.MkdirAll(VoiceList_path, 0755); err != nil {
-			VoiceLists, VoiceListErr = nil, err
-			return 
+	_, err := os.Stat(VoiceListDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Str("directory", VoiceListDir).
+				Msg("VoiceList directory not exist, now create it")
+			err = os.MkdirAll(VoiceListDir, 0755)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("directory", VoiceListDir).
+					Msg("Failed to create VoiceList data directory")
+				VoiceListErr = err
+				return err
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("directory", VoiceListDir).
+				Msg("Open VoiceList data directory failed")
+			VoiceListErr = err
+			return err
 		}
 	}
 
-	err := filepath.Walk(VoiceList_path, func(path string, info os.FileInfo, err error) error {
-		if err != nil { return err }
-		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
-			file, err := os.Open(path)
-			if err != nil { log.Println("(func)readVoicesFromDir:", err) }
-			defer file.Close()
 
+	err = filepath.Walk(VoiceListDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("path", path).
+				Msg("Failed to read file use `filepath.Walk()`")
+		}
+		if strings.HasSuffix(info.Name(), ".yaml") || strings.HasSuffix(info.Name(), ".yml") {
 			var singlePack VoicePack
-			decoder := yaml.NewDecoder(file)
-			err = decoder.Decode(&singlePack)
-			if err != nil { log.Println("(func)readVoicesFromDir:", err) }
+
+			err = yaml.LoadYAML(path, &singlePack)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", path).
+					Msg("Failed to decode file use `yaml.NewDecoder()`")
+			}
 			packs = append(packs, singlePack)
 		}
 		return nil
 	})
 	if err != nil {
-		VoiceLists, VoiceListErr = nil, err
-		return
+		logger.Error().
+			Err(err).
+			Str("directory", VoiceListDir).
+			Msg("Failed to read voice packs in VoiceList directory")
+		VoiceListErr = err
+		return err
 	}
 
-	VoiceLists, VoiceListErr = packs, nil
+	VoiceLists = packs
+	return nil
 }
 
 func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {
@@ -85,11 +122,13 @@ func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQue
 	var results []models.InlineQueryResult
 
 	if VoiceLists == nil {
-		log.Printf("No voices file in voices_path: %s", VoiceList_path)
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    consts.LogChat_ID,
-			Text:      fmt.Sprintf("%s\nInline Mode: some user can't load voices", time.Now().Format(time.RFC3339)),
-		})
+		zerolog.Ctx(opts.Ctx).
+			Warn().
+			Str("pluginName", "Voice List").
+			Str("funcName", "VoiceListHandler").
+			Str("VoiceListDir", VoiceListDir).
+			Msg("No voices file in VoiceListDir")
+
 		return []models.InlineQueryResult{&models.InlineQueryResultVoice{
 			ID:       "none",
 			Title:    "无法读取到语音文件，请联系机器人管理员",

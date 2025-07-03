@@ -1,4 +1,4 @@
-package type_utils
+package message_utils
 
 import (
 	"reflect"
@@ -31,6 +31,7 @@ type MessageType struct {
 	Giveaway  bool `yaml:"Giveaway,omitempty"`
 }
 
+// 将消息类型结构体转换为 MessageTypeList(string) 类型
 func (mt MessageType)InString() MessageTypeList {
 	val := reflect.ValueOf(mt)
 	typ := reflect.TypeOf(mt)

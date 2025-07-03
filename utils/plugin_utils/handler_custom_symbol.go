@@ -4,7 +4,7 @@ import "trbot/utils/handler_structs"
 
 type CustomSymbolCommand struct {
 	FullCommand string
-	Handler func(*handler_structs.SubHandlerParams)
+	Handler func(*handler_structs.SubHandlerParams) error
 }
 
 func AddCustomSymbolCommandPlugins(Plugins ...CustomSymbolCommand) int {

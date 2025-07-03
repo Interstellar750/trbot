@@ -7,7 +7,7 @@ import "trbot/utils/handler_structs"
 // 你也可以忽略这个提醒，但在发送消息时使用 ReplyMarkup 参数添加按钮的时候，需要评断并控制一下 CallbackData 的长度是否超过了 64 个字符，否则消息会无法发出。
 type CallbackQuery struct {
 	CommandChar string
-	Handler     func(*handler_structs.SubHandlerParams)
+	Handler     func(*handler_structs.SubHandlerParams) error
 }
 
 func AddCallbackQueryCommandPlugins(Plugins ...CallbackQuery) int {

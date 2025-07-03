@@ -49,7 +49,6 @@ const (
 	LatestInlineResult ChatInfoField_LatestData = "LatestInlineResult"
 
 	LatestCallbackQueryData ChatInfoField_LatestData = "LatestCallbackQueryData"
-	
 )
 
 type ChatInfoField_UsageCount string

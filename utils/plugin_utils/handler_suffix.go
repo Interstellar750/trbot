@@ -4,7 +4,7 @@ import "trbot/utils/handler_structs"
 
 type SuffixCommand struct {
 	SuffixCommand string
-	Handler       func(*handler_structs.SubHandlerParams)
+	Handler       func(*handler_structs.SubHandlerParams) error
 }
 
 func AddSuffixCommandPlugins(Plugins ...SuffixCommand) int {

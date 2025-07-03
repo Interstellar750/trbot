@@ -1,43 +1,50 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
 	"trbot/utils"
 	"trbot/utils/consts"
+	"trbot/utils/errt"
 	"trbot/utils/handler_structs"
+	"trbot/utils/multe"
 	"trbot/utils/plugin_utils"
-	"trbot/utils/type_utils"
+	"trbot/utils/type/message_utils"
+	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"gopkg.in/yaml.v3"
+	"github.com/rs/zerolog"
 )
 
 var LimitMessageList map[int64]AllowMessages
 var LimitMessageErr  error
 
-var LimitMessage_path string = consts.DB_path + "limitmessage/"
+var LimitMessageDir string = filepath.Join(consts.YAMLDataBaseDir, "limitmessage/")
+var LimitMessagePath string = filepath.Join(LimitMessageDir, consts.YAMLFileName)
 
 type AllowMessages struct {
-	IsEnable            bool                        `yaml:"IsEnable"`
-	IsUnderTest         bool                        `yaml:"IsUnderTest"`
-	AddTime             string                      `yaml:"AddTime"`
-	IsLogicAnd          bool                        `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
-	MessageType         type_utils.MessageType      `yaml:"MessageType"`
-	IsWhiteForType      bool                        `yaml:"IsWhiteForType"`
-	MessageAttribute    type_utils.MessageAttribute `yaml:"MessageAttribute"`
-	IsWhiteForAttribute bool                        `yaml:"IsWhiteForAttribute"`
+	IsEnable            bool                           `yaml:"IsEnable"`
+	IsUnderTest         bool                           `yaml:"IsUnderTest"`
+	AddTime             string                         `yaml:"AddTime"`
+	IsLogicAnd          bool                           `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
+	IsWhiteForType      bool                           `yaml:"IsWhiteForType"`
+	MessageType         message_utils.MessageType      `yaml:"MessageType"`
+	IsWhiteForAttribute bool                           `yaml:"IsWhiteForAttribute"`
+	MessageAttribute    message_utils.MessageAttribute `yaml:"MessageAttribute"`
 }
 
 func init() {
-	ReadLimitMessageList()
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
+	    Name: "Limit Message",
+		Func: ReadLimitMessageList,
+	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name: "Limit Message",
 		Saver: SaveLimitMessageList,
@@ -57,162 +64,300 @@ func init() {
 		Description: "此功能需要 bot 为群组管理员并拥有删除消息的权限\n可以按照消息类型和消息属性来自动删除不允许的消息，支持自定逻辑和黑白名单，作为管理员在群组中使用 /limitmessage 命令来查看菜单",
 		ParseMode:   models.ParseModeHTML,
 	})
+}
+
+func ReadLimitMessageList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "LimitMessage").
+		Str("funcName", "ReadLimitMessageList").
+		Logger()
+
+	err := yaml.LoadYAML(LimitMessagePath, &LimitMessageList)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Err(err).
+				Str("path", LimitMessagePath).
+				Msg("Not found limit message list file. Created new one")
+			// 如果是找不到文件，新建一个
+			err = yaml.SaveYAML(LimitMessagePath, &LimitMessageList)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", LimitMessagePath).
+					Msg("Failed to create empty limit message list file")
+				LimitMessageErr = fmt.Errorf("failed to create empty limit message list file: %w", err)
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", LimitMessagePath).
+				Msg("Failed to load limit message list file")
+			LimitMessageErr = fmt.Errorf("failed to load limit message list file: %w", err)
+		}
+	} else {
+		LimitMessageErr = nil
+	}
+
+	if LimitMessageList == nil {
+		LimitMessageList = map[int64]AllowMessages{}
+	}
+
 	buildLimitGroupList()
+
+	return LimitMessageErr
 }
 
-func SaveLimitMessageList() error {
-	data, err := yaml.Marshal(LimitMessageList)
-	if err != nil { return err }
-
-	if _, err := os.Stat(LimitMessage_path); os.IsNotExist(err) {
-		if err := os.MkdirAll(LimitMessage_path, 0755); err != nil {
-			return err
-		}
-	}
-
-	if _, err := os.Stat(LimitMessage_path + consts.MetadataFileName); os.IsNotExist(err) {
-		_, err := os.Create(LimitMessage_path + consts.MetadataFileName)
-		if err != nil {
-			return err
-		}
-	}
-
-	return os.WriteFile(LimitMessage_path + consts.MetadataFileName, data, 0644)
-}
-
-func ReadLimitMessageList() {
-	var limitMessageList map[int64]AllowMessages
-
-	file, err := os.Open(LimitMessage_path + consts.MetadataFileName)
+func SaveLimitMessageList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "LimitMessage").
+		Str("funcName", "SaveLimitMessageList").
+		Logger()
+	err := yaml.SaveYAML(LimitMessagePath, &LimitMessageList)
 	if err != nil {
-		// 如果是找不到目录，新建一个
-		log.Println("[LimitMessage]: Not found database file. Created new one")
-		SaveLimitMessageList()
-		LimitMessageList, LimitMessageErr = map[int64]AllowMessages{}, err
-		return
+		logger.Error().
+			Err(err).
+			Str("path", LimitMessagePath).
+			Msg("Failed to save limit message list")
+		LimitMessageErr = fmt.Errorf("failed to save limit message list: %w", err)
+	} else {
+		LimitMessageErr = nil
 	}
-	defer file.Close()
-
-	decoder := yaml.NewDecoder(file)
-	err = decoder.Decode(&limitMessageList)
-	if err != nil {
-		if err == io.EOF {
-			log.Println("[LimitMessage]: database looks empty. now format it")
-			SaveLimitMessageList()
-			LimitMessageList, LimitMessageErr = map[int64]AllowMessages{}, nil
-			return
-		}
-		log.Println("(func)ReadLimitMessageList:", err)
-		LimitMessageList, LimitMessageErr = map[int64]AllowMessages{}, err
-		return
-	}
-	LimitMessageList, LimitMessageErr = limitMessageList, nil
+	return LimitMessageErr
 }
 
-func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) {
-	if opts.Update.Message.Chat.Type == "private" {
-		opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "LimitMessage").
+		Str("funcName", "SomeMessageOnlyHandler").
+		Logger()
+
+	var handlerErr multe.MultiError
+
+	if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.Update.Message.Chat.ID,
 			Text:            "此功能被设计为仅在群组中可用",
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 		})
-	} else if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, opts.Update.Message.From.ID) {
-		thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
-		
-		if thisChat.AddTime == "" {
-			thisChat.AddTime = time.Now().Format(time.RFC3339)
-		}
-
-		if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) {
-
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Update.Message.Chat.ID,
-				Text:   "Limit Message 菜单",
-				ReplyMarkup: buildMessageAllKB(thisChat),
-			})
-			opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-				ChatID: opts.Update.Message.Chat.ID,
-				MessageID: opts.Update.Message.ID,
-			})
-			LimitMessageList[opts.Update.Message.Chat.ID] = thisChat
-			SaveLimitMessageList()
-		} else {
-			opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Update.Message.Chat.ID,
-				Text:   "启用此功能前，请先将机器人设为管理员\n如果还是提示本消息，请检查机器人是否有删除消息的权限",
-			})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+				Str("content", "limit message only allows in group").
+				Msg(errt.SendMessage)
+			handlerErr.Addf("failed to send `limit message only allows in group` message: %w", err)
 		}
 	} else {
-		botMessage, _ := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
-		})
-		time.Sleep(time.Second * 5)
-		opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-			ChatID: opts.Update.Message.Chat.ID,
-			MessageIDs: []int{
-				opts.Update.Message.ID,
-				botMessage.ID,
-			},
-		})
+		if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, opts.Update.Message.From.ID) {
+			thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
+
+			var isNeedInit bool = false
+
+			if thisChat.AddTime == "" {
+				isNeedInit = true
+				thisChat.AddTime = time.Now().Format(time.RFC3339)
+			}
+
+			if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text:   "Limit Message 菜单",
+					ReplyMarkup: buildMessageAllKB(thisChat),
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("content", "limit message main menu").
+						Msg(errt.SendMessage)
+					handlerErr.Addf("failed to send `limit message main menu` message: %w", err)
+				}
+				_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					MessageID: opts.Update.Message.ID,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("content", "limit message command").
+						Msg(errt.DeleteMessage)
+					handlerErr.Addf("failed to delete `limit message command` message: %w", err)
+				}
+				if isNeedInit {
+				LimitMessageList[opts.Update.Message.Chat.ID] = thisChat
+					err = SaveLimitMessageList(opts.Ctx)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Msg("Failed to save limit message list after adding new chat")
+						handlerErr.Addf("failed to save limit message list after adding new chat: %w", err)
+					}
+				}
+			} else {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text:   "启用此功能前，请先将机器人设为管理员\n如果还是提示本消息，请检查机器人是否有删除消息的权限",
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("content", "bot need be admin and delete message permission").
+						Msg(errt.SendMessage)
+					handlerErr.Addf("failed to send `bot need be admin and delete message permission` message: %w", err)
+				}
+			}
+		} else {
+			botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.Message.Chat.ID,
+				Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("content", "non-admin can not change limit message config").
+					Msg(errt.SendMessage)
+				handlerErr.Addf("failed to send `non-admin can not change limit message config` message: %w", err)
+			}
+			time.Sleep(time.Second * 5)
+			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+				ChatID: opts.Update.Message.Chat.ID,
+				MessageIDs: []int{
+					opts.Update.Message.ID,
+					botMessage.ID,
+				},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Str("content", "non-admin can not change limit message config").
+					Msg(errt.DeleteMessages)
+				handlerErr.Addf("failed to delete `non-admin can not change limit message config` messages: %w", err)
+			}
+		}
 	}
+
+	return handlerErr.Flat()
 }
 
-func DeleteNotAllowMessage(opts *handler_structs.SubHandlerParams) {
-	
+func DeleteNotAllowMessage(opts *handler_structs.SubHandlerParams) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "LimitMessage").
+		Str("funcName", "SomeMessageOnlyHandler").
+		Logger()
+
+	var handlerErr multe.MultiError
+
 	var deleteAction bool
+	var deleteHelp   string = "当前模式："
 	if utils.AnyContains(opts.Update.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
 		thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
-		if thisChat.IsEnable {
-			this :=          type_utils.GetMessageType(opts.Update.Message)
-			thisattribute := type_utils.GetMessageAttribute(opts.Update.Message)
+		if thisChat.IsEnable || thisChat.IsUnderTest {
+			thisMsgType := message_utils.GetMessageType(opts.Update.Message)
+			thisMsgAttr := message_utils.GetMessageAttribute(opts.Update.Message)
 
 			// 根据规则的黑白名单选择判断逻辑
 			if thisChat.IsLogicAnd {
-				deleteAction = CheckMessageType(this, thisChat.MessageType, thisChat.IsWhiteForType) && CheckMessageAttribute(thisattribute, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
+				deleteHelp += "同时触发两个规则才删除消息\n"
+				msgType, typeHelp := CheckMessageType(thisMsgType, thisChat.MessageType, thisChat.IsWhiteForType)
+				deleteHelp += "消息类型：" + typeHelp
+				if msgType {
+					msgAttr, attrHelp := CheckMessageAttribute(thisMsgAttr, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
+					deleteHelp += "消息属性：" + attrHelp
+					if msgType && msgAttr {
+						deleteAction = true
+					}
+				}
+
+				// deleteAction = CheckMessageType(thisMsgType, thisChat.MessageType, thisChat.IsWhiteForType) && CheckMessageAttribute(thisMsgAttr, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
 			} else {
-				deleteAction = CheckMessageType(this, thisChat.MessageType, thisChat.IsWhiteForType) || CheckMessageAttribute(thisattribute, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
+				deleteHelp += "触发任一规则就删除消息\n"
+				msgType, typeHelp := CheckMessageType(thisMsgType, thisChat.MessageType, thisChat.IsWhiteForType)
+				deleteHelp += "消息类型：" + typeHelp
+				if msgType {
+					deleteAction = true
+				} else {
+					msgAttr, attrHelp := CheckMessageAttribute(thisMsgAttr, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
+					deleteHelp += "消息属性：" + attrHelp
+					if msgAttr {
+						deleteAction = true
+					}
+				}
+
+				// deleteAction = CheckMessageType(thisMsgType, thisChat.MessageType, thisChat.IsWhiteForType) || CheckMessageAttribute(thisMsgAttr, thisChat.MessageAttribute, thisChat.IsWhiteForAttribute)
 			}
 
-			if deleteAction {
-				if thisChat.IsUnderTest {
-					opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID: opts.Update.Message.Chat.ID,
-						Text:   "测试模式：此消息将被设定的规则删除",
-						DisableNotification: true,
-						ReplyParameters: &models.ReplyParameters{
-							MessageID: opts.Update.Message.ID,
+			if thisChat.IsUnderTest {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.Update.Message.Chat.ID,
+					Text:   utils.TextForTrueOrFalse(deleteAction, "此消息会被设定的规则删除\n\n", "") +
+							deleteHelp +
+							utils.TextForTrueOrFalse(thisChat.IsEnable, "<blockquote>当前已启用，关闭测试模式将开始删除触发了规则的消息</blockquote>", "<blockquote>您可以继续进行测试，以便达到您想要的效果，之后请手动启用此功能\n</blockquote>"),
+					DisableNotification: true,
+					ParseMode: models.ParseModeHTML,
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+						{
+							Text: "打开配置菜单",
+							CallbackData: "limitmsg_back",
 						},
-						ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-							{
-								Text: "删除此提醒",
-								CallbackData: "limitmsg_done",
-							},
-							{
-								Text: "关闭测试模式",
-								CallbackData: "limitmsg_offtest",
-							},
-						}}},
-					})
+						{
+							Text: "关闭测试模式",
+							CallbackData: "limitmsg_offtest",
+						},
+					}}},
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Str("content", "test mode delete message notification").
+						Msg(errt.SendMessage)
+					handlerErr.Addf("failed to send `test mode delete message notification` message: %w", err)
+				}
+			} else if deleteAction {
+				_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+					ChatID:    opts.Update.Message.Chat.ID,
+					MessageID: opts.Update.Message.ID,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Str("messageType", string(thisMsgType.InString())).
+						Int("messageID", opts.Update.Message.ID).
+						Str("content", "message trigger limit message rules").
+						Bool("IsLogicAnd", thisChat.IsLogicAnd).
+						Msg(errt.DeleteMessage)
+					handlerErr.Addf("failed to delete `message trigger limit message rules` message: %w", err)
 				} else {
-					_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-						ChatID:    opts.Update.Message.Chat.ID,
-						MessageID: opts.Update.Message.ID,
-					})
-					if err != nil {
-						log.Printf("Failed to delete message: %v", err)
-					} else {
-						log.Printf("Deleted message from %d in %d: %s\n", opts.Update.Message.From.ID, opts.Update.Message.Chat.ID, opts.Update.Message.Text)
-					}
+					logger.Info().
+						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Dict(utils.GetUserDict(opts.Update.Message.From)).
+						Str("messageType", string(thisMsgType.InString())).
+						Int("messageID", opts.Update.Message.ID).
+						Bool("IsLogicAnd", thisChat.IsLogicAnd).
+						Msg("Deleted message trigger limit message rules")
 				}
 			}
 		}
 	}
+	return handlerErr.Flat()
 }
 
-func CheckMessageType(this, target type_utils.MessageType, IsWhiteList bool) bool {
+func CheckMessageType(this, target message_utils.MessageType, IsWhiteList bool) (bool, string) {
 	var delete bool = IsWhiteList
+	var deleteHelp string
 
 	v1 := reflect.ValueOf(this)
 	v2 := reflect.ValueOf(target)
@@ -224,33 +369,31 @@ func CheckMessageType(this, target type_utils.MessageType, IsWhiteList bool) boo
 		val2 := v2.Field(i).Interface()
 
 		if val1 == true && val1 == val2 {
+			deleteHelp += fmt.Sprintf("%s 消息类型 %s %s\n",
+				utils.TextForTrueOrFalse(IsWhiteList, "白名单", "黑名单"),
+				field.Name,
+				utils.TextForTrueOrFalse(IsWhiteList, "不删除", "删除"),
+			)
 			if IsWhiteList {
-				fmt.Printf("白名单 消息类型 %s 不删除\n", field.Name)
 				delete = false
 			} else {
-				fmt.Printf("黑名单 消息类型 %s 删除\n", field.Name)
 				delete = true
 			}
 		} else if val1 == true && val1 != val2 {
-			if IsWhiteList {
-				fmt.Printf("白名单 ")
-			} else {
-				fmt.Printf("黑名单 ")
-			}
-			fmt.Printf("未命中 消息类型 %s 遵循默认规则 ", field.Name)
-			if delete {
-				fmt.Println("删除")
-			} else {
-				fmt.Println("不删除")
-			}
+			deleteHelp += fmt.Sprintf("%s 未命中 消息类型 %s 遵循默认规则 %s\n",
+				utils.TextForTrueOrFalse(IsWhiteList, "白名单", "黑名单"),
+				field.Name,
+				utils.TextForTrueOrFalse(delete, "删除", "不删除"),
+			)
 		}
 	}
-	return delete
+	return delete, deleteHelp
 }
 
-func CheckMessageAttribute(this, target type_utils.MessageAttribute, IsWhiteList bool) bool {
+func CheckMessageAttribute(this, target message_utils.MessageAttribute, IsWhiteList bool) (bool, string) {
 	var delete bool = IsWhiteList
 	var noAttribute bool = true // 如果没有命中任何消息属性，提示内容，根据黑白名单判断是否删除
+	var deleteHelp string
 
 	v1 := reflect.ValueOf(this)
 	v2 := reflect.ValueOf(target)
@@ -264,94 +407,41 @@ func CheckMessageAttribute(this, target type_utils.MessageAttribute, IsWhiteList
 
 		if val1 == true && val1 == val2 {
 			noAttribute = false
+			deleteHelp += fmt.Sprintf("%s 消息属性 %s %s\n",
+				utils.TextForTrueOrFalse(IsWhiteList, "白名单", "黑名单"),
+				field.Name,
+				utils.TextForTrueOrFalse(IsWhiteList, "不删除", "删除"),
+			)
 			if IsWhiteList {
-				fmt.Printf("白名单 消息属性 %s 不删除\n", field.Name)
 				delete = false
 			} else {
-				fmt.Printf("黑名单 消息属性 %s 删除\n", field.Name)
 				delete = true
 			}
 		} else if val1 == true && val1 != val2 {
 			noAttribute = false
-			if IsWhiteList {
-				fmt.Printf("白名单 ")
-			} else {
-				fmt.Printf("黑名单 ")
-			}
-			fmt.Printf("未命中 消息属性 %s 遵循默认规则 ", field.Name)
-			if delete {
-				fmt.Println("删除")
-			} else {
-				fmt.Println("不删除")
-			}
+			deleteHelp += fmt.Sprintf("%s 未命中 消息属性 %s 遵循默认规则 %s\n",
+				utils.TextForTrueOrFalse(IsWhiteList, "白名单", "黑名单"),
+				field.Name,
+				utils.TextForTrueOrFalse(delete, "删除", "不删除"),
+			)
 		}
 	}
 	if noAttribute {
-		if IsWhiteList {
-			fmt.Printf("白名单 ")
-		} else {
-			fmt.Printf("黑名单 ")
-		}
-		fmt.Printf("未命中 消息属性 无 遵循默认规则 ")
-		if delete {
-			fmt.Println("删除")
-		} else {
-			fmt.Println("不删除")
-		}
+		deleteHelp += fmt.Sprintf("%s 未命中 消息属性 无 遵循默认规则 %s\n",
+			utils.TextForTrueOrFalse(IsWhiteList, "白名单", "黑名单"),
+			utils.TextForTrueOrFalse(delete, "删除", "不删除"),
+		)
 	}
-	return delete
+
+	return delete, deleteHelp
 }
 
 func buttonText(text string, opt, IsWhiteList bool) string {
 	if opt {
-		if IsWhiteList {
-			return "✅ " + text
-		} else {
-			return "❌ " + text
-		}
+		return utils.TextForTrueOrFalse(IsWhiteList, "✅ ", "❌ ") + text
 	}
 
 	return text
-}
-
-func buttonWhiteBlackRule(opt bool) string {
-	if opt {
-		return "白名单模式"
-	}
-
-	return "黑名单模式"
-}
-
-func buttonWhiteBlackDescription(opt bool) string {
-	if opt {
-		return "仅允许发送选中的项目，其他消息将被删除"
-	}
-
-	return "将删除选中的项目"
-}
-
-func buttonIsEnable(opt bool) string {
-	if opt {
-		return "当前已启用"
-	}
-
-	return "当前已关闭"
-}
-
-func buttonIsLogicAnd(opt bool) string {
-	if opt {
-		return "满足上方所有条件才删除消息"
-	}
-
-	return "满足其中一个条件就删除消息"
-}
-
-func buttonIsUnderTest(opt bool) string {
-	if opt {
-		return "点击关闭测试模式"
-	}
-
-	return "点此开启测试模式"
 }
 
 func buildMessageTypeKB(chat AllowMessages) models.ReplyMarkup {
@@ -365,7 +455,7 @@ func buildMessageTypeKB(chat AllowMessages) models.ReplyMarkup {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		value := v.Field(i)
-		if i % 2 == 0 && i != 0 {
+		if i % 3 == 0 && i != 0 {
 			msgTypeItems = append(msgTypeItems, msgTypeItemsTemp)
 			msgTypeItemsTemp = []models.InlineKeyboardButton{}
 		}
@@ -380,7 +470,7 @@ func buildMessageTypeKB(chat AllowMessages) models.ReplyMarkup {
 
 
 	msgTypeItems = append(msgTypeItems, []models.InlineKeyboardButton{{
-		Text: "返回上一级",
+		Text: "⬅️ 返回上一级",
 		CallbackData: "limitmsg_back",
 	}})
 
@@ -417,7 +507,7 @@ func buildMessageAttributeKB(chat AllowMessages) models.ReplyMarkup {
 
 
 	msgAttributeItems = append(msgAttributeItems, []models.InlineKeyboardButton{{
-		Text: "返回上一级",
+		Text: "⬅️ 返回上一级",
 		CallbackData: "limitmsg_back",
 	}})
 
@@ -437,7 +527,7 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 			CallbackData: "limitmsg_typekb",
 		},
 		{
-			Text: "<-- " + buttonWhiteBlackRule(chat.IsWhiteForType),
+			Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsWhiteForType, "白名单模式", "黑名单模式"),
 			CallbackData: "limitmsg_typekb_switchrule",
 		},
 	})
@@ -448,32 +538,32 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 			CallbackData: "limitmsg_attrkb",
 		},
 		{
-			Text: "<-- " + buttonWhiteBlackRule(chat.IsWhiteForAttribute),
+			Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsWhiteForAttribute, "白名单模式", "黑名单模式"),
 			CallbackData: "limitmsg_attrkb_switchrule",
 		},
 	})
 
 	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
 		{
-			Text: buttonIsLogicAnd(chat.IsLogicAnd),
+			Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsLogicAnd, "满足上方所有条件才删除消息", "满足其中一个条件就删除消息"),
 			CallbackData: "limitmsg_switchlogic",
 		},
 	})
 
 	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
 		{
-			Text: buttonIsUnderTest(chat.IsUnderTest),
+			Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsUnderTest, "测试模式已开启 ✅", "测试模式已关闭 ❌"),
 			CallbackData: "limitmsg_switchtest",
 		},
 	})
 
 	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
 		{
-			Text: "关闭菜单",
+			Text: "🚫 关闭菜单",
 			CallbackData: "limitmsg_done",
 		},
 		{
-			Text: buttonIsEnable(chat.IsEnable),
+			Text: "🔄 " + utils.TextForTrueOrFalse(chat.IsEnable, "当前已启用 ✅", "当前已关闭 ❌"),
 			CallbackData: "limitmsg_switchenable",
 		},
 	})
@@ -485,147 +575,251 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 	return kb
 }
 
-func LimitMessageCallback(opts *handler_structs.SubHandlerParams) {
+func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "LimitMessage").
+		Str("funcName", "LimitMessageCallback").
+		Logger()
+
+	var handlerErr multe.MultiError
+
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.CallbackQuery.Message.Message.Chat.ID, opts.Update.CallbackQuery.From.ID) {
-		opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,
 			Text: "您没有权限修改此配置",
 			ShowAlert: true,
 		})
-		return
-	}
-	thisChat := LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID]
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+				Str("content", "no permission to change limit message config").
+				Msg(errt.AnswerCallbackQuery)
+			handlerErr.Addf("failed to send `no permission to change limit message config` callback answer: %w", err)
+		}
+	} else {
+		thisChat := LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID]
 
-	var needRebuildGroupList bool
+		var needRebuildGroupList     bool
+		var needSavelimitMessageList bool
+		var needEditMainMenuMessage  bool
 
-	switch opts.Update.CallbackQuery.Data {
-	case "limitmsg_typekb":
-		// opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-		// 	CallbackQueryID: opts.Update.CallbackQuery.ID,
-		// 	Text: "已选择消息类型",
-		// })
-		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text: buttonWhiteBlackRule(thisChat.IsWhiteForType) + ": " + buttonWhiteBlackDescription(thisChat.IsWhiteForType),
-			ReplyMarkup: buildMessageTypeKB(thisChat),
-		})
-	case "limitmsg_typekb_switchrule":
-		thisChat.IsWhiteForType = !thisChat.IsWhiteForType
-		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			ReplyMarkup: buildMessageAllKB(thisChat),
-		})
-	case "limitmsg_attrkb":
-		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text: buttonWhiteBlackRule(thisChat.IsWhiteForAttribute) + ": " + buttonWhiteBlackDescription(thisChat.IsWhiteForAttribute) + "\n有一些项目可能无法使用",
-			ReplyMarkup: buildMessageAttributeKB(thisChat),
-		})
-	case "limitmsg_attrkb_switchrule":
-		thisChat.IsWhiteForAttribute = !thisChat.IsWhiteForAttribute
-		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			ReplyMarkup: buildMessageAllKB(thisChat),
-		})
-	case "limitmsg_back":
-		opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			Text:   "Limit Message 菜单",
-			ReplyMarkup: buildMessageAllKB(thisChat),
-		})
-	case "limitmsg_done":
-		opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-		})
-	case "limitmsg_switchenable":
-		thisChat.IsEnable = !thisChat.IsEnable
-		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			ReplyMarkup: buildMessageAllKB(thisChat),
-		})
-		needRebuildGroupList = true
-	case "limitmsg_switchlogic":
-		thisChat.IsLogicAnd = !thisChat.IsLogicAnd
-		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			ReplyMarkup: buildMessageAllKB(thisChat),
-		})
-	case "limitmsg_switchtest":
-		thisChat.IsUnderTest = !thisChat.IsUnderTest
-		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			ReplyMarkup: buildMessageAllKB(thisChat),
-		})
-		needRebuildGroupList = true
-	case "limitmsg_offtest":
-		thisChat.IsUnderTest = false
-		opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.Update.CallbackQuery.Message.Message.ID,
-			ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "删除此提醒",
-				CallbackData: "limitmsg_done",
-			}}}},
-		})
-		needRebuildGroupList = true
-	default:
-		if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_") {
-			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_")
-	
-			data := thisChat.MessageType
-			v := reflect.ValueOf(data) // 解除指针获取值
-			t := reflect.TypeOf(data)
-			newStruct := reflect.New(v.Type()).Elem()
-			newStruct.Set(v) // 复制原始值
-			for i := 0; i < newStruct.NumField(); i++ {
-				if t.Field(i).Name == callbackField {
-					newStruct.Field(i).SetBool(!newStruct.Field(i).Bool())
-				}
-			}
-			thisChat.MessageType = newStruct.Interface().(type_utils.MessageType)
-
-			opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+		switch opts.Update.CallbackQuery.Data {
+		case "limitmsg_typekb":
+			// opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			// 	CallbackQueryID: opts.Update.CallbackQuery.ID,
+			// 	Text: "已选择消息类型",
+			// })
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				Text: utils.TextForTrueOrFalse(thisChat.IsWhiteForType, "白名单模式", "黑名单模式") + ": " + utils.TextForTrueOrFalse(thisChat.IsWhiteForType, "仅允许发送选中的项目，其他消息将被删除", "将删除选中的项目"),
 				ReplyMarkup: buildMessageTypeKB(thisChat),
 			})
-		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_") {
-			callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_")
-			data := thisChat.MessageAttribute
-			v := reflect.ValueOf(data) // 解除指针获取值
-			t := reflect.TypeOf(data)
-			newStruct := reflect.New(v.Type()).Elem()
-			newStruct.Set(v) // 复制原始值
-			for i := 0; i < newStruct.NumField(); i++ {
-				if t.Field(i).Name == callbackField {
-					newStruct.Field(i).SetBool(!newStruct.Field(i).Bool())
-				}
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("content", "limit message type keyboard").
+					Msg(errt.EditMessageText)
+				handlerErr.Addf("failed to edit message to `limit message type keyboard`: %w", err)
 			}
-
-			thisChat.MessageAttribute = newStruct.Interface().(type_utils.MessageAttribute)
-
-			opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+		case "limitmsg_typekb_switchrule":
+			thisChat.IsWhiteForType = !thisChat.IsWhiteForType
+			needSavelimitMessageList = true
+			needEditMainMenuMessage = true
+		case "limitmsg_attrkb":
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				Text: utils.TextForTrueOrFalse(thisChat.IsWhiteForAttribute, "白名单模式", "黑名单模式") + ": " + utils.TextForTrueOrFalse(thisChat.IsWhiteForAttribute, "仅允许发送选中的项目，其他消息将被删除", "将删除选中的项目") + "\n有一些项目可能无法使用",
 				ReplyMarkup: buildMessageAttributeKB(thisChat),
 			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("content", "limit message attribute keyboard").
+					Msg(errt.EditMessageText)
+				handlerErr.Addf("failed to edit message to `limit message attribute keyboard`: %w", err)
+			}
+		case "limitmsg_attrkb_switchrule":
+			thisChat.IsWhiteForAttribute = !thisChat.IsWhiteForAttribute
+			needSavelimitMessageList = true
+			needEditMainMenuMessage = true
+		case "limitmsg_back":
+			needEditMainMenuMessage = true
+		case "limitmsg_done":
+			_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("content", "limit message main menu or test mode delete message notification").
+					Msg(errt.DeleteMessage)
+				handlerErr.Addf("failed to delete `limit message main menu or test mode delete message notification` message: %w", err)
+			}
+		case "limitmsg_switchenable":
+			thisChat.IsEnable = !thisChat.IsEnable
+			if thisChat.IsEnable { thisChat.IsUnderTest = false }
+			needRebuildGroupList = true
+			needSavelimitMessageList = true
+			needEditMainMenuMessage = true
+		case "limitmsg_switchlogic":
+			thisChat.IsLogicAnd = !thisChat.IsLogicAnd
+			needSavelimitMessageList = true
+			needEditMainMenuMessage = true
+		case "limitmsg_switchtest":
+			thisChat.IsUnderTest = !thisChat.IsUnderTest
+			needEditMainMenuMessage = true
+			needRebuildGroupList = true
+			needSavelimitMessageList = true
+		case "limitmsg_offtest":
+			thisChat.IsUnderTest = false
+			needSavelimitMessageList = true
+			needRebuildGroupList = true
+			_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "删除此提醒",
+					CallbackData: "limitmsg_done",
+				}}}},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("content", "test mode turned off notice").
+					Msg(errt.EditMessageText)
+				handlerErr.Addf("failed to edit message to `test mode turned off notice`: %w", err)
+			}
+		default:
+			if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_") {
+				needSavelimitMessageList = true
+				callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_")
+
+				data := thisChat.MessageType
+				v := reflect.ValueOf(data) // 解除指针获取值
+				t := reflect.TypeOf(data)
+				newStruct := reflect.New(v.Type()).Elem()
+				newStruct.Set(v) // 复制原始值
+				for i := 0; i < newStruct.NumField(); i++ {
+					if t.Field(i).Name == callbackField {
+						newStruct.Field(i).SetBool(!newStruct.Field(i).Bool())
+					}
+				}
+				thisChat.MessageType = newStruct.Interface().(message_utils.MessageType)
+
+				_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					ReplyMarkup: buildMessageTypeKB(thisChat),
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+						Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+						Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+						Str("content", "limit message type keyboard").
+						Msg(errt.EditMessageReplyMarkup)
+					handlerErr.Addf("failed to edit message reply markup to `limit message type keyboard`: %w", err)
+				}
+			} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_") {
+				needSavelimitMessageList = true
+				callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_")
+				data := thisChat.MessageAttribute
+				v := reflect.ValueOf(data) // 解除指针获取值
+				t := reflect.TypeOf(data)
+				newStruct := reflect.New(v.Type()).Elem()
+				newStruct.Set(v) // 复制原始值
+				for i := 0; i < newStruct.NumField(); i++ {
+					if t.Field(i).Name == callbackField {
+						newStruct.Field(i).SetBool(!newStruct.Field(i).Bool())
+					}
+				}
+
+				thisChat.MessageAttribute = newStruct.Interface().(message_utils.MessageAttribute)
+
+				_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					ReplyMarkup: buildMessageAttributeKB(thisChat),
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+						Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+						Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+						Str("content", "limit message attribute keyboard").
+						Msg(errt.EditMessageReplyMarkup)
+					handlerErr.Addf("failed to edit message reply markup to `limit message attribute keyboard`: %w", err)
+				}
+			}
+		}
+
+		if needSavelimitMessageList {
+			LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID] = thisChat
+			err := SaveLimitMessageList(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Msg("Failed to save limit message list")
+				handlerErr.Addf("failed to save limit message list: %w", err)
+				_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.Update.CallbackQuery.ID,
+					Text:            "保存修改失败，请重试或联系机器人管理员\n" + err.Error(),
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "failed to save limit message list").
+						Msg(errt.AnswerCallbackQuery)
+					handlerErr.Addf("failed to send `failed to save limit message list` callback answer: %w", err)
+				}
+			}
+		}
+
+		if needRebuildGroupList {
+			buildLimitGroupList()
+		}
+
+		if needEditMainMenuMessage {
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				Text:   "Limit Message 菜单",
+				ReplyMarkup: buildMessageAllKB(thisChat),
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Str("content", "limit message main menu").
+					Msg(errt.EditMessageText)
+				handlerErr.Addf("failed to edit message to `limit message main menu`: %w", err)
+			}
 		}
 	}
 
-	LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID] = thisChat
-	if needRebuildGroupList {
-		buildLimitGroupList()
-	}
-	SaveLimitMessageList()
+	return handlerErr.Flat()
 }
 
 func buildLimitGroupList() {

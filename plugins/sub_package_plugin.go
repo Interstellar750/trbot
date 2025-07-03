@@ -1,6 +1,8 @@
 package plugins
 
-import "trbot/plugins/saved_message"
+import (
+	"trbot/plugins/saved_message"
+)
 
 /*
 	This `sub_package_plugin.go` file allow you to import other packages.

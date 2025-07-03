@@ -4,7 +4,7 @@ import "trbot/utils/handler_structs"
 
 type SlashSymbolCommand struct {
 	SlashCommand string // 'command' in '/command'
-	Handler      func(*handler_structs.SubHandlerParams)
+	Handler      func(*handler_structs.SubHandlerParams) error
 }
 
 func AddSlashSymbolCommandPlugins(Plugins ...SlashSymbolCommand) int {
