@@ -522,16 +522,26 @@ func messageHandler(opts *handler_params.Update) {
 	// handler by chat ID
 	if plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] != nil {
 		for name, handler := range plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] {
-			messageLogger.Info().
+			slogger := messageLogger.With().
 				Str("handlerName", name).
 				Int64("chatID", handler.ChatID).
-				Msg("Hit handler by chat ID")
-			err := handler.UpdateHandler(opts)
+				Logger()
+
+			slogger.Info().Msg("Hit handler by chat ID")
+
+			var err error
+			switch {
+			case handler.MessageHandler != nil:
+				err = handler.MessageHandler(&messageParams)
+			case handler.UpdateHandler != nil:
+				err = handler.UpdateHandler(opts)
+			default:
+				slogger.Warn().Msg("Hit by chat ID handler, but this handler all function is nil, skip")
+				continue
+			}
 			if err != nil {
-				messageLogger.Error().
+				slogger.Error().
 					Err(err).
-					Str("handlerName", name).
-					Int64("chatID", handler.ChatID).
 					Msg("Error in handler by chat ID")
 			}
 		}
