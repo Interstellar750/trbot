@@ -6,9 +6,9 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/errt"
-	"trbot/utils/handler_structs"
-	"trbot/utils/multe"
+	"trbot/utils/err_template"
+	"trbot/utils/flat_err"
+	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"unicode/utf8"
@@ -18,20 +18,20 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
+func saveMessageHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "saveMessageHandler").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 	var needSave  bool = true
-	UserSavedMessage := SavedMessageSet[opts.Update.Message.From.ID]
+	UserSavedMessage := SavedMessageSet[opts.Message.From.ID]
 
 	messageParams := &bot.SendMessageParams{
-		ChatID:          opts.Update.Message.Chat.ID,
-		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+		ChatID:          opts.Message.Chat.ID,
+		ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 		ParseMode:       models.ParseModeHTML,
 		ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:                         "点击浏览您的收藏",
@@ -49,9 +49,9 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Update.Message.From)).
+				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "need agree privacy policy").
-				Msg(errt.SendMessage)
+				Msg(err_template.SendMessage)
 			handlerErr.Addf("failed to send `need agree privacy policy` message: %w", err)
 		}
 	} else {
@@ -67,28 +67,28 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "reach saved limit").
-					Msg(errt.SendMessage)
+					Msg(err_template.SendMessage)
 				handlerErr.Addf("failed to send `reach saved limit` message: %w", err)
 			}
 		} else {
 			// var pendingMessage string
-			if opts.Update.Message.ReplyToMessage == nil {
+			if opts.Message.ReplyToMessage == nil {
 				needSave = false
 				messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来添加"
 			} else {
 				var DescriptionText string
 				// 获取使用命令保存时设定的描述
-				if len(opts.Update.Message.Text) > len(opts.Fields[0])+1 {
-					DescriptionText = opts.Update.Message.Text[len(opts.Fields[0])+1:]
+				if len(opts.Message.Text) > len(opts.Fields[0])+1 {
+					DescriptionText = opts.Message.Text[len(opts.Fields[0])+1:]
 				}
 
 				var originInfo *OriginInfo
-				if opts.Update.Message.ReplyToMessage.ForwardOrigin != nil && opts.Update.Message.ReplyToMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
-					originInfo = getMessageOriginData(opts.Update.Message.ReplyToMessage.ForwardOrigin)
-				} else if opts.Update.Message.Chat.Type != models.ChatTypePrivate {
-					originInfo = getMessageLink(opts.Update.Message)
+				if opts.Message.ReplyToMessage.ForwardOrigin != nil && opts.Message.ReplyToMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
+					originInfo = getMessageOriginData(opts.Message.ReplyToMessage.ForwardOrigin)
+				} else if opts.Message.Chat.Type != models.ChatTypePrivate {
+					originInfo = getMessageLink(opts.Message)
 				}
 
 				var isSaved bool
@@ -96,12 +96,12 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 				var pendingEntitites []models.MessageEntity
 				var needChangeEntitites bool = true
 
-				if opts.Update.Message.ReplyToMessage.Caption != "" {
-					messageLength = utf8.RuneCountInString(opts.Update.Message.ReplyToMessage.Caption)
-					pendingEntitites = opts.Update.Message.ReplyToMessage.CaptionEntities
-				} else if opts.Update.Message.ReplyToMessage.Text != "" {
-					messageLength = utf8.RuneCountInString(opts.Update.Message.ReplyToMessage.Text)
-					pendingEntitites = opts.Update.Message.ReplyToMessage.Entities
+				if opts.Message.ReplyToMessage.Caption != "" {
+					messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Caption)
+					pendingEntitites = opts.Message.ReplyToMessage.CaptionEntities
+				} else if opts.Message.ReplyToMessage.Text != "" {
+					messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Text)
+					pendingEntitites = opts.Message.ReplyToMessage.Entities
 				} else {
 					needChangeEntitites = false
 				}
@@ -127,11 +127,11 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 					}
 				}
 
-				replyMsgType := message_utils.GetMessageType(opts.Update.Message.ReplyToMessage)
+				replyMsgType := message_utils.GetMessageType(opts.Message.ReplyToMessage)
 				switch {
 					case replyMsgType.OnlyText:
 						for i, n := range UserSavedMessage.Item.OnlyText {
-							if n.TitleAndMessageText == opts.Update.Message.ReplyToMessage.Text && reflect.DeepEqual(n.Entities, pendingEntitites) {
+							if n.TitleAndMessageText == opts.Message.ReplyToMessage.Text && reflect.DeepEqual(n.Entities, pendingEntitites) {
 								isSaved = true
 								messageParams.Text = "已保存过该文本\n"
 								if DescriptionText != "" {
@@ -146,7 +146,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.OnlyText[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -155,20 +155,20 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 						if !isSaved {
 							UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
 								ID:                  fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								TitleAndMessageText: opts.Update.Message.ReplyToMessage.Text,
+								TitleAndMessageText: opts.Message.ReplyToMessage.Text,
 								Description:         DescriptionText,
 								Entities:            pendingEntitites,
-								LinkPreviewOptions:  opts.Update.Message.ReplyToMessage.LinkPreviewOptions,
+								LinkPreviewOptions:  opts.Message.ReplyToMessage.LinkPreviewOptions,
 								OriginInfo:          originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存文本"
 						}
 					case replyMsgType.Audio:
 						for i, n := range UserSavedMessage.Item.Audio {
-							if n.FileID == opts.Update.Message.ReplyToMessage.Audio.FileID {
+							if n.FileID == opts.Message.ReplyToMessage.Audio.FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该音乐\n"
 								if DescriptionText != "" {
@@ -183,7 +183,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Audio[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -191,22 +191,22 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 						if !isSaved {
 							UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
 								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Update.Message.ReplyToMessage.Audio.FileID,
-								Title:           opts.Update.Message.ReplyToMessage.Audio.Title,
-								FileName:        opts.Update.Message.ReplyToMessage.Audio.FileName,
+								FileID:          opts.Message.ReplyToMessage.Audio.FileID,
+								Title:           opts.Message.ReplyToMessage.Audio.Title,
+								FileName:        opts.Message.ReplyToMessage.Audio.FileName,
 								Description:     DescriptionText,
-								Caption:         opts.Update.Message.ReplyToMessage.Caption,
+								Caption:         opts.Message.ReplyToMessage.Caption,
 								CaptionEntities: pendingEntitites,
 								OriginInfo:      originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存音乐"
 						}
 					case replyMsgType.Animation:
 						for i, n := range UserSavedMessage.Item.Mpeg4gif {
-							if n.FileID == opts.Update.Message.ReplyToMessage.Animation.FileID {
+							if n.FileID == opts.Message.ReplyToMessage.Animation.FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该 GIF\n"
 								if DescriptionText != "" {
@@ -221,7 +221,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Mpeg4gif[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -229,22 +229,22 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 						if !isSaved {
 							UserSavedMessage.Item.Mpeg4gif = append(UserSavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
 								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Update.Message.ReplyToMessage.Animation.FileID,
-								Title:           opts.Update.Message.ReplyToMessage.Caption,
+								FileID:          opts.Message.ReplyToMessage.Animation.FileID,
+								Title:           opts.Message.ReplyToMessage.Caption,
 								Description:     DescriptionText,
-								Caption:         opts.Update.Message.ReplyToMessage.Caption,
+								Caption:         opts.Message.ReplyToMessage.Caption,
 								CaptionEntities: pendingEntitites,
 								OriginInfo:      originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存 GIF"
 						}
 					case replyMsgType.Document:
-						if opts.Update.Message.ReplyToMessage.Document.MimeType == "image/gif" {
+						if opts.Message.ReplyToMessage.Document.MimeType == "image/gif" {
 							for i, n := range UserSavedMessage.Item.Gif {
-								if n.FileID == opts.Update.Message.ReplyToMessage.Document.FileID {
+								if n.FileID == opts.Message.ReplyToMessage.Document.FileID {
 									isSaved = true
 									messageParams.Text = "已保存过该 GIF (文件)\n"
 									if DescriptionText != "" {
@@ -259,7 +259,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 										}
 										n.Description = DescriptionText
 										UserSavedMessage.Item.Gif[i] = n
-										SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+										SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 									}
 									break
 								}
@@ -267,20 +267,20 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 							if !isSaved {
 								UserSavedMessage.Item.Gif = append(UserSavedMessage.Item.Gif, SavedMessageTypeCachedGif{
 									ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-									FileID:          opts.Update.Message.ReplyToMessage.Document.FileID,
+									FileID:          opts.Message.ReplyToMessage.Document.FileID,
 									Description:     DescriptionText,
-									Caption:         opts.Update.Message.ReplyToMessage.Caption,
+									Caption:         opts.Message.ReplyToMessage.Caption,
 									CaptionEntities: pendingEntitites,
 									OriginInfo:      originInfo,
 								})
 								UserSavedMessage.Count++
 								UserSavedMessage.SavedTimes++
-								SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+								SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								messageParams.Text = "已保存 GIF (文件)"
 							}
 						} else {
 							for i, n := range UserSavedMessage.Item.Document {
-								if n.FileID == opts.Update.Message.ReplyToMessage.Document.FileID {
+								if n.FileID == opts.Message.ReplyToMessage.Document.FileID {
 									isSaved = true
 									messageParams.Text = "已保存过该文件\n"
 									if DescriptionText != "" {
@@ -295,7 +295,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 										}
 										n.Description = DescriptionText
 										UserSavedMessage.Item.Document[i] = n
-										SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+										SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 									}
 									break
 								}
@@ -303,22 +303,22 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 							if !isSaved {
 								UserSavedMessage.Item.Document = append(UserSavedMessage.Item.Document, SavedMessageTypeCachedDocument{
 									ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-									FileID:          opts.Update.Message.ReplyToMessage.Document.FileID,
-									Title:           opts.Update.Message.ReplyToMessage.Document.FileName,
+									FileID:          opts.Message.ReplyToMessage.Document.FileID,
+									Title:           opts.Message.ReplyToMessage.Document.FileName,
 									Description:     DescriptionText,
-									Caption:         opts.Update.Message.ReplyToMessage.Caption,
+									Caption:         opts.Message.ReplyToMessage.Caption,
 									CaptionEntities: pendingEntitites,
 									OriginInfo:      originInfo,
 								})
 								UserSavedMessage.Count++
 								UserSavedMessage.SavedTimes++
-								SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+								SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								messageParams.Text = "已保存文件"
 							}
 						}
 					case replyMsgType.Photo:
 						for i, n := range UserSavedMessage.Item.Photo {
-							if n.FileID == opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID {
+							if n.FileID == opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该图片\n"
 								if DescriptionText != "" {
@@ -333,7 +333,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Photo[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -341,22 +341,22 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 						if !isSaved {
 							UserSavedMessage.Item.Photo = append(UserSavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
 								ID:                fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:            opts.Update.Message.ReplyToMessage.Photo[len(opts.Update.Message.ReplyToMessage.Photo)-1].FileID,
-								// Title:             opts.Update.Message.ReplyToMessage.Caption,
+								FileID:            opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID,
+								// Title:             opts.Message.ReplyToMessage.Caption,
 								Description:       DescriptionText,
-								Caption:           opts.Update.Message.ReplyToMessage.Caption,
+								Caption:           opts.Message.ReplyToMessage.Caption,
 								CaptionEntities:   pendingEntitites,
-								CaptionAboveMedia: opts.Update.Message.ReplyToMessage.ShowCaptionAboveMedia,
+								CaptionAboveMedia: opts.Message.ReplyToMessage.ShowCaptionAboveMedia,
 								OriginInfo:        originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存图片"
 						}
 					case replyMsgType.Sticker:
 						for i, n := range UserSavedMessage.Item.Sticker {
-							if n.FileID == opts.Update.Message.ReplyToMessage.Sticker.FileID {
+							if n.FileID == opts.Message.ReplyToMessage.Sticker.FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该贴纸\n"
 								if DescriptionText != "" {
@@ -371,59 +371,59 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Sticker[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
 						}
 
 						if !isSaved {
-							if opts.Update.Message.ReplyToMessage.Sticker.SetName != "" {
-								stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{Name: opts.Update.Message.ReplyToMessage.Sticker.SetName})
+							if opts.Message.ReplyToMessage.Sticker.SetName != "" {
+								stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{Name: opts.Message.ReplyToMessage.Sticker.SetName})
 								if err != nil {
 									logger.Warn().
 										Err(err).
-										Str("setName", opts.Update.Message.ReplyToMessage.Sticker.SetName).
+										Str("setName", opts.Message.ReplyToMessage.Sticker.SetName).
 										Msg("Failed to get sticker set info, save it as a custom sticker")
 								}
 								if stickerSet != nil {
 									// 属于一个贴纸包中的贴纸
 									UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
 										ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-										FileID:      opts.Update.Message.ReplyToMessage.Sticker.FileID,
+										FileID:      opts.Message.ReplyToMessage.Sticker.FileID,
 										SetName:     stickerSet.Name,
 										SetTitle:    stickerSet.Title,
 										Description: DescriptionText,
-										Emoji:       opts.Update.Message.ReplyToMessage.Sticker.Emoji,
+										Emoji:       opts.Message.ReplyToMessage.Sticker.Emoji,
 										OriginInfo:  originInfo,
 									})
 								} else {
 									// 有贴纸信息，但是对应的贴纸包已经删掉了
 									UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
 										ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-										FileID:      opts.Update.Message.ReplyToMessage.Sticker.FileID,
+										FileID:      opts.Message.ReplyToMessage.Sticker.FileID,
 										Description: DescriptionText,
-										Emoji:       opts.Update.Message.ReplyToMessage.Sticker.Emoji,
+										Emoji:       opts.Message.ReplyToMessage.Sticker.Emoji,
 										OriginInfo:  originInfo,
 									})
 								}
 							} else {
 								UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
 									ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-									FileID:      opts.Update.Message.ReplyToMessage.Sticker.FileID,
+									FileID:      opts.Message.ReplyToMessage.Sticker.FileID,
 									Description: DescriptionText,
-									Emoji:       opts.Update.Message.ReplyToMessage.Sticker.Emoji,
+									Emoji:       opts.Message.ReplyToMessage.Sticker.Emoji,
 									OriginInfo:  originInfo,
 								})
 							}
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存贴纸"
 						}
 					case replyMsgType.Video:
 						for i, n := range UserSavedMessage.Item.Video {
-							if n.FileID == opts.Update.Message.ReplyToMessage.Video.FileID {
+							if n.FileID == opts.Message.ReplyToMessage.Video.FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该视频\n"
 								if DescriptionText != "" {
@@ -438,33 +438,33 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Video[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
 						}
 						if !isSaved {
-							videoTitle := opts.Update.Message.ReplyToMessage.Video.FileName
+							videoTitle := opts.Message.ReplyToMessage.Video.FileName
 							if videoTitle == "" {
 								videoTitle = "video.mp4"
 							}
 							UserSavedMessage.Item.Video = append(UserSavedMessage.Item.Video, SavedMessageTypeCachedVideo{
 								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Update.Message.ReplyToMessage.Video.FileID,
+								FileID:          opts.Message.ReplyToMessage.Video.FileID,
 								Title:           videoTitle,
 								Description:     DescriptionText,
-								Caption:         opts.Update.Message.ReplyToMessage.Caption,
+								Caption:         opts.Message.ReplyToMessage.Caption,
 								CaptionEntities: pendingEntitites,
 								OriginInfo:      originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存视频"
 						}
 					case replyMsgType.VideoNote:
 						for i, n := range UserSavedMessage.Item.VideoNote {
-							if n.FileID == opts.Update.Message.ReplyToMessage.VideoNote.FileID {
+							if n.FileID == opts.Message.ReplyToMessage.VideoNote.FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该圆形视频\n"
 								if DescriptionText != "" {
@@ -479,7 +479,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.VideoNote[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -487,19 +487,19 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 						if !isSaved {
 							UserSavedMessage.Item.VideoNote = append(UserSavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
 								ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:      opts.Update.Message.ReplyToMessage.VideoNote.FileID,
-								Title:       opts.Update.Message.ReplyToMessage.VideoNote.FileUniqueID,
+								FileID:      opts.Message.ReplyToMessage.VideoNote.FileID,
+								Title:       opts.Message.ReplyToMessage.VideoNote.FileUniqueID,
 								Description: DescriptionText,
 								OriginInfo:  originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存圆形视频"
 						}
 					case replyMsgType.Voice:
 						for i, n := range UserSavedMessage.Item.Voice {
-							if n.FileID == opts.Update.Message.ReplyToMessage.Voice.FileID {
+							if n.FileID == opts.Message.ReplyToMessage.Voice.FileID {
 								isSaved = true
 								messageParams.Text = "已保存过该语音\n"
 								if DescriptionText != "" {
@@ -514,7 +514,7 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Voice[i] = n
-									SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -522,20 +522,20 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 						if !isSaved {
 							voiceTitle := DescriptionText
 							if voiceTitle == "" {
-								voiceTitle = opts.Update.Message.ReplyToMessage.Voice.MimeType
+								voiceTitle = opts.Message.ReplyToMessage.Voice.MimeType
 							}
 							UserSavedMessage.Item.Voice = append(UserSavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
 								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Update.Message.ReplyToMessage.Voice.FileID,
+								FileID:          opts.Message.ReplyToMessage.Voice.FileID,
 								Title:           voiceTitle,
 								Description:     DescriptionText,
-								Caption:         opts.Update.Message.ReplyToMessage.Caption,
+								Caption:         opts.Message.ReplyToMessage.Caption,
 								CaptionEntities: pendingEntitites,
 								OriginInfo:      originInfo,
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Update.Message.From.ID] = UserSavedMessage
+							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存语音"
 						}
 					default:
@@ -547,23 +547,23 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Dict(utils.GetUserDict(opts.Update.Message.From)).
+							Dict(utils.GetUserDict(opts.Message.From)).
 							Str("saveMessageType", string(replyMsgType.InString())).
 							Msg("Failed to save savedmessage list after save a item")
 						handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
 
 						_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-							ChatID: opts.Update.Message.Chat.ID,
+							ChatID: opts.Message.Chat.ID,
 							Text:   fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
 							ParseMode: models.ParseModeHTML,
 						})
 						if err != nil {
 							logger.Error().
 								Err(err).
-								Dict(utils.GetUserDict(opts.Update.Message.From)).
+								Dict(utils.GetUserDict(opts.Message.From)).
 								Str("saveMessageType", string(replyMsgType.InString())).
 								Str("content", "failed to save savedmessage list notice").
-								Msg(errt.SendMessage)
+								Msg(err_template.SendMessage)
 							handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
 						}
 
@@ -576,9 +576,9 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(opts.Update.Message.From)).
+					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "saved message response").
-					Msg(errt.SendMessage)
+					Msg(err_template.SendMessage)
 				handlerErr.Addf("failed to send `saved message response` message: %w", err)
 			}
 		}
@@ -619,14 +619,14 @@ func saveMessageHandler(opts *handler_structs.SubHandlerParams) error {
 
 // }
 
-func InlineShowSavedMessageHandler(opts *handler_structs.SubHandlerParams) error {
+func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "InlineShowSavedMessageHandler").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 	var InlineSavedMessageResultList []models.InlineQueryResult
 	var button *models.InlineQueryResultsButton
 
@@ -717,7 +717,7 @@ func InlineShowSavedMessageHandler(opts *handler_structs.SubHandlerParams) error
 	}
 
 	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-		InlineQueryID: opts.Update.InlineQuery.ID,
+		InlineQueryID: opts.InlineQuery.ID,
 		Results:       utils.InlineResultPagination(opts.Fields, InlineSavedMessageResultList),
 		IsPersonal:    true,
 		Button:        button,
@@ -725,27 +725,27 @@ func InlineShowSavedMessageHandler(opts *handler_structs.SubHandlerParams) error
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-			Str("query", opts.Update.InlineQuery.Query).
+			Dict(utils.GetUserDict(opts.InlineQuery.From)).
+			Str("query", opts.InlineQuery.Query).
 			Str("content", "saved message result").
-			Msg(errt.AnswerInlineQuery)
+			Msg(err_template.AnswerInlineQuery)
 		handlerErr.Addf("failed to send `saved message result` inline answer: %w", err)
 	}
 
 	return handlerErr.Flat()
 }
 
-func SendPrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
+func SendPrivacyPolicy(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "SendPrivacyPolicy").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID: opts.Update.Message.Chat.ID,
+		ChatID: opts.Message.Chat.ID,
 		Text: "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
 			"<blockquote expandable>本机器人提供收藏信息功能，您可以在回复一条信息时输入 /save 来收藏它，之后在 inline 模式下随时浏览您的收藏内容并发送\n\n" +
 
@@ -765,7 +765,7 @@ func SendPrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
 
 			"\n\n" +
 			"内容待补充...",
-		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+		ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "点击同意以上内容",
 			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy_agree", consts.BotMe.Username),
@@ -775,23 +775,23 @@ func SendPrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(opts.Update.Message.From)).
+			Dict(utils.GetUserDict(opts.Message.From)).
 			Str("content", "saved message privacy policy").
-			Msg(errt.SendMessage)
+			Msg(err_template.SendMessage)
 		handlerErr.Addf("failed to send `saved message privacy policy` message: %w", err)
 	}
 
 	return handlerErr.Flat()
 }
 
-func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
+func AgreePrivacyPolicy(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "AgreePrivacyPolicy").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
 	var UserSavedMessage SavedMessage
 	UserSavedMessage.AgreePrivacyPolicy = true
@@ -801,28 +801,28 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(opts.Update.Message.From)).
+			Dict(utils.GetUserDict(opts.Message.From)).
 			Msg("failed to save savemessage list after user agree privacy policy")
 		handlerErr.Addf("failed to save savemessage list after user agree privacy policy: %w", err)
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Update.Message.Chat.ID,
+			ChatID:          opts.Message.Chat.ID,
 			Text:   fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Update.Message.From)).
+				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "failed to save savedmessage list notice").
-				Msg(errt.SendMessage)
+				Msg(err_template.SendMessage)
 			handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
 		}
 	} else {
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Update.Message.Chat.ID,
+			ChatID:          opts.Message.Chat.ID,
 			Text:            "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
-			ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
+			ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 			ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 				Text:                         "点击浏览您的收藏",
 				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
@@ -831,8 +831,9 @@ func AgreePrivacyPolicy(opts *handler_structs.SubHandlerParams) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Update.Message.From)).
-				Msg("Failed to send `saved message function enabled` message")
+				Dict(utils.GetUserDict(opts.Message.From)).
+				Str("content", "saved message function enabled").
+				Msg(err_template.SendMessage)
 			handlerErr.Addf("failed to send `saved message function enabled` message: %w", err)
 		}
 	}
@@ -851,23 +852,23 @@ func Init() {
 		Saver:  SaveSavedMessageList,
 		Loader: ReadSavedMessageList,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
-		SlashCommand: "save",
-		Handler:      saveMessageHandler,
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+		SlashCommand:   "save",
+		MessageHandler: saveMessageHandler,
 	})
 	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
-		Command:     "saved",
-		Handler:     InlineShowSavedMessageHandler,
-		Description: "显示自己保存的消息",
+		Command:       "saved",
+		InlineHandler: InlineShowSavedMessageHandler,
+		Description:   "显示自己保存的消息",
 	})
 	plugin_utils.AddSlashStartCommandPlugins([]plugin_utils.SlashStartHandler{
 		{
 			Argument: "savedmessage_privacy_policy",
-			Handler:  SendPrivacyPolicy,
+			MessageHandler:  SendPrivacyPolicy,
 		},
 		{
 			Argument: "savedmessage_privacy_policy_agree",
-			Handler:  AgreePrivacyPolicy,
+			MessageHandler:  AgreePrivacyPolicy,
 		},
 		// {
 		// 	Argument: "savedmessage_channel_privacy_policy",
@@ -879,9 +880,9 @@ func Init() {
 		// },
 	}...)
 	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
-		Prefix:   "via-inline",
-		Argument: "savedmessage-help",
-		Handler:  saveMessageHandler,
+		Prefix:         "via-inline",
+		Argument:       "savedmessage-help",
+		MessageHandler: saveMessageHandler,
 	})
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "收藏消息",

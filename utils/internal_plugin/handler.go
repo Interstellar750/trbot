@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"trbot/utils"
-	"trbot/utils/handler_structs"
+	"trbot/utils/err_template"
+	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
@@ -12,54 +13,78 @@ import (
 	"github.com/rs/zerolog"
 )
 
-
-func startHandler(params *handler_structs.SubHandlerParams) error {
+func startHandler(params *handler_params.Update) error {
 	defer utils.PanicCatcher(params.Ctx, "startHandler")
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "startHandler").
+		Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+		Dict(utils.GetUserDict(params.Update.Message.From)).
+		Str("text",    params.Update.Message.Text).
 		Logger()
 
-	if len(params.Fields) > 1 {
-		for _, n := range plugin_utils.AllPlugins.SlashStart.WithPrefixHandler {
-			if strings.HasPrefix(params.Fields[1], n.Prefix) {
-				inlineArgument := strings.Split(params.Fields[1], "_")
-				if inlineArgument[1] == n.Argument {
-					if n.Handler == nil {
-						logger.Debug().
-							Dict(utils.GetUserDict(params.Update.Message.From)).
-							Str("handlerPrefix", n.Prefix).
-							Str("handlerArgument", n.Argument).
-							Str("handlerName", n.Name).
-							Str("fullCommand", params.Update.Message.Text).
-							Msg("tigger /start command handler by prefix, but this handler function is nil, skip")
+	var messageParams = handler_params.Message{
+		Ctx:      params.Ctx,
+		Thebot:   params.Thebot,
+		Message:  params.Update.Message,
+		ChatInfo: params.ChatInfo,
+		Fields:   strings.Fields(params.Update.Message.Text),
+	}
+
+	if len(messageParams.Fields) > 1 {
+		for _, plugin := range plugin_utils.AllPlugins.SlashStart.WithPrefixHandler {
+			if strings.HasPrefix(messageParams.Fields[1], plugin.Prefix) {
+				inlineArgument := strings.Split(messageParams.Fields[1], "_")
+				if inlineArgument[1] == plugin.Argument {
+					slogger := logger.With().
+						Str("handlerPrefix", plugin.Prefix).
+						Str("handlerArgument", plugin.Argument).
+						Str("handlerName", plugin.Name).
+						Logger()
+
+					slogger.Info().Msg("Hit /start command handler by prefix")
+
+					var err error
+					switch {
+					case plugin.MessageHandler != nil:
+						err = plugin.MessageHandler(&messageParams)
+					case plugin.UpdateHandler != nil:
+						err = plugin.UpdateHandler(params)
+					default:
+						slogger.Warn().Msg("Hit /start command handler by prefix, but this handler all function is nil, skip")
 						continue
 					}
-					err := n.Handler(params)
 					if err != nil {
-						logger.Error().
+						slogger.Error().
 							Err(err).
-							Dict(utils.GetUserDict(params.Update.Message.From)).
-							Str("handlerPrefix", n.Prefix).
-							Str("handlerArgument", n.Argument).
-							Str("handlerName", n.Name).
-							Str("fullCommand", params.Update.Message.Text).
-							Msg("Error in /start command handler by prefix tigger")
+							Msg("Error in /start command handler by prefix trigger")
 					}
 					return err
 				}
 			}
 		}
-		for _, n := range plugin_utils.AllPlugins.SlashStart.Handler {
-			if params.Fields[1] == n.Argument {
-				err := n.Handler(params)
+		for _, plugin := range plugin_utils.AllPlugins.SlashStart.Handler {
+			if messageParams.Fields[1] == plugin.Argument {
+				slogger := logger.With().
+					Str("handlerArgument", plugin.Argument).
+					Str("handlerName", plugin.Name).
+					Logger()
+
+				slogger.Info().Msg("Hit /start command handler by argument")
+
+				var err error
+				switch {
+				case plugin.MessageHandler != nil:
+					err = plugin.MessageHandler(&messageParams)
+				case plugin.UpdateHandler != nil:
+					err = plugin.UpdateHandler(params)
+				default:
+					slogger.Warn().Msg("Hit /start command handler by argument, but this handler all function is nil, skip")
+					continue
+				}
 				if err != nil {
-					logger.Error().
+					slogger.Error().
 						Err(err).
-						Dict(utils.GetUserDict(params.Update.Message.From)).
-						Str("handlerArgument", n.Argument).
-						Str("handlerName", n.Name).
-						Str("fullCommand", params.Update.Message.Text).
 						Msg("Error in /start command handler by argument")
 				}
 				return err
@@ -81,15 +106,14 @@ func startHandler(params *handler_structs.SubHandlerParams) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetChatDict(&params.Update.Message.Chat)).
-			Dict(utils.GetUserDict(params.Update.Message.From)).
-			Msg("Failed to send `bot welcome` message")
+			Str("content", "bot welcome").
+			Msg(err_template.SendMessage)
 	}
 
 	return err
 }
 
-func helpHandler(params *handler_structs.SubHandlerParams) error {
+func helpHandler(params *handler_params.Message) error {
 	defer utils.PanicCatcher(params.Ctx, "helpHandler")
 	logger := zerolog.Ctx(params.Ctx).
 		With().
@@ -97,44 +121,46 @@ func helpHandler(params *handler_structs.SubHandlerParams) error {
 		Logger()
 
 	_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
-		ChatID:             params.Update.Message.Chat.ID,
+		ChatID:             params.Message.Chat.ID,
 		Text:               fmt.Sprintf("当前 bot 中有 %d 个帮助文档", len(plugin_utils.AllPlugins.HandlerHelp)),
 		ParseMode:          models.ParseModeMarkdownV1,
-		ReplyParameters:    &models.ReplyParameters{MessageID: params.Update.Message.ID},
+		ReplyParameters:    &models.ReplyParameters{MessageID: params.Message.ID},
 		LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 		ReplyMarkup:        plugin_utils.BuildHandlerHelpKeyboard(),
 	})
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetChatDict(&params.Update.Message.Chat)).
-			Dict(utils.GetUserDict(params.Update.Message.From)).
-			Msg("Failed to send `bot help keyboard` message")
+			Dict(utils.GetChatDict(&params.Message.Chat)).
+			Dict(utils.GetUserDict(params.Message.From)).
+			Str("content", "bot help keyboard").
+			Msg(err_template.SendMessage)
 	}
 	return err
 }
 
-func helpCallbackHandler(params *handler_structs.SubHandlerParams) error {
+func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "helpCallbackHandler").
+		Dict(utils.GetUserDict(&params.CallbackQuery.From)).
+		Dict(utils.GetChatDict(&params.CallbackQuery.Message.Message.Chat)).
 		Logger()
-	
-	if params.Update.CallbackQuery.Data == "help-close" {
+
+	if params.CallbackQuery.Data == "help-close" {
 		_, err := params.Thebot.DeleteMessage(params.Ctx, &bot.DeleteMessageParams{
-			ChatID:    params.Update.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: params.Update.CallbackQuery.Message.Message.ID,
+			ChatID:    params.CallbackQuery.Message.Message.Chat.ID,
+			MessageID: params.CallbackQuery.Message.Message.ID,
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Dict(utils.GetChatDict(&params.Update.CallbackQuery.Message.Message.Chat)).
-			Msg("Failed to delete `bot help keyboard` message")
+				Str("content", "bot help keyboard").
+				Msg(err_template.DeleteMessage)
 		}
 		return err
-	} else if strings.HasPrefix(params.Update.CallbackQuery.Data, "help-handler_") {
-		handlerName := strings.TrimPrefix(params.Update.CallbackQuery.Data, "help-handler_")
+	} else if strings.HasPrefix(params.CallbackQuery.Data, "help-handler_") {
+		handlerName := strings.TrimPrefix(params.CallbackQuery.Data, "help-handler_")
 		for _, handler := range plugin_utils.AllPlugins.HandlerHelp {
 			if handler.Name == handlerName {
 				var replyMarkup models.ReplyMarkup
@@ -156,8 +182,8 @@ func helpCallbackHandler(params *handler_structs.SubHandlerParams) error {
 				}
 
 				_, err := params.Thebot.EditMessageText(params.Ctx, &bot.EditMessageTextParams{
-					ChatID:      params.Update.CallbackQuery.Message.Message.Chat.ID,
-					MessageID:   params.Update.CallbackQuery.Message.Message.ID,
+					ChatID:      params.CallbackQuery.Message.Message.Chat.ID,
+					MessageID:   params.CallbackQuery.Message.Message.ID,
 					Text:        handler.Description,
 					ParseMode:   handler.ParseMode,
 					ReplyMarkup: replyMarkup,
@@ -165,39 +191,37 @@ func helpCallbackHandler(params *handler_structs.SubHandlerParams) error {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetChatDict(&params.Update.CallbackQuery.Message.Message.Chat)).
-						Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
 						Str("pluginName", handler.Name).
-						Msg("Edit messag to `plugin help message` failed")
+						Str("content", "plugin help message").
+						Msg(err_template.EditMessageText)
 				}
 				return err
 			}
 		}
 		_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: params.Update.CallbackQuery.ID,
+			CallbackQueryID: params.CallbackQuery.ID,
 			Text:            "您请求查看的帮助页面不存在，可能是机器人管理员已经移除了这个插件",
 			ShowAlert:       true,
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-				Msg("Failed to send `help page is not exist` callback answer")
+				Str("content", "help page is not exist").
+				Msg(err_template.AnswerCallbackQuery)
 		}
 	}
-	
+
 	_, err := params.Thebot.EditMessageText(params.Ctx, &bot.EditMessageTextParams{
-		ChatID:      params.Update.CallbackQuery.Message.Message.Chat.ID,
-		MessageID:   params.Update.CallbackQuery.Message.Message.ID,
+		ChatID:      params.CallbackQuery.Message.Message.Chat.ID,
+		MessageID:   params.CallbackQuery.Message.Message.ID,
 		Text:        fmt.Sprintf("当前 bot 中有 %d 个帮助文档", len(plugin_utils.AllPlugins.HandlerHelp)),
 		ReplyMarkup: plugin_utils.BuildHandlerHelpKeyboard(),
 	})
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetChatDict(&params.Update.CallbackQuery.Message.Message.Chat)).
-			Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-			Msg("Edit messag to `bot help keyboard` failed")
+			Str("content", "bot help keyboard").
+			Msg(err_template.EditMessageText)
 	}
 	return err
 }

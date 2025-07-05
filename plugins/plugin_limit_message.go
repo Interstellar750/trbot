@@ -11,9 +11,9 @@ import (
 
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/errt"
-	"trbot/utils/handler_structs"
-	"trbot/utils/multe"
+	"trbot/utils/err_template"
+	"trbot/utils/flat_err"
+	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
@@ -42,7 +42,7 @@ type AllowMessages struct {
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
-	    Name: "Limit Message",
+		Name: "Limit Message",
 		Func: ReadLimitMessageList,
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
@@ -50,15 +50,14 @@ func init() {
 		Saver: SaveLimitMessageList,
 		Loader: ReadLimitMessageList,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
-		SlashCommand: "limitmessage",
-		Handler: SomeMessageOnlyHandler,
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+		SlashCommand:   "limitmessage",
+		MessageHandler: SomeMessageOnlyHandler,
 	})
 	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
-		CommandChar: "limitmsg_",
-		Handler: LimitMessageCallback,
+		CommandChar:   "limitmsg_",
+		CallbackQueryHandler: LimitMessageCallback,
 	})
-
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "限制群组消息",
 		Description: "此功能需要 bot 为群组管理员并拥有删除消息的权限\n可以按照消息类型和消息属性来自动删除不允许的消息，支持自定逻辑和黑白名单，作为管理员在群组中使用 /limitmessage 命令来查看菜单",
@@ -128,32 +127,32 @@ func SaveLimitMessageList(ctx context.Context) error {
 	return LimitMessageErr
 }
 
-func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) error {
+func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
 		Str("funcName", "SomeMessageOnlyHandler").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
-	if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+	if opts.Message.Chat.Type == models.ChatTypePrivate {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Update.Message.Chat.ID,
+			ChatID:          opts.Message.Chat.ID,
 			Text:            "此功能被设计为仅在群组中可用",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+				Dict(utils.GetChatDict(&opts.Message.Chat)).
 				Str("content", "limit message only allows in group").
-				Msg(errt.SendMessage)
+				Msg(err_template.SendMessage)
 			handlerErr.Addf("failed to send `limit message only allows in group` message: %w", err)
 		}
 	} else {
-		if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, opts.Update.Message.From.ID) {
-			thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
+		if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, opts.Message.From.ID) {
+			thisChat := LimitMessageList[opts.Message.Chat.ID]
 
 			var isNeedInit bool = false
 
@@ -162,34 +161,34 @@ func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) error {
 				thisChat.AddTime = time.Now().Format(time.RFC3339)
 			}
 
-			if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Update.Message.Chat.ID, consts.BotMe.ID) {
+			if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, consts.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, consts.BotMe.ID) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
+					ChatID: opts.Message.Chat.ID,
 					Text:   "Limit Message 菜单",
 					ReplyMarkup: buildMessageAllKB(thisChat),
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "limit message main menu").
-						Msg(errt.SendMessage)
+						Msg(err_template.SendMessage)
 					handlerErr.Addf("failed to send `limit message main menu` message: %w", err)
 				}
 				_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
-					MessageID: opts.Update.Message.ID,
+					ChatID: opts.Message.Chat.ID,
+					MessageID: opts.Message.ID,
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "limit message command").
-						Msg(errt.DeleteMessage)
+						Msg(err_template.DeleteMessage)
 					handlerErr.Addf("failed to delete `limit message command` message: %w", err)
 				}
 				if isNeedInit {
-				LimitMessageList[opts.Update.Message.Chat.ID] = thisChat
+				LimitMessageList[opts.Message.Chat.ID] = thisChat
 					err = SaveLimitMessageList(opts.Ctx)
 					if err != nil {
 						logger.Error().
@@ -200,45 +199,45 @@ func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) error {
 				}
 			} else {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Update.Message.Chat.ID,
+					ChatID: opts.Message.Chat.ID,
 					Text:   "启用此功能前，请先将机器人设为管理员\n如果还是提示本消息，请检查机器人是否有删除消息的权限",
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "bot need be admin and delete message permission").
-						Msg(errt.SendMessage)
+						Msg(err_template.SendMessage)
 					handlerErr.Addf("failed to send `bot need be admin and delete message permission` message: %w", err)
 				}
 			}
 		} else {
 			botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Update.Message.Chat.ID,
+				ChatID: opts.Message.Chat.ID,
 				Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Str("content", "non-admin can not change limit message config").
-					Msg(errt.SendMessage)
+					Msg(err_template.SendMessage)
 				handlerErr.Addf("failed to send `non-admin can not change limit message config` message: %w", err)
 			}
 			time.Sleep(time.Second * 5)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-				ChatID: opts.Update.Message.Chat.ID,
+				ChatID: opts.Message.Chat.ID,
 				MessageIDs: []int{
-					opts.Update.Message.ID,
+					opts.Message.ID,
 					botMessage.ID,
 				},
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Str("content", "non-admin can not change limit message config").
-					Msg(errt.DeleteMessages)
+					Msg(err_template.DeleteMessages)
 				handlerErr.Addf("failed to delete `non-admin can not change limit message config` messages: %w", err)
 			}
 		}
@@ -247,14 +246,14 @@ func SomeMessageOnlyHandler(opts *handler_structs.SubHandlerParams) error {
 	return handlerErr.Flat()
 }
 
-func DeleteNotAllowMessage(opts *handler_structs.SubHandlerParams) error {
+func DeleteNotAllowMessage(opts *handler_params.Update) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
 		Str("funcName", "SomeMessageOnlyHandler").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
 	var deleteAction bool
 	var deleteHelp   string = "当前模式："
@@ -321,7 +320,7 @@ func DeleteNotAllowMessage(opts *handler_structs.SubHandlerParams) error {
 						Err(err).
 						Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 						Str("content", "test mode delete message notification").
-						Msg(errt.SendMessage)
+						Msg(err_template.SendMessage)
 					handlerErr.Addf("failed to send `test mode delete message notification` message: %w", err)
 				}
 			} else if deleteAction {
@@ -338,7 +337,7 @@ func DeleteNotAllowMessage(opts *handler_structs.SubHandlerParams) error {
 						Int("messageID", opts.Update.Message.ID).
 						Str("content", "message trigger limit message rules").
 						Bool("IsLogicAnd", thisChat.IsLogicAnd).
-						Msg(errt.DeleteMessage)
+						Msg(err_template.DeleteMessage)
 					handlerErr.Addf("failed to delete `message trigger limit message rules` message: %w", err)
 				} else {
 					logger.Info().
@@ -575,56 +574,56 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 	return kb
 }
 
-func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
+func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
 		Str("funcName", "LimitMessageCallback").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
-	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Update.CallbackQuery.Message.Message.Chat.ID, opts.Update.CallbackQuery.From.ID) {
+	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.CallbackQuery.Message.Message.Chat.ID, opts.CallbackQuery.From.ID) {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: opts.Update.CallbackQuery.ID,
+			CallbackQueryID: opts.CallbackQuery.ID,
 			Text: "您没有权限修改此配置",
 			ShowAlert: true,
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-				Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+				Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "no permission to change limit message config").
-				Msg(errt.AnswerCallbackQuery)
+				Msg(err_template.AnswerCallbackQuery)
 			handlerErr.Addf("failed to send `no permission to change limit message config` callback answer: %w", err)
 		}
 	} else {
-		thisChat := LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID]
+		thisChat := LimitMessageList[opts.CallbackQuery.Message.Message.Chat.ID]
 
 		var needRebuildGroupList     bool
 		var needSavelimitMessageList bool
 		var needEditMainMenuMessage  bool
 
-		switch opts.Update.CallbackQuery.Data {
+		switch opts.CallbackQuery.Data {
 		case "limitmsg_typekb":
 			// opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-			// 	CallbackQueryID: opts.Update.CallbackQuery.ID,
+			// 	CallbackQueryID: opts.CallbackQuery.ID,
 			// 	Text: "已选择消息类型",
 			// })
 			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
 				Text: utils.TextForTrueOrFalse(thisChat.IsWhiteForType, "白名单模式", "黑名单模式") + ": " + utils.TextForTrueOrFalse(thisChat.IsWhiteForType, "仅允许发送选中的项目，其他消息将被删除", "将删除选中的项目"),
 				ReplyMarkup: buildMessageTypeKB(thisChat),
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "limit message type keyboard").
-					Msg(errt.EditMessageText)
+					Msg(err_template.EditMessageText)
 				handlerErr.Addf("failed to edit message to `limit message type keyboard`: %w", err)
 			}
 		case "limitmsg_typekb_switchrule":
@@ -633,18 +632,18 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 			needEditMainMenuMessage = true
 		case "limitmsg_attrkb":
 			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
 				Text: utils.TextForTrueOrFalse(thisChat.IsWhiteForAttribute, "白名单模式", "黑名单模式") + ": " + utils.TextForTrueOrFalse(thisChat.IsWhiteForAttribute, "仅允许发送选中的项目，其他消息将被删除", "将删除选中的项目") + "\n有一些项目可能无法使用",
 				ReplyMarkup: buildMessageAttributeKB(thisChat),
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "limit message attribute keyboard").
-					Msg(errt.EditMessageText)
+					Msg(err_template.EditMessageText)
 				handlerErr.Addf("failed to edit message to `limit message attribute keyboard`: %w", err)
 			}
 		case "limitmsg_attrkb_switchrule":
@@ -655,16 +654,16 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 			needEditMainMenuMessage = true
 		case "limitmsg_done":
 			_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "limit message main menu or test mode delete message notification").
-					Msg(errt.DeleteMessage)
+					Msg(err_template.DeleteMessage)
 				handlerErr.Addf("failed to delete `limit message main menu or test mode delete message notification` message: %w", err)
 			}
 		case "limitmsg_switchenable":
@@ -687,8 +686,8 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 			needSavelimitMessageList = true
 			needRebuildGroupList = true
 			_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
 				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "删除此提醒",
 					CallbackData: "limitmsg_done",
@@ -697,16 +696,16 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "test mode turned off notice").
-					Msg(errt.EditMessageText)
+					Msg(err_template.EditMessageText)
 				handlerErr.Addf("failed to edit message to `test mode turned off notice`: %w", err)
 			}
 		default:
-			if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_") {
+			if strings.HasPrefix(opts.CallbackQuery.Data, "limitmsg_type_") {
 				needSavelimitMessageList = true
-				callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_type_")
+				callbackField := strings.TrimPrefix(opts.CallbackQuery.Data, "limitmsg_type_")
 
 				data := thisChat.MessageType
 				v := reflect.ValueOf(data) // 解除指针获取值
@@ -721,23 +720,23 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 				thisChat.MessageType = newStruct.Interface().(message_utils.MessageType)
 
 				_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.CallbackQuery.Message.Message.ID,
 					ReplyMarkup: buildMessageTypeKB(thisChat),
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-						Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-						Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+						Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "limit message type keyboard").
-						Msg(errt.EditMessageReplyMarkup)
+						Msg(err_template.EditMessageReplyMarkup)
 					handlerErr.Addf("failed to edit message reply markup to `limit message type keyboard`: %w", err)
 				}
-			} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_") {
+			} else if strings.HasPrefix(opts.CallbackQuery.Data, "limitmsg_attr_") {
 				needSavelimitMessageList = true
-				callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "limitmsg_attr_")
+				callbackField := strings.TrimPrefix(opts.CallbackQuery.Data, "limitmsg_attr_")
 				data := thisChat.MessageAttribute
 				v := reflect.ValueOf(data) // 解除指针获取值
 				t := reflect.TypeOf(data)
@@ -752,36 +751,36 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 				thisChat.MessageAttribute = newStruct.Interface().(message_utils.MessageAttribute)
 
 				_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-					ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+					ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.CallbackQuery.Message.Message.ID,
 					ReplyMarkup: buildMessageAttributeKB(thisChat),
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-						Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-						Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+						Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "limit message attribute keyboard").
-						Msg(errt.EditMessageReplyMarkup)
+						Msg(err_template.EditMessageReplyMarkup)
 					handlerErr.Addf("failed to edit message reply markup to `limit message attribute keyboard`: %w", err)
 				}
 			}
 		}
 
 		if needSavelimitMessageList {
-			LimitMessageList[opts.Update.CallbackQuery.Message.Message.Chat.ID] = thisChat
+			LimitMessageList[opts.CallbackQuery.Message.Message.Chat.ID] = thisChat
 			err := SaveLimitMessageList(opts.Ctx)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+					Str("callbackQueryData", opts.CallbackQuery.Data).
 					Msg("Failed to save limit message list")
 				handlerErr.Addf("failed to save limit message list: %w", err)
 				_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-					CallbackQueryID: opts.Update.CallbackQuery.ID,
+					CallbackQueryID: opts.CallbackQuery.ID,
 					Text:            "保存修改失败，请重试或联系机器人管理员\n" + err.Error(),
 					ShowAlert:       true,
 				})
@@ -789,7 +788,7 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 					logger.Error().
 						Err(err).
 						Str("content", "failed to save limit message list").
-						Msg(errt.AnswerCallbackQuery)
+						Msg(err_template.AnswerCallbackQuery)
 					handlerErr.Addf("failed to send `failed to save limit message list` callback answer: %w", err)
 				}
 			}
@@ -801,19 +800,19 @@ func LimitMessageCallback(opts *handler_structs.SubHandlerParams) error {
 
 		if needEditMainMenuMessage {
 			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID: opts.Update.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
 				Text:   "Limit Message 菜单",
 				ReplyMarkup: buildMessageAllKB(thisChat),
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-					Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+					Str("callbackQueryData", opts.CallbackQuery.Data).
 					Str("content", "limit message main menu").
-					Msg(errt.EditMessageText)
+					Msg(err_template.EditMessageText)
 				handlerErr.Addf("failed to edit message to `limit message main menu`: %w", err)
 			}
 		}
@@ -828,7 +827,7 @@ func buildLimitGroupList() {
 			plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
 				ChatID: id,
 				PluginName: "limit_message",
-				Handler: DeleteNotAllowMessage,
+				UpdateHandler: DeleteNotAllowMessage,
 			})
 		} else {
 			plugin_utils.RemoveHandlerByChatIDPlugin(id, "limit_message")

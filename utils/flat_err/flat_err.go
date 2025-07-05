@@ -1,15 +1,15 @@
-package multe
+package flat_err
 
 import (
 	"errors"
 	"fmt"
 )
 
-type MultiError struct {
+type Errors struct {
 	Errors []error
 }
 
-func (e *MultiError) Add(errs ...error) *MultiError {
+func (e *Errors) Add(errs ...error) *Errors {
 	for _, err := range errs {
 		if err != nil {
 			e.Errors = append(e.Errors, err)
@@ -19,7 +19,7 @@ func (e *MultiError) Add(errs ...error) *MultiError {
 }
 
 // add formatted error by use fmt.Errorf()
-func (e *MultiError) Addf(format string, a ...any) *MultiError {
+func (e *Errors) Addf(format string, a ...any) *Errors {
 	e.Errors = append(e.Errors, fmt.Errorf(format, a...))
 	return e
 }
@@ -29,7 +29,7 @@ func (e *MultiError) Addf(format string, a ...any) *MultiError {
 // }
 
 // a string error by use errors.Join()
-func (e *MultiError) Flat() error {
+func (e *Errors) Flat() error {
 	if len(e.Errors) == 0 {
 		return nil
 	}

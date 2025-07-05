@@ -1,10 +1,11 @@
 package plugin_utils
 
-import "trbot/utils/handler_structs"
+import "trbot/utils/handler_params"
 
 type SuffixCommand struct {
-	SuffixCommand string
-	Handler       func(*handler_structs.SubHandlerParams) error
+	SuffixCommand  string
+	MessageHandler func(*handler_params.Message) error
+	UpdateHandler  func(*handler_params.Update)  error
 }
 
 func AddSuffixCommandPlugins(Plugins ...SuffixCommand) int {

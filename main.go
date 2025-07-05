@@ -65,7 +65,7 @@ func main() {
 		if configs.SetUpWebhook(ctx, thebot, &bot.SetWebhookParams{
 			URL: configs.BotConfig.WebhookURL,
 			AllowedUpdates: configs.BotConfig.AllowedUpdates,
-		}){
+		}) {
 			logger.Info().
 				Str("listenAddress", consts.WebhookListenPort).
 				Msg("Working at Webhook Mode")

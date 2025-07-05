@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"trbot/database/db_struct"
 	"trbot/utils/configs"
-	"trbot/utils/handler_structs"
+	"trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot/models"
 )
@@ -23,9 +23,10 @@ type InlineCommandList struct {
 
 // 需要返回一个列表，将由程序的分页函数来控制分页和输出
 type InlineHandler struct {
-	Command     string
-	Attr        InlineHandlerAttr
-	Handler     func(*handler_structs.SubHandlerParams) []models.InlineQueryResult
+	Command       string
+	Attr          InlineHandlerAttr
+	InlineHandler func(*handler_params.InlineQuery) []models.InlineQueryResult
+	UpdateHandler func(*handler_params.Update)      []models.InlineQueryResult // when InlineHandler is nil, UpdateHandler will be called
 	Description string
 }
 
@@ -45,7 +46,8 @@ func AddInlineHandlerPlugins(InlineHandlerPlugins ...InlineHandler) int {
 type InlineManualHandler struct {
 	Command     string
 	Attr        InlineHandlerAttr
-	Handler     func(*handler_structs.SubHandlerParams) error
+	InlineHandler func(*handler_params.InlineQuery) error
+	UpdateHandler func(*handler_params.Update)      error // when InlineHandler is nil, UpdateHandler will be called
 	Description string
 }
 
@@ -65,7 +67,8 @@ func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...InlineManualHan
 type InlinePrefixHandler struct {
 	PrefixCommand string
 	Attr          InlineHandlerAttr
-	Handler       func(*handler_structs.SubHandlerParams) error
+	InlineHandler func(*handler_params.InlineQuery) error
+	UpdateHandler func(*handler_params.Update)      error // when InlineHandler is nil, UpdateHandler will be called
 	Description   string
 }
 
@@ -100,7 +103,7 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 			}})
 		}
 	}
-	
+
 	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{
 		{
 			Text: "取消默认命令",

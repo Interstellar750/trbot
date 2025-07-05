@@ -431,7 +431,7 @@ func getCurrentGoroutineStack() string {
 	return string(buf[:n])
 }
 
-func PanicCatcher(ctx context.Context, pluginName string) {
+func PanicCatcher(ctx context.Context, funcName string) {
 	logger := zerolog.Ctx(ctx)
 
 	panic := recover()
@@ -440,7 +440,7 @@ func PanicCatcher(ctx context.Context, pluginName string) {
 			Stack().
 			Str("commit", consts.Commit).
 			Err(errors.WithStack(fmt.Errorf("%v", panic))).
-			Str("catchFunc", pluginName).
+			Str("catchFunc", funcName).
 			Msg("Panic recovered")
 		// mess.PrintLogAndSave(fmt.Sprintf("recovered panic in [%s]: \"%v\"\nStack: %s", pluginName, panic, getCurrentGoroutineStack()))
 	}

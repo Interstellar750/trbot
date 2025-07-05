@@ -8,7 +8,7 @@ import (
 	"strings"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/handler_structs"
+	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
 
@@ -31,9 +31,9 @@ func init() {
 		Loader: ReadVoicePackFromPath,
 	})
 	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
-		Command: "voice",
-		Handler: VoiceListHandler,
-		Description: "一些语音列表",
+		Command:       "voice",
+		InlineHandler: VoiceListHandler,
+		Description:   "一些语音列表",
 	})
 }
 
@@ -117,7 +117,7 @@ func ReadVoicePackFromPath(ctx context.Context) error {
 	return nil
 }
 
-func VoiceListHandler(opts *handler_structs.SubHandlerParams) []models.InlineQueryResult {
+func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResult {
 	// 将 metadata 转换为 Inline Query 结果
 	var results []models.InlineQueryResult
 

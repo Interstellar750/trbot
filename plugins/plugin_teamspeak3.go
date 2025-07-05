@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 	"trbot/utils/consts"
-	"trbot/utils/errt"
-	"trbot/utils/handler_structs"
-	"trbot/utils/multe"
+	"trbot/utils/err_template"
+	"trbot/utils/flat_err"
+	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
 
@@ -43,7 +43,7 @@ var resetListenTicker chan bool = make(chan bool)
 var pollingInterval   time.Duration = time.Second * 5
 
 var tsData      TSServerQuery
-var privateOpts *handler_structs.SubHandlerParams
+var privateOpts *handler_params.Update
 
 type TSServerQuery struct {
 	// get Name And Password in TeamSpeak 3 Client -> `Tools`` -> `ServerQuery Login`
@@ -61,9 +61,9 @@ func init() {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts
 				plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
-					ChatID:      tsData.GroupID,
-					PluginName: "teamspeak_get_opts",
-					Handler:     getOptsHandler,
+					ChatID:        tsData.GroupID,
+					PluginName:    "teamspeak_get_opts",
+					UpdateHandler: getOptsHandler,
 				})
 				hasHandlerByChatID = true
 			}
@@ -77,9 +77,9 @@ func init() {
 		ParseMode:   models.ParseModeHTML,
 	})
 
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashSymbolCommand{
+	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand: "ts3",
-		Handler: showStatus,
+		UpdateHandler: showStatus,
 	})
 }
 
@@ -90,7 +90,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str("funcName", "initTeamSpeak").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
 	err := yaml.LoadYAML(tsDataPath, &tsData)
 	if err != nil {
@@ -224,7 +224,7 @@ func initTeamSpeak(ctx context.Context) bool {
 }
 
 // 用于首次初始化成功时只要对应群组有任何消息，都能自动获取 privateOpts 用来定时发送消息，并开启监听协程
-func getOptsHandler(opts *handler_structs.SubHandlerParams) error {
+func getOptsHandler(opts *handler_params.Update) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
@@ -245,14 +245,14 @@ func getOptsHandler(opts *handler_structs.SubHandlerParams) error {
 	return nil
 }
 
-func showStatus(opts *handler_structs.SubHandlerParams) error {
+func showStatus(opts *handler_params.Update) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
 		Str("funcName", "showStatus").
 		Logger()
 
-	var handlerErr multe.MultiError
+	var handlerErr flat_err.Errors
 
 	var pendingMessage string
 
@@ -334,7 +334,7 @@ func showStatus(opts *handler_structs.SubHandlerParams) error {
 			Err(err).
 			Int64("chatID", opts.Update.Message.Chat.ID).
 			Str("content", "teamspeak online client status").
-			Msg(errt.SendMessage)
+			Msg(err_template.SendMessage)
 		handlerErr.Addf("failed to send `teamspeak online client status: %w`", err)
 	}
 
@@ -395,7 +395,7 @@ func listenUserStatus(ctx context.Context) {
 							Err(err).
 							Int64("chatID", tsData.GroupID).
 							Str("content", "success reconnect to server").
-							Msg(errt.SendMessage)
+							Msg(err_template.SendMessage)
 					}
 				} else {
 					// 无法成功则等待下一个周期继续尝试
@@ -438,7 +438,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []string) [
 					Err(err).
 					Int64("chatID", tsData.GroupID).
 					Str("content", "failed to check online client 5 times, start auto reconnect").
-					Msg(errt.SendMessage)
+					Msg(err_template.SendMessage)
 			}
 		}
 	} else {
@@ -479,7 +479,7 @@ func DiffSlices(before, now []string) (added, removed []string) {
 	return
 }
 
-func notifyClientChange(opts *handler_structs.SubHandlerParams, add, remove []string) {
+func notifyClientChange(opts *handler_params.Update, add, remove []string) {
 	var pendingMessage string
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -510,6 +510,6 @@ func notifyClientChange(opts *handler_structs.SubHandlerParams, add, remove []st
 			Err(err).
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
-			Msg(errt.SendMessage)
+			Msg(err_template.SendMessage)
 	}
 }

@@ -1,4 +1,4 @@
-package errt
+package err_template
 
 const (
 	// LogTemplate is the template for log messages.

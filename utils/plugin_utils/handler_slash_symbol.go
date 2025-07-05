@@ -1,19 +1,20 @@
 package plugin_utils
 
-import "trbot/utils/handler_structs"
+import "trbot/utils/handler_params"
 
-type SlashSymbolCommand struct {
-	SlashCommand string // 'command' in '/command'
-	Handler      func(*handler_structs.SubHandlerParams) error
+type SlashCommand struct {
+	SlashCommand   string // 'command' in '/command'
+	MessageHandler func(*handler_params.Message) error
+	UpdateHandler  func(*handler_params.Update)  error
 }
 
-func AddSlashSymbolCommandPlugins(Plugins ...SlashSymbolCommand) int {
-	if AllPlugins.SlashSymbolCommand == nil { AllPlugins.SlashSymbolCommand = []SlashSymbolCommand{} }
+func AddSlashSymbolCommandPlugins(Plugins ...SlashCommand) int {
+	if AllPlugins.SlashCommand == nil { AllPlugins.SlashCommand = []SlashCommand{} }
 
 	var pluginCount int
 	for _, originPlugin := range Plugins {
 		if originPlugin.SlashCommand == "" { continue }
-		AllPlugins.SlashSymbolCommand = append(AllPlugins.SlashSymbolCommand, originPlugin)
+		AllPlugins.SlashCommand = append(AllPlugins.SlashCommand, originPlugin)
 		pluginCount++
 	}
 	return pluginCount

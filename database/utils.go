@@ -1,28 +1,22 @@
 package database
 
 import (
-	"strings"
 	"trbot/database/db_struct"
 	"trbot/utils"
-	"trbot/utils/handler_structs"
+	"trbot/utils/handler_params"
 	"trbot/utils/type/update_utils"
 
 	"github.com/rs/zerolog"
 )
 
-func RecordData(params *handler_structs.SubHandlerParams) {
+func RecordData(params *handler_params.Update, updateType update_utils.UpdateType) {
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "RecordData").
 		Logger()
 
-	updateType := update_utils.GetUpdateType(params.Update)
-
 	switch {
 	case updateType.Message:
-		if params.Update.Message.Text != "" {
-			params.Fields = strings.Fields(params.Update.Message.Text)
-		}
 		err := InitChat(params.Ctx, &params.Update.Message.Chat)
 		if err != nil {
 			logger.Error().
@@ -54,10 +48,6 @@ func RecordData(params *handler_structs.SubHandlerParams) {
 	case updateType.EditedMessage:
 		// no ?
 	case updateType.InlineQuery:
-		if params.Update.InlineQuery.Query != "" {
-			params.Fields = strings.Fields(params.Update.InlineQuery.Query)
-		}
-
 		err := InitUser(params.Ctx, params.Update.InlineQuery.From)
 		if err != nil {
 			logger.Error().
@@ -87,10 +77,6 @@ func RecordData(params *handler_structs.SubHandlerParams) {
 				Msg("Failed to get user info")
 		}
 	case updateType.ChosenInlineResult:
-		if params.Update.ChosenInlineResult.Query != "" {
-			params.Fields = strings.Fields(params.Update.ChosenInlineResult.Query)
-		}
-
 		err := InitUser(params.Ctx, &params.Update.ChosenInlineResult.From)
 		if err != nil {
 			logger.Error().
