@@ -72,7 +72,7 @@ func init() {
 		PluginName:      "StickerDownload",
 		ChatType:         models.ChatTypePrivate,
 		MessageType:      message_utils.Sticker,
-		// AllowAutoTrigger: true,
+		AllowAutoTrigger: true,
 		UpdateHandler:    EchoStickerHandler,
 	})
 	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
@@ -96,17 +96,24 @@ type stickerDatas struct {
 }
 
 func EchoStickerHandler(opts *handler_params.Update) error {
-	logger := zerolog.Ctx(opts.Ctx).
-		With().
-		Str("pluginName", "StickerDownload").
-		Str("funcName", "EchoStickerHandler").
-		Logger()
-
-	var handlerErr flat_err.Errors
+	var isMoveMessage bool
 
 	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
 		// if this handler trigger by `handler by message type`, copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`
 		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
+		isMoveMessage = true
+	}
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "StickerDownload").
+		Str("funcName", "EchoStickerHandler").
+		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Logger()
+
+	var handlerErr flat_err.Errors
+
+	if isMoveMessage {
 		logger.Info().
 			Str("callbackQueryData", opts.Update.CallbackQuery.Data).
 			Msg("copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`")
@@ -115,14 +122,12 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 	logger.Info().
 		Str("emoji", opts.Update.Message.Sticker.Emoji).
 		Str("setName", opts.Update.Message.Sticker.SetName).
-		Dict(utils.GetUserDict(opts.Update.Message.From)).
 		Msg("Start download sticker")
 
 	err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.From.ID, db_struct.StickerDownloaded)
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(opts.Update.Message.From)).
 			Msg("Failed to incremental sticker download count")
 		handlerErr.Addf("failed to incremental sticker download count: %w", err)
 	}
@@ -131,7 +136,6 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(opts.Update.Message.From)).
 			Msg("Error when downloading sticker")
 		handlerErr.Addf("error when downloading sticker: %w", err)
 
@@ -143,7 +147,6 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Update.Message.From)).
 				Str("content", "sticker download error").
 				Msg(err_template.SendMessage)
 			handlerErr.Addf("failed to send `sticker download error` message: %w", err)
@@ -205,7 +208,6 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Update.Message.From)).
 				Str("content", "sticker file").
 				Msg(err_template.SendDocument)
 			handlerErr.Addf("failed to send sticker file: %w", err)
@@ -279,8 +281,8 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 		stickerFileNameWithDot = fmt.Sprintf("%s.", opts.Update.Message.Sticker.FileID)
 	}
 
-	var filePath       string = filepath.Join(StickerCache_path, stickerSetNamePrivate)      // 保存贴纸源文件的目录 .cache/sticker/setName/
-	var originFullPath string = filepath.Join(filePath, stickerFileNameWithDot + fileSuffix) // 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
+	var stickerFileDir string = filepath.Join(StickerCache_path, stickerSetNamePrivate)      // 保存贴纸源文件的目录 .cache/sticker/setName/
+	var originFullPath string = filepath.Join(stickerFileDir, stickerFileNameWithDot + fileSuffix) // 到贴纸文件的完整目录 .cache/sticker/setName/stickerFileName.webp
 	var finalFullPath  string // 存放最后读取并发送的文件完整目录 .cache/sticker/setName/stickerFileName.webp
 
 	_, err := os.Stat(originFullPath) // 检查贴纸源文件是否已缓存
@@ -314,13 +316,13 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 			defer resp.Body.Close()
 
 			// 创建保存贴纸的目录
-			err = os.MkdirAll(filePath, 0755)
+			err = os.MkdirAll(stickerFileDir, 0755)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("filePath", filePath).
+					Str("directory", stickerFileDir).
 					Msg("Failed to create sticker directory to save sticker")
-				return nil, fmt.Errorf("failed to create directory [%s] to save sticker: %w", filePath, err)
+				return nil, fmt.Errorf("failed to create directory [%s] to save sticker: %w", stickerFileDir, err)
 			}
 
 			// 创建贴纸空文件
@@ -992,25 +994,25 @@ func zipFolder(srcDir, zipFile string) error {
 
 func showCachedStickers(opts *handler_params.Message) error {
 	var button [][]models.InlineKeyboardButton
-	var tempButtom []models.InlineKeyboardButton
+	var tempButton []models.InlineKeyboardButton
 
 	entries, err := os.ReadDir(StickerCache_path)
 	if err != nil { return err }
 
 	for _, entry := range entries {
 		if entry.IsDir() && entry.Name() != "-custom" {
-			if len(tempButtom) == 4 {
-				button = append(button, tempButtom)
-				tempButtom = []models.InlineKeyboardButton{}
+			if len(tempButton) == 4 {
+				button = append(button, tempButton)
+				tempButton = []models.InlineKeyboardButton{}
 			}
-			tempButtom = append(tempButtom, models.InlineKeyboardButton{
+			tempButton = append(tempButton, models.InlineKeyboardButton{
 				Text: entry.Name(),
 				URL:  "https://t.me/addstickers/" + entry.Name(),
 			})
 		}
 	}
 
-	if len(tempButtom) > 0 { button = append(button, tempButtom) }
+	if len(tempButton) > 0 { button = append(button, tempButton) }
 
 	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Message.Chat.ID,

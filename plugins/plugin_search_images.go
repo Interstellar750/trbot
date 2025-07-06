@@ -1,0 +1,252 @@
+package plugins
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"trbot/utils"
+	"trbot/utils/configs"
+	"trbot/utils/consts"
+	"trbot/utils/err_template"
+	"trbot/utils/flat_err"
+	"trbot/utils/handler_params"
+	"trbot/utils/plugin_utils"
+	"trbot/utils/type/message_utils"
+
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+	"github.com/rs/zerolog"
+)
+
+var photoCachedDir string = filepath.Join(consts.CacheDirectory, "photo/")
+var imageBaseUrl   string = "https://alist.trle5.xyz/d/cache/photo/"
+
+func init() {
+	plugin_utils.AddHandlerByMessageTypePlugins(plugin_utils.HandlerByMessageType{
+		PluginName: "search images",
+		ChatType: models.ChatTypePrivate,
+		MessageType: message_utils.Photo,
+		AllowAutoTrigger: true,
+		UpdateHandler: searchImageHandler,
+	})
+}
+
+type SearchEngines struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+var searchURLs = []SearchEngines{
+	{
+		Name: "Google",
+		URL:  "https://www.google.com/searchbyimage?client=app&image_url=%s",
+	},
+	{
+		Name: "Google Lens",
+		URL:  "https://lens.google.com/uploadbyurl?url=%s",
+	},
+	{
+		Name: "Bing",
+		URL:  "https://www.bing.com/images/search?q=imgurl:%s&view=detailv2&iss=sbi",
+	},
+	{
+		Name: "Yandex.ru",
+		URL:  "https://yandex.ru/images/search?rpt=imageview&url=%s",
+	},
+	{
+		Name: "Yandex.com",
+		URL:  "https://yandex.com/images/search?rpt=imageview&url=%s",
+	},
+	{
+		Name: "SauceNAO",
+		URL:  "https://saucenao.com/search.php?url=%s",
+	},
+	{
+		Name: "ascii2d",
+		URL:  "https://ascii2d.net/search/url/%s",
+	},
+	{
+		Name: "Tineye",
+		URL:  "https://tineye.com/search?url=%s",
+	},
+	{
+		Name: "trace.moe",
+		URL:  "https://trace.moe/?auto&url=%s",
+	},
+	// {
+	// 	Name: "IQDB",
+	// 	URL:  "http://iqdb.org/?url=%s",
+	// },
+	// {
+	// 	Name: "3D-IQDB",
+	// 	URL:  "http://3d.iqdb.org/?url=%s",
+	// },
+}
+
+func searchImageHandler(opts *handler_params.Update) error {
+	var isMoveMessage bool
+
+	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
+		// if this handler trigger by `handler by message type`, copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`
+		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
+		isMoveMessage = true
+	}
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "search_images").
+		Str("funcName", "searchImageHandler").
+		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Logger()
+
+	var handlerErr flat_err.Errors
+
+	if isMoveMessage {
+		logger.Info().
+			Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+			Msg("copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`")
+	}
+
+	photoPath, err := downloadPhoto(opts)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Error when cache photo")
+		handlerErr.Addf("error when cache photo: %w", err)
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.Message.Chat.ID,
+			Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", err.Error()),
+			ParseMode: models.ParseModeHTML,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "photo cache error").
+				Msg(err_template.SendMessage)
+			handlerErr.Addf("failed to send `photo cache error` message: %w", err)
+		}
+	} else {
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID: opts.Update.Message.Chat.ID,
+			Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
+			ReplyMarkup: buildSearchLinksKeboard(photoPath),
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			MessageEffectID: "5104841245755180586",
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "search images link buttons").
+				Msg(err_template.SendMessage)
+			handlerErr.Addf("failed to send `search images link buttons` message: %w", err)
+		}
+	}
+
+	return handlerErr.Flat()
+}
+
+func downloadPhoto(opts *handler_params.Update) (string, error) {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "search_images").
+		Str("funcName", "downloadPhoto").
+		Logger()
+
+	var photoFileName string = fmt.Sprintf("%d-%s.jpg", opts.Update.Message.From.ID, opts.Update.Message.Photo[len(opts.Update.Message.Photo)-1].FileID)
+	var photoFullPath string = filepath.Join(photoCachedDir, photoFileName)
+
+	_, err := os.Stat(photoFullPath) // 检查贴纸源文件是否已缓存
+	if err != nil {
+		// 如果贴纸源文件未缓存，则下载
+		if os.IsNotExist(err) {
+			fileInfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{
+				FileID: opts.Update.Message.Photo[len(opts.Update.Message.Photo)-1].FileID,
+			})
+			if err != nil {
+				logger.Error().
+				Err(err).
+				Msg("Failed to get photo file")
+				return "", fmt.Errorf("failed to get photo file: %w", err)
+			} else {
+				// 组合链接下载贴纸源文件
+				resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", configs.BotConfig.BotToken, fileInfo.FilePath))
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("filePath", fileInfo.FilePath).
+						Msg("Failed to download photo file")
+					return "", fmt.Errorf("failed to download photo file [%s]: %w", fileInfo.FilePath, err)
+				}
+				defer resp.Body.Close()
+
+				// 创建目录
+				err = os.MkdirAll(photoCachedDir, 0755)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("photoCachedDir", photoCachedDir).
+						Msg("Failed to create directory to cache photo")
+					return "", fmt.Errorf("failed to create directory [%s] to cache photo: %w", photoCachedDir, err)
+				}
+
+				downloadedPhoto, err := os.Create(photoFullPath)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("photoFullPath", photoFullPath).
+						Msg("Failed to create photo file")
+					return "", fmt.Errorf("failed to create photo file [%s]: %w", photoFullPath, err)
+				}
+				defer downloadedPhoto.Close()
+
+				// 将下载的原贴纸写入空文件
+				_, err = io.Copy(downloadedPhoto, resp.Body)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("photoFullPath", photoFullPath).
+						Msg("Failed to writing photo data to file")
+					return "", fmt.Errorf("failed to writing photo data to file [%s]: %w", photoFullPath, err)
+				}
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("photoFullPath", photoFullPath).
+				Msg("Failed to read cached photo file info")
+			return "", fmt.Errorf("failed to read cached photo file [%s] info: %w", photoFullPath, err)
+		}
+	} else {
+		// 文件已存在，跳过下载
+		logger.Debug().
+			Str("photoFullPath", photoFullPath).
+			Msg("photo file already cached")
+	}
+
+	return photoFileName, nil
+}
+
+func buildSearchLinksKeboard(photoPath string) models.ReplyMarkup {
+	var button     [][]models.InlineKeyboardButton
+	var tempButton   []models.InlineKeyboardButton
+
+	for _, url := range searchURLs {
+		if len (tempButton) >= 3 {
+			button = append(button, tempButton)
+			tempButton = []models.InlineKeyboardButton{}
+		}
+		tempButton = append(tempButton, models.InlineKeyboardButton{
+			Text: url.Name,
+			URL:  fmt.Sprintf(url.URL, imageBaseUrl + photoPath),
+		})
+	}
+
+	if len(tempButton) > 0 { button = append(button, tempButton) }
+
+	return &models.InlineKeyboardMarkup{
+		InlineKeyboard: button,
+	}
+}

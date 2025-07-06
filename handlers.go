@@ -1032,7 +1032,9 @@ func inlineHandler(opts *handler_params.Update) {
 func callbackQueryHandler(params *handler_params.Update) {
 	defer utils.PanicCatcher(params.Ctx, "callbackQueryHandler")
 	var isProcessing bool
-	defer func() { if isProcessing { params.ChatInfo.HasPendingCallbackQuery = false } }()
+	defer func() {
+		if isProcessing { database.UpdateOperationStatus(params.Ctx, params.ChatInfo.ID, db_struct.HasPendingCallbackQuery, false) }
+	}()
 
 	callbackQueryLogger := zerolog.Ctx(params.Ctx).
 		With().
@@ -1085,7 +1087,7 @@ func callbackQueryHandler(params *handler_params.Update) {
 		callbackQueryLogger.Debug().Msg("accept callback query")
 
 		isProcessing = true
-		params.ChatInfo.HasPendingCallbackQuery = true
+		database.UpdateOperationStatus(params.Ctx, params.ChatInfo.ID, db_struct.HasPendingCallbackQuery, true)
 		params.ChatInfo.LatestCallbackQueryData = params.Update.CallbackQuery.Data
 		// params.Thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 		// 	CallbackQueryID: params.Update.CallbackQuery.ID,

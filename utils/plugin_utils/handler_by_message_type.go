@@ -32,7 +32,7 @@ func (funcs HandlerByMessageTypeFunctions) BuildSelectKeyboard() models.ReplyMar
 }
 
 type HandlerByMessageType struct {
-	PluginName       string
+	PluginName       string // underline isn't allowed in this field
 	ChatType         models.ChatType
 	MessageType      message_utils.MessageTypeList
 	AllowAutoTrigger bool // Allow auto trigger when there is only one handler of the same type
