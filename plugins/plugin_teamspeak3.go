@@ -45,6 +45,8 @@ var pollingInterval   time.Duration = time.Second * 5
 var tsData      TSServerQuery
 var privateOpts *handler_params.Update
 
+var reconnectMessageID int
+
 type TSServerQuery struct {
 	// get Name And Password in TeamSpeak 3 Client -> `Tools`` -> `ServerQuery Login`
 	URL      string `yaml:"URL"`
@@ -105,7 +107,9 @@ func initTeamSpeak(ctx context.Context) bool {
 					Err(err).
 					Str("path", tsDataPath).
 					Msg("Failed to create empty config")
-				handlerErr.Addf("failed to create empty config: %w", err)
+				tsErr = handlerErr.Addf("failed to create empty config: %w", err).Flat()
+				isCanReInit = false
+				return false
 			}
 		} else {
 			logger.Error().
@@ -272,7 +276,7 @@ func showStatus(opts *handler_params.Update) error {
 	}
 
 	if isSuccessInit && isCanListening {
-		olClient, err := tsClient.Server.ClientList()
+		onlineClient, err := tsClient.Server.ClientList()
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -282,15 +286,15 @@ func showStatus(opts *handler_params.Update) error {
 		} else {
 			pendingMessage += fmt.Sprintln("在线客户端:")
 			var userCount int
-			for _, n := range olClient {
-				if n.Nickname == botNickName {
+			for _, client := range onlineClient {
+				if client.Nickname == botNickName {
 					// 统计用户数量时跳过此机器人
 					continue
 				}
-				pendingMessage += fmt.Sprintf("用户 [ %s ] ", n.Nickname)
+				pendingMessage += fmt.Sprintf("用户 [ %s ] ", client.Nickname)
 				userCount++
-				if n.OnlineClientExt != nil {
-					pendingMessage += fmt.Sprintf("在线时长 %d", *n.OnlineClientTimes.LastConnected)
+				if client.OnlineClientExt != nil {
+					pendingMessage += fmt.Sprintf("在线时长 %d", *client.OnlineClientTimes.LastConnected)
 				}
 				pendingMessage += "\n"
 			}
@@ -358,8 +362,8 @@ func listenUserStatus(ctx context.Context) {
 		plugin_utils.RemoveHandlerByChatIDPlugin(tsData.GroupID, "teamspeak_get_opts")
 	}
 
-	var retryCount int = 1
-	var checkFailedCount int = 0
+	var retryCount int
+	var checkFailedCount int
 	var beforeOnlineClient []string
 
 	for {
@@ -367,7 +371,7 @@ func listenUserStatus(ctx context.Context) {
 		case <-resetListenTicker:
 			listenTicker.Reset(pollingInterval)
 			isCanListening = true
-			retryCount = 1
+			retryCount = 0
 		case <-listenTicker.C:
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(ctx, &checkFailedCount, beforeOnlineClient)
@@ -375,8 +379,8 @@ func listenUserStatus(ctx context.Context) {
 				logger.Info().
 					Msg("try reconnect...")
 				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
-				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
 				if retryCount < 15 { retryCount++ }
+				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
 				if initTeamSpeak(ctx) {
 					isSuccessInit  = true
 					isCanListening = true
@@ -385,7 +389,7 @@ func listenUserStatus(ctx context.Context) {
 					listenTicker.Reset(pollingInterval)
 					logger.Info().
 						Msg("reconnect success")
-					_, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
+					botMessage, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 						ChatID:    tsData.GroupID,
 						Text:      "已成功与服务器重新建立连接",
 						ParseMode: models.ParseModeHTML,
@@ -394,15 +398,34 @@ func listenUserStatus(ctx context.Context) {
 						logger.Error().
 							Err(err).
 							Int64("chatID", tsData.GroupID).
-							Str("content", "success reconnect to server").
+							Str("content", "success reconnect to server notice").
 							Msg(err_template.SendMessage)
+					} else {
+						time.Sleep(time.Second * 3)
+						var deleteMessageIDs []int = []int{botMessage.ID}
+						if reconnectMessageID != 0 {
+							deleteMessageIDs = []int{botMessage.ID, reconnectMessageID}
+							reconnectMessageID = 0
+						}
+						_, err = privateOpts.Thebot.DeleteMessages(privateOpts.Ctx, &bot.DeleteMessagesParams{
+							ChatID:    tsData.GroupID,
+							MessageIDs: deleteMessageIDs,
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Int64("chatID", tsData.GroupID).
+								Int("messageID", botMessage.ID).
+								Str("content", "success reconnect to server notice").
+								Msg(err_template.DeleteMessages)
+						}
 					}
 				} else {
 					// 无法成功则等待下一个周期继续尝试
 					logger.Warn().
 						Err(tsErr).
 						Int("retryCount", retryCount).
-						Int("nextRetry", (retryCount - 1) * 20).
+						Int("nextRetry", (retryCount) * 20).
 						Msg("connect failed")
 				}
 			}
@@ -418,17 +441,21 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []string) [
 		Str("funcName", "checkOnlineClientChange").
 		Logger()
 
-	olClient, err := tsClient.Server.ClientList()
+	onlineClient, err := tsClient.Server.ClientList()
 	if err != nil {
 		*count++
 		logger.Error().
 			Err(err).
 			Int("failedCount", *count).
 			Msg("Failed to get online client")
-		if *count == 5 {
+		if err.Error() == "not connected" {
 			*count = 0
 			isCanListening = false
-			_, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
+		}
+		if *count >= 5 {
+			*count = 0
+			isCanListening = false
+			botMessage, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 				ChatID:    tsData.GroupID,
 				Text:      "已连续五次检查在线客户端失败，开始尝试自动重连",
 				ParseMode: models.ParseModeHTML,
@@ -439,23 +466,26 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []string) [
 					Int64("chatID", tsData.GroupID).
 					Str("content", "failed to check online client 5 times, start auto reconnect").
 					Msg(err_template.SendMessage)
+			} else {
+				reconnectMessageID = botMessage.ID
 			}
 		}
+		return before
 	} else {
-		for _, n := range olClient {
-			nowOnlineClient = append(nowOnlineClient, n.Nickname)
+		for _, client := range onlineClient {
+			if client.Nickname == botNickName { continue }
+			nowOnlineClient = append(nowOnlineClient, client.Nickname)
 		}
 		added, removed := DiffSlices(before, nowOnlineClient)
 		if len(added) + len(removed) > 0 {
 			logger.Debug().
-				Strs("added", added).
-				Strs("removed", removed).
+				Strs("clientJoin", added).
+				Strs("clientLeave", removed).
 				Msg("online client change detected")
-			notifyClientChange(privateOpts, added, removed)
+			notifyClientChange(added, removed)
 		}
+		return nowOnlineClient
 	}
-
-	return nowOnlineClient
 }
 
 func DiffSlices(before, now []string) (added, removed []string) {
@@ -479,9 +509,9 @@ func DiffSlices(before, now []string) (added, removed []string) {
 	return
 }
 
-func notifyClientChange(opts *handler_params.Update, add, remove []string) {
+func notifyClientChange(add, remove []string) {
 	var pendingMessage string
-	logger := zerolog.Ctx(opts.Ctx).
+	logger := zerolog.Ctx(privateOpts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
 		Str("funcName", "notifyClientChange").
@@ -489,18 +519,18 @@ func notifyClientChange(opts *handler_params.Update, add, remove []string) {
 
 	if len(add) > 0 {
 		pendingMessage += fmt.Sprintln("以下用户进入了服务器:")
-		for _, n := range add {
-			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", n)
+		for _, nickname := range add {
+			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
 		}
 	}
 	if len(remove) > 0 {
 		pendingMessage += fmt.Sprintln("以下用户离开了服务器:")
-		for _, n := range remove {
-			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", n)
+		for _, nickname := range remove {
+			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
 		}
 	}
 
-	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+	_, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 		ChatID: tsData.GroupID,
 		Text:   pendingMessage,
 		ParseMode: models.ParseModeHTML,
