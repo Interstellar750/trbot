@@ -852,7 +852,7 @@ func Init() {
 		Saver:  SaveSavedMessageList,
 		Loader: ReadSavedMessageList,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand:   "save",
 		MessageHandler: saveMessageHandler,
 	})

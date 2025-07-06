@@ -15,12 +15,12 @@ type SlashStartHandler struct {
 }
 
 func AddSlashStartCommandPlugins(SlashStartCommandPlugins ...SlashStartHandler) int {
-	if AllPlugins.SlashStart.Handler == nil { AllPlugins.SlashStart.Handler = []SlashStartHandler{} }
+	if AllPlugins.SlashStartCommand.Handler == nil { AllPlugins.SlashStartCommand.Handler = []SlashStartHandler{} }
 
 	var pluginCount int
 	for _, originPlugin := range SlashStartCommandPlugins {
 		if originPlugin.Argument == "" { continue }
-		AllPlugins.SlashStart.Handler = append(AllPlugins.SlashStart.Handler, originPlugin)
+		AllPlugins.SlashStartCommand.Handler = append(AllPlugins.SlashStartCommand.Handler, originPlugin)
 		pluginCount++
 	}
 	return pluginCount
@@ -35,12 +35,12 @@ type SlashStartWithPrefixHandler struct {
 }
 
 func AddSlashStartWithPrefixCommandPlugins(SlashStartWithPrefixCommandPlugins ...SlashStartWithPrefixHandler) int {
-	if AllPlugins.SlashStart.WithPrefixHandler == nil { AllPlugins.SlashStart.WithPrefixHandler = []SlashStartWithPrefixHandler{} }
+	if AllPlugins.SlashStartCommand.WithPrefixHandler == nil { AllPlugins.SlashStartCommand.WithPrefixHandler = []SlashStartWithPrefixHandler{} }
 
 	var pluginCount int
 	for _, originPlugin := range SlashStartWithPrefixCommandPlugins {
 		if originPlugin.Argument == "" { continue }
-		AllPlugins.SlashStart.WithPrefixHandler = append(AllPlugins.SlashStart.WithPrefixHandler, originPlugin)
+		AllPlugins.SlashStartCommand.WithPrefixHandler = append(AllPlugins.SlashStartCommand.WithPrefixHandler, originPlugin)
 		pluginCount++
 	}
 	return pluginCount

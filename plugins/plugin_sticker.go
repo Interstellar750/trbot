@@ -37,7 +37,7 @@ var StickerCacheGIF_path string = filepath.Join(consts.CacheDirectory, "sticker_
 var StickerCacheZip_path string = filepath.Join(consts.CacheDirectory, "sticker_zip/")
 
 func init() {
-	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
 		{
 			// 不转换格式，打包下载整个贴纸包
 			CommandChar: "s",
@@ -75,7 +75,7 @@ func init() {
 		AllowAutoTrigger: true,
 		UpdateHandler:    EchoStickerHandler,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand:   "cachedsticker",
 		MessageHandler: showCachedStickers,
 	})

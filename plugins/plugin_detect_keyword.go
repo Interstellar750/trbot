@@ -39,11 +39,11 @@ func init() {
 		Loader: ReadKeywordList,
 		Saver:  SaveKeywordList,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand:   "setkeyword",
 		MessageHandler: addKeywordHandler,
 	})
-	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
 		{
 			CommandChar:   "detectkw_g",
 			CallbackQueryHandler: groupManageCallbackHandler,

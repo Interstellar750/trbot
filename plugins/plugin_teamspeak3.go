@@ -77,7 +77,7 @@ func init() {
 		ParseMode:   models.ParseModeHTML,
 	})
 
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand: "ts3",
 		UpdateHandler: showStatus,
 	})

@@ -31,7 +31,7 @@ func Register(ctx context.Context) {
 	plugin_utils.RunPluginInitializers(ctx)
 
 	// 以 `/` 符号开头的命令
-	plugin_utils.AddSlashSymbolCommandPlugins([]plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins([]plugin_utils.SlashCommand{
 		{
 			SlashCommand: "start",
 			UpdateHandler: startHandler,
@@ -65,18 +65,19 @@ func Register(ctx context.Context) {
 				logger := zerolog.Ctx(opts.Ctx)
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
-					Text:            "如果您愿意帮忙，请加入测试群组帮助我们完善机器人",
+					Text:            "您可以订阅测试频道以查看最近的更新",
 					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 					ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "点击加入测试群组",
-						URL:  "https://t.me/+BomkHuFsjqc3ZGE1",
+						Text: "测试频道",
+						URL:  "https://t.me/viewtrbot",
 					}}}},
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
 						Str("command", "/test").
-						Msg("send `test group invite link` message failed")
+						Str("content", "test channel link").
+						Msg(err_template.SendMessage)
 				}
 				return err
 			},
@@ -192,7 +193,7 @@ func Register(ctx context.Context) {
 	}...)
 
 	// 通过消息按钮触发的请求
-	plugin_utils.AddCallbackQueryCommandPlugins([]plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
 		{
 			CommandChar: "inline_default_",
 			// todo: 错误处理

@@ -50,11 +50,11 @@ func init() {
 		Saver: SaveLimitMessageList,
 		Loader: ReadLimitMessageList,
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand:   "limitmessage",
 		MessageHandler: SomeMessageOnlyHandler,
 	})
-	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryPlugins(plugin_utils.CallbackQuery{
 		CommandChar:   "limitmsg_",
 		CallbackQueryHandler: LimitMessageCallback,
 	})

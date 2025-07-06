@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ import (
 )
 
 var photoCachedDir string = filepath.Join(consts.CacheDirectory, "photo/")
-var imageBaseUrl   string = "https://alist.trle5.xyz/d/cache/photo/"
+var imageBaseURL   string = "https://alist.trle5.xyz/d/cache/photo/"
 
 func init() {
 	plugin_utils.AddHandlerByMessageTypePlugins(plugin_utils.HandlerByMessageType{
@@ -31,6 +32,10 @@ func init() {
 		MessageType: message_utils.Photo,
 		AllowAutoTrigger: true,
 		UpdateHandler: searchImageHandler,
+	})
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+		SlashCommand:   "searchlinks",
+		MessageHandler: sendSearchLinks,
 	})
 }
 
@@ -86,6 +91,77 @@ var searchURLs = []SearchEngines{
 	// },
 }
 
+func sendSearchLinks(opts *handler_params.Message) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "search_images").
+		Str("funcName", "sendSearchLinks").
+		Dict(utils.GetUserDict(opts.Message.From)).
+		Dict(utils.GetChatDict(&opts.Message.Chat)).
+		Logger()
+
+	var handlerErr flat_err.Errors
+
+	if opts.Message.ReplyToMessage == nil || opts.Message.ReplyToMessage.Photo == nil {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Message.Chat.ID,
+			Text:      "使用此命令回复一张图片来获得搜索链接",
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "need reply to a photo").
+				Msg(err_template.SendMessage)
+			handlerErr.Addf("failed to send `need reply to a photo` message: %w", err)
+		}
+	} else {
+		photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Message.ReplyToMessage)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Error when cache photo")
+			handlerErr.Addf("error when cache photo: %w", err)
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Message.Chat.ID,
+				Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", err.Error()),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "photo cache error").
+					Msg(err_template.SendMessage)
+				handlerErr.Addf("failed to send `photo cache error` message: %w", err)
+			}
+		} else {
+			linkPreviewURL := imageBaseURL + photoPath
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Message.Chat.ID,
+				Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
+				ReplyMarkup: buildSearchLinksKeboard(photoPath),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
+				MessageEffectID: "5104841245755180586",
+				LinkPreviewOptions: &models.LinkPreviewOptions{
+					URL: &linkPreviewURL,
+					// PreferSmallMedia: bot.True(),
+					ShowAboveText: bot.True(),
+				},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "search images link buttons").
+					Msg(err_template.SendMessage)
+				handlerErr.Addf("failed to send `search images link buttons` message: %w", err)
+			}
+		}
+	}
+
+	return handlerErr.Flat()
+}
+
 func searchImageHandler(opts *handler_params.Update) error {
 	var isMoveMessage bool
 
@@ -110,7 +186,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 			Msg("copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`")
 	}
 
-	photoPath, err := downloadPhoto(opts)
+	photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Update.Message)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -119,6 +195,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Update.Message.Chat.ID,
 			Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", err.Error()),
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
@@ -129,12 +206,18 @@ func searchImageHandler(opts *handler_params.Update) error {
 			handlerErr.Addf("failed to send `photo cache error` message: %w", err)
 		}
 	} else {
+		linkPreviewURL := imageBaseURL + photoPath
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Update.Message.Chat.ID,
 			Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 			ReplyMarkup: buildSearchLinksKeboard(photoPath),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 			MessageEffectID: "5104841245755180586",
+			LinkPreviewOptions: &models.LinkPreviewOptions{
+				URL: &linkPreviewURL,
+				// PreferSmallMedia: bot.True(),
+				ShowAboveText: bot.True(),
+			},
 		})
 		if err != nil {
 			logger.Error().
@@ -148,22 +231,22 @@ func searchImageHandler(opts *handler_params.Update) error {
 	return handlerErr.Flat()
 }
 
-func downloadPhoto(opts *handler_params.Update) (string, error) {
-	logger := zerolog.Ctx(opts.Ctx).
+func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (string, error) {
+	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "search_images").
 		Str("funcName", "downloadPhoto").
 		Logger()
 
-	var photoFileName string = fmt.Sprintf("%d-%s.jpg", opts.Update.Message.From.ID, opts.Update.Message.Photo[len(opts.Update.Message.Photo)-1].FileID)
+	var photoFileName string = fmt.Sprintf("%d-%s.jpg", msg.From.ID, msg.Photo[len(msg.Photo)-1].FileID)
 	var photoFullPath string = filepath.Join(photoCachedDir, photoFileName)
 
 	_, err := os.Stat(photoFullPath) // 检查贴纸源文件是否已缓存
 	if err != nil {
 		// 如果贴纸源文件未缓存，则下载
 		if os.IsNotExist(err) {
-			fileInfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{
-				FileID: opts.Update.Message.Photo[len(opts.Update.Message.Photo)-1].FileID,
+			fileInfo, err := thebot.GetFile(ctx, &bot.GetFileParams{
+				FileID: msg.Photo[len(msg.Photo)-1].FileID,
 			})
 			if err != nil {
 				logger.Error().
@@ -240,7 +323,7 @@ func buildSearchLinksKeboard(photoPath string) models.ReplyMarkup {
 		}
 		tempButton = append(tempButton, models.InlineKeyboardButton{
 			Text: url.Name,
-			URL:  fmt.Sprintf(url.URL, imageBaseUrl + photoPath),
+			URL:  fmt.Sprintf(url.URL, imageBaseURL + photoPath),
 		})
 	}
 

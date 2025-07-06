@@ -32,7 +32,7 @@ func startHandler(params *handler_params.Update) error {
 	}
 
 	if len(messageParams.Fields) > 1 {
-		for _, plugin := range plugin_utils.AllPlugins.SlashStart.WithPrefixHandler {
+		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.WithPrefixHandler {
 			if strings.HasPrefix(messageParams.Fields[1], plugin.Prefix) {
 				inlineArgument := strings.Split(messageParams.Fields[1], "_")
 				if inlineArgument[1] == plugin.Argument {
@@ -63,7 +63,7 @@ func startHandler(params *handler_params.Update) error {
 				}
 			}
 		}
-		for _, plugin := range plugin_utils.AllPlugins.SlashStart.Handler {
+		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.Handler {
 			if messageParams.Fields[1] == plugin.Argument {
 				slogger := logger.With().
 					Str("handlerArgument", plugin.Argument).

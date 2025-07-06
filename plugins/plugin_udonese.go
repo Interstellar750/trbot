@@ -811,7 +811,7 @@ func init() {
 		InlineHandler: udoneseInlineHandler,
 		Description: "查询 Udonese 词典",
 	})
-	plugin_utils.AddSlashSymbolCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
 		SlashCommand:   "udonese",
 		MessageHandler: addUdoneseHandler,
 	})
@@ -820,7 +820,7 @@ func init() {
 		PluginName:     "udoneseGroupHandler",
 		MessageHandler: udoneseGroupHandler,
 	})
-	plugin_utils.AddCallbackQueryCommandPlugins(plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryPlugins(plugin_utils.CallbackQuery{
 		CommandChar: "udonese",
 		UpdateHandler:      udoneseCallbackHandler,
 	})

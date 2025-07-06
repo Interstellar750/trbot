@@ -11,7 +11,7 @@ type CallbackQuery struct {
 	UpdateHandler        func(*handler_params.Update)        error
 }
 
-func AddCallbackQueryCommandPlugins(Plugins ...CallbackQuery) int {
+func AddCallbackQueryPlugins(Plugins ...CallbackQuery) int {
 	if AllPlugins.CallbackQuery == nil { AllPlugins.CallbackQuery = []CallbackQuery{} }
 
 	var pluginCount int

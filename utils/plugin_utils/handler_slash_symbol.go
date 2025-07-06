@@ -8,7 +8,7 @@ type SlashCommand struct {
 	UpdateHandler  func(*handler_params.Update)  error
 }
 
-func AddSlashSymbolCommandPlugins(Plugins ...SlashCommand) int {
+func AddSlashCommandPlugins(Plugins ...SlashCommand) int {
 	if AllPlugins.SlashCommand == nil { AllPlugins.SlashCommand = []SlashCommand{} }
 
 	var pluginCount int

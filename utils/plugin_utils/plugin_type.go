@@ -21,10 +21,10 @@ type Plugin_All struct {
 	InlineCommandList   []InlineCommandList   // inline 命令列表
 
 	// message
-	SlashStart    SlashStartCommand // '/start' 命令和后面的 query
-	SlashCommand  []SlashCommand    // 以 '/' 符号开头的命令，例如 '/help' '/test'
-	FullCommand   []FullCommand     // 手动定义符号的命令，例如定义符号为 '!'，则命令为 '!help' 或 '!test', 也可以不用不符号，直接 help 或 test
-	SuffixCommand []SuffixCommand   // 后缀命令，例如 'help' 'test'，需要以空格开头
+	SlashStartCommand SlashStartCommand // '/start' 命令和后面的 query
+	SlashCommand      []SlashCommand    // 以 '/' 符号开头的命令，例如 '/help' '/test'
+	FullCommand       []FullCommand     // 手动定义符号的命令，例如定义符号为 '!'，则命令为 '!help' 或 '!test', 也可以不用不符号，直接 help 或 test
+	SuffixCommand     []SuffixCommand   // 后缀命令，例如 'help' 'test'，需要以空格开头
 
 	// InlineKeyboardMarkup
 	CallbackQuery []CallbackQuery // 处理 InlineKeyboardMarkup 的 callback 函数
