@@ -142,10 +142,9 @@ func sendSearchLinks(opts *handler_params.Message) error {
 				Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 				ReplyMarkup: buildSearchLinksKeboard(photoPath),
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
-				MessageEffectID: "5104841245755180586",
 				LinkPreviewOptions: &models.LinkPreviewOptions{
 					URL: &linkPreviewURL,
-					// PreferSmallMedia: bot.True(),
+					PreferSmallMedia: bot.True(),
 					ShowAboveText: bot.True(),
 				},
 			})
@@ -212,10 +211,9 @@ func searchImageHandler(opts *handler_params.Update) error {
 			Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 			ReplyMarkup: buildSearchLinksKeboard(photoPath),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-			MessageEffectID: "5104841245755180586",
 			LinkPreviewOptions: &models.LinkPreviewOptions{
 				URL: &linkPreviewURL,
-				// PreferSmallMedia: bot.True(),
+				PreferSmallMedia: bot.True(),
 				ShowAboveText: bot.True(),
 			},
 		})
