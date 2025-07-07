@@ -292,6 +292,13 @@ func messageHandler(opts *handler_params.Update) {
 
 	// 检测如果消息开头是 / 符号，作为命令来处理
 	if strings.HasPrefix(opts.Update.Message.Text, "/") {
+		err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+		if err != nil {
+			messageLogger.Warn().
+				Err(err).
+				Msg("Failed to incremental message command count")
+		}
+
 		// 匹配默认的 `/xxx` 命令
 		for _, plugin := range plugin_utils.AllPlugins.SlashCommand {
 			if utils.CommandMaybeWithSuffixUsername(messageParams.Fields, "/" + plugin.SlashCommand) {
@@ -301,28 +308,20 @@ func messageHandler(opts *handler_params.Update) {
 
 				slogger.Info().Msg("Hit slash command handler")
 
-				var err error
-				switch {
-				case plugin.MessageHandler != nil:
-					err = plugin.MessageHandler(&messageParams)
-				case plugin.UpdateHandler != nil:
-					err = plugin.UpdateHandler(opts)
-				default:
-					slogger.Warn().Msg("Hit slash symbol command handler, but this handler all function is nil, skip")
-					continue
-				}
-				if err != nil {
-					slogger.Error().
-						Err(err).
-						Msg("Error in slash symbol command handler")
-				}
-				err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				if err != nil {
+				isCalled, err := plugin_utils.RunSlashCommandPlugin(opts, &messageParams, plugin)
+				if !isCalled {
 					slogger.Warn().
 						Err(err).
-						Msg("Failed to incremental message command count")
+						Msg("Not called slash symbol command handler")
+					continue
+				} else {
+					if err != nil {
+						slogger.Error().
+							Err(err).
+							Msg("Error in slash symbol command handler")
+					}
+					return
 				}
-				return
 			}
 		}
 		// 不存在以 `/` 作为前缀命令时的条件
@@ -340,12 +339,6 @@ func messageHandler(opts *handler_params.Update) {
 					Str("content", "no this command").
 					Msg(err_template.SendMessage)
 			}
-			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-			if err != nil {
-				messageLogger.Warn().
-					Err(err).
-					Msg("Failed to incremental message command count")
-			}
 		} else if strings.HasSuffix(messageParams.Fields[0], "@" + consts.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			// 为防止与其他 bot 的命令冲突，默认不会响应不在命令列表中的命令
@@ -360,12 +353,6 @@ func messageHandler(opts *handler_params.Update) {
 					Err(err).
 					Str("content", "no this command").
 					Msg(err_template.SendMessage)
-			}
-			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-			if err != nil {
-				messageLogger.Warn().
-					Err(err).
-					Msg("Failed to incremental message command count")
 			}
 			time.Sleep(time.Second * 10)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
@@ -393,28 +380,26 @@ func messageHandler(opts *handler_params.Update) {
 
 				slogger.Info().Msg("Hit full command handler")
 
-				var err error
-				switch {
-				case plugin.MessageHandler != nil:
-					err = plugin.MessageHandler(&messageParams)
-				case plugin.UpdateHandler != nil:
-					err = plugin.UpdateHandler(opts)
-				default:
-					slogger.Warn().Msg("Hit full command handler, but this handler all function is nil, skip")
-					continue
-				}
-				if err != nil {
-					slogger.Error().
-						Err(err).
-						Msg("Error in full command handler")
-				}
-				err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				if err != nil {
+				isCalled, err := plugin_utils.RunFullCommandPlugin(opts, &messageParams, plugin)
+				if !isCalled {
 					slogger.Warn().
 						Err(err).
-						Msg("Failed to incremental message command count")
+						Msg("Not called full command handler")
+					continue
+				} else {
+					if err != nil {
+						slogger.Error().
+							Err(err).
+							Msg("Error in full command handler")
+					}
+					err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+					if err != nil {
+						slogger.Warn().
+							Err(err).
+							Msg("Failed to incremental message command count")
+					}
+					return
 				}
-				return
 			}
 		}
 		// 以后缀来触发的命令
@@ -426,28 +411,26 @@ func messageHandler(opts *handler_params.Update) {
 
 				slogger.Info().Msg("Hit suffix command handler")
 
-				var err error
-				switch {
-				case plugin.MessageHandler != nil:
-					err = plugin.MessageHandler(&messageParams)
-				case plugin.UpdateHandler != nil:
-					err = plugin.UpdateHandler(opts)
-				default:
-					slogger.Warn().Msg("Hit suffix command handler, but this handler all function is nil, skip")
-					continue
-				}
-				if err != nil {
-					slogger.Error().
-						Err(err).
-						Msg("Error in suffix command handler")
-				}
-				err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-				if err != nil {
+				isCalled, err := plugin_utils.RunSuffixCommandPlugin(opts, &messageParams, plugin)
+				if !isCalled {
 					slogger.Warn().
 						Err(err).
-						Msg("Failed to incremental message command count")
+						Msg("Not called suffix command handler")
+					continue
+				} else {
+					if err != nil {
+						slogger.Error().
+							Err(err).
+							Msg("Error in suffix command handler")
+					}
+					err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+					if err != nil {
+						slogger.Warn().
+							Err(err).
+							Msg("Failed to incremental message command count")
+					}
+					return
 				}
-				return
 			}
 		}
 	}
