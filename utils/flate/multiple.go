@@ -1,15 +1,16 @@
-package flat_err
+package flate
 
 import (
 	"errors"
 	"fmt"
 )
 
-type Errors struct {
+type MultErr struct {
 	Errors []error
 }
 
-func (e *Errors) Add(errs ...error) *Errors {
+// add error to MultErr
+func (e *MultErr) Add(errs ...error) *MultErr {
 	for _, err := range errs {
 		if err != nil {
 			e.Errors = append(e.Errors, err)
@@ -19,17 +20,13 @@ func (e *Errors) Add(errs ...error) *Errors {
 }
 
 // add formatted error by use fmt.Errorf()
-func (e *Errors) Addf(format string, a ...any) *Errors {
+func (e *MultErr) Addf(format string, a ...any) *MultErr {
 	e.Errors = append(e.Errors, fmt.Errorf(format, a...))
 	return e
 }
 
-// func (e *MultiError) AddWith(key string, dict *zerolog.Event) string {
-// 	dict.
-// }
-
 // a string error by use errors.Join()
-func (e *Errors) Flat() error {
+func (e *MultErr) Flat() error {
 	if len(e.Errors) == 0 {
 		return nil
 	}

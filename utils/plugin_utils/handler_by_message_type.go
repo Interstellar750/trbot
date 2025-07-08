@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"trbot/utils"
-	"trbot/utils/err_template"
-	"trbot/utils/flat_err"
+	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 	"trbot/utils/type/message_utils"
 
@@ -122,7 +121,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 	var chatType, messageType, pluginName string
 	var chatTypeMessageTypeAndPluginName  string
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	if strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") {
 		chatTypeMessageTypeAndPluginName =  strings.TrimPrefix(opts.Update.CallbackQuery.Data, "HBMT_")
@@ -166,7 +165,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 						logger.Error().
 							Err(err).
 							Str("content", "error in by message type handler notice").
-							Msg(err_template.SendMessage)
+							Msg(flate.SendMessage.Str())
 						handlerErr.Addf("failed to send `error in by message type handler notice` message: %w", err)
 					}
 				} else {
@@ -178,7 +177,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 						logger.Error().
 							Err(err).
 							Str("content", "select by message type handler keyboard").
-							Msg(err_template.DeleteMessages)
+							Msg(flate.DeleteMessages.Str())
 						handlerErr.Addf("failed to delete `select by message type handler keyboard` message: %w", err)
 					}
 				}
@@ -192,7 +191,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 					logger.Error().
 						Err(err).
 						Str("content", "this by message type handler is not exist").
-						Msg(err_template.AnswerCallbackQuery)
+						Msg(flate.AnswerCallbackQuery.Str())
 					handlerErr.Addf("failed to send `this by message type handler is not exist` callback answer: %w", err)
 				}
 			}

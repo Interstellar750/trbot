@@ -11,8 +11,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/err_template"
-	"trbot/utils/flat_err"
+	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
@@ -54,9 +53,11 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "/chatinfo").
-						Msg("send `chat info` message failed")
+						Str(flate.Cont("chat info")).
+						Msg(flate.SendMessage.Str())
+					return fmt.Errorf(flate.SendMessage.Template(), "chat info", err)
 				}
-				return err
+				return nil
 			},
 		},
 		{
@@ -65,7 +66,7 @@ func Register(ctx context.Context) {
 				logger := zerolog.Ctx(opts.Ctx)
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
-					Text:            "您可以订阅测试频道以查看最近的更新",
+					Text:            "您可以订阅测试频道以查看最近的更新更新内容",
 					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 					ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "测试频道",
@@ -76,10 +77,11 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "/test").
-						Str("content", "test channel link").
-						Msg(err_template.SendMessage)
+						Str(flate.Cont("test channel link")).
+						Msg(flate.SendMessage.Str())
+					return fmt.Errorf(flate.SendMessage.Template(), "test channel link", err)
 				}
-				return err
+				return nil
 			},
 		},
 		{
@@ -123,9 +125,11 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "/fileid").
-						Msg("send `file ID` message failed")
+						Str(flate.Cont("media file ID info")).
+						Msg(flate.SendMessage.Str())
+					return fmt.Errorf(flate.SendMessage.Template(), "media file ID info", err)
 				}
-				return err
+				return nil
 			},
 		},
 		{
@@ -145,9 +149,9 @@ func Register(ctx context.Context) {
 					logger.Error().
 						Err(err).
 						Str("command", "/version").
-						Str("content", "bot version info").
-						Msg(err_template.SendMessage)
-					return err
+						Str(flate.Cont("bot version info")).
+						Msg(flate.SendMessage.Str())
+					return fmt.Errorf(flate.SendMessage.Template(), "bot version info", err)
 				}
 				return nil
 			},
@@ -176,10 +180,12 @@ func Register(ctx context.Context) {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("content", "select inline default command keyboard").
-						Msg(err_template.SendMessage)
+						Str(flate.Cont("select inline default command keyboard")).
+						Str("content", "").
+						Msg(flate.SendMessage.Str())
+					return fmt.Errorf(flate.SendMessage.Template(), "select inline default command keyboard", err)
 				}
-				return err
+				return nil
 			},
 		},
 	}...)
@@ -187,8 +193,8 @@ func Register(ctx context.Context) {
 	// 触发：'/start <Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
 	plugin_utils.AddSlashStartCommandPlugins([]plugin_utils.SlashStartHandler{
 		{
-			Argument: "noreply",
-			MessageHandler:  nil, // 不回复
+			Argument:       "noreply",
+			MessageHandler: nil, // 不回复
 		},
 	}...)
 
@@ -196,41 +202,47 @@ func Register(ctx context.Context) {
 	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
 		{
 			CommandChar: "inline_default_",
-			// todo: 错误处理
 			UpdateHandler: func(opts *handler_params.Update) error {
-				logger := zerolog.Ctx(opts.Ctx)
+				logger := zerolog.Ctx(opts.Ctx).
+					With().
+					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Logger()
+
+				var handlerErr flate.MultErr
+
 				if opts.Update.CallbackQuery.Data == "inline_default_none" {
 					err := database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-							Msg("Remove inline default command flag failed")
-						return err
+							Msg("Failed to remove inline default command flag")
+						handlerErr.Addf("failed to remove inline default command flag: %w", err)
+					} else {
+						// if chatinfo get from redis database, it won't be the newst data, need reload it from database
+						opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Msg("Failed to get chat info")
+							handlerErr.Addf("failed to get chat info: %w", err)
+						} else {
+							_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+								ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
+								MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
+								ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+							})
+							if err != nil {
+								logger.Error().Func(flate.Wrapper(&handlerErr).
+									Err(err).
+									ErrContent("inline command select keyboard",
+										flate.EditMessageReplyMarkup,
+									).
+									DoneAndSend())
+								return err
+							}
+						}
 					}
-					// if chatinfo get from redis database, it won't be the newst data, need reload it from database
-					opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-							Msg("Get chat info failed")
-					}
-					_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-						ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
-						MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
-						ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-							Str("content", "inline command select keyboard").
-							Msg(err_template.EditMessageReplyMarkup)
-						return err
-					}
-				}
-				if strings.HasPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_") {
+				} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_") {
 					callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_")
 					for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
 						if inlinePlugin.Command == callbackField {
@@ -238,8 +250,7 @@ func Register(ctx context.Context) {
 							if err != nil {
 								logger.Error().
 									Err(err).
-									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-									Msg("Change inline default command flag failed")
+									Msg("Failed to change inline default command flag")
 								return err
 							}
 							_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -250,9 +261,8 @@ func Register(ctx context.Context) {
 							if err != nil {
 								logger.Error().
 									Err(err).
-									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 									Str("content", "inline command changed").
-									Msg(err_template.AnswerCallbackQuery)
+									Msg(flate.AnswerCallbackQuery.Str())
 								return err
 							}
 							break
@@ -266,17 +276,15 @@ func Register(ctx context.Context) {
 							if err != nil {
 								logger.Error().
 									Err(err).
-									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-									Msg("Change inline default command flag failed")
+									Msg("Failed to change inline default command flag")
 								return err
 							}
-							// if chatinfo get from redis database, it won't be the newst data, need reload it from database
+							// if chatinfo get from redis database, it won't be the latest data, need reload it from database
 							opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
 							if err != nil {
 								logger.Error().
 									Err(err).
-									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-									Msg("Get chat info failed")
+									Msg("Failed to get chat info")
 							}
 							_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 								ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
@@ -286,8 +294,8 @@ func Register(ctx context.Context) {
 							if err != nil {
 								logger.Error().
 									Err(err).
-									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-									Msg("Edit message to `inline command select keyboard` failed")
+									Str("content", "inline command select keyboard").
+									Msg(flate.EditMessageReplyMarkup.Str())
 								return err
 							}
 							break
@@ -318,7 +326,7 @@ func Register(ctx context.Context) {
 		},
 		InlineHandler: func(opts *handler_params.InlineQuery) error {
 			logger := zerolog.Ctx(opts.Ctx)
-			var handlerErr flat_err.Errors
+			var handlerErr flate.MultErr
 			keywords := utils.InlineExtractKeywords(opts.Fields)
 			if len(keywords) == 0 {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -340,7 +348,7 @@ func Register(ctx context.Context) {
 						Err(err).
 						Dict(utils.GetUserDict(opts.InlineQuery.From)).
 						Str("content", "uaav command usage tips").
-						Msg(err_template.AnswerInlineQuery)
+						Msg(flate.AnswerInlineQuery.Str())
 					handlerErr.Addf("failed to send `uaav command usage tips` inline answer: %w", err)
 				}
 			} else if len(keywords) == 1 {
@@ -362,7 +370,7 @@ func Register(ctx context.Context) {
 							Dict(utils.GetUserDict(opts.InlineQuery.From)).
 							Str("query", opts.InlineQuery.Query).
 							Str("content", "uaav valid voice url").
-							Msg(err_template.AnswerInlineQuery)
+							Msg(flate.AnswerInlineQuery.Str())
 						handlerErr.Addf("failed to send `uaav valid voice url` inline answer: %w", err)
 					}
 				} else {
@@ -386,7 +394,7 @@ func Register(ctx context.Context) {
 							Dict(utils.GetUserDict(opts.InlineQuery.From)).
 							Str("query", opts.InlineQuery.Query).
 							Str("content", "uaav invalid URL").
-							Msg(err_template.AnswerInlineQuery)
+							Msg(flate.AnswerInlineQuery.Str())
 						handlerErr.Addf("failed to send `uaav invalid URL` inline answer: %w", err)
 					}
 				}
@@ -412,7 +420,7 @@ func Register(ctx context.Context) {
 						Str("query", opts.InlineQuery.Query).
 						Str("command", "uaav").
 						Str("content", "too much argumunt").
-						Msg(err_template.AnswerInlineQuery)
+						Msg(flate.AnswerInlineQuery.Str())
 					return err
 				}
 			}
@@ -445,7 +453,7 @@ func Register(ctx context.Context) {
 			},
 			UpdateHandler: func(opts *handler_params.Update) error {
 				logger := zerolog.Ctx(opts.Ctx)
-				var handlerErr flat_err.Errors
+				var handlerErr flate.MultErr
 				logs, err := mess.ReadLog()
 				if err != nil {
 					logger.Error().
@@ -483,7 +491,7 @@ func Register(ctx context.Context) {
 							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 							Str("query", opts.Update.InlineQuery.Query).
 							Str("content", "log infos").
-							Msg(err_template.AnswerInlineQuery)
+							Msg(flate.AnswerInlineQuery.Str())
 						handlerErr.Addf("failed to send `log infos` inline answer: %w", err)
 					}
 				}
@@ -500,7 +508,7 @@ func Register(ctx context.Context) {
 			},
 			UpdateHandler: func(opts *handler_params.Update) error {
 				logger := zerolog.Ctx(opts.Ctx)
-				var handlerErr flat_err.Errors
+				var handlerErr flate.MultErr
 				signals.SIGNALS.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -524,7 +532,7 @@ func Register(ctx context.Context) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("query", opts.Update.InlineQuery.Query).
 						Str("content", "plugin database reloaded").
-						Msg(err_template.AnswerInlineQuery)
+						Msg(flate.AnswerInlineQuery.Str())
 					handlerErr.Addf("failed to send `plugin database reloaded` inline answer: %w", err)
 				}
 				return handlerErr.Flat()
@@ -540,7 +548,7 @@ func Register(ctx context.Context) {
 			},
 			UpdateHandler: func(opts *handler_params.Update) error {
 				logger := zerolog.Ctx(opts.Ctx)
-				var handlerErr flat_err.Errors
+				var handlerErr flate.MultErr
 				signals.SIGNALS.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -564,7 +572,7 @@ func Register(ctx context.Context) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("query", opts.Update.InlineQuery.Query).
 						Str("content", "plugin database saved").
-						Msg(err_template.AnswerInlineQuery)
+						Msg(flate.AnswerInlineQuery.Str())
 					handlerErr.Addf("failed to send `plugin database saved` inline answer: %w", err)
 				}
 				return handlerErr.Flat()
@@ -580,7 +588,7 @@ func Register(ctx context.Context) {
 			},
 			UpdateHandler: func(opts *handler_params.Update) error {
 				logger := zerolog.Ctx(opts.Ctx)
-				var handlerErr flat_err.Errors
+				var handlerErr flate.MultErr
 				signals.SIGNALS.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -604,7 +612,7 @@ func Register(ctx context.Context) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("query", opts.Update.InlineQuery.Query).
 						Str("content", "database saved").
-						Msg(err_template.AnswerInlineQuery)
+						Msg(flate.AnswerInlineQuery.Str())
 					handlerErr.Addf("failed to send `database saved` inline answer: %w", err)
 				}
 				return handlerErr.Flat()

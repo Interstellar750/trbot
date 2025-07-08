@@ -17,8 +17,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/err_template"
-	"trbot/utils/flat_err"
+	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -111,7 +110,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		Dict(utils.GetUserDict(opts.Update.Message.From)).
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	if isMoveMessage {
 		logger.Info().
@@ -148,7 +147,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "sticker download error").
-				Msg(err_template.SendMessage)
+				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("failed to send `sticker download error` message: %w", err)
 		}
 	} else {
@@ -209,7 +208,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "sticker file").
-				Msg(err_template.SendDocument)
+				Msg(flate.SendDocument.Str())
 			handlerErr.Addf("failed to send sticker file: %w", err)
 		}
 	}
@@ -305,7 +304,7 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 			}
 
 			// 组合链接下载贴纸源文件
-			resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", configs.BotConfig.BotToken, fileinfo.FilePath))
+			resp, err := http.Get(opts.Thebot.FileDownloadLink(fileinfo))
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -492,7 +491,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 		Str("funcName", "DownloadStickerPackCallBackHandler").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
@@ -505,7 +504,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 			Err(err).
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Str("content", "start download stickerset").
-			Msg(err_template.SendMessage)
+			Msg(flate.SendMessage.Str())
 		handlerErr.Addf("failed to send `start download stickerset` message: %w", err)
 	}
 
@@ -547,7 +546,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 				Err(err).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "get sticker set info error").
-				Msg(err_template.SendMessage)
+				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
 		}
 	} else {
@@ -578,7 +577,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "download sticker set error").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("Failed to send `download sticker set error` message: %w", err)
 			}
 		} else {
@@ -601,7 +600,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "sticker set zip file").
-					Msg(err_template.SendDocument)
+					Msg(flate.SendDocument.Str())
 				handlerErr.Addf("failed to send sticker set zip file: %w", err)
 			}
 
@@ -614,7 +613,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start download stickerset notice").
-					Msg(err_template.DeleteMessage)
+					Msg(flate.DeleteMessage.Str())
 				handlerErr.Addf("failed to delete `start download sticker set notice` message: %w", err)
 			}
 		}
@@ -690,7 +689,7 @@ func getStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 				}
 
 				// 下载贴纸文件
-				resp, err := http.Get(fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", configs.BotConfig.BotToken, fileinfo.FilePath))
+				resp, err := http.Get(thebot.FileDownloadLink(fileinfo))
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -1032,7 +1031,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 		Str("funcName", "collectStickerSet").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	if StickerCollectionChannelID == 0 {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -1046,7 +1045,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("callbackQuery", opts.CallbackQuery.Data).
 				Str("content", "collect channel ID not set").
-				Msg(err_template.AnswerCallbackQuery)
+				Msg(flate.AnswerCallbackQuery.Str())
 		}
 	} else {
 		stickerSetName := strings.TrimPrefix(opts.CallbackQuery.Data, "c_")
@@ -1069,7 +1068,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "get sticker set info error").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
 			}
 		} else {
@@ -1082,7 +1081,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start downloading sticker pack notice").
-					Msg(err_template.AnswerCallbackQuery)
+					Msg(flate.AnswerCallbackQuery.Str())
 				handlerErr.Addf("Failed to send `start downloading sticker pack notice` callback answer: %w", err)
 			}
 			stickerData, err := getStickerPack(opts.Ctx, opts.Thebot, stickerSet, false)
@@ -1103,7 +1102,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Err(err).
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "download sticker set error").
-						Msg(err_template.SendMessage)
+						Msg(flate.SendMessage.Str())
 					handlerErr.Addf("Failed to send `download sticker set error` message: %w", err)
 				}
 			} else {
@@ -1133,7 +1132,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Str("stickerSetName", stickerSetName).
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "collect sticker set file").
-						Msg(err_template.SendDocument)
+						Msg(flate.SendDocument.Str())
 					handlerErr.Addf("Failed to send `collect sticker set` file: %w", err)
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID: opts.CallbackQuery.From.ID,
@@ -1148,7 +1147,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 							Str("stickerSetName", stickerSetName).
 							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 							Str("content", "collect sticker set failed notice").
-							Msg(err_template.SendMessage)
+							Msg(flate.SendMessage.Str())
 						handlerErr.Addf("Failed to send `collect sticker set failed notice` message: %w", err)
 					}
 				}
@@ -1171,7 +1170,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 		Str("funcName", "getStickerPackInfo").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 	var stickerSetName string
 
 	if strings.HasPrefix(opts.Message.Text, "https://t.me/addstickers/") {
@@ -1200,7 +1199,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "get sticker set info error").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
 			}
 		} else {
@@ -1224,7 +1223,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "sticker set info").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("Failed to send `sticker set info` message: %w", err)
 			}
 		}
@@ -1239,7 +1238,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "empty sticker link notice").
-				Msg(err_template.SendMessage)
+				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("Failed to send `empty sticker link notice` message: %w", err)
 		}
 	}

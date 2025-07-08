@@ -188,7 +188,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 			}
 		} else if reflect.DeepEqual(*savedDatabase, Database) {
 			// 没有修改就跳过保存
-			logger.Debug().Msg("looks Database no any change, skip autosave this time")
+			logger.Debug().Msg("Looks database no any change, skip autosave this time")
 		} else {
 			// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记
 			// 无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
@@ -210,7 +210,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 					logger.Warn().
 						Err(err).
 						Str("oldPath", oldFilePath).
-						Msg("The Database before overwrite is saved to another file")
+						Msg("The database before overwrite is saved to another file")
 				}
 				Database = *savedDatabase
 				Database.ForceOverwrite = false // 移除强制覆盖标记
@@ -233,7 +233,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 					// 如果只是更新时间有差别，更新一下时间，再保存就行
 					if reflect.DeepEqual(savedDatabase.Data, Database.Data) {
 						logger.Warn().
-							Msg("But current data and Database is the same, updating UpdateTimestamp in the Database only")
+							Msg("But current data and database is the same, updating UpdateTimestamp in the database only")
 						Database.UpdateTimestamp = time.Now().Unix()
 						err := SaveYamlDB(ctx, consts.YAMLDataBaseDir, consts.YAMLFileName, Database)
 						if err != nil {

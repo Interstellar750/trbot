@@ -471,49 +471,46 @@ func GetChatDict(chat *models.Chat) (string, *zerolog.Event) {
 
 // Can replace GetUserDict(), not for GetChatDict(), and not available for some update type.
 // return a sender type string and a `zerolog.Dict()` to show sender info
-func GetUserOrSenderChatDict(userOrSenderChat *models.Message) (string, *zerolog.Event) {
-	if userOrSenderChat == nil {
+func GetUserOrSenderChatDict(msg *models.Message) (string, *zerolog.Event) {
+	if msg == nil {
 		return "noMessage", zerolog.Dict().Str("error", "no message to check")
 	}
 
-	if userOrSenderChat.From != nil {
-		return "user", zerolog.Dict().
-			Str("name", ShowUserName(userOrSenderChat.From)).
-			Str("username", userOrSenderChat.From.Username).
-			Int64("ID", userOrSenderChat.From.ID)
+	if msg.From != nil {
+		return GetUserDict(msg.From)
 	}
 
-	attr := message_utils.GetMessageAttribute(userOrSenderChat)
+	attr := message_utils.GetMessageAttribute(msg)
 
-	if userOrSenderChat.SenderChat != nil {
+	if msg.SenderChat != nil {
 		if attr.IsFromAnonymous {
 			return "groupAnonymous", zerolog.Dict().
-				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
-				Str("username", userOrSenderChat.SenderChat.Username).
-				Int64("ID", userOrSenderChat.SenderChat.ID)
+				Str("chat", ShowChatName(msg.SenderChat)).
+				Str("username", msg.SenderChat.Username).
+				Int64("ID", msg.SenderChat.ID)
 		} else if attr.IsUserAsChannel {
 			return "userAsChannel", zerolog.Dict().
-				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
-				Str("username", userOrSenderChat.SenderChat.Username).
-				Int64("ID", userOrSenderChat.SenderChat.ID)
+				Str("chat", ShowChatName(msg.SenderChat)).
+				Str("username", msg.SenderChat.Username).
+				Int64("ID", msg.SenderChat.ID)
 		} else if attr.IsFromLinkedChannel {
 			return "linkedChannel", zerolog.Dict().
-				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
-				Str("username", userOrSenderChat.SenderChat.Username).
-				Int64("ID", userOrSenderChat.SenderChat.ID)
+				Str("chat", ShowChatName(msg.SenderChat)).
+				Str("username", msg.SenderChat.Username).
+				Int64("ID", msg.SenderChat.ID)
 		} else if attr.IsFromBusinessBot {
 			return "businessBot", zerolog.Dict().
-				Str("name", ShowUserName(userOrSenderChat.SenderBusinessBot)).
-				Str("username", userOrSenderChat.SenderBusinessBot.Username).
-				Int64("ID", userOrSenderChat.SenderBusinessBot.ID)
-		} else if attr.IsHasSenderChat && userOrSenderChat.SenderChat.ID != userOrSenderChat.Chat.ID {
+				Str("name", ShowUserName(msg.SenderBusinessBot)).
+				Str("username", msg.SenderBusinessBot.Username).
+				Int64("ID", msg.SenderBusinessBot.ID)
+		} else if attr.IsHasSenderChat && msg.SenderChat.ID != msg.Chat.ID {
 			// use other channel send message in this channel
 			return "senderChat", zerolog.Dict().
-				Str("chat", ShowChatName(userOrSenderChat.SenderChat)).
-				Str("username", userOrSenderChat.SenderChat.Username).
-				Int64("ID", userOrSenderChat.SenderChat.ID)
+				Str("chat", ShowChatName(msg.SenderChat)).
+				Str("username", msg.SenderChat.Username).
+				Int64("ID", msg.SenderChat.ID)
 		}
 	}
 
-	return "noUserOrSender", zerolog.Dict().Str("warn", "no user or sender chat")
+	return "noUserOrSender", zerolog.Dict()
 }

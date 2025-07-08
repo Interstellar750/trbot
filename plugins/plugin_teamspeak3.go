@@ -7,8 +7,7 @@ import (
 	"path/filepath"
 	"time"
 	"trbot/utils/consts"
-	"trbot/utils/err_template"
-	"trbot/utils/flat_err"
+	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
@@ -92,7 +91,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str("funcName", "initTeamSpeak").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	err := yaml.LoadYAML(tsDataPath, &tsData)
 	if err != nil {
@@ -256,7 +255,7 @@ func showStatus(opts *handler_params.Update) error {
 		Str("funcName", "showStatus").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	var pendingMessage string
 
@@ -338,7 +337,7 @@ func showStatus(opts *handler_params.Update) error {
 			Err(err).
 			Int64("chatID", opts.Update.Message.Chat.ID).
 			Str("content", "teamspeak online client status").
-			Msg(err_template.SendMessage)
+			Msg(flate.SendMessage.Str())
 		handlerErr.Addf("failed to send `teamspeak online client status: %w`", err)
 	}
 
@@ -399,7 +398,7 @@ func listenUserStatus(ctx context.Context) {
 							Err(err).
 							Int64("chatID", tsData.GroupID).
 							Str("content", "success reconnect to server notice").
-							Msg(err_template.SendMessage)
+							Msg(flate.SendMessage.Str())
 					} else {
 						time.Sleep(time.Second * 3)
 						var deleteMessageIDs []int = []int{botMessage.ID}
@@ -417,7 +416,7 @@ func listenUserStatus(ctx context.Context) {
 								Int64("chatID", tsData.GroupID).
 								Int("messageID", botMessage.ID).
 								Str("content", "success reconnect to server notice").
-								Msg(err_template.DeleteMessages)
+								Msg(flate.DeleteMessages.Str())
 						}
 					}
 				} else {
@@ -465,7 +464,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []string) [
 					Err(err).
 					Int64("chatID", tsData.GroupID).
 					Str("content", "failed to check online client 5 times, start auto reconnect").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 			} else {
 				reconnectMessageID = botMessage.ID
 			}
@@ -540,6 +539,6 @@ func notifyClientChange(add, remove []string) {
 			Err(err).
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
-			Msg(err_template.SendMessage)
+			Msg(flate.SendMessage.Str())
 	}
 }

@@ -6,8 +6,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/err_template"
-	"trbot/utils/flat_err"
+	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -25,7 +24,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 		Str("funcName", "saveMessageHandler").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 	var needSave  bool = true
 	UserSavedMessage := SavedMessageSet[opts.Message.From.ID]
 
@@ -51,7 +50,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "need agree privacy policy").
-				Msg(err_template.SendMessage)
+				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("failed to send `need agree privacy policy` message: %w", err)
 		}
 	} else {
@@ -69,7 +68,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "reach saved limit").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("failed to send `reach saved limit` message: %w", err)
 			}
 		} else {
@@ -563,7 +562,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 								Dict(utils.GetUserDict(opts.Message.From)).
 								Str("saveMessageType", string(replyMsgType.InString())).
 								Str("content", "failed to save savedmessage list notice").
-								Msg(err_template.SendMessage)
+								Msg(flate.SendMessage.Str())
 							handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
 						}
 
@@ -578,7 +577,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "saved message response").
-					Msg(err_template.SendMessage)
+					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("failed to send `saved message response` message: %w", err)
 			}
 		}
@@ -626,7 +625,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		Str("funcName", "InlineShowSavedMessageHandler").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 	var InlineSavedMessageResultList []models.InlineQueryResult
 	var button *models.InlineQueryResultsButton
 
@@ -728,7 +727,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			Dict(utils.GetUserDict(opts.InlineQuery.From)).
 			Str("query", opts.InlineQuery.Query).
 			Str("content", "saved message result").
-			Msg(err_template.AnswerInlineQuery)
+			Msg(flate.AnswerInlineQuery.Str())
 		handlerErr.Addf("failed to send `saved message result` inline answer: %w", err)
 	}
 
@@ -742,7 +741,7 @@ func SendPrivacyPolicy(opts *handler_params.Message) error {
 		Str("funcName", "SendPrivacyPolicy").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Message.Chat.ID,
@@ -777,7 +776,7 @@ func SendPrivacyPolicy(opts *handler_params.Message) error {
 			Err(err).
 			Dict(utils.GetUserDict(opts.Message.From)).
 			Str("content", "saved message privacy policy").
-			Msg(err_template.SendMessage)
+			Msg(flate.SendMessage.Str())
 		handlerErr.Addf("failed to send `saved message privacy policy` message: %w", err)
 	}
 
@@ -791,7 +790,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 		Str("funcName", "AgreePrivacyPolicy").
 		Logger()
 
-	var handlerErr flat_err.Errors
+	var handlerErr flate.MultErr
 
 	var UserSavedMessage SavedMessage
 	UserSavedMessage.AgreePrivacyPolicy = true
@@ -815,7 +814,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "failed to save savedmessage list notice").
-				Msg(err_template.SendMessage)
+				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
 		}
 	} else {
@@ -833,7 +832,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "saved message function enabled").
-				Msg(err_template.SendMessage)
+				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("failed to send `saved message function enabled` message: %w", err)
 		}
 	}
