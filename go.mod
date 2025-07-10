@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.5
 
 require (
-	github.com/go-telegram/bot v1.15.0
+	github.com/go-telegram/bot v1.16.0
 	github.com/joho/godotenv v1.5.1
 	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pkg/errors v0.9.1

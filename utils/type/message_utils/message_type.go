@@ -21,6 +21,7 @@ type MessageType struct {
 	VideoNote bool `yaml:"VideoNote,omitempty"` // A circular video shot in Telegram
 	Voice     bool `yaml:"Voice,omitempty"`     // can have caption
 	OnlyText  bool `yaml:"OnlyText,omitempty"`  // just text message
+	Checklist bool `yaml:"Checklist,omitempty"`
 	Contact   bool `yaml:"Contact,omitempty"`
 	Dice      bool `yaml:"Dice,omitempty"`
 	Game      bool `yaml:"Game,omitempty"`
@@ -59,6 +60,7 @@ const (
 	VideoNote MessageTypeList = "VideoNote"
 	Voice     MessageTypeList = "Voice"
 	OnlyText  MessageTypeList = "OnlyText"
+	Checklist MessageTypeList = "Checklist"
 	Contact   MessageTypeList = "Contact"
 	Dice      MessageTypeList = "Dice"
 	Game      MessageTypeList = "Game"
@@ -102,6 +104,9 @@ func GetMessageType(msg *models.Message) MessageType {
 	}
 	if msg.Voice != nil {
 		msgType.Voice = true
+	}
+	if msg.Checklist != nil {
+		msgType.Checklist = true
 	}
 	if msg.Contact != nil {
 		msgType.Contact = true
