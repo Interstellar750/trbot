@@ -17,40 +17,30 @@ const (
 	GetFile                Msg = "Failed to get file"
 )
 
-const (
-	FormatSendMessage            string = "failed to send [%s] message: %w"
-	FormatSendDocument           string = "failed to send [%s] document: %w"
-	FormatEditMessageText        string = "failed to edit message text to [%s]: %w"
-	FormatEditMessageMedia       string = "failed to edit message media to [%s]: %w"
-	FormatEditMessageCaption     string = "failed to edit message caption to [%s]: %w"
-	FormatEditMessageReplyMarkup string = "failed to edit message reply markup to [%s]: %w"
-	FormatDeleteMessage          string = "failed to delete [%s] message: %w"
-	FormatDeleteMessages         string = "failed to delete [%s] messages: %w"
-	FormatAnswerCallbackQuery    string = "failed to send [%s] callback answer: %w"
-	FormatAnswerInlineQuery      string = "failed to send [%s] inline answer: %w"
-	FormatGetFile                string = "failed to get [%s] file: %w"
-)
-
 // return message as string
 func (m Msg) Str() string {
 	return string(m)
 }
 
 // return a format string contains %s and %w
-func (m Msg) Template() string {
+//
+// %s is error content, %w is for error
+//
+// example: "failed to send [%s] message: %w"
+func (m Msg) Fmt() string {
 	switch m {
-	case SendMessage:            return FormatSendMessage
-	case SendDocument:           return FormatSendDocument
-	case EditMessageText:        return FormatEditMessageText
-	case EditMessageMedia:       return FormatEditMessageMedia
-	case EditMessageCaption:     return FormatEditMessageCaption
-	case EditMessageReplyMarkup: return FormatEditMessageReplyMarkup
-	case DeleteMessage:          return FormatDeleteMessage
-	case DeleteMessages:         return FormatDeleteMessages
-	case AnswerCallbackQuery:    return FormatAnswerCallbackQuery
-	case AnswerInlineQuery:      return FormatAnswerInlineQuery
-	case GetFile:                return FormatGetFile
+	case SendMessage:            return "failed to send [%s] message: %w"
+	case SendDocument:           return "failed to send [%s] document: %w"
+	case EditMessageText:        return "failed to edit message text to [%s]: %w"
+	case EditMessageMedia:       return "failed to edit message media to [%s]: %w"
+	case EditMessageCaption:     return "failed to edit message caption to [%s]: %w"
+	case EditMessageReplyMarkup: return "failed to edit message reply markup to [%s]: %w"
+	case DeleteMessage:          return "failed to delete [%s] message: %w"
+	case DeleteMessages:         return "failed to delete [%s] messages: %w"
+	case AnswerCallbackQuery:    return "failed to send [%s] callback answer: %w"
+	case AnswerInlineQuery:      return "failed to send [%s] inline answer: %w"
+	case GetFile:                return "failed to get [%s] file: %w"
 	default:
-		return "unknown error content [%s], err: %w"
+		return "unknown error: content [%s], err %w"
 	}
 }

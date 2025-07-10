@@ -25,6 +25,12 @@ func (e *MultErr) Addf(format string, a ...any) *MultErr {
 	return e
 }
 
+// add template error by use fmt.Errorf()
+func (e *MultErr) Addt(msg Msg, content string, err error) *MultErr {
+	e.Errors = append(e.Errors, fmt.Errorf(msg.Fmt(), content, err))
+	return e
+}
+
 // a string error by use errors.Join()
 func (e *MultErr) Flat() error {
 	if len(e.Errors) == 0 {

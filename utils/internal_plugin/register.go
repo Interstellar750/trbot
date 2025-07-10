@@ -42,7 +42,6 @@ func Register(ctx context.Context) {
 		{
 			SlashCommand: "chatinfo",
 			MessageHandler: func(opts *handler_params.Message) error {
-				logger := zerolog.Ctx(opts.Ctx)
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
@@ -50,12 +49,12 @@ func Register(ctx context.Context) {
 					ParseMode:       models.ParseModeHTML,
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Str("command", "/chatinfo").
-						Str(flate.Cont("chat info")).
+						Str("content", "chat info").
 						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Template(), "chat info", err)
+					return fmt.Errorf(flate.SendMessage.Fmt(), "chat info", err)
 				}
 				return nil
 			},
@@ -63,7 +62,6 @@ func Register(ctx context.Context) {
 		{
 			SlashCommand: "test",
 			MessageHandler: func(opts *handler_params.Message) error {
-				logger := zerolog.Ctx(opts.Ctx)
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					Text:            "您可以订阅测试频道以查看最近的更新更新内容",
@@ -74,12 +72,12 @@ func Register(ctx context.Context) {
 					}}}},
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Str("command", "/test").
-						Str(flate.Cont("test channel link")).
+						Str("content", "test channel link").
 						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Template(), "test channel link", err)
+					return fmt.Errorf(flate.SendMessage.Fmt(), "test channel link", err)
 				}
 				return nil
 			},
@@ -87,7 +85,6 @@ func Register(ctx context.Context) {
 		{
 			SlashCommand: "fileid",
 			MessageHandler: func(opts *handler_params.Message) error {
-				logger := zerolog.Ctx(opts.Ctx)
 				var pendingMessage string
 				if opts.Message.ReplyToMessage != nil {
 					if opts.Message.ReplyToMessage.Sticker != nil {
@@ -122,12 +119,12 @@ func Register(ctx context.Context) {
 					ParseMode:       models.ParseModeHTML,
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Str("command", "/fileid").
-						Str(flate.Cont("media file ID info")).
+						Str("content", "media file ID info").
 						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Template(), "media file ID info", err)
+					return fmt.Errorf(flate.SendMessage.Fmt(), "media file ID info", err)
 				}
 				return nil
 			},
@@ -135,7 +132,6 @@ func Register(ctx context.Context) {
 		{
 			SlashCommand: "version",
 			MessageHandler: func(opts *handler_params.Message) error {
-				logger := zerolog.Ctx(opts.Ctx)
 				// info, err := opts.Thebot.GetWebhookInfo(ctx)
 				// fmt.Println(info)
 				// return
@@ -146,12 +142,12 @@ func Register(ctx context.Context) {
 					ParseMode:       models.ParseModeMarkdownV1,
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Str("command", "/version").
-						Str(flate.Cont("bot version info")).
+						Str("content", "bot version info").
 						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Template(), "bot version info", err)
+					return fmt.Errorf(flate.SendMessage.Fmt(), "bot version info", err)
 				}
 				return nil
 			},
@@ -169,7 +165,6 @@ func Register(ctx context.Context) {
 			Prefix:   "via-inline",
 			Argument: "change-inline-command",
 			MessageHandler: func(opts *handler_params.Message) error {
-				logger := zerolog.Ctx(opts.Ctx)
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					Text:            fmt.Sprintf("选择一个 Inline 模式下的默认命令<blockquote>由于缓存原因，您可能需要等一会才能看到更新后的结果</blockquote>无论您是否设定了默认命令，您始终都可以在 inline 模式下输入 <code>%s</code> 号来查看全部可用的命令", configs.BotConfig.InlineSubCommandSymbol),
@@ -178,12 +173,11 @@ func Register(ctx context.Context) {
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
-						Str(flate.Cont("select inline default command keyboard")).
-						Str("content", "").
+						Str("content", "select inline default command keyboard").
 						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Template(), "select inline default command keyboard", err)
+					return fmt.Errorf(flate.SendMessage.Fmt(), "select inline default command keyboard", err)
 				}
 				return nil
 			},
@@ -232,13 +226,12 @@ func Register(ctx context.Context) {
 								ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 							})
 							if err != nil {
-								logger.Error().Func(flate.Wrapper(&handlerErr).
+								logger.Error().
 									Err(err).
-									ErrContent("inline command select keyboard",
-										flate.EditMessageReplyMarkup,
-									).
-									DoneAndSend())
-								return err
+									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+									Str("content", "inline command select keyboard").
+									Msg(flate.EditMessageReplyMarkup.Str())
+								handlerErr.Addt(flate.EditMessageReplyMarkup, "inline command select keyboard", err)
 							}
 						}
 					}
@@ -251,21 +244,22 @@ func Register(ctx context.Context) {
 								logger.Error().
 									Err(err).
 									Msg("Failed to change inline default command flag")
-								return err
+								handlerErr.Addf("failed to change inline default command flag: %w", err)
+							} else {
+								_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+									CallbackQueryID: opts.Update.CallbackQuery.ID,
+									Text:            fmt.Sprintf("已成功将您的 inline 模式默认命令设为 \"%s\"", callbackField),
+									ShowAlert:       true,
+								})
+								if err != nil {
+									logger.Error().
+										Err(err).
+										Str("content", "inline command changed").
+										Msg(flate.AnswerCallbackQuery.Str())
+									handlerErr.Addt(flate.AnswerCallbackQuery, "inline command changed", err)
+								}
+								break
 							}
-							_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-								CallbackQueryID: opts.Update.CallbackQuery.ID,
-								Text:            fmt.Sprintf("已成功将您的 inline 模式默认命令设为 \"%s\"", callbackField),
-								ShowAlert:       true,
-							})
-							if err != nil {
-								logger.Error().
-									Err(err).
-									Str("content", "inline command changed").
-									Msg(flate.AnswerCallbackQuery.Str())
-								return err
-							}
-							break
 						}
 					}
 				} else {
@@ -277,26 +271,29 @@ func Register(ctx context.Context) {
 								logger.Error().
 									Err(err).
 									Msg("Failed to change inline default command flag")
-								return err
-							}
-							// if chatinfo get from redis database, it won't be the latest data, need reload it from database
-							opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
-							if err != nil {
-								logger.Error().
-									Err(err).
-									Msg("Failed to get chat info")
-							}
-							_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-								ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
-								MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
-								ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
-							})
-							if err != nil {
-								logger.Error().
-									Err(err).
-									Str("content", "inline command select keyboard").
-									Msg(flate.EditMessageReplyMarkup.Str())
-								return err
+								handlerErr.Addf("failed to change inline default command flag: %w", err)
+							} else {
+								// if chatinfo get from redis database, it won't be the latest data, need reload it from database
+								opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
+								if err != nil {
+									logger.Error().
+										Err(err).
+										Msg("Failed to get chat info")
+									handlerErr.Addf("failed to get chat info: %w", err)
+								} else {
+									_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+										ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
+										MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
+										ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
+									})
+									if err != nil {
+										logger.Error().
+											Err(err).
+											Str("content", "inline command select keyboard").
+											Msg(flate.EditMessageReplyMarkup.Str())
+										handlerErr.Addt(flate.EditMessageReplyMarkup, "inline command select keyboard", err)
+									}
+								}
 							}
 							break
 						}
@@ -304,7 +301,7 @@ func Register(ctx context.Context) {
 				}
 
 				signals.SIGNALS.Database_save <- true
-				return nil
+				return handlerErr.Flat()
 			},
 		},
 		{
@@ -318,21 +315,27 @@ func Register(ctx context.Context) {
 	}...)
 
 	// inline 模式自行处理输出的函数
-	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
-		Command: "uaav",
-		Attr: plugin_utils.InlineHandlerAttr{
-			IsHideInCommandList: true,
-			IsCantBeDefault: true,
-		},
-		InlineHandler: func(opts *handler_params.InlineQuery) error {
-			logger := zerolog.Ctx(opts.Ctx)
-			var handlerErr flate.MultErr
-			keywords := utils.InlineExtractKeywords(opts.Fields)
-			if len(keywords) == 0 {
-				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
+	plugin_utils.AddInlineManualHandlerPlugins([]plugin_utils.InlineManualHandler{
+		{
+			Command: "uaav",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault: true,
+			},
+			InlineHandler: func(opts *handler_params.InlineQuery) error {
+				logger := zerolog.Ctx(opts.Ctx).
+					With().
+					Str("query", opts.InlineQuery.Query).
+					Dict(utils.GetUserDict(opts.InlineQuery.From)).
+					Logger()
+
+				var handlerErr flate.MultErr
+
+				keywords := utils.InlineExtractKeywords(opts.Fields)
+				if len(keywords) == 0 {
+					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: opts.InlineQuery.ID,
+						Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 							ID:          "custom_voices",
 							Title:       "URL as a voice",
 							Description: "接着输入一个音频 URL 来其作为语音样式发送（不会转换格式）",
@@ -340,44 +343,37 @@ func Register(ctx context.Context) {
 								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 								ParseMode:   models.ParseModeMarkdownV1,
 							},
-						},
-					},
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Dict(utils.GetUserDict(opts.InlineQuery.From)).
-						Str("content", "uaav command usage tips").
-						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addf("failed to send `uaav command usage tips` inline answer: %w", err)
-				}
-			} else if len(keywords) == 1 {
-				if strings.HasPrefix(keywords[0], "https://") {
-					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultVoice{
-								ID:       "custom",
-								Title:    "Custom voice",
-								VoiceURL: keywords[0],
-							},
-						},
-						IsPersonal: true,
+						}},
 					})
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Dict(utils.GetUserDict(opts.InlineQuery.From)).
-							Str("query", opts.InlineQuery.Query).
-							Str("content", "uaav valid voice url").
+							Str("content", "uaav command usage tips").
 							Msg(flate.AnswerInlineQuery.Str())
-						handlerErr.Addf("failed to send `uaav valid voice url` inline answer: %w", err)
+						handlerErr.Addt(flate.AnswerInlineQuery, "uaav command usage tips", err)
 					}
-				} else {
-					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
+				} else if len(keywords) == 1 {
+					if strings.HasPrefix(keywords[0], "https://") {
+						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+							InlineQueryID: opts.InlineQuery.ID,
+							Results: []models.InlineQueryResult{&models.InlineQueryResultVoice{
+								ID:       "custom",
+								Title:    "Custom voice",
+								VoiceURL: keywords[0],
+							}},
+							IsPersonal: true,
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Str("content", "uaav valid voice url").
+								Msg(flate.AnswerInlineQuery.Str())
+							handlerErr.Addt(flate.AnswerInlineQuery, "uaav valid voice url", err)
+						}
+					} else {
+						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+							InlineQueryID: opts.InlineQuery.ID,
+							Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 								ID:          "error",
 								Title:       "音频 URL 格式错误",
 								Description: "请确保音频链接以 https:// 作为开头，若填写完整 URL 后此消息依然存在，请检查 URL 是否有效",
@@ -385,24 +381,20 @@ func Register(ctx context.Context) {
 									MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 									ParseMode:   models.ParseModeMarkdownV1,
 								},
-							},
-						},
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Dict(utils.GetUserDict(opts.InlineQuery.From)).
-							Str("query", opts.InlineQuery.Query).
-							Str("content", "uaav invalid URL").
-							Msg(flate.AnswerInlineQuery.Str())
-						handlerErr.Addf("failed to send `uaav invalid URL` inline answer: %w", err)
+							}},
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Str("content", "uaav invalid URL").
+								Msg(flate.AnswerInlineQuery.Str())
+							handlerErr.Addt(flate.AnswerInlineQuery, "uaav invalid URL", err)
+						}
 					}
-				}
-			} else {
-				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
+				} else {
+					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+						InlineQueryID: opts.InlineQuery.ID,
+						Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 							ID:          "error",
 							Title:       "参数过多，请注意空格",
 							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", consts.BotMe.Username, configs.BotConfig.InlineSubCommandSymbol),
@@ -410,24 +402,21 @@ func Register(ctx context.Context) {
 								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 								ParseMode:   models.ParseModeMarkdownV1,
 							},
-						},
-					},
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Dict(utils.GetUserDict(opts.InlineQuery.From)).
-						Str("query", opts.InlineQuery.Query).
-						Str("command", "uaav").
-						Str("content", "too much argumunt").
-						Msg(flate.AnswerInlineQuery.Str())
-					return err
+						}},
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("content", "uaav too much argumunt").
+							Msg(flate.AnswerInlineQuery.Str())
+						handlerErr.Addt(flate.AnswerInlineQuery, "uaav too much argumunt", err)
+					}
 				}
-			}
-			return handlerErr.Flat()
+				return handlerErr.Flat()
+			},
+			Description: "将一个音频链接作为语音格式发送",
 		},
-		Description: "将一个音频链接作为语音格式发送",
-	})
+	}...)
 
 	// inline 模式中以前缀触发的命令，需要自行处理输出。
 	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.InlinePrefixHandler{
@@ -451,48 +440,46 @@ func Register(ctx context.Context) {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			UpdateHandler: func(opts *handler_params.Update) error {
-				logger := zerolog.Ctx(opts.Ctx)
+			InlineHandler: func(opts *handler_params.InlineQuery) error {
+				logger := zerolog.Ctx(opts.Ctx).With().
+					Str("query", opts.InlineQuery.Query).
+					Dict(utils.GetUserDict(opts.InlineQuery.From)).
+					Logger()
+
 				var handlerErr flate.MultErr
+
 				logs, err := mess.ReadLog()
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("query", opts.Update.InlineQuery.Query).
-						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("command", "log").
 						Msg("Failed to read log by inline command")
 					handlerErr.Addf("failed to read log: %w", err)
-				}
-				if logs != nil {
+				} else {
 					log_count := len(logs)
 					var log_all string
 					for index, log := range logs {
 						log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
 					}
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.Update.InlineQuery.ID,
-						Results: []models.InlineQueryResult{
-							&models.InlineQueryResultArticle{
-								ID:    "log",
-								Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
-								InputMessageContent: &models.InputTextMessageContent{
-									MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
-									ParseMode:   models.ParseModeMarkdownV1,
-								},
+						InlineQueryID: opts.InlineQuery.ID,
+						Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+							ID:    "log",
+							Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
+								ParseMode:   models.ParseModeMarkdownV1,
 							},
-						},
+						}},
 						IsPersonal: true,
 						CacheTime:  0,
 					})
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-							Str("query", opts.Update.InlineQuery.Query).
 							Str("content", "log infos").
 							Msg(flate.AnswerInlineQuery.Str())
-						handlerErr.Addf("failed to send `log infos` inline answer: %w", err)
+						handlerErr.Addt(flate.AnswerInlineQuery, "log infos", err)
 					}
 				}
 				return handlerErr.Flat()
@@ -506,34 +493,31 @@ func Register(ctx context.Context) {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			UpdateHandler: func(opts *handler_params.Update) error {
-				logger := zerolog.Ctx(opts.Ctx)
+			InlineHandler: func(opts *handler_params.InlineQuery) error {
 				var handlerErr flate.MultErr
 				signals.SIGNALS.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.Update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:          "reloadpdb-back",
-							Title:       "已请求重新加载插件数据库",
-							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "???",
-								ParseMode:   models.ParseModeMarkdownV1,
-							},
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:          "reloadpdb-back",
+						Title:       "已请求重新加载插件数据库",
+						Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: "???",
+							ParseMode:   models.ParseModeMarkdownV1,
 						},
-					},
+					}},
 					IsPersonal: true,
 					CacheTime:  0,
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
-						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("query", opts.Update.InlineQuery.Query).
+						Dict(utils.GetUserDict(opts.InlineQuery.From)).
+						Str("query", opts.InlineQuery.Query).
 						Str("content", "plugin database reloaded").
 						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addf("failed to send `plugin database reloaded` inline answer: %w", err)
+					handlerErr.Addt(flate.AnswerInlineQuery, "plugin database reloaded", err)
 				}
 				return handlerErr.Flat()
 			},
@@ -546,34 +530,31 @@ func Register(ctx context.Context) {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			UpdateHandler: func(opts *handler_params.Update) error {
-				logger := zerolog.Ctx(opts.Ctx)
+			InlineHandler: func(opts *handler_params.InlineQuery) error {
 				var handlerErr flate.MultErr
 				signals.SIGNALS.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.Update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:          "savepdb-back",
-							Title:       "已请求保存插件数据库",
-							Description: fmt.Sprintf("last save at %s", time.Now().Format(time.RFC3339)),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "???",
-								ParseMode:   models.ParseModeMarkdownV1,
-							},
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:          "savepdb-back",
+						Title:       "已请求保存插件数据库",
+						Description: fmt.Sprintf("last save at %s", time.Now().Format(time.RFC3339)),
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: "???",
+							ParseMode:   models.ParseModeMarkdownV1,
 						},
-					},
+					}},
 					IsPersonal: true,
 					CacheTime:  0,
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
-						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("query", opts.Update.InlineQuery.Query).
+						Dict(utils.GetUserDict(opts.InlineQuery.From)).
+						Str("query", opts.InlineQuery.Query).
 						Str("content", "plugin database saved").
 						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addf("failed to send `plugin database saved` inline answer: %w", err)
+					handlerErr.Addt(flate.AnswerInlineQuery, "plugin database saved", err)
 				}
 				return handlerErr.Flat()
 			},
@@ -587,33 +568,30 @@ func Register(ctx context.Context) {
 				IsOnlyAllowAdmin:    true,
 			},
 			UpdateHandler: func(opts *handler_params.Update) error {
-				logger := zerolog.Ctx(opts.Ctx)
 				var handlerErr flate.MultErr
 				signals.SIGNALS.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
-					Results: []models.InlineQueryResult{
-						&models.InlineQueryResultArticle{
-							ID:          "savedb-back",
-							Title:       "已请求保存数据库",
-							Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: "???",
-								ParseMode:   models.ParseModeMarkdownV1,
-							},
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:          "savedb-back",
+						Title:       "已请求保存数据库",
+						Description: fmt.Sprintf("last update at %s", time.Now().Format(time.RFC3339)),
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: "???",
+							ParseMode:   models.ParseModeMarkdownV1,
 						},
-					},
+					}},
 					IsPersonal: true,
 					CacheTime:  0,
 				})
 				if err != nil {
-					logger.Error().
+					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("query", opts.Update.InlineQuery.Query).
 						Str("content", "database saved").
 						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addf("failed to send `database saved` inline answer: %w", err)
+					handlerErr.Addt(flate.AnswerInlineQuery, "database saved", err)
 				}
 				return handlerErr.Flat()
 			},
