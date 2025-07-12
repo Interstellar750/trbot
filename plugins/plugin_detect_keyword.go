@@ -38,21 +38,21 @@ func init() {
 		Loader: ReadKeywordList,
 		Saver:  SaveKeywordList,
 	})
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "setkeyword",
 		MessageHandler: addKeywordHandler,
 	})
-	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
-			CommandChar:   "detectkw_g",
+			CallbackDatePrefix:   "detectkw_g",
 			CallbackQueryHandler: groupManageCallbackHandler,
 		},
 		{
-			CommandChar:   "detectkw_u",
+			CallbackDatePrefix:   "detectkw_u",
 			CallbackQueryHandler: userManageCallbackHandler,
 		},
 	}...)
-	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
+	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
 		Prefix:   "detectkw",
 		Argument: "addgroup",
 		MessageHandler: startPrefixAddGroup,
@@ -649,7 +649,7 @@ func buildListenList() {
 	for index, chat := range KeywordDataList.Chats {
 		chat.UsersID = []int64{}
 		KeywordDataList.Chats[index] = chat
-		plugin_utils.RemoveHandlerByChatIDPlugin(chat.ChatID, "detect_keyword")
+		plugin_utils.RemoveHandlerByChatIDHandler(chat.ChatID, "detect_keyword")
 	}
 	for _, user := range KeywordDataList.Users {
 		if !user.IsDisable {
@@ -664,42 +664,42 @@ func buildListenList() {
 	}
 	for _, chat := range KeywordDataList.Chats {
 		if !chat.IsDisable && len(chat.UsersID) > 0 {
-			plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
+			plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
 				ChatID:         chat.ChatID,
 				PluginName:     "detect_keyword",
-				MessageHandler: KeywordDetector,
+				UpdateHandler:  KeywordDetector,
 			})
 		}
 	}
 }
 
-func KeywordDetector(opts *handler_params.Message) error {
+func KeywordDetector(opts *handler_params.Update) error {
 	var handlerErr flate.MultErr
 	var text string
-	if opts.Message.Caption != "" {
-		text = strings.ToLower(opts.Message.Caption)
-	} else if opts.Message.Text != "" {
-		text = strings.ToLower(opts.Message.Text)
+	if opts.Update.Message.Caption != "" {
+		text = strings.ToLower(opts.Update.Message.Caption)
+	} else if opts.Update.Message.Text != "" {
+		text = strings.ToLower(opts.Update.Message.Text)
 	}
 
 	// 没有文字直接跳到
 	if text == "" { return nil }
 
 	// 先循环一遍，找出该群组中启用此功能的用户 ID
-	for _, userID := range KeywordDataList.Chats[opts.Message.Chat.ID].UsersID {
+	for _, userID := range KeywordDataList.Chats[opts.Update.Message.Chat.ID].UsersID {
 		// 获取用户信息，开始匹配关键词
 		user := KeywordDataList.Users[userID]
 		if !user.IsDisable && !user.IsNotInit {
 			// 如果用户设定排除了自己发送的消息，则跳过
-			if !user.IsIncludeSelf && opts.Message.From.ID == userID { continue }
+			if !user.IsIncludeSelf && opts.Update.Message.From.ID == userID { continue }
 
 			// 用户为单独群组设定的关键词
 			for _, userKeywordList := range user.ChatsForUser {
 				// 判断是否是此群组
-				if userKeywordList.ChatID == opts.Message.Chat.ID {
+				if userKeywordList.ChatID == opts.Update.Message.Chat.ID {
 					for _, keyword := range userKeywordList.Keyword {
 						if strings.Contains(text, keyword) {
-							handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, keyword, text, false))
+							handlerErr.Add(notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword, text, false))
 							break
 						}
 					}
@@ -708,7 +708,7 @@ func KeywordDetector(opts *handler_params.Message) error {
 			// 用户全局设定的关键词
 			for _, userGlobalKeyword := range user.GlobalKeyword {
 				if strings.Contains(text, userGlobalKeyword) {
-					handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, userGlobalKeyword, text, true))
+					handlerErr.Add(notifyUser(opts, user, opts.Update.Message.Chat.Title, userGlobalKeyword, text, true))
 					break
 				}
 			}
@@ -717,7 +717,7 @@ func KeywordDetector(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) error {
+func notifyUser(opts *handler_params.Update, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
@@ -726,12 +726,12 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 
 	var handlerErr flate.MultErr
 
-	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Message.Chat.ID), opts.Message.ID)
+	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
 		Text: fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
-			utils.RemoveIDPrefix(opts.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Message, models.ParseModeHTML),
+			utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Update.Message, models.ParseModeHTML),
 			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, text,
 		),
 		ParseMode: models.ParseModeHTML,
@@ -744,7 +744,7 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetChatDict(&opts.Message.Chat)).
+			Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
 			Int64("userID", user.UserID).
 			Str("keyword", keyword).
 			Str("content", "keyword detected notice to user").

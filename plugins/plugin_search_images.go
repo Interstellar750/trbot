@@ -24,14 +24,14 @@ var photoCachedDir string = filepath.Join(consts.CacheDirectory, "photo/")
 var imageBaseURL   string = "https://alist.trle5.xyz/d/cache/photo/"
 
 func init() {
-	plugin_utils.AddHandlerByMessageTypePlugins(plugin_utils.HandlerByMessageType{
+	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
 		PluginName: "search images",
 		ChatType: models.ChatTypePrivate,
 		MessageType: message_utils.Photo,
 		AllowAutoTrigger: true,
 		UpdateHandler: searchImageHandler,
 	})
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "searchlinks",
 		MessageHandler: sendSearchLinks,
 	})

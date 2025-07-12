@@ -36,29 +36,31 @@ var StickerCacheGIF_path string = filepath.Join(consts.CacheDirectory, "sticker_
 var StickerCacheZip_path string = filepath.Join(consts.CacheDirectory, "sticker_zip/")
 
 func init() {
-	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
 			// 不转换格式，打包下载整个贴纸包
-			CommandChar: "s",
+			CallbackDatePrefix: "s",
 			CallbackQueryHandler: DownloadStickerPackCallBackHandler,
 		},
 		{
 			// 将贴纸包中的静态贴纸全部转换为 PNG 格式并打包
-			CommandChar: "S",
+			CallbackDatePrefix: "S",
 			CallbackQueryHandler: DownloadStickerPackCallBackHandler,
 		},
 		{
-			CommandChar: "c",
+			CallbackDatePrefix: "c",
 			CallbackQueryHandler: collectStickerSet,
 		},
 	}...)
-	plugin_utils.AddFullCommandPlugins([]plugin_utils.FullCommand{
+	plugin_utils.AddFullCommandHandlers([]plugin_utils.FullCommand{
 		{
 			FullCommand:    "https://t.me/addstickers/",
+			ForChatType:    []models.ChatType{models.ChatTypePrivate},
 			MessageHandler: getStickerPackInfo,
 		},
 		{
 			FullCommand:    "t.me/addstickers/",
+			ForChatType:    []models.ChatType{models.ChatTypePrivate},
 			MessageHandler: getStickerPackInfo,
 		},
 	}...)
@@ -67,14 +69,14 @@ func init() {
 		Description: "直接向机器人发送任意贴纸来下载转换后的 PNG 格式图片\n\n<blockquote expandable>仅限静态贴纸会被转换，动画和视频贴纸将会以原文件形式发送\n若您发送的贴纸为一个贴纸包中的贴纸，您可以点击消息中的按钮来下载整个贴纸包</blockquote>",
 		ParseMode:   models.ParseModeHTML,
 	})
-	plugin_utils.AddHandlerByMessageTypePlugins(plugin_utils.HandlerByMessageType{
+	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
 		PluginName:      "StickerDownload",
 		ChatType:         models.ChatTypePrivate,
 		MessageType:      message_utils.Sticker,
 		AllowAutoTrigger: true,
 		UpdateHandler:    EchoStickerHandler,
 	})
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "cachedsticker",
 		MessageHandler: showCachedStickers,
 	})

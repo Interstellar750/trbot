@@ -61,7 +61,7 @@ func init() {
 			if initTeamSpeak(ctx) {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts
-				plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
+				plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
 					ChatID:        tsData.GroupID,
 					PluginName:    "teamspeak_get_opts",
 					UpdateHandler: getOptsHandler,
@@ -78,7 +78,7 @@ func init() {
 		ParseMode:   models.ParseModeHTML,
 	})
 
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand: "ts3",
 		UpdateHandler: showStatus,
 	})
@@ -358,7 +358,7 @@ func listenUserStatus(ctx context.Context) {
 	if hasHandlerByChatID {
 		hasHandlerByChatID = false
 		// 获取到 privateOpts 后删掉 handler by chatID
-		plugin_utils.RemoveHandlerByChatIDPlugin(tsData.GroupID, "teamspeak_get_opts")
+		plugin_utils.RemoveHandlerByChatIDHandler(tsData.GroupID, "teamspeak_get_opts")
 	}
 
 	var retryCount int

@@ -33,7 +33,7 @@ type MessageType struct {
 }
 
 // 将消息类型结构体转换为 MessageTypeList(string) 类型
-func (mt MessageType)InString() MessageTypeList {
+func (mt MessageType)AsValue() MessageTypeList {
 	val := reflect.ValueOf(mt)
 	typ := reflect.TypeOf(mt)
 

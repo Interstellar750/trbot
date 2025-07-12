@@ -547,7 +547,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 						logger.Error().
 							Err(err).
 							Dict(utils.GetUserDict(opts.Message.From)).
-							Str("saveMessageType", string(replyMsgType.InString())).
+							Str("saveMessageType", string(replyMsgType.AsValue())).
 							Msg("Failed to save savedmessage list after save a item")
 						handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
 
@@ -560,7 +560,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							logger.Error().
 								Err(err).
 								Dict(utils.GetUserDict(opts.Message.From)).
-								Str("saveMessageType", string(replyMsgType.InString())).
+								Str("saveMessageType", string(replyMsgType.AsValue())).
 								Str("content", "failed to save savedmessage list notice").
 								Msg(flate.SendMessage.Str())
 							handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
@@ -851,16 +851,16 @@ func Init() {
 		Saver:  SaveSavedMessageList,
 		Loader: ReadSavedMessageList,
 	})
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "save",
 		MessageHandler: saveMessageHandler,
 	})
-	plugin_utils.AddInlineManualHandlerPlugins(plugin_utils.InlineManualHandler{
+	plugin_utils.AddInlineManualHandlerHandlers(plugin_utils.InlineManualHandler{
 		Command:       "saved",
 		InlineHandler: InlineShowSavedMessageHandler,
 		Description:   "显示自己保存的消息",
 	})
-	plugin_utils.AddSlashStartCommandPlugins([]plugin_utils.SlashStartHandler{
+	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
 		{
 			Argument: "savedmessage_privacy_policy",
 			MessageHandler:  SendPrivacyPolicy,
@@ -878,7 +878,7 @@ func Init() {
 		// 	Handler:  AgreePrivacyPolicy,
 		// },
 	}...)
-	plugin_utils.AddSlashStartWithPrefixCommandPlugins(plugin_utils.SlashStartWithPrefixHandler{
+	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
 		Prefix:         "via-inline",
 		Argument:       "savedmessage-help",
 		MessageHandler: saveMessageHandler,

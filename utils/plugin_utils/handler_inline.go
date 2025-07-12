@@ -30,16 +30,17 @@ type InlineHandler struct {
 	Description string
 }
 
-func AddInlineHandlerPlugins(InlineHandlerPlugins ...InlineHandler) int {
+func AddInlineHandlerHandlers(handlers ...InlineHandler) int {
 	if AllPlugins.InlineHandler == nil { AllPlugins.InlineHandler = []InlineHandler{} }
-	var pluginCount int
-	for _, originPlugin := range InlineHandlerPlugins {
-		if originPlugin.Command == "" { continue }
-		AllPlugins.InlineCommandList = append(AllPlugins.InlineCommandList, InlineCommandList{Command: originPlugin.Command, Attr: originPlugin.Attr, Description: originPlugin.Description})
-		AllPlugins.InlineHandler = append(AllPlugins.InlineHandler, originPlugin)
-		pluginCount++
+
+	var handlerCount int
+	for _, handler := range handlers {
+		if handler.Command == "" { continue }
+		AllPlugins.InlineCommandList = append(AllPlugins.InlineCommandList, InlineCommandList{Command: handler.Command, Attr: handler.Attr, Description: handler.Description})
+		AllPlugins.InlineHandler = append(AllPlugins.InlineHandler, handler)
+		handlerCount++
 	}
-	return pluginCount
+	return handlerCount
 }
 
 // 完全由插件自行控制输出
@@ -51,16 +52,17 @@ type InlineManualHandler struct {
 	Description string
 }
 
-func AddInlineManualHandlerPlugins(InlineManualHandlerPlugins ...InlineManualHandler) int {
+func AddInlineManualHandlerHandlers(handlers ...InlineManualHandler) int {
 	if AllPlugins.InlineManualHandler == nil { AllPlugins.InlineManualHandler = []InlineManualHandler{} }
-	var pluginCount int
-	for _, originPlugin := range InlineManualHandlerPlugins {
-		if originPlugin.Command == "" { continue }
-		AllPlugins.InlineCommandList = append(AllPlugins.InlineCommandList, InlineCommandList{Command: originPlugin.Command, Attr: originPlugin.Attr, Description: originPlugin.Description})
-		AllPlugins.InlineManualHandler = append(AllPlugins.InlineManualHandler, originPlugin)
-		pluginCount++
+
+	var handlerCount int
+	for _, handler := range handlers {
+		if handler.Command == "" { continue }
+		AllPlugins.InlineCommandList = append(AllPlugins.InlineCommandList, InlineCommandList{Command: handler.Command, Attr: handler.Attr, Description: handler.Description})
+		AllPlugins.InlineManualHandler = append(AllPlugins.InlineManualHandler, handler)
+		handlerCount++
 	}
-	return pluginCount
+	return handlerCount
 }
 
 // 符合命令前缀，完全由插件自行控制输出
@@ -72,16 +74,17 @@ type InlinePrefixHandler struct {
 	Description   string
 }
 
-func AddInlinePrefixHandlerPlugins(InlineManualHandlerPlugins ...InlinePrefixHandler) int {
+func AddInlinePrefixHandlerPlugins(handlers ...InlinePrefixHandler) int {
 	if AllPlugins.InlinePrefixHandler == nil { AllPlugins.InlinePrefixHandler = []InlinePrefixHandler{} }
-	var pluginCount int
-	for _, originPlugin := range InlineManualHandlerPlugins {
-		if originPlugin.PrefixCommand == "" { continue }
-		AllPlugins.InlineCommandList = append(AllPlugins.InlineCommandList, InlineCommandList{Command: originPlugin.PrefixCommand, Attr: originPlugin.Attr, Description: originPlugin.Description})
-		AllPlugins.InlinePrefixHandler = append(AllPlugins.InlinePrefixHandler, originPlugin)
-		pluginCount++
+
+	var handlerCount int
+	for _, handler := range handlers {
+		if handler.PrefixCommand == "" { continue }
+		AllPlugins.InlineCommandList = append(AllPlugins.InlineCommandList, InlineCommandList{Command: handler.PrefixCommand, Attr: handler.Attr, Description: handler.Description})
+		AllPlugins.InlinePrefixHandler = append(AllPlugins.InlinePrefixHandler, handler)
+		handlerCount++
 	}
-	return pluginCount
+	return handlerCount
 }
 
 // 构建一个用于选择 Inline 模式下默认命令的按钮键盘

@@ -49,12 +49,12 @@ func init() {
 		Saver: SaveLimitMessageList,
 		Loader: ReadLimitMessageList,
 	})
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "limitmessage",
 		MessageHandler: SomeMessageOnlyHandler,
 	})
-	plugin_utils.AddCallbackQueryPlugins(plugin_utils.CallbackQuery{
-		CommandChar:   "limitmsg_",
+	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
+		CallbackDatePrefix:   "limitmsg_",
 		CallbackQueryHandler: LimitMessageCallback,
 	})
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
@@ -245,26 +245,26 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func DeleteNotAllowMessage(opts *handler_params.Message) error {
+func DeleteNotAllowMessage(opts *handler_params.Update) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
 		Str("funcName", "SomeMessageOnlyHandler").
-		Dict(utils.GetChatDict(&opts.Message.Chat)).
-		Dict(utils.GetUserDict(opts.Message.From)).
-		Int("messageID", opts.Message.ID).
+		Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Int("messageID", opts.Update.Message.ID).
 		Logger()
 
 	var handlerErr flate.MultErr
 
 	var deleteAction bool
 	var deleteHelp   string = "当前模式："
-	if utils.AnyContains(opts.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
+	if utils.AnyContains(opts.Update.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
-		thisChat := LimitMessageList[opts.Message.Chat.ID]
+		thisChat := LimitMessageList[opts.Update.Message.Chat.ID]
 		if thisChat.IsEnable || thisChat.IsUnderTest {
-			thisMsgType := message_utils.GetMessageType(opts.Message)
-			thisMsgAttr := message_utils.GetMessageAttribute(opts.Message)
+			thisMsgType := message_utils.GetMessageType(opts.Update.Message)
+			thisMsgAttr := message_utils.GetMessageAttribute(opts.Update.Message)
 
 			// 根据规则的黑白名单选择判断逻辑
 			if thisChat.IsLogicAnd {
@@ -295,13 +295,13 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 
 			if thisChat.IsUnderTest {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Message.Chat.ID,
+					ChatID: opts.Update.Message.Chat.ID,
 					Text:   utils.TextForTrueOrFalse(deleteAction, "此消息会被设定的规则删除\n\n", "此消息不会被删除\n\n") +
 							deleteHelp +
 							utils.TextForTrueOrFalse(thisChat.IsEnable, "<blockquote>当前已启用，关闭测试模式将开始删除触发了规则的消息</blockquote>", "<blockquote>您可以继续进行测试，以便达到您想要的效果，之后请手动启用此功能\n</blockquote>"),
 					DisableNotification: true,
 					ParseMode: models.ParseModeHTML,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
 						{
 							Text: "打开配置菜单",
@@ -322,20 +322,20 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 				}
 			} else if deleteAction {
 				_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-					ChatID:    opts.Message.Chat.ID,
-					MessageID: opts.Message.ID,
+					ChatID:    opts.Update.Message.Chat.ID,
+					MessageID: opts.Update.Message.ID,
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Str("messageType", string(thisMsgType.InString())).
+						Str("messageType", string(thisMsgType.AsValue())).
 						Str("content", "message trigger limit message rules").
 						Bool("IsLogicAnd", thisChat.IsLogicAnd).
 						Msg(flate.DeleteMessage.Str())
 					handlerErr.Addf("failed to delete `message trigger limit message rules` message: %w", err)
 				} else {
 					logger.Info().
-						Str("messageType", string(thisMsgType.InString())).
+						Str("messageType", string(thisMsgType.AsValue())).
 						Bool("IsLogicAnd", thisChat.IsLogicAnd).
 						Msg("Deleted message trigger limit message rules")
 				}
@@ -815,13 +815,13 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 func buildLimitGroupList() {
 	for id, n := range LimitMessageList {
 		if n.IsEnable || n.IsUnderTest {
-			plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
+			plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
 				ChatID: id,
 				PluginName: "limit_message",
-				MessageHandler: DeleteNotAllowMessage,
+				UpdateHandler: DeleteNotAllowMessage,
 			})
 		} else {
-			plugin_utils.RemoveHandlerByChatIDPlugin(id, "limit_message")
+			plugin_utils.RemoveHandlerByChatIDHandler(id, "limit_message")
 		}
 	}
 }

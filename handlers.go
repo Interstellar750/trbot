@@ -68,7 +68,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Str("text", update.Message.Text).
-					Str("type", string(message_utils.GetMessageType(update.Message).InString())).
+					Str("type", string(message_utils.GetMessageType(update.Message).AsValue())).
 					Msg("message")
 			}
 		case updateType.EditedMessage:
@@ -247,7 +247,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		default:
 			// 其他没有加入的更新类型
 			logger.Warn().
-				Str("updateType", string(update_utils.GetUpdateType(update).InString())).
+				Str("updateType", string(update_utils.GetUpdateType(update).AsValue())).
 				Msg("Receive a no tagged update type")
 		}
 	}
@@ -274,14 +274,6 @@ func messageHandler(opts *handler_params.Update) {
 		Str("caption", opts.Update.Message.Caption).
 		Logger()
 
-	var messageParams = handler_params.Message{
-		Ctx:      opts.Ctx,
-		Thebot:   opts.Thebot,
-		Message:  opts.Update.Message,
-		ChatInfo: opts.ChatInfo,
-		Fields:   strings.Fields(opts.Update.Message.Text),
-	}
-
 	// 检测如果消息开头是 / 符号，作为命令来处理
 	if strings.HasPrefix(opts.Update.Message.Text, "/") {
 		err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
@@ -292,29 +284,14 @@ func messageHandler(opts *handler_params.Update) {
 		}
 
 		// 匹配默认的 `/xxx` 命令
-		for _, plugin := range plugin_utils.AllPlugins.SlashCommand {
-			if utils.CommandMaybeWithSuffixUsername(messageParams.Fields, "/" + plugin.SlashCommand) {
-				slogger := messageLogger.With().
-					Str("slashCommand", plugin.SlashCommand).
-					Logger()
-
-				slogger.Info().Msg("Hit slash command handler")
-
-				isCalled, err := plugin_utils.RunSlashCommandPlugin(opts, &messageParams, plugin)
-				if !isCalled {
-					slogger.Warn().
-						Err(err).
-						Msg("Not called slash symbol command handler")
-					continue
-				} else {
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Msg("Error in slash symbol command handler")
-					}
-					return
-				}
+		isCalled, err := plugin_utils.RunSlashCommandHandlers(opts)
+		if isCalled {
+			if err != nil {
+				messageLogger.Error().
+					Err(err).
+					Msg("Error in slash symbol command handler")
 			}
+			return
 		}
 		// 不存在以 `/` 作为前缀命令时的条件
 		if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
@@ -331,7 +308,7 @@ func messageHandler(opts *handler_params.Update) {
 					Str("content", "no this command").
 					Msg(flate.SendMessage.Str())
 			}
-		} else if strings.HasSuffix(messageParams.Fields[0], "@" + consts.BotMe.Username) {
+		} else if strings.HasSuffix(strings.Fields(opts.Update.Message.Text)[0], "@" + consts.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			// 为防止与其他 bot 的命令冲突，默认不会响应不在命令列表中的命令
 			// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示
@@ -364,162 +341,75 @@ func messageHandler(opts *handler_params.Update) {
 		return
 	} else if len(opts.Update.Message.Text) > 0 {
 		// 没有 `/` 号作为前缀，检查是不是自定义命令
-		for _, plugin := range plugin_utils.AllPlugins.FullCommand {
-			if strings.HasPrefix(opts.Update.Message.Text, plugin.FullCommand) {
-				slogger := messageLogger.With().
-					Str("fullCommand", plugin.FullCommand).
-					Logger()
-
-				slogger.Info().Msg("Hit full command handler")
-
-				isCalled, err := plugin_utils.RunFullCommandPlugin(opts, &messageParams, plugin)
-				if !isCalled {
-					slogger.Warn().
-						Err(err).
-						Msg("Not called full command handler")
-					continue
-				} else {
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Msg("Error in full command handler")
-					}
-					err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-					if err != nil {
-						slogger.Warn().
-							Err(err).
-							Msg("Failed to incremental message command count")
-					}
-					return
-				}
+		isCalled, err := plugin_utils.RunFullCommandHandlers(opts)
+		if isCalled {
+			if err != nil {
+				messageLogger.Error().
+					Err(err).
+					Msg("Error in full command handler")
 			}
+			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if err != nil {
+				messageLogger.Warn().
+					Err(err).
+					Msg("Failed to incremental message command count")
+			}
+			return
 		}
+
 		// 以后缀来触发的命令
-		for _, plugin := range plugin_utils.AllPlugins.SuffixCommand {
-			if strings.HasSuffix(opts.Update.Message.Text, plugin.SuffixCommand) {
-				slogger := messageLogger.With().
-					Str("suffixCommand", plugin.SuffixCommand).
-					Logger()
-
-				slogger.Info().Msg("Hit suffix command handler")
-
-				isCalled, err := plugin_utils.RunSuffixCommandPlugin(opts, &messageParams, plugin)
-				if !isCalled {
-					slogger.Warn().
-						Err(err).
-						Msg("Not called suffix command handler")
-					continue
-				} else {
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Msg("Error in suffix command handler")
-					}
-					err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
-					if err != nil {
-						slogger.Warn().
-							Err(err).
-							Msg("Failed to incremental message command count")
-					}
-					return
-				}
+		isCalled, err = plugin_utils.RunSuffixCommandHandlers(opts)
+		if isCalled {
+			if err != nil {
+				messageLogger.Error().
+					Err(err).
+					Msg("Error in suffix command handler")
 			}
+			err = database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)
+			if err != nil {
+				messageLogger.Warn().
+					Err(err).
+					Msg("Failed to incremental message command count")
+			}
+			return
 		}
 	}
 
 	// 按消息类型来触发的 handler
 	// handler by message type
-	if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type] != nil {
-		msgTypeInString := message_utils.GetMessageType(opts.Update.Message).InString()
-
-		var needBuildSelectKeyboard bool
-
-		if plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] != nil {
-			handlersInThisTypeCount := len(plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString])
-			if handlersInThisTypeCount == 1 {
-				// 虽然是遍历，但实际上只能遍历一次
-				for name, handler := range plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString] {
-					if handler.AllowAutoTrigger {
-						// 允许自动触发的 handler
-						messageLogger.Info().
-							Str("messageType", string(msgTypeInString)).
-							Str("handlerName", name).
-							Msg("Hit handler by message type")
-						err := handler.UpdateHandler(opts)
-						if err != nil {
-							messageLogger.Error().
-								Err(err).
-								Str("messageType", string(msgTypeInString)).
-								Str("handlerName", name).
-								Msg("Error in handler by message type")
-						}
-					} else {
-						needBuildSelectKeyboard = true
-					}
-				}
-			}
-			if needBuildSelectKeyboard {
-				// 多个 handler 自动回复一条带按钮的消息让用户手动操作
-				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID:    opts.Update.Message.Chat.ID,
-					Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgTypeInString),
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-					ReplyMarkup: plugin_utils.AllPlugins.HandlerByMessageType[opts.Update.Message.Chat.Type][msgTypeInString].BuildSelectKeyboard(),
-				})
-				if err != nil {
-					messageLogger.Error().
-						Err(err).
-						Str("messageType", string(msgTypeInString)).
-						Int("handlerInThisTypeCount", handlersInThisTypeCount).
-						Str("content", "select a handler by message type keyboard").
-						Msg(flate.SendMessage.Str())
-				}
-			}
-		} else if opts.Update.Message.Chat.Type == models.ChatTypePrivate {
-			// 仅在 private 对话中显示无默认处理插件的消息
-			// 如果没有设定任何对于 private 对话按消息来触发的 handler，则代码不会运行到这里
-			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:    opts.Update.Message.Chat.ID,
-				Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgTypeInString),
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-			})
-			if err != nil {
-				messageLogger.Error().
-					Err(err).
-					Str("messageType", string(msgTypeInString)).
-					Str("content", "no handler by message type plugin for this message type").
-					Msg(flate.SendMessage.Str())
-			}
+	isProcessed, msgType, err := plugin_utils.RunByMessageTypeHandlers(opts)
+	if !isProcessed && opts.Update.Message.Chat.Type == models.ChatTypePrivate {
+		// 仅在 private 对话中显示无默认处理插件的消息
+		// 如果没有设定任何对于 private 对话按消息来触发的 handler，则代码不会运行到这里
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Update.Message.Chat.ID,
+			Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgType),
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+		})
+		if err != nil {
+			messageLogger.Error().
+				Err(err).
+				Str("messageType", msgType).
+				Str("content", "no handler by message type plugin for this private chat").
+				Msg(flate.SendMessage.Str())
 		}
 	}
+	if err != nil {
+		messageLogger.Error().
+			Err(err).
+			Bool("isProcessed", isProcessed).
+			Msg("Error when running by message type handler")
+	}
+
 
 	// 最后才运行针对群组 ID 的 handler
 	// handler by chat ID
-	if plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] != nil {
-		for name, handler := range plugin_utils.AllPlugins.HandlerByChatID[opts.Update.Message.Chat.ID] {
-			slogger := messageLogger.With().
-				Str("handlerName", name).
-				Int64("chatID", handler.ChatID).
-				Logger()
-
-			slogger.Info().Msg("Hit handler by chat ID")
-
-			var err error
-			switch {
-			case handler.MessageHandler != nil:
-				err = handler.MessageHandler(&messageParams)
-			case handler.UpdateHandler != nil:
-				err = handler.UpdateHandler(opts)
-			default:
-				slogger.Warn().Msg("Hit by chat ID handler, but this handler all function is nil, skip")
-				continue
-			}
-			if err != nil {
-				slogger.Error().
-					Err(err).
-					Msg("Error in handler by chat ID")
-			}
-		}
+	count, err := plugin_utils.RunByChatIDHandlers(opts)
+	if err != nil {
+		messageLogger.Error().
+			Err(err).
+			Int("handlerRunCount", count).
+			Msg("Error when running by chat ID handlers")
 	}
 }
 
@@ -1072,9 +962,9 @@ func callbackQueryHandler(params *handler_params.Update) {
 	}
 
 	for _, plugin := range plugin_utils.AllPlugins.CallbackQuery {
-		if strings.HasPrefix(params.Update.CallbackQuery.Data, plugin.CommandChar) {
+		if strings.HasPrefix(params.Update.CallbackQuery.Data, plugin.CallbackDatePrefix) {
 			slogger := callbackQueryLogger.With().
-				Str("handlerPrefix", plugin.CommandChar).
+				Str("handlerPrefix", plugin.CallbackDatePrefix).
 				Logger()
 
 			slogger.Info().Msg("Hit callback query handler")

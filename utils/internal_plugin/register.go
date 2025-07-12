@@ -30,7 +30,7 @@ func Register(ctx context.Context) {
 	plugin_utils.RunPluginInitializers(ctx)
 
 	// 以 `/` 符号开头的命令
-	plugin_utils.AddSlashCommandPlugins([]plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers([]plugin_utils.SlashCommand{
 		{
 			SlashCommand: "start",
 			UpdateHandler: startHandler,
@@ -155,7 +155,7 @@ func Register(ctx context.Context) {
 	}...)
 
 	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
-	plugin_utils.AddSlashStartWithPrefixCommandPlugins([]plugin_utils.SlashStartWithPrefixHandler{
+	plugin_utils.AddSlashStartWithPrefixCommandHandlers([]plugin_utils.SlashStartWithPrefixHandler{
 		{
 			Prefix:   "via-inline",
 			Argument: "noreply",
@@ -185,7 +185,7 @@ func Register(ctx context.Context) {
 	}...)
 
 	// 触发：'/start <Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
-	plugin_utils.AddSlashStartCommandPlugins([]plugin_utils.SlashStartHandler{
+	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
 		{
 			Argument:       "noreply",
 			MessageHandler: nil, // 不回复
@@ -193,9 +193,9 @@ func Register(ctx context.Context) {
 	}...)
 
 	// 通过消息按钮触发的请求
-	plugin_utils.AddCallbackQueryPlugins([]plugin_utils.CallbackQuery{
+	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
-			CommandChar: "inline_default_",
+			CallbackDatePrefix: "inline_default_",
 			UpdateHandler: func(opts *handler_params.Update) error {
 				logger := zerolog.Ctx(opts.Ctx).
 					With().
@@ -305,17 +305,17 @@ func Register(ctx context.Context) {
 			},
 		},
 		{
-			CommandChar:          "help",
+			CallbackDatePrefix:          "help",
 			CallbackQueryHandler: helpCallbackHandler,
 		},
 		{
-			CommandChar:   "HBMT", // Handler By Message Type
+			CallbackDatePrefix:   "HBMT", // Handler By Message Type
 			UpdateHandler: plugin_utils.SelectByMessageTypeHandlerCallback,
 		},
 	}...)
 
 	// inline 模式自行处理输出的函数
-	plugin_utils.AddInlineManualHandlerPlugins([]plugin_utils.InlineManualHandler{
+	plugin_utils.AddInlineManualHandlerHandlers([]plugin_utils.InlineManualHandler{
 		{
 			Command: "uaav",
 			Attr: plugin_utils.InlineHandlerAttr{

@@ -11,43 +11,56 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
-type HandlerByMessageTypeFunctions map[string]HandlerByMessageType
+type HandlerByMessageTypes map[models.ChatType]map[message_utils.MessageTypeList]map[int64]map[string]ByMessageTypeHandler
 
-func (funcs HandlerByMessageTypeFunctions) BuildSelectKeyboard() models.ReplyMarkup {
+func (funcs HandlerByMessageTypes) BuildSelectKeyboard(chatType models.ChatType, msgType message_utils.MessageTypeList, chatID int64) ([][]models.InlineKeyboardButton, int) {
 	var msgTypeItems [][]models.InlineKeyboardButton
+	var handlerCount int
 
-	for name := range funcs {
+	// handler for some chat id
+	for _, handler := range funcs[chatType][msgType][chatID] {
 		msgTypeItems = append(msgTypeItems, []models.InlineKeyboardButton{{
-			Text: name,
-			CallbackData: fmt.Sprintf("HBMT_%s_%s_%s", funcs[name].ChatType, funcs[name].MessageType, name),
+			Text: handler.PluginName,
+			CallbackData: "HBMT_" + handler.PluginName,
 		}})
+		handlerCount++
 	}
 
-	return &models.InlineKeyboardMarkup{
-		InlineKeyboard: msgTypeItems,
+	// handler for any chat id
+	for _, handler := range funcs[chatType][msgType][0] {
+		msgTypeItems = append(msgTypeItems, []models.InlineKeyboardButton{{
+			Text: handler.PluginName,
+			CallbackData: "HBMT_" + handler.PluginName,
+		}})
+		handlerCount++
 	}
+
+	return msgTypeItems, handlerCount
 }
 
-type HandlerByMessageType struct {
-	PluginName       string // underline isn't allowed in this field
+type ByMessageTypeHandler struct {
+	PluginName       string
 	ChatType         models.ChatType
+	ForChatID        int64           // 0 for all
 	MessageType      message_utils.MessageTypeList
 	AllowAutoTrigger bool // Allow auto trigger when there is only one handler of the same type
 	/*
 		Only update type handler can register, if there is more than
 		one handler of the same type, the bot will send a keyboard
-		to let the user choose which plugin they want to use.
+		to let the user choose which handler they want to use.
 
 		If that, the update type that trigger this function
 		will be `update.CallbackQuery`, not `update.Message`.
 
-		To register this type of plugin, make sure the
+		To register this type of handler, make sure the
 		function can handle both update types.
 
-		You can try to simply copy the data to `update.Message`
-		at the beginning of the plugin as follow:
+		You can try to simply copy the message data from
+		`update.CallbackQuery.Message.Message.ReplyToMessage`
+		to `update.Message` at the beginning of the handler as follow:
 
 		```
 		if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
@@ -55,7 +68,7 @@ type HandlerByMessageType struct {
 		}
 		````
 	*/
-	UpdateHandler func(*handler_params.Update) error
+	UpdateHandler func(*handler_params.Update) error // with full access to `update`.
 }
 
 /*
@@ -82,31 +95,115 @@ type HandlerByMessageType struct {
 	}
 	```
 */
-func AddHandlerByMessageTypePlugins(plugins ...HandlerByMessageType) int {
-	if AllPlugins.HandlerByMessageType == nil { AllPlugins.HandlerByMessageType = map[models.ChatType]map[message_utils.MessageTypeList]HandlerByMessageTypeFunctions{} }
+func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
+	if AllPlugins.HandlerByMessageType == nil { AllPlugins.HandlerByMessageType = HandlerByMessageTypes{} }
 
-	var pluginCount int
-	for _, plugin := range plugins {
-		if AllPlugins.HandlerByMessageType[plugin.ChatType] == nil { AllPlugins.HandlerByMessageType[plugin.ChatType] = map[message_utils.MessageTypeList]HandlerByMessageTypeFunctions{} }
-		if AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType] == nil { AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType] = HandlerByMessageTypeFunctions{} }
+	var handlerCount int
+	for _, handler := range handlers {
+		if AllPlugins.HandlerByMessageType[handler.ChatType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType] = map[message_utils.MessageTypeList]map[int64]map[string]ByMessageTypeHandler{} }
+		if AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType] = map[int64]map[string]ByMessageTypeHandler{} }
+		if AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID] == nil { AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID] = map[string]ByMessageTypeHandler{} }
 
-		_, isExist := AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType][plugin.PluginName]
-		if !isExist {
-			AllPlugins.HandlerByMessageType[plugin.ChatType][plugin.MessageType][plugin.PluginName] = plugin
-			pluginCount++
+		_, isExist := AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID][handler.PluginName]
+		if isExist {
+			log.Error().
+				Str("funcName", "AddHandlerByMessageTypePlugins").
+				Str("chatType", string(handler.ChatType)).
+				Str("messageType", string(handler.MessageType)).
+				Int64("forChatID", handler.ForChatID).
+				Str("name", handler.PluginName).
+				Msgf("Duplicate plugin exists, registration skipped")
+		} else {
+			AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID][handler.PluginName] = handler
+			handlerCount++
 		}
 	}
 
-	return pluginCount
+	return handlerCount
 }
 
-func RemoveHandlerByMessageTypePlugin(chatType models.ChatType, messageType message_utils.MessageTypeList, pluginName string) {
+func RemoveHandlerByMessageTypeHandler(chatType models.ChatType, messageType message_utils.MessageTypeList, chatID int64, handlerName string) {
 	if AllPlugins.HandlerByMessageType == nil { return }
 
-	_, isExist := AllPlugins.HandlerByMessageType[chatType][messageType][pluginName]
-	if isExist {
-		delete(AllPlugins.HandlerByMessageType[chatType][messageType], pluginName)
+	// _, isExist := AllPlugins.HandlerByMessageType[chatType][messageType][chatID][handlerName]
+	// if isExist {
+		delete(AllPlugins.HandlerByMessageType[chatType][messageType][chatID], handlerName)
+	// }
+}
+
+func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, error) {
+	var isProcessed bool
+	var handlerErr  flate.MultErr
+
+	msgType := message_utils.GetMessageType(params.Update.Message).AsValue()
+	logger := zerolog.Ctx(params.Ctx).
+		With().
+		Str("funcName", "RunByChatIDHandlers").
+		Str("messageType", string(msgType)).
+		Logger()
+
+	var needBuildSelectKeyboard bool = true
+
+	if AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type] != nil {
+		handlerCount    := len(AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][params.Update.Message.Chat.ID])
+		anyHandlerCount := len(AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][0])
+		if handlerCount + anyHandlerCount > 0 {
+			if handlerCount + anyHandlerCount == 1 {
+				var handlerID int64 = 0
+				if handlerCount == 1 {
+					handlerID = params.Update.Message.Chat.ID
+				}
+				// 虽然是遍历，但实际上只能遍历一次
+				for name, handler := range AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][handlerID] {
+					if handler.AllowAutoTrigger {
+						// 允许自动触发的 handler
+						logger.Info().
+							Str("handlerName", name).
+							Int64("forChatID", handler.ForChatID).
+							Msg("Hit by message type handler")
+
+						if handler.UpdateHandler == nil {
+							logger.Warn().Msg("Hit by message type handler, but this handler function is nil, skip")
+							continue
+						}
+						err := handler.UpdateHandler(params)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Str("handlerName", name).
+								Int64("forChatID", handler.ForChatID).
+								Msg("Error in by message type handler")
+						}
+						isProcessed = true
+						needBuildSelectKeyboard = false
+					}
+				}
+			}
+
+			if needBuildSelectKeyboard {
+				handlerKeyboard, count := AllPlugins.HandlerByMessageType.BuildSelectKeyboard(params.Update.Message.Chat.Type, msgType, params.Update.Message.Chat.ID)
+				if len(handlerKeyboard) > 0 {
+					isProcessed = true
+					// 多个 handler 自动回复一条带按钮的消息让用户手动操作
+					_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
+						ChatID:    params.Update.Message.Chat.ID,
+						Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgType),
+						ReplyParameters: &models.ReplyParameters{ MessageID: params.Update.Message.ID },
+						ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: handlerKeyboard },
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Int("handlerCount", count).
+							Str("content", "handler by message type select keyboard").
+							Msg(flate.SendMessage.Str())
+					}
+				}
+			}
+		}
 	}
+
+	return isProcessed, string(msgType), handlerErr.Flat()
 }
 
 func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
@@ -115,35 +212,36 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 		Str("funcName", "SelectHandlerByMessageTypeHandlerCallback").
 		Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 		Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-		Str("CallbackQuery", opts.Update.CallbackQuery.Data).
+		Str("callbackQuery", opts.Update.CallbackQuery.Data).
 		Logger()
-
-	var chatType, messageType, pluginName string
-	var chatTypeMessageTypeAndPluginName  string
 
 	var handlerErr flate.MultErr
 
 	if strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") {
-		chatTypeMessageTypeAndPluginName =  strings.TrimPrefix(opts.Update.CallbackQuery.Data, "HBMT_")
-		chatTypeAndPluginNameList        := strings.Split(chatTypeMessageTypeAndPluginName, "_")
-		if len(chatTypeAndPluginNameList) < 3 {
+		pluginName := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "HBMT_")
+		if pluginName == "" {
 			err := fmt.Errorf("user selected callback query doesn't have enough fields")
 			logger.Error().
 				Err(err).
 				Msg("Failed to trigger by message type handler")
 			handlerErr.Addf("Failed to trigger by message type handler: %w", err)
 		} else {
-			chatType, messageType, pluginName = chatTypeAndPluginNameList[0], chatTypeAndPluginNameList[1], chatTypeAndPluginNameList[2]
-			handler, isExist := AllPlugins.HandlerByMessageType[models.ChatType(chatType)][message_utils.MessageTypeList(messageType)][pluginName]
+			messageType := message_utils.GetMessageType(opts.Update.CallbackQuery.Message.Message).AsValue()
+			handler, isExist := AllPlugins.HandlerByMessageType[opts.Update.CallbackQuery.Message.Message.Chat.Type][messageType][opts.Update.CallbackQuery.Message.Message.Chat.ID][pluginName]
 			if isExist {
 				logger.Debug().
-					Str("messageType", messageType).
+					Str("chatType", opts.Update.InlineQuery.ChatType).
+					Str("messageType", string(messageType)).
+					Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
 					Str("pluginName", pluginName).
-					Str("chatType", chatType).
 					Msg("User selected a by message type handler")
 				// if opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
 				// 	opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
 				// }
+				if handler.UpdateHandler == nil {
+					logger.Warn().Msg("Hit by message type handler, but this handler function is nil, ignore")
+					return handlerErr.Addf("hit by message type handler [%s], but this handler function is nil, ignore", pluginName).Flat()
+				}
 				err := handler.UpdateHandler(opts)
 				if err != nil {
 					logger.Error().
@@ -151,10 +249,12 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 						Dict("handler", zerolog.Dict().
 							Str("chatType", string(handler.ChatType)).
 							Str("messageType", string(handler.MessageType)).
+							Int64("forChatID", handler.ForChatID).
 							Bool("allowAutoTrigger", handler.AllowAutoTrigger).
 							Str("name", handler.PluginName),
 						).
 						Msg("Error in by message type handler")
+					handlerErr.Addf("error in by message type handler: %w", err)
 
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID:    opts.Update.CallbackQuery.From.ID,
@@ -166,7 +266,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 							Err(err).
 							Str("content", "error in by message type handler notice").
 							Msg(flate.SendMessage.Str())
-						handlerErr.Addf("failed to send `error in by message type handler notice` message: %w", err)
+						handlerErr.Addf(flate.SendMessage.Fmt(), "error in by message type handler notice", err)
 					}
 				} else {
 					_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -178,7 +278,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 							Err(err).
 							Str("content", "select by message type handler keyboard").
 							Msg(flate.DeleteMessages.Str())
-						handlerErr.Addf("failed to delete `select by message type handler keyboard` message: %w", err)
+						handlerErr.Addf(flate.DeleteMessage.Fmt(), "select by message type handler keyboard", err)
 					}
 				}
 			} else {
@@ -192,7 +292,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 						Err(err).
 						Str("content", "this by message type handler is not exist").
 						Msg(flate.AnswerCallbackQuery.Str())
-					handlerErr.Addf("failed to send `this by message type handler is not exist` callback answer: %w", err)
+					handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), "this by message type handler is not exist", err)
 				}
 			}
 		}

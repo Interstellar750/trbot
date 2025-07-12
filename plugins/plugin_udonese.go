@@ -646,9 +646,10 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 	return udoneseResultList
 }
 
-func udoneseGroupHandler(opts *handler_params.Message) error {
+func udoneseGroupHandler(opts *handler_params.Update) error {
 	// 不响应来自转发的命令和空文本
-	if opts.Message.ForwardOrigin != nil || len(opts.Fields) < 1 { return nil }
+	fields := strings.Fields(opts.Update.Message.Text)
+	if opts.Update.Message.ForwardOrigin != nil || len(fields) < 1 { return nil }
 
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -674,7 +675,7 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 
 	// 统计词使用次数
 	for i, n := range UdoneseData.OnlyWord() {
-		if n == opts.Message.Text || strings.HasPrefix(opts.Message.Text, n) {
+		if n == opts.Update.Message.Text || strings.HasPrefix(opts.Update.Message.Text, n) {
 			UdoneseData.List[i].Used++
 			err := SaveUdonese(opts.Ctx)
 			if err != nil {
@@ -683,17 +684,18 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 					Msg("Failed to save udonese list after add word usage count")
 				handlerErr.Addf("failed to save udonese list after add word usage count: %w", err)
 			}
+			break
 		}
 	}
 
 	var needNotice bool
 
-	if opts.Fields[0] == "sms" {
+	if fields[0] == "sms" {
 		// 参数过少，提示用法
-		if len(opts.Fields) < 2 {
+		if len(fields) < 2 {
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Message.Chat.ID,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ChatID: opts.Update.Message.Chat.ID,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 				Text:   "使用方法：发送 `sms <词>` 来查看对应的意思",
 				ParseMode: models.ParseModeMarkdownV1,
 				DisableNotification: true,
@@ -705,7 +707,7 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Int64("chatID", opts.Message.Chat.ID).
+					Int64("chatID", opts.Update.Message.Chat.ID).
 					Str("content", "sms command usage").
 					Msg(flate.SendMessage.Str())
 				handlerErr.Addf("failed to send `sms command usage` message: %w", err)
@@ -713,45 +715,47 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 		} else {
 			// 在数据库循环查找这个词
 			for _, word := range UdoneseData.List {
-				if strings.EqualFold(word.Word, opts.Fields[1]) {
+				if strings.EqualFold(word.Word, fields[1]) {
 					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID: opts.Message.Chat.ID,
+						ChatID: opts.Update.Message.Chat.ID,
 						Text:   word.OutputMeanings(),
-						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 						ParseMode: models.ParseModeHTML,
 						DisableNotification: true,
 					})
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Int64("chatID", opts.Message.Chat.ID).
+							Int64("chatID", opts.Update.Message.Chat.ID).
 							Str("content", "sms keyword meaning").
 							Msg(flate.SendMessage.Str())
 						handlerErr.Addf("failed to send `sms keyword meaning` message: %w", err)
 					}
+					return handlerErr.Flat()
 				}
 			}
 			needNotice = true
 		}
-	} else if len(opts.Fields) == 2 && strings.HasSuffix(opts.Message.Text, "ssm") {
+	} else if len(fields) == 2 && strings.HasSuffix(opts.Update.Message.Text, "ssm") {
 		// 在数据库循环查找这个词
 		for _, word := range UdoneseData.List {
-			if strings.EqualFold(word.Word, opts.Fields[0]) {
+			if strings.EqualFold(word.Word, fields[0]) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.Message.Chat.ID,
+					ChatID: opts.Update.Message.Chat.ID,
 					Text:   word.OutputMeanings(),
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 					ParseMode: models.ParseModeHTML,
 					DisableNotification: true,
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Int64("chatID", opts.Message.Chat.ID).
+						Int64("chatID", opts.Update.Message.Chat.ID).
 						Str("content", "sms keyword meaning").
 						Msg(flate.SendMessage.Str())
 					handlerErr.Addf("failed to send `sms keyword meaning` message: %w", err)
 				}
+				return handlerErr.Flat()
 			}
 		}
 		needNotice = true
@@ -760,8 +764,8 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 	if needNotice {
 		// 到这里就是没找到，提示没有
 		botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Message.Chat.ID,
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+			ChatID: opts.Update.Message.Chat.ID,
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 			Text:   "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
 			ParseMode: models.ParseModeMarkdownV1,
 			DisableNotification: true,
@@ -769,7 +773,7 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Int64("chatID", opts.Message.Chat.ID).
+				Int64("chatID", opts.Update.Message.Chat.ID).
 				Int("messageID", botMessage.ID).
 				Str("content", "sms keyword no meaning").
 				Msg(flate.SendMessage.Str())
@@ -777,13 +781,13 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 		} else {
 			time.Sleep(time.Second * 10)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
-				ChatID: opts.Message.Chat.ID,
+				ChatID: opts.Update.Message.Chat.ID,
 				MessageIDs: []int{ botMessage.ID },
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Int64("chatID", opts.Message.Chat.ID).
+					Int64("chatID", opts.Update.Message.Chat.ID).
 					Int("messageID", botMessage.ID).
 					Str("content", "sms keyword no meaning").
 					Msg(flate.DeleteMessage.Str())
@@ -805,23 +809,23 @@ func init() {
 		Saver:  SaveUdonese,
 		Loader: ReadUdonese,
 	})
-	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
-		Command:     "sms",
+	plugin_utils.AddInlineHandlerHandlers(plugin_utils.InlineHandler{
+		Command:       "sms",
 		InlineHandler: udoneseInlineHandler,
-		Description: "查询 Udonese 词典",
+		Description:   "查询 Udonese 词典",
 	})
-	plugin_utils.AddSlashCommandPlugins(plugin_utils.SlashCommand{
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "udonese",
 		MessageHandler: addUdoneseHandler,
 	})
-	plugin_utils.AddHandlerByChatIDPlugins(plugin_utils.HandlerByChatID{
+	plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
 		ChatID:         UdonGroupID,
 		PluginName:     "udoneseGroupHandler",
-		MessageHandler: udoneseGroupHandler,
+		UpdateHandler: udoneseGroupHandler,
 	})
-	plugin_utils.AddCallbackQueryPlugins(plugin_utils.CallbackQuery{
-		CommandChar: "udonese",
-		UpdateHandler:      udoneseCallbackHandler,
+	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
+		CallbackDatePrefix:   "udonese",
+		UpdateHandler: udoneseCallbackHandler,
 	})
 }
 

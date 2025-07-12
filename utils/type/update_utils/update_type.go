@@ -34,7 +34,7 @@ type UpdateType struct {
 }
 
 // 将消息类型结构体转换为 UpdateTypeList(string) 类型
-func (ut UpdateType)InString() UpdateTypeList {
+func (ut UpdateType)AsValue() UpdateTypeList {
 	val := reflect.ValueOf(ut)
 	typ := reflect.TypeOf(ut)
 

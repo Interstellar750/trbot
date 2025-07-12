@@ -30,7 +30,7 @@ func init() {
 		Name: "Voice List",
 		Loader: ReadVoicePackFromPath,
 	})
-	plugin_utils.AddInlineHandlerPlugins(plugin_utils.InlineHandler{
+	plugin_utils.AddInlineHandlerHandlers(plugin_utils.InlineHandler{
 		Command:       "voice",
 		InlineHandler: VoiceListHandler,
 		Description:   "一些语音列表",
