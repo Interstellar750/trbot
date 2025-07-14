@@ -339,7 +339,7 @@ func GetChatInfo(ctx context.Context, id int64) (*db_struct.ChatInfo, error) {
 func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix()
+			Database.UpdateTimestamp = time.Now().Unix() + 1
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
@@ -355,7 +355,7 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struc
 func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix()
+			Database.UpdateTimestamp = time.Now().Unix() + 1
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
@@ -371,7 +371,7 @@ func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.Cha
 func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix()
+			Database.UpdateTimestamp = time.Now().Unix() + 1
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
@@ -387,7 +387,7 @@ func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struc
 func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
 	for Index, Data := range Database.Data.ChatInfo {
 		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix()
+			Database.UpdateTimestamp = time.Now().Unix() + 1
 			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
