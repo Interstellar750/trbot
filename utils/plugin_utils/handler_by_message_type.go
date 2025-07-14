@@ -226,18 +226,15 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 				Msg("Failed to trigger by message type handler")
 			handlerErr.Addf("Failed to trigger by message type handler: %w", err)
 		} else {
-			messageType := message_utils.GetMessageType(opts.Update.CallbackQuery.Message.Message).AsValue()
+			messageType := message_utils.GetMessageType(opts.Update.CallbackQuery.Message.Message.ReplyToMessage).AsValue()
 			handler, isExist := AllPlugins.HandlerByMessageType[opts.Update.CallbackQuery.Message.Message.Chat.Type][messageType][opts.Update.CallbackQuery.Message.Message.Chat.ID][pluginName]
 			if isExist {
 				logger.Debug().
-					Str("chatType", opts.Update.InlineQuery.ChatType).
+					Str("chatType", string(opts.Update.CallbackQuery.Message.Message.Chat.Type)).
 					Str("messageType", string(messageType)).
 					Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
 					Str("pluginName", pluginName).
 					Msg("User selected a by message type handler")
-				// if opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
-				// 	opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
-				// }
 				if handler.UpdateHandler == nil {
 					logger.Warn().Msg("Hit by message type handler, but this handler function is nil, ignore")
 					return handlerErr.Addf("hit by message type handler [%s], but this handler function is nil, ignore", pluginName).Flat()
@@ -282,17 +279,58 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 					}
 				}
 			} else {
-				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-					CallbackQueryID: opts.Update.CallbackQuery.ID,
-					Text: fmt.Sprintf("此功能 [ %s ] 不可用，可能是管理员已经移除了这个功能", pluginName),
-					ShowAlert: true,
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "this by message type handler is not exist").
-						Msg(flate.AnswerCallbackQuery.Str())
-					handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), "this by message type handler is not exist", err)
+				handler, isExist := AllPlugins.HandlerByMessageType[opts.Update.CallbackQuery.Message.Message.Chat.Type][messageType][0][pluginName]
+				if isExist {
+					logger.Debug().
+						Str("chatType", string(opts.Update.CallbackQuery.Message.Message.Chat.Type)).
+						Str("messageType", string(messageType)).
+						Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+						Str("pluginName", pluginName).
+						Msg("User selected a by message type handler")
+					if handler.UpdateHandler == nil {
+						logger.Warn().Msg("Hit by message type handler, but this handler function is nil, ignore")
+						return handlerErr.Addf("hit by message type handler [%s], but this handler function is nil, ignore", pluginName).Flat()
+					}
+					err := handler.UpdateHandler(opts)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Dict("handler", zerolog.Dict().
+								Str("chatType", string(handler.ChatType)).
+								Str("messageType", string(handler.MessageType)).
+								Int64("forChatID", handler.ForChatID).
+								Bool("allowAutoTrigger", handler.AllowAutoTrigger).
+								Str("name", handler.PluginName),
+							).
+							Msg("Error in by message type handler")
+						handlerErr.Addf("error in by message type handler: %w", err)
+
+						_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+							ChatID:    opts.Update.CallbackQuery.From.ID,
+							Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", pluginName, err),
+							ParseMode: models.ParseModeHTML,
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Str("content", "error in by message type handler notice").
+								Msg(flate.SendMessage.Str())
+							handlerErr.Addf(flate.SendMessage.Fmt(), "error in by message type handler notice", err)
+						}
+					}
+				} else {
+					_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+						CallbackQueryID: opts.Update.CallbackQuery.ID,
+						Text: fmt.Sprintf("此功能 [ %s ] 不可用，可能是管理员已经移除了这个功能", pluginName),
+						ShowAlert: true,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Str("content", "this by message type handler is not exist").
+							Msg(flate.AnswerCallbackQuery.Str())
+						handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), "this by message type handler is not exist", err)
+					}
 				}
 			}
 		}

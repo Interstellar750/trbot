@@ -618,6 +618,373 @@ func saveMessageHandler(opts *handler_params.Message) error {
 
 // }
 
+func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
+	if opts.Update.CallbackQuery == nil || opts.Update.CallbackQuery.Message.Message.ReplyToMessage == nil { return nil }
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "saveMessageFromCallBackQuery").
+		Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+		Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+		Logger()
+
+	var targetMessage *models.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
+
+	messageParams := &bot.SendMessageParams{
+		ChatID:    opts.Update.CallbackQuery.From.ID,
+		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID},
+		ParseMode: models.ParseModeHTML,
+		// ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+		// 	Text:                         "点击浏览您的收藏",
+		// 	SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+		// }}}},
+	}
+
+	var handlerErr flate.MultErr
+
+	UserSavedMessage := SavedMessageSet[opts.Update.CallbackQuery.From.ID]
+
+	var originInfo *OriginInfo
+	if targetMessage.ForwardOrigin != nil && targetMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
+		originInfo = getMessageOriginData(targetMessage.ForwardOrigin)
+	} else if targetMessage.Chat.Type != models.ChatTypePrivate {
+		originInfo = getMessageLink(targetMessage)
+	}
+
+	var isSaved             bool
+	var messageLength       int
+	var pendingEntitites    []models.MessageEntity
+	var needChangeEntitites bool = true
+
+	if targetMessage.Caption != "" {
+		messageLength = utf8.RuneCountInString(targetMessage.Caption)
+		pendingEntitites = targetMessage.CaptionEntities
+	} else if targetMessage.Text != "" {
+		messageLength = utf8.RuneCountInString(targetMessage.Text)
+		pendingEntitites = targetMessage.Entities
+	} else {
+		needChangeEntitites = false
+	}
+
+	if needChangeEntitites {
+		// 若字符长度大于设定的阈值，添加折叠样式引用再保存
+		if messageLength > textExpandableLength {
+			if len(pendingEntitites) == 1 && pendingEntitites[0].Type == models.MessageEntityTypeBlockquote && pendingEntitites[0].Offset == 0 && pendingEntitites[0].Length == messageLength {
+				// 如果消息仅为一个消息格式实体，且是不折叠形式的引用，则将格式实体改为可折叠格式引用后再保存
+				pendingEntitites = []models.MessageEntity{{
+					Type:   models.MessageEntityTypeExpandableBlockquote,
+					Offset: 0,
+					Length: messageLength,
+				}}
+			} else {
+				// 其他则仅在末尾加一个可折叠形式的引用
+				pendingEntitites = append(pendingEntitites, models.MessageEntity{
+					Type:   models.MessageEntityTypeExpandableBlockquote,
+					Offset: 0,
+					Length: messageLength,
+				})
+			}
+		}
+	}
+
+	replyMsgType := message_utils.GetMessageType(targetMessage)
+	switch {
+		case replyMsgType.OnlyText:
+			for _, n := range UserSavedMessage.Item.OnlyText {
+				if n.TitleAndMessageText == targetMessage.Text && reflect.DeepEqual(n.Entities, pendingEntitites) {
+					isSaved = true
+					messageParams.Text = "已保存过该文本\n"
+					break
+				}
+			}
+
+			if !isSaved {
+				UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
+					ID:                  fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					TitleAndMessageText: targetMessage.Text,
+					Entities:            pendingEntitites,
+					LinkPreviewOptions:  targetMessage.LinkPreviewOptions,
+					OriginInfo:          originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存文本"
+			}
+		case replyMsgType.Audio:
+			for _, n := range UserSavedMessage.Item.Audio {
+				if n.FileID == targetMessage.Audio.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该音乐\n"
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
+					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID:          targetMessage.Audio.FileID,
+					Title:           targetMessage.Audio.Title,
+					FileName:        targetMessage.Audio.FileName,
+					Caption:         targetMessage.Caption,
+					CaptionEntities: pendingEntitites,
+					OriginInfo:      originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存音乐"
+			}
+		case replyMsgType.Animation:
+			for _, n := range UserSavedMessage.Item.Mpeg4gif {
+				if n.FileID == targetMessage.Animation.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该 GIF\n"
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Mpeg4gif = append(UserSavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
+					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID:          targetMessage.Animation.FileID,
+					Title:           targetMessage.Caption,
+					Caption:         targetMessage.Caption,
+					CaptionEntities: pendingEntitites,
+					OriginInfo:      originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存 GIF"
+			}
+		case replyMsgType.Document:
+			if targetMessage.Document.MimeType == "image/gif" {
+				for _, n := range UserSavedMessage.Item.Gif {
+					if n.FileID == targetMessage.Document.FileID {
+						isSaved = true
+						messageParams.Text = "已保存过该 GIF (文件)\n"
+						break
+					}
+				}
+				if !isSaved {
+					UserSavedMessage.Item.Gif = append(UserSavedMessage.Item.Gif, SavedMessageTypeCachedGif{
+						ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID:          targetMessage.Document.FileID,
+						Caption:         targetMessage.Caption,
+						CaptionEntities: pendingEntitites,
+						OriginInfo:      originInfo,
+					})
+					UserSavedMessage.Count++
+					UserSavedMessage.SavedTimes++
+					SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+					messageParams.Text = "已保存 GIF (文件)"
+				}
+			} else {
+				for _, n := range UserSavedMessage.Item.Document {
+					if n.FileID == targetMessage.Document.FileID {
+						isSaved = true
+						messageParams.Text = "已保存过该文件\n"
+						break
+					}
+				}
+				if !isSaved {
+					UserSavedMessage.Item.Document = append(UserSavedMessage.Item.Document, SavedMessageTypeCachedDocument{
+						ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID:          targetMessage.Document.FileID,
+						Title:           targetMessage.Document.FileName,
+						Caption:         targetMessage.Caption,
+						CaptionEntities: pendingEntitites,
+						OriginInfo:      originInfo,
+					})
+					UserSavedMessage.Count++
+					UserSavedMessage.SavedTimes++
+					SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+					messageParams.Text = "已保存文件"
+				}
+			}
+		case replyMsgType.Photo:
+			for _, n := range UserSavedMessage.Item.Photo {
+				if n.FileID == targetMessage.Photo[len(targetMessage.Photo)-1].FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该图片\n"
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Photo = append(UserSavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
+					ID:                fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID:            targetMessage.Photo[len(targetMessage.Photo)-1].FileID,
+					Caption:           targetMessage.Caption,
+					CaptionEntities:   pendingEntitites,
+					CaptionAboveMedia: targetMessage.ShowCaptionAboveMedia,
+					OriginInfo:        originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存图片"
+			}
+		case replyMsgType.Sticker:
+			for _, n := range UserSavedMessage.Item.Sticker {
+				if n.FileID == targetMessage.Sticker.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该贴纸\n"
+					break
+				}
+			}
+
+			if !isSaved {
+				if targetMessage.Sticker.SetName != "" {
+					stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{Name: targetMessage.Sticker.SetName})
+					if err != nil {
+						logger.Warn().
+							Err(err).
+							Str("setName", targetMessage.Sticker.SetName).
+							Msg("Failed to get sticker set info, save it as a custom sticker")
+					}
+					if stickerSet != nil {
+						// 属于一个贴纸包中的贴纸
+						UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+							ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+							FileID:      targetMessage.Sticker.FileID,
+							SetName:     stickerSet.Name,
+							SetTitle:    stickerSet.Title,
+							Emoji:       targetMessage.Sticker.Emoji,
+							OriginInfo:  originInfo,
+						})
+					} else {
+						// 有贴纸信息，但是对应的贴纸包已经删掉了
+						UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+							ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+							FileID:      targetMessage.Sticker.FileID,
+							Emoji:       targetMessage.Sticker.Emoji,
+							OriginInfo:  originInfo,
+						})
+					}
+				} else {
+					UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
+						ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+						FileID:      targetMessage.Sticker.FileID,
+						Emoji:       targetMessage.Sticker.Emoji,
+						OriginInfo:  originInfo,
+					})
+				}
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存贴纸"
+			}
+		case replyMsgType.Video:
+			for _, n := range UserSavedMessage.Item.Video {
+				if n.FileID == targetMessage.Video.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该视频\n"
+					break
+				}
+			}
+			if !isSaved {
+				videoTitle := targetMessage.Video.FileName
+				if videoTitle == "" {
+					videoTitle = "video.mp4"
+				}
+				UserSavedMessage.Item.Video = append(UserSavedMessage.Item.Video, SavedMessageTypeCachedVideo{
+					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID:          targetMessage.Video.FileID,
+					Title:           videoTitle,
+					Caption:         targetMessage.Caption,
+					CaptionEntities: pendingEntitites,
+					OriginInfo:      originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存视频"
+			}
+		case replyMsgType.VideoNote:
+			for _, n := range UserSavedMessage.Item.VideoNote {
+				if n.FileID == targetMessage.VideoNote.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该圆形视频\n"
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.VideoNote = append(UserSavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
+					ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID:      targetMessage.VideoNote.FileID,
+					Title:       targetMessage.VideoNote.FileUniqueID,
+					OriginInfo:  originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存圆形视频"
+			}
+		case replyMsgType.Voice:
+			for _, n := range UserSavedMessage.Item.Voice {
+				if n.FileID == targetMessage.Voice.FileID {
+					isSaved = true
+					messageParams.Text = "已保存过该语音\n"
+					break
+				}
+			}
+			if !isSaved {
+				UserSavedMessage.Item.Voice = append(UserSavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
+					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
+					FileID:          targetMessage.Voice.FileID,
+					Title:           targetMessage.Voice.MimeType,
+					Caption:         targetMessage.Caption,
+					CaptionEntities: pendingEntitites,
+					OriginInfo:      originInfo,
+				})
+				UserSavedMessage.Count++
+				UserSavedMessage.SavedTimes++
+				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+				messageParams.Text = "已保存语音"
+			}
+		default:
+			messageParams.Text = "暂不支持的消息类型"
+	}
+
+	if !isSaved {
+		err := SaveSavedMessageList(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("saveMessageType", string(replyMsgType.AsValue())).
+				Msg("Failed to save savedmessage list after save a item")
+			handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
+
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID: opts.Update.CallbackQuery.From.ID,
+				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID},
+				Text:   fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("saveMessageType", string(replyMsgType.AsValue())).
+					Str("content", "failed to save savedmessage list notice").
+					Msg(flate.SendMessage.Str())
+				handlerErr.Addf(flate.SendMessage.Fmt(), "failed to save savedmessage list notice", err)
+			}
+			return handlerErr.Flat()
+		}
+	}
+
+	_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("saveMessageType", string(replyMsgType.AsValue())).
+			Str("content", "message saved notice").
+			Msg(flate.SendMessage.Str())
+		handlerErr.Addf(flate.SendMessage.Fmt(), "message saved notice", err)
+	}
+	return handlerErr.Flat()
+}
+
 func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -834,6 +1201,8 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 				Str("content", "saved message function enabled").
 				Msg(flate.SendMessage.Str())
 			handlerErr.Addf("failed to send `saved message function enabled` message: %w", err)
+		} else {
+			buildSavedMessageByMessageHandlers()
 		}
 	}
 

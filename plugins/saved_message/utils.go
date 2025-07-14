@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"trbot/utils"
 	"trbot/utils/consts"
+	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
 
@@ -93,6 +94,7 @@ func ReadSavedMessageList(ctx context.Context) error {
 		SavedMessageSet = map[int64]SavedMessage{}
 	}
 
+	buildSavedMessageByMessageHandlers()
 	return SavedMessageErr
 }
 
@@ -514,4 +516,132 @@ func buildFromInfoButton(o *OriginInfo) models.ReplyMarkup {
 		},
 	}
 
+}
+
+func buildSavedMessageByMessageHandlers() {
+	for chatID := range SavedMessageSet {
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.OnlyText,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Audio,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Animation,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Document,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Photo,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Sticker,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Video,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.VideoNote,
+			chatID,
+			"saved_message",
+		)
+		plugin_utils.RemoveHandlerByMessageTypeHandler(
+			models.ChatTypePrivate,
+			message_utils.Voice,
+			chatID,
+			"saved_message",
+		)
+	}
+	for chatID, user := range SavedMessageSet {
+		if user.AgreePrivacyPolicy {
+			plugin_utils.AddHandlerByMessageTypeHandlers([]plugin_utils.ByMessageTypeHandler{
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.OnlyText,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Audio,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Animation,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Document,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Photo,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Sticker,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Video,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.VideoNote,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+				{
+					PluginName: "saved_message",
+					ChatType: models.ChatTypePrivate,
+					ForChatID: chatID,
+					MessageType: message_utils.Voice,
+					UpdateHandler: saveMessageFromCallbackQuery,
+				},
+			}...)
+		}
+	}
 }
