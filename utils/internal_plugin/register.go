@@ -92,13 +92,11 @@ func Register(ctx context.Context) {
 					} else if opts.Message.ReplyToMessage.Document != nil {
 						pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Document.FileID)
 					} else if opts.Message.ReplyToMessage.Photo != nil {
-						pendingMessage = "Type: [Photo]\n"
+						pendingMessage += fmt.Sprintf("Type: [Photo]\nPhotoID: [<code>%s</code>]\n", opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID)
 						if len(opts.Fields) > 1 && opts.Fields[1] == "all" { // 如果有 all 参数则显示图片所有分辨率的 File ID
 							for i, n := range opts.Message.ReplyToMessage.Photo {
-								pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d \n[<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileID)
+								pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d\nUniqueID: [<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileUniqueID)
 							}
-						} else { // 否则显示最后一个的 File ID (应该是最高分辨率的)
-							pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]\n", opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID)
 						}
 					} else if opts.Message.ReplyToMessage.Video != nil {
 						pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Video.FileID)
@@ -305,7 +303,7 @@ func Register(ctx context.Context) {
 			},
 		},
 		{
-			CallbackDatePrefix:          "help",
+			CallbackDatePrefix:   "help",
 			CallbackQueryHandler: helpCallbackHandler,
 		},
 		{
@@ -415,6 +413,76 @@ func Register(ctx context.Context) {
 				return handlerErr.Flat()
 			},
 			Description: "将一个音频链接作为语音格式发送",
+		},
+		{
+			Command: "by",
+			Attr: plugin_utils.InlineHandlerAttr{
+				IsHideInCommandList: true,
+				IsCantBeDefault: true,
+			},
+			InlineHandler: func(opts *handler_params.InlineQuery) error {
+				var result []models.InlineQueryResult
+
+				if len(opts.Fields) < 3 {
+					if len(opts.Fields) == 2 && utils.AnyContains(opts.Fields[1], "photo", "video", "audio", "document", "sticker") {
+						result = append(result, &models.InlineQueryResultArticle{
+							ID:          "needFileID",
+							Title:       fmt.Sprintf("请继续输入 %s 类型的文件 ID", opts.Fields[1]),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+							},
+						})
+					} else {
+						result = append(result, &models.InlineQueryResultArticle{
+							ID:          "error",
+							Title:       "请输入一个媒体类型",
+							Description: "photo, video, audio, document, sticker",
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
+							},
+						})
+					}
+				} else {
+					switch opts.Fields[1] {
+					case "photo":
+						result = append(result, &models.InlineQueryResultCachedPhoto{
+							ID:          "photo",
+							PhotoFileID: opts.Fields[2],
+							Title:       "图片",
+						})
+					case "video":
+						result = append(result, &models.InlineQueryResultCachedVideo{
+							ID:          "video",
+							VideoFileID: opts.Fields[2],
+							Title:       "视频",
+						})
+					case "audio":
+						result = append(result, &models.InlineQueryResultCachedAudio{
+							ID:          "audio",
+							AudioFileID: opts.Fields[2],
+						})
+					case "document":
+						result = append(result, &models.InlineQueryResultCachedDocument{
+							ID:          "document",
+							DocumentFileID: opts.Fields[2],
+							Title:       "文档",
+						})
+					case "sticker":
+						result = append(result, &models.InlineQueryResultCachedSticker{
+							ID:          "sticker",
+							StickerFileID: opts.Fields[2],
+						})
+					}
+				}
+
+				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: result,
+					CacheTime: 0,
+					IsPersonal: true,
+				})
+				return err
+			},
 		},
 	}...)
 

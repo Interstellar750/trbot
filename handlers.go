@@ -103,9 +103,13 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				Msg("chosen inline result")
 		case updateType.CallbackQuery:
 			// replymarkup 回调
+			var chat = zerolog.Dict()
+			if update.CallbackQuery.Message.Message != nil {
+				_, chat = utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)
+			}
 			logger.Info().
 				Dict(utils.GetUserDict(&update.CallbackQuery.From)).
-				Dict(utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)).
+				Dict("chat", chat).
 				Str("query", update.CallbackQuery.Data).
 				Msg("callback query")
 		case updateType.MessageReaction:
