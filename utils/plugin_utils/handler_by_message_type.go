@@ -317,6 +317,18 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 								Msg(flate.SendMessage.Str())
 							handlerErr.Addf(flate.SendMessage.Fmt(), "error in by message type handler notice", err)
 						}
+					} else {
+						_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+							ChatID:    opts.Update.CallbackQuery.From.ID,
+							MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+						})
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Str("content", "select by message type handler keyboard").
+								Msg(flate.DeleteMessages.Str())
+							handlerErr.Addf(flate.DeleteMessage.Fmt(), "select by message type handler keyboard", err)
+						}
 					}
 				} else {
 					_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
