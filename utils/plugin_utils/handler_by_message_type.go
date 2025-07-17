@@ -255,7 +255,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID:    opts.Update.CallbackQuery.From.ID,
-						Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", pluginName, err),
+						Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>%s</blockquote>", pluginName, err),
 						ParseMode: models.ParseModeHTML,
 					})
 					if err != nil {
@@ -307,7 +307,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 
 						_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 							ChatID:    opts.Update.CallbackQuery.From.ID,
-							Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", pluginName, err),
+							Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>%s</blockquote>", pluginName, err),
 							ParseMode: models.ParseModeHTML,
 						})
 						if err != nil {
