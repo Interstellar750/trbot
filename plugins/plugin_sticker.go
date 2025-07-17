@@ -35,6 +35,9 @@ var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_
 var StickerCacheGIF_path string = filepath.Join(consts.CacheDirectory, "sticker_gif/")
 var StickerCacheZip_path string = filepath.Join(consts.CacheDirectory, "sticker_zip/")
 
+var MP4Cache_path string = filepath.Join(consts.CacheDirectory, "mp4/")
+var GIFCache_path string = filepath.Join(consts.CacheDirectory, "mp4_GIF/")
+
 func init() {
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
@@ -70,7 +73,7 @@ func init() {
 		ParseMode:   models.ParseModeHTML,
 	})
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-		PluginName:      "StickerDownload",
+		PluginName:      "贴纸下载",
 		ChatType:         models.ChatTypePrivate,
 		MessageType:      message_utils.Sticker,
 		AllowAutoTrigger: true,
@@ -79,6 +82,13 @@ func init() {
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "cachedsticker",
 		MessageHandler: showCachedStickers,
+	})
+	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
+		PluginName:      "MP4 转 GIF",
+		ChatType:         models.ChatTypePrivate,
+		MessageType:      message_utils.Animation,
+		AllowAutoTrigger: true,
+		UpdateHandler:    convertMP4ToGifHandler,
 	})
 }
 
@@ -150,7 +160,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "sticker download error").
 				Msg(flate.SendMessage.Str())
-			handlerErr.Addf("failed to send `sticker download error` message: %w", err)
+			handlerErr.Addf(flate.SendMessage.Fmt(), "sticker download error", err)
 		}
 	} else {
 		documentParams := &bot.SendDocumentParams{
@@ -158,7 +168,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 			ParseMode:                   models.ParseModeHTML,
 			ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
 			DisableNotification:         true,
-			DisableContentTypeDetection: true, // Prevent the server convert gif to mp4
+			DisableContentTypeDetection: true, // Prevent the server convert GIF to MP4
 		}
 
 		var stickerFilePrefix, stickerFileSuffix string
@@ -211,7 +221,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "sticker file").
 				Msg(flate.SendDocument.Str())
-			handlerErr.Addf("failed to send sticker file: %w", err)
+			handlerErr.Addf(flate.SendDocument.Fmt(), "sticker file", err)
 		}
 	}
 
@@ -366,9 +376,9 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 		finalFullPath = originFullPath
 	} else if opts.Update.Message.Sticker.IsVideo {
 		if configs.BotConfig.FFmpegPath != "" {
-			// webm, convert to gif
+			// webm, convert to GIF
 			var GIFFilePath   string = filepath.Join(StickerCacheGIF_path, stickerSetNamePrivate) // 转码后为 png 格式的目录 .cache/sticker_png/setName/
-			var toGIFFullPath string = filepath.Join(GIFFilePath, stickerFileNameWithDot + "gif") // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
+			var toGIFFullPath string = filepath.Join(GIFFilePath, stickerFileNameWithDot + "GIF") // 转码后到 png 格式贴纸的完整目录 .cache/sticker_png/setName/stickerFileName.png
 
 			_, err = os.Stat(toGIFFullPath) // 使用目录提前检查一下是否已经转换过
 			if err != nil {
@@ -390,13 +400,13 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 					}
 
 					// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
-					err = convertWebmToGif(originFullPath, toGIFFullPath)
+					err = convertWebMToGif(originFullPath, toGIFFullPath)
 					if err != nil {
 						logger.Error().
 							Err(err).
 							Str("originFullPath", originFullPath).
-							Msg("Failed to convert webm to gif")
-						return nil, fmt.Errorf("failed to convert webm [%s] to gif: %w", originFullPath, err)
+							Msg("Failed to convert webm to GIF")
+						return nil, fmt.Errorf("failed to convert webm [%s] to GIF: %w", originFullPath, err)
 					}
 				} else {
 					// 其他错误
@@ -410,10 +420,10 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 				// 文件存在，跳过转换
 				logger.Debug().
 					Str("toGIFFullPath", toGIFFullPath).
-					Msg("Sticker file already converted to gif")
+					Msg("Sticker file already converted to GIF")
 			}
 
-			// 处理完成，将最后要读取的目录设为转码后 gif 格式贴纸的完整目录
+			// 处理完成，将最后要读取的目录设为转码后 GIF 格式贴纸的完整目录
 			data.IsConverted = true
 			finalFullPath = toGIFFullPath
 		} else {
@@ -505,9 +515,9 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 		logger.Error().
 			Err(err).
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-			Str("content", "start download stickerset").
+			Str("content", "start download stickerset notice").
 			Msg(flate.SendMessage.Str())
-		handlerErr.Addf("failed to send `start download stickerset` message: %w", err)
+		handlerErr.Addf(flate.SendMessage.Fmt(), "start download stickerset notice", err)
 	}
 
 	err = database.IncrementalUsageCount(opts.Ctx, opts.CallbackQuery.Message.Message.Chat.ID, db_struct.StickerSetDownloaded)
@@ -549,7 +559,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "get sticker set info error").
 				Msg(flate.SendMessage.Str())
-			handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
+			handlerErr.Addf(flate.SendMessage.Fmt(), "get sticker set info error", err)
 		}
 	} else {
 		logger.Info().
@@ -580,7 +590,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "download sticker set error").
 					Msg(flate.SendMessage.Str())
-				handlerErr.Addf("Failed to send `download sticker set error` message: %w", err)
+				handlerErr.Addf(flate.SendMessage.Fmt(), "download sticker set error", err)
 			}
 		} else {
 			documentParams := &bot.SendDocumentParams{
@@ -603,7 +613,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "sticker set zip file").
 					Msg(flate.SendDocument.Str())
-				handlerErr.Addf("failed to send sticker set zip file: %w", err)
+				handlerErr.Addf(flate.SendDocument.Fmt(), "sticker set zip file", err)
 			}
 
 			_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -616,7 +626,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start download stickerset notice").
 					Msg(flate.DeleteMessage.Str())
-				handlerErr.Addf("failed to delete `start download sticker set notice` message: %w", err)
+				handlerErr.Addf(flate.DeleteMessage.Fmt(), "start download sticker set notice", err)
 			}
 		}
 	}
@@ -951,8 +961,8 @@ func convertWebPToPNG(webpPath, pngPath string) error {
 }
 
 // use ffmpeg
-func convertWebmToGif(webmPath, gifPath string) error {
-	return exec.Command(configs.BotConfig.FFmpegPath, "-i", webmPath, gifPath).Run()
+func convertWebMToGif(webmPath, GIFPath string) error {
+	return exec.Command(configs.BotConfig.FFmpegPath, "-i", webmPath, GIFPath).Run()
 }
 
 func zipFolder(srcDir, zipFile string) error {
@@ -1071,7 +1081,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "get sticker set info error").
 					Msg(flate.SendMessage.Str())
-				handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
+				handlerErr.Addf(flate.SendMessage.Fmt(), "get sticker set info error", err)
 			}
 		} else {
 			_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -1084,7 +1094,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start downloading sticker pack notice").
 					Msg(flate.AnswerCallbackQuery.Str())
-				handlerErr.Addf("Failed to send `start downloading sticker pack notice` callback answer: %w", err)
+				handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), " send `start downloading sticker pack notice` callback answer: %w", err)
 			}
 			stickerData, err := getStickerPack(opts.Ctx, opts.Thebot, stickerSet, false)
 			if err != nil {
@@ -1105,7 +1115,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "download sticker set error").
 						Msg(flate.SendMessage.Str())
-					handlerErr.Addf("Failed to send `download sticker set error` message: %w", err)
+					handlerErr.Addf(flate.SendMessage.Fmt(), "download sticker set error", err)
 				}
 			} else {
 				var pendingMessage string = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n", stickerData.StickerSetTitle, stickerData.StickerSetName)
@@ -1135,7 +1145,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "collect sticker set file").
 						Msg(flate.SendDocument.Str())
-					handlerErr.Addf("Failed to send `collect sticker set` file: %w", err)
+					handlerErr.Addf(flate.SendDocument.Fmt(), "collect sticker set", err)
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID: opts.CallbackQuery.From.ID,
 						Text: fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
@@ -1150,7 +1160,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 							Str("content", "collect sticker set failed notice").
 							Msg(flate.SendMessage.Str())
-						handlerErr.Addf("Failed to send `collect sticker set failed notice` message: %w", err)
+						handlerErr.Addf(flate.SendMessage.Fmt(), "collect sticker set failed notice", err)
 					}
 				}
 			}
@@ -1202,7 +1212,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "get sticker set info error").
 					Msg(flate.SendMessage.Str())
-				handlerErr.Addf("Failed to send `get sticker set info error` message: %w", err)
+				handlerErr.Addf(flate.SendMessage.Fmt(), "get sticker set info error", err)
 			}
 		} else {
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -1226,7 +1236,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "sticker set info").
 					Msg(flate.SendMessage.Str())
-				handlerErr.Addf("Failed to send `sticker set info` message: %w", err)
+				handlerErr.Addf(flate.SendMessage.Fmt(), "sticker set info", err)
 			}
 		}
 	} else {
@@ -1241,9 +1251,230 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "empty sticker link notice").
 				Msg(flate.SendMessage.Str())
-			handlerErr.Addf("Failed to send `empty sticker link notice` message: %w", err)
+			handlerErr.Addf(flate.SendMessage.Fmt(), "empty sticker link notice", err)
 		}
 	}
 
 	return handlerErr.Flat()
 }
+
+func convertMP4ToGifHandler(opts *handler_params.Update) error {
+	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
+		// if this handler trigger by `handler by message type`, copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`
+		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
+	}
+
+	if opts.Update.Message == nil || opts.Update.Message.Animation == nil {
+		return nil
+	}
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "StickerDownload").
+		Str("funcName", "convertWebMToGifHandler").
+		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Logger()
+
+	var handlerErr flate.MultErr
+
+	logger.Info().
+		Msg("Start download GIF")
+
+	GIFFile, err := downloadGifHandler(opts)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Error when downloading MP4")
+		handlerErr.Addf("error when downloading MP4: %w", err)
+
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Update.Message.From.ID,
+			Text:      fmt.Sprintf("下载 GIF 时发生了一些错误\n<blockquote expandable>Failed to download MP4: %s</blockquote>", err),
+			ParseMode: models.ParseModeHTML,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "MP4 download error").
+				Msg(flate.SendMessage.Str())
+			handlerErr.Addf(flate.SendMessage.Fmt(), "MP4 download error", err)
+		}
+	} else {
+		_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
+			ChatID:                      opts.Update.Message.From.ID,
+			Caption:                     fmt.Sprintf("视频长度 %d 秒\n分辨率 %d*%dpx", opts.Update.Message.Animation.Duration, opts.Update.Message.Animation.Width, opts.Update.Message.Animation.Height),
+			Document:                    &models.InputFileUpload{ Filename: strings.TrimSuffix(opts.Update.Message.Animation.FileName, ".MP4") + ".GIF", Data: GIFFile },
+			ParseMode:                   models.ParseModeHTML,
+			ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			DisableNotification:         true,
+			DisableContentTypeDetection: true, // Prevent the server convert GIF to MP4
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "GIF file").
+				Msg(flate.SendDocument.Str())
+			handlerErr.Addf(flate.SendDocument.Fmt(), "GIF file", err)
+		}
+	}
+
+	return handlerErr.Flat()
+}
+
+func downloadGifHandler(opts *handler_params.Update) (io.Reader, error) {
+
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "StickerDownload").
+		Str("funcName", "downloadGifHandler").
+		Logger()
+
+	var originFullPath string = filepath.Join(MP4Cache_path, opts.Update.Message.Animation.FileID + ".MP4")
+	var toGifFullPath  string = filepath.Join(GIFCache_path, opts.Update.Message.Animation.FileID + ".GIF")
+
+	_, err := os.Stat(originFullPath) // 检查是否已缓存
+	if err != nil {
+		// 如果文件不存在，进行下载，否则返回错误
+		if os.IsNotExist(err) {
+			// 日志提示该文件没被缓存，正在下载
+			logger.Debug().
+				Str("originFullPath", originFullPath).
+				Msg("GIF file not cached, downloading")
+
+			// 从服务器获取文件信息
+			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Update.Message.Animation.FileID })
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("fileID", opts.Update.Message.Animation.FileID).
+					Msg("Failed to get GIF file info")
+				return nil, fmt.Errorf("failed to get GIF file [%s] info: %w", opts.Update.Message.Animation.FileID, err)
+			}
+
+			// 组合链接下载贴纸源文件
+			resp, err := http.Get(opts.Thebot.FileDownloadLink(fileinfo))
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("filePath", fileinfo.FilePath).
+					Msg("Failed to download GIF file")
+				return nil, fmt.Errorf("failed to download GIF file [%s]: %w", fileinfo.FilePath, err)
+			}
+			defer resp.Body.Close()
+
+			// 创建保存贴纸的目录
+			err = os.MkdirAll(MP4Cache_path, 0755)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("directory", MP4Cache_path).
+					Msg("Failed to create GIF directory to save GIF")
+				return nil, fmt.Errorf("failed to create directory [%s] to save GIF: %w", MP4Cache_path, err)
+			}
+
+			// 创建贴纸空文件
+			downloadedGif, err := os.Create(originFullPath)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("originFullPath", originFullPath).
+					Msg("Failed to create GIF file")
+				return nil, fmt.Errorf("failed to create GIF file [%s]: %w", originFullPath, err)
+			}
+			defer downloadedGif.Close()
+
+			// 将下载的原贴纸写入空文件
+			_, err = io.Copy(downloadedGif, resp.Body)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("originFullPath", originFullPath).
+					Msg("Failed to writing GIF data to file")
+				return nil, fmt.Errorf("failed to writing GIF data to file [%s]: %w", originFullPath, err)
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("originFullPath", originFullPath).
+				Msg("Failed to read cached GIF file info")
+			return nil, fmt.Errorf("failed to read cached GIF file [%s] info: %w", originFullPath, err)
+		}
+	} else {
+		// 文件已存在，跳过下载
+		logger.Debug().
+			Str("originFullPath", originFullPath).
+			Msg("MP4 file already cached")
+	}
+
+	_, err = os.Stat(toGifFullPath) // 使用目录提前检查一下是否已经转换过
+	if err != nil {
+		// 如果提示不存在，进行转换
+		if os.IsNotExist(err) {
+			// 日志提示该文件没转换，正在转换
+			logger.Debug().
+				Str("toGifFullPath", toGifFullPath).
+				Msg("MP4 file does not convert, converting")
+
+			// 创建保存贴纸的目录
+			err = os.MkdirAll(GIFCache_path, 0755)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("GIFCache_path", GIFCache_path).
+					Msg("Failed to create directory to convert GIF")
+				return nil, fmt.Errorf("failed to create directory [%s] to convert GIF: %w", GIFCache_path, err)
+			}
+
+			// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
+			err = convertMP4ToGif(originFullPath, toGifFullPath)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("originFullPath", originFullPath).
+					Msg("Failed to convert MP4 to GIF")
+				return nil, fmt.Errorf("failed to convert MP4 [%s] to GIF: %w", originFullPath, err)
+			}
+		} else {
+			// 其他错误
+			logger.Error().
+				Err(err).
+				Str("toGifFullPath", toGifFullPath).
+				Msg("Failed to read converted GIF file info")
+			return nil, fmt.Errorf("failed to read converted GIF file [%s] info : %w", toGifFullPath, err)
+		}
+	} else {
+		// 文件存在，跳过转换
+		logger.Debug().
+			Str("toGifFullPath", toGifFullPath).
+			Msg("MP4 file already converted to GIF")
+	}
+
+
+	data, err := os.Open(toGifFullPath)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("toGifFullPath", toGifFullPath).
+			Msg("Failed to open converted GIF file")
+		return nil, fmt.Errorf("failed to open converted GIF file [%s]: %w", toGifFullPath, err)
+	}
+
+	return data, nil
+}
+
+func convertMP4ToGif(MP4Path, GIFPath string) error {
+	return exec.Command(configs.BotConfig.FFmpegPath, "-i", MP4Path, GIFPath).Run()
+}
+
+// func convertMP4ToWebM(MP4Path, webmPath string) error {
+// 	return exec.Command(configs.BotConfig.FFmpegPath,
+// 		"-i", MP4Path,
+// 		"-vf", "scale='if(gt(iw,ih),512,-2)':'if(gt(ih,iw),512,-2)',fps=30",
+// 		"-c:v", "libvpx-vp9",
+// 		"-crf", "40",
+// 		"-b:v", "0",
+// 		"-an",
+// 		"-limit_filesize", "262144",
+// 		webmPath,
+// 	).Run()
+// }

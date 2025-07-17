@@ -58,10 +58,33 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
-					Str("stickerEmoji", update.Message.Sticker.Emoji).
-					Str("stickerSetname", update.Message.Sticker.SetName).
-					Str("stickerFileID", update.Message.Sticker.FileID).
+					Dict("sticker", zerolog.Dict().
+						Str("emoji", update.Message.Sticker.Emoji).
+						Str("setname", update.Message.Sticker.SetName).
+						Str("fileID", update.Message.Sticker.FileID),
+					).
 					Msg("stickerMessage")
+			} else if update.Message.Video != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Dict("video", zerolog.Dict().
+						Str("type", update.Message.Video.MimeType).
+						Int("duration", update.Message.Video.Duration).
+						Str("fileID", update.Message.Video.FileID),
+					).
+					Msg("videoMessage")
+			} else if update.Message.Animation != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Dict("animation", zerolog.Dict().
+						Int("duration", update.Message.Animation.Duration).
+						Str("fileID", update.Message.Animation.FileID),
+					).
+					Msg("gifMessage")
 			} else {
 				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
@@ -69,7 +92,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Int("messageID", update.Message.ID).
 					Str("text", update.Message.Text).
 					Str("type", string(message_utils.GetMessageType(update.Message).AsValue())).
-					Msg("message")
+					Msg("normalMessage")
 			}
 		case updateType.EditedMessage:
 			// 私聊或群组消息被编辑
