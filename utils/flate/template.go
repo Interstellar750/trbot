@@ -15,6 +15,7 @@ const (
 	AnswerCallbackQuery    Msg = "Failed to answer callback query"
 	AnswerInlineQuery      Msg = "Failed to answer inline query"
 	GetFile                Msg = "Failed to get file"
+	PinChatMessage         Msg = "Failed to pin chat message"
 )
 
 // return message as string
@@ -40,6 +41,7 @@ func (m Msg) Fmt() string {
 	case AnswerCallbackQuery:    return "failed to send [%s] callback answer: %w"
 	case AnswerInlineQuery:      return "failed to send [%s] inline answer: %w"
 	case GetFile:                return "failed to get [%s] file: %w"
+	case PinChatMessage:         return "failed to pin [%s] message: %w"
 	default:
 		return "unknown error: content [%s], err %w"
 	}

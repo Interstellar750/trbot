@@ -85,6 +85,12 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 						Str("fileID", update.Message.Animation.FileID),
 					).
 					Msg("gifMessage")
+			} else if update.Message.PinnedMessage != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.Message)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Msg("pinMessage")
 			} else {
 				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).

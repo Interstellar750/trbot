@@ -26,8 +26,7 @@ import (
 var tsClient *ts3.Client
 var tsErr     error
 
-var tsDataDir   string = filepath.Join(consts.YAMLDataBaseDir, "teamspeak/")
-var tsDataPath  string = filepath.Join(tsDataDir, consts.YAMLFileName)
+var tsDataPath  string = filepath.Join(consts.YAMLDataBaseDir, "teamspeak/", consts.YAMLFileName)
 var botNickName string = "trbot_teamspeak_plugin"
 
 var isCanReInit    bool = true
@@ -47,12 +46,24 @@ var privateOpts *handler_params.Update
 var reconnectMessageID int
 
 type TSServerQuery struct {
-	// get Name And Password in TeamSpeak 3 Client -> `Tools`` -> `ServerQuery Login`
+	// get Name And Password in TeamSpeak 3 Client -> `Tools` -> `ServerQuery Login`
 	URL      string `yaml:"URL"`
 	Name     string `yaml:"Name"`
 	Password string `yaml:"Password"`
 	GroupID  int64  `yaml:"GroupID"`
 }
+
+// var onlineClients []onlineClient
+
+type OnlineClient struct {
+	Username string
+	JoinTime time.Time
+}
+
+var onlineClientMessageID int
+var isOnlineClientMessagePin bool
+var usePinMessageMethod bool = true
+var checkcount int
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
@@ -363,7 +374,7 @@ func listenUserStatus(ctx context.Context) {
 
 	var retryCount int
 	var checkFailedCount int
-	var beforeOnlineClient []string
+	var beforeOnlineClient []OnlineClient
 
 	for {
 		select {
@@ -432,8 +443,8 @@ func listenUserStatus(ctx context.Context) {
 	}
 }
 
-func checkOnlineClientChange(ctx context.Context, count *int, before []string) []string {
-	var nowOnlineClient []string
+func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineClient) []OnlineClient {
+	var nowOnlineClient []OnlineClient
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
@@ -473,27 +484,63 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []string) [
 	} else {
 		for _, client := range onlineClient {
 			if client.Nickname == botNickName { continue }
-			nowOnlineClient = append(nowOnlineClient, client.Nickname)
+			nowOnlineClient = append(nowOnlineClient, OnlineClient{
+				Username: client.Nickname,
+				JoinTime: time.Now(),
+			})
 		}
 		added, removed := DiffSlices(before, nowOnlineClient)
-		if len(added) + len(removed) > 0 {
+		if len(added) + len(removed) > 0 && !usePinMessageMethod {
 			logger.Debug().
-				Strs("clientJoin", added).
-				Strs("clientLeave", removed).
+				Int("clientJoin", len(added)).
+				Int("clientLeave", len(removed)).
 				Msg("online client change detected")
 			notifyClientChange(added, removed)
+		} else {
+			if onlineClientMessageID == 0 {
+				message, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
+					ChatID:    tsData.GroupID,
+					Text:      "开始监听 Teamspeak 3 用户状态",
+					ParseMode: models.ParseModeHTML,
+					DisableNotification: true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int64("chatID", tsData.GroupID).
+						Str("content", "start listen teamspeak user changes").
+						Msg(flate.SendMessage.Str())
+					return nowOnlineClient
+				}
+				onlineClientMessageID = message.ID
+				ok, err := privateOpts.Thebot.PinChatMessage(privateOpts.Ctx, &bot.PinChatMessageParams{
+					ChatID: tsData.GroupID,
+					MessageID: onlineClientMessageID,
+					DisableNotification: true,
+				})
+				if ok {
+					isOnlineClientMessagePin = true
+				} else {
+					logger.Error().
+						Err(err).
+						Int64("chatID", tsData.GroupID).
+						Str("content", "listen teamspeak user changes").
+						Msg(flate.PinChatMessage.Str())
+				}
+			}
+			changePinedMessage(nowOnlineClient, added, removed)
 		}
 		return nowOnlineClient
 	}
 }
 
-func DiffSlices(before, now []string) (added, removed []string) {
+func DiffSlices(before, now []OnlineClient) (added, removed []string) {
 	beforeMap := make(map[string]bool)
 	nowMap    := make(map[string]bool)
 
 	// 把 A 和 B 转成 map
-	for _, item := range before { beforeMap[item] = true }
-	for _, item := range now    { nowMap[item]    = true }
+	for _, item := range before { beforeMap[item.Username] = true }
+	for _, item := range now    { nowMap[item.Username]    = true }
 
 	// 删除
 	for item := range nowMap {
@@ -540,5 +587,66 @@ func notifyClientChange(add, remove []string) {
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
 			Msg(flate.SendMessage.Str())
+	}
+}
+
+func changePinedMessage(online []OnlineClient, add, remove []string) {
+	logger := zerolog.Ctx(privateOpts.Ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str("funcName", "changePinedMessage").
+		Logger()
+
+	// var checkcount int static
+
+	if len(add) + len(remove) == 0 && checkcount < 6 {
+		checkcount++
+		return
+	}
+	checkcount = 0
+
+	var pendingMessage string = fmt.Sprintf("%s | ", time.Now().Format("15:04"))
+
+	if !isOnlineClientMessagePin {
+		pendingMessage += "无法置顶用户列表消息，请检查机器人是否拥有对应的权限，您也可以手动置顶此消息\n"
+	}
+
+	if len(online) > 0 {
+		pendingMessage += fmt.Sprintf("有 %d 位用户在线:\n<blockquote expandable>", len(online))
+		for _, client := range online {
+			pendingMessage += fmt.Sprintf("[ %s ] 已在线 %.2f 分钟\n", client.Username, time.Since(client.JoinTime).Minutes())
+		}
+		pendingMessage += "</blockquote>\n"
+	} else {
+		pendingMessage += "没有用户在线\n\n"
+	}
+
+	if len(add) + len(remove) > 0 {
+		if len(add) > 0 {
+			pendingMessage += fmt.Sprintln("以下用户进入了服务器:")
+			for _, nickname := range add {
+				pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
+			}
+		}
+		if len(remove) > 0 {
+			pendingMessage += fmt.Sprintln("以下用户离开了服务器:")
+			for _, nickname := range remove {
+				pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
+			}
+		}
+	}
+
+	_, err := privateOpts.Thebot.EditMessageText(privateOpts.Ctx, &bot.EditMessageTextParams{
+		ChatID: tsData.GroupID,
+		MessageID: onlineClientMessageID,
+		Text:   pendingMessage,
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Int64("chatID", tsData.GroupID).
+			Str("content", "teamspeak user change notify").
+			Msg(flate.EditMessageText.Str())
 	}
 }
