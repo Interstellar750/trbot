@@ -18,11 +18,11 @@ type HandlerByChatID map[int64]map[string]ByChatIDHandler
 	the execution order cannot be guaranteed.
 */
 type ByChatIDHandler struct {
-	ChatID     int64
+	ForChatID  int64 // 0 for all chats
 	PluginName string
 
 	// with full access to `update`
-	UpdateHandler  func(*handler_params.Update)  error
+	UpdateHandler func(*handler_params.Update) error
 }
 
 func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
@@ -30,17 +30,17 @@ func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
 
 	var handlerCount int
 	for _, handler := range handlers {
-		if AllPlugins.HandlerByChatID[handler.ChatID] == nil { AllPlugins.HandlerByChatID[handler.ChatID] = map[string]ByChatIDHandler{} }
+		if AllPlugins.HandlerByChatID[handler.ForChatID] == nil { AllPlugins.HandlerByChatID[handler.ForChatID] = map[string]ByChatIDHandler{} }
 
-		_, isExist := AllPlugins.HandlerByChatID[handler.ChatID][handler.PluginName]
+		_, isExist := AllPlugins.HandlerByChatID[handler.ForChatID][handler.PluginName]
 		if isExist {
 			log.Error().
 				Str("funcName", "AddHandlerByChatIDPlugins").
-				Int64("chatID", handler.ChatID).
+				Int64("forChatID", handler.ForChatID).
 				Str("name", handler.PluginName).
-				Msgf("Duplicate plugin exists, registration skipped")
+				Msg("Duplicate plugin exists, registration skipped")
 		} else {
-			AllPlugins.HandlerByChatID[handler.ChatID][handler.PluginName] = handler
+			AllPlugins.HandlerByChatID[handler.ForChatID][handler.PluginName] = handler
 			handlerCount++
 		}
 	}
@@ -69,30 +69,29 @@ func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 		for name, handler := range AllPlugins.HandlerByChatID[params.Update.Message.Chat.ID] {
 			slogger := logger.With().
 				Str("handlerName", name).
-				Int64("chatID", handler.ChatID).
+				Int64("forChatID", handler.ForChatID).
 				Logger()
 
-			slogger.Info().Msg("Hit by chat ID handler")
-
-			if handler.UpdateHandler == nil {
+			if handler.UpdateHandler != nil {
+				slogger.Info().Msg("Hit by chat ID handler")
+				handlerRunCount++
+				err := handler.UpdateHandler(params)
+				if err != nil {
+					slogger.Error().
+						Err(err).
+						Msg("Error in by chat ID handler")
+					handlerErr.Addf("Error in by chat ID handler [%s]: %w", name, err)
+				}
+			} else {
 				slogger.Warn().Msg("Hit by chat ID handler, but this handler all function is nil, skip")
 				handlerErr.Addf("hit by chat ID handler [%s], but this handler all function is nil, skip", name)
-				continue
-			}
-			handlerRunCount++
-			err := handler.UpdateHandler(params)
-			if err != nil {
-				slogger.Error().
-					Err(err).
-					Msg("Error in by chat ID handler")
-				handlerErr.Addf("Error in by chat ID handler [%s]: %w", name, err)
 			}
 		}
 	} else if AllPlugins.HandlerByChatID[0] != nil {
 		for name, handler := range AllPlugins.HandlerByChatID[0] {
 			slogger := logger.With().
 				Str("handlerName", name).
-				Int64("chatID", handler.ChatID).
+				Int64("forChatID", handler.ForChatID).
 				Logger()
 
 			slogger.Info().Msg("Hit by chat ID handler for any chat")

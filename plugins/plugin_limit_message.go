@@ -816,7 +816,7 @@ func buildLimitGroupList() {
 	for id, n := range LimitMessageList {
 		if n.IsEnable || n.IsUnderTest {
 			plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-				ChatID: id,
+				ForChatID: id,
 				PluginName: "limit_message",
 				UpdateHandler: DeleteNotAllowMessage,
 			})

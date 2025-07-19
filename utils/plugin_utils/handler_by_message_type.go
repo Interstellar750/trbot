@@ -149,37 +149,41 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 		anyHandlerCount := len(AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][0])
 		if handlerCount + anyHandlerCount > 0 {
 			if handlerCount + anyHandlerCount == 1 {
-				var handlerID int64 = 0
+				// 总共只有一个 handler
+				var targetChatID int64 = 0
 				if handlerCount == 1 {
-					handlerID = params.Update.Message.Chat.ID
+					// 如果这唯一一个 handler 是针对此 chat 的，就将 targetChatID 设置为此 chat ID
+					// 否则就会触发任意 chat ID 可用的 handler
+					targetChatID = params.Update.Message.Chat.ID
 				}
 				// 虽然是遍历，但实际上只能遍历一次
-				for name, handler := range AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][handlerID] {
+				for name, handler := range AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][targetChatID] {
 					if handler.AllowAutoTrigger {
 						// 允许自动触发的 handler
-						logger.Info().
+						slogger := logger.With().
 							Str("handlerName", name).
 							Int64("forChatID", handler.ForChatID).
-							Msg("Hit by message type handler")
+							Logger()
 
-						if handler.UpdateHandler == nil {
-							logger.Warn().Msg("Hit by message type handler, but this handler function is nil, skip")
-							continue
+						if handler.UpdateHandler != nil {
+							slogger.Info().Msg("Hit by message type handler")
+							err := handler.UpdateHandler(params)
+							if err != nil {
+								slogger.Error().
+									Err(err).
+									Msg("Error in by message type handler")
+							}
+							isProcessed = true
+							needBuildSelectKeyboard = false
+						} else {
+							slogger.Warn().Msg("Hit by message type handler, but this handler function is nil, skip")
 						}
-						err := handler.UpdateHandler(params)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Str("handlerName", name).
-								Int64("forChatID", handler.ForChatID).
-								Msg("Error in by message type handler")
-						}
-						isProcessed = true
-						needBuildSelectKeyboard = false
+
 					}
 				}
 			}
 
+			// handler 多于一个或许没有允许自动触发的 handler，就会发送选择键盘
 			if needBuildSelectKeyboard {
 				handlerKeyboard, count := AllPlugins.HandlerByMessageType.BuildSelectKeyboard(params.Update.Message.Chat.Type, msgType, params.Update.Message.Chat.ID)
 				if len(handlerKeyboard) > 0 {

@@ -72,7 +72,7 @@ func init() {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts
 				plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-					ChatID:        tsData.GroupID,
+					ForChatID:        tsData.GroupID,
 					PluginName:    "teamspeak_get_opts",
 					UpdateHandler: getOptsHandler,
 				})
@@ -584,7 +584,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 					}
 				}
 			}
-			changePinedMessage(nowOnlineClient, added, removed)
+			changePinnedMessage(nowOnlineClient, added, removed)
 		}
 		return nowOnlineClient
 	}
@@ -646,11 +646,11 @@ func notifyClientChange(add, remove []string) {
 	}
 }
 
-func changePinedMessage(online []OnlineClient, add, remove []string) {
+func changePinnedMessage(online []OnlineClient, add, remove []string) {
 	logger := zerolog.Ctx(privateOpts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "changePinedMessage").
+		Str("funcName", "changePinnedMessage").
 		Logger()
 
 	// var checkcount int static

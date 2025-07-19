@@ -6,6 +6,8 @@ type Plugin_All struct {
 	Initializer []Initializer
 	Databases   []DatabaseHandler
 
+	StateHandler map[int64]StateHandler
+
 	HandlerHelp []HandlerHelp
 
 	// Inline mode

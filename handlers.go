@@ -307,6 +307,11 @@ func messageHandler(opts *handler_params.Update) {
 		Str("caption", opts.Update.Message.Caption).
 		Logger()
 
+	if plugin_utils.RunStateHandler(opts) {
+		// 如果状态处理函数返回 true，则表示已经处理了该消息，直接返回
+		return
+	}
+
 	// 检测如果消息开头是 / 符号，作为命令来处理
 	if strings.HasPrefix(opts.Update.Message.Text, "/") {
 		err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.Chat.ID, db_struct.MessageCommand)

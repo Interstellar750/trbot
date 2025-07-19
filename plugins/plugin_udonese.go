@@ -819,7 +819,7 @@ func init() {
 		MessageHandler: addUdoneseHandler,
 	})
 	plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-		ChatID:         UdonGroupID,
+		ForChatID:         UdonGroupID,
 		PluginName:     "udoneseGroupHandler",
 		UpdateHandler: udoneseGroupHandler,
 	})
