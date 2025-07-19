@@ -10,26 +10,27 @@ import (
 type MessageType struct {
 	// https://core.telegram.org/bots/api#message
 
-	Animation bool `yaml:"Animation,omitempty"` // call gif, mpeg4 format, can save to GIFs, no caption
-	Audio     bool `yaml:"Audio,omitempty"`     // or call music, can have caption, some music may as a document
-	Document  bool `yaml:"Document,omitempty"`  // can have caption
-	PaidMedia bool `yaml:"PaidMedia,omitempty"` // photo or video, unknow caption
-	Photo     bool `yaml:"Photo,omitempty"`     // a list, sort by resolution
-	Sticker   bool `yaml:"Sticker,omitempty"`   // sticker, but some .webp file maybe will send as sticker, actual file format and resolution may not match the limitations. no caption
-	Story     bool `yaml:"Story,omitempty"`
-	Video     bool `yaml:"Video,omitempty"`
-	VideoNote bool `yaml:"VideoNote,omitempty"` // A circular video shot in Telegram
-	Voice     bool `yaml:"Voice,omitempty"`     // can have caption
-	OnlyText  bool `yaml:"OnlyText,omitempty"`  // just text message
-	Checklist bool `yaml:"Checklist,omitempty"`
-	Contact   bool `yaml:"Contact,omitempty"`
-	Dice      bool `yaml:"Dice,omitempty"`
-	Game      bool `yaml:"Game,omitempty"`
-	Poll      bool `yaml:"Poll,omitempty"`
-	Venue     bool `yaml:"Venue,omitempty"`
-	Location  bool `yaml:"Location,omitempty"`
-	Invoice   bool `yaml:"Invoice,omitempty"`
-	Giveaway  bool `yaml:"Giveaway,omitempty"`
+	Animation     bool `yaml:"Animation,omitempty"` // call gif, mpeg4 format, can save to GIFs, no caption
+	Audio         bool `yaml:"Audio,omitempty"`     // or call music, can have caption, some music may as a document
+	Document      bool `yaml:"Document,omitempty"`  // can have caption
+	PaidMedia     bool `yaml:"PaidMedia,omitempty"` // photo or video, unknow caption
+	Photo         bool `yaml:"Photo,omitempty"`     // a list, sort by resolution
+	Sticker       bool `yaml:"Sticker,omitempty"`   // sticker, but some .webp file maybe will send as sticker, actual file format and resolution may not match the limitations. no caption
+	Story         bool `yaml:"Story,omitempty"`
+	Video         bool `yaml:"Video,omitempty"`
+	VideoNote     bool `yaml:"VideoNote,omitempty"` // A circular video shot in Telegram
+	Voice         bool `yaml:"Voice,omitempty"`     // can have caption
+	OnlyText      bool `yaml:"OnlyText,omitempty"`  // just text message
+	Checklist     bool `yaml:"Checklist,omitempty"`
+	Contact       bool `yaml:"Contact,omitempty"`
+	Dice          bool `yaml:"Dice,omitempty"`
+	Game          bool `yaml:"Game,omitempty"`
+	Poll          bool `yaml:"Poll,omitempty"`
+	Venue         bool `yaml:"Venue,omitempty"`
+	Location      bool `yaml:"Location,omitempty"`
+	Invoice       bool `yaml:"Invoice,omitempty"`
+	PinnedMessage bool `yaml:"PinnedMessage,omitempty"`
+	Giveaway      bool `yaml:"Giveaway,omitempty"`
 }
 
 // 将消息类型结构体转换为 MessageTypeList(string) 类型
@@ -49,26 +50,27 @@ func (mt MessageType)AsValue() MessageTypeList {
 type MessageTypeList string
 
 const (
-	Animation MessageTypeList = "Animation"
-	Audio     MessageTypeList = "Audio"
-	Document  MessageTypeList = "Document"
-	PaidMedia MessageTypeList = "PaidMedia"
-	Photo     MessageTypeList = "Photo"
-	Sticker   MessageTypeList = "Sticker"
-	Story     MessageTypeList = "Story"
-	Video     MessageTypeList = "Video"
-	VideoNote MessageTypeList = "VideoNote"
-	Voice     MessageTypeList = "Voice"
-	OnlyText  MessageTypeList = "OnlyText"
-	Checklist MessageTypeList = "Checklist"
-	Contact   MessageTypeList = "Contact"
-	Dice      MessageTypeList = "Dice"
-	Game      MessageTypeList = "Game"
-	Poll      MessageTypeList = "Poll"
-	Venue     MessageTypeList = "Venue"
-	Location  MessageTypeList = "Location"
-	Invoice   MessageTypeList = "Invoice"
-	Giveaway  MessageTypeList = "Giveaway"
+	Animation     MessageTypeList = "Animation"
+	Audio         MessageTypeList = "Audio"
+	Document      MessageTypeList = "Document"
+	PaidMedia     MessageTypeList = "PaidMedia"
+	Photo         MessageTypeList = "Photo"
+	Sticker       MessageTypeList = "Sticker"
+	Story         MessageTypeList = "Story"
+	Video         MessageTypeList = "Video"
+	VideoNote     MessageTypeList = "VideoNote"
+	Voice         MessageTypeList = "Voice"
+	OnlyText      MessageTypeList = "OnlyText"
+	Checklist     MessageTypeList = "Checklist"
+	Contact       MessageTypeList = "Contact"
+	Dice          MessageTypeList = "Dice"
+	Game          MessageTypeList = "Game"
+	Poll          MessageTypeList = "Poll"
+	Venue         MessageTypeList = "Venue"
+	Location      MessageTypeList = "Location"
+	Invoice       MessageTypeList = "Invoice"
+	PinnedMessage MessageTypeList = "PinnedMessage"
+	Giveaway      MessageTypeList = "Giveaway"
 )
 
 // 判断消息的类型
@@ -128,6 +130,9 @@ func GetMessageType(msg *models.Message) MessageType {
 	}
 	if msg.Invoice != nil {
 		msgType.Invoice = true
+	}
+	if msg.PinnedMessage != nil {
+		msgType.PinnedMessage = true
 	}
 	if msg.Giveaway != nil {
 		msgType.Giveaway = true

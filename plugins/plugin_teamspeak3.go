@@ -10,6 +10,7 @@ import (
 	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
@@ -51,16 +52,14 @@ type TSServerQuery struct {
 	Name     string `yaml:"Name"`
 	Password string `yaml:"Password"`
 	GroupID  int64  `yaml:"GroupID"`
+	OnlineClientMessageID int `yaml:"OnlineClientMessageID"`
 }
-
-// var onlineClients []onlineClient
 
 type OnlineClient struct {
 	Username string
 	JoinTime time.Time
 }
 
-var onlineClientMessageID int
 var isOnlineClientMessagePin bool
 var usePinMessageMethod bool = true
 var checkcount int
@@ -372,6 +371,23 @@ func listenUserStatus(ctx context.Context) {
 		plugin_utils.RemoveHandlerByChatIDHandler(tsData.GroupID, "teamspeak_get_opts")
 	}
 
+	// 清除上一次的置顶消息
+	if tsData.OnlineClientMessageID != 0 {
+		_, err := privateOpts.Thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+			ChatID:    tsData.GroupID,
+			MessageID: tsData.OnlineClientMessageID,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int64("chatID", tsData.GroupID).
+				Int("messageID", tsData.OnlineClientMessageID).
+				Str("content", "latest pinned online client status").
+				Msg(flate.DeleteMessage.Str())
+		}
+		tsData.OnlineClientMessageID = 0
+	}
+
 	var retryCount int
 	var checkFailedCount int
 	var beforeOnlineClient []OnlineClient
@@ -484,10 +500,19 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 	} else {
 		for _, client := range onlineClient {
 			if client.Nickname == botNickName { continue }
-			nowOnlineClient = append(nowOnlineClient, OnlineClient{
-				Username: client.Nickname,
-				JoinTime: time.Now(),
-			})
+			var isExist bool
+			for _, user := range before {
+				if user.Username == client.Nickname {
+					nowOnlineClient = append(nowOnlineClient, user)
+					isExist = true
+				}
+			}
+			if !isExist {
+				nowOnlineClient = append(nowOnlineClient, OnlineClient{
+					Username: client.Nickname,
+					JoinTime: time.Now(),
+				})
+			}
 		}
 		added, removed := DiffSlices(before, nowOnlineClient)
 		if len(added) + len(removed) > 0 && !usePinMessageMethod {
@@ -497,7 +522,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 				Msg("online client change detected")
 			notifyClientChange(added, removed)
 		} else {
-			if onlineClientMessageID == 0 {
+			if tsData.OnlineClientMessageID == 0 {
 				message, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 					ChatID:    tsData.GroupID,
 					Text:      "开始监听 Teamspeak 3 用户状态",
@@ -512,20 +537,51 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 						Msg(flate.SendMessage.Str())
 					return nowOnlineClient
 				}
-				onlineClientMessageID = message.ID
-				ok, err := privateOpts.Thebot.PinChatMessage(privateOpts.Ctx, &bot.PinChatMessageParams{
-					ChatID: tsData.GroupID,
-					MessageID: onlineClientMessageID,
-					DisableNotification: true,
-				})
-				if ok {
-					isOnlineClientMessagePin = true
-				} else {
+				tsData.OnlineClientMessageID = message.ID
+				err = yaml.SaveYAML(tsDataPath, &tsData)
+				if err != nil {
 					logger.Error().
 						Err(err).
-						Int64("chatID", tsData.GroupID).
-						Str("content", "listen teamspeak user changes").
-						Msg(flate.PinChatMessage.Str())
+						Str("path", KeywordDataPath).
+						Msg("Failed to save teamspeak data")
+				} else {
+					// 置顶消息提醒
+					ok, err := privateOpts.Thebot.PinChatMessage(privateOpts.Ctx, &bot.PinChatMessageParams{
+						ChatID: tsData.GroupID,
+						MessageID: tsData.OnlineClientMessageID,
+						DisableNotification: true,
+					})
+					if ok {
+						isOnlineClientMessagePin = true
+						// 删除置顶消息提示
+						plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
+							PluginName: "remove pin message notice",
+							ChatType: models.ChatTypeSupergroup,
+							MessageType: message_utils.PinnedMessage,
+							ForChatID: tsData.GroupID,
+							AllowAutoTrigger: true,
+							UpdateHandler: func(opts *handler_params.Update) error {
+								if opts.Update.Message.PinnedMessage != nil {
+									if opts.Update.Message.PinnedMessage.Message.ID == tsData.OnlineClientMessageID {
+										_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+											ChatID: tsData.GroupID,
+											MessageID: opts.Update.Message.ID,
+										})
+										// 不管成功与否，都注销这个 handler
+										plugin_utils.RemoveHandlerByMessageTypeHandler(models.ChatTypeSupergroup, message_utils.PinnedMessage, tsData.GroupID, "remove pin message notice")
+										return err
+									}
+								}
+								return nil
+							},
+						})
+					} else {
+						logger.Error().
+							Err(err).
+							Int64("chatID", tsData.GroupID).
+							Str("content", "listen teamspeak user changes").
+							Msg(flate.PinChatMessage.Str())
+					}
 				}
 			}
 			changePinedMessage(nowOnlineClient, added, removed)
@@ -599,22 +655,20 @@ func changePinedMessage(online []OnlineClient, add, remove []string) {
 
 	// var checkcount int static
 
+	// 没有新加入和离开用户，等待一阵子后再更新用户在线时间
 	if len(add) + len(remove) == 0 && checkcount < 6 {
 		checkcount++
 		return
+	} else {
+		checkcount = 0
 	}
-	checkcount = 0
 
 	var pendingMessage string = fmt.Sprintf("%s | ", time.Now().Format("15:04"))
-
-	if !isOnlineClientMessagePin {
-		pendingMessage += "无法置顶用户列表消息，请检查机器人是否拥有对应的权限，您也可以手动置顶此消息\n"
-	}
 
 	if len(online) > 0 {
 		pendingMessage += fmt.Sprintf("有 %d 位用户在线:\n<blockquote expandable>", len(online))
 		for _, client := range online {
-			pendingMessage += fmt.Sprintf("[ %s ] 已在线 %.2f 分钟\n", client.Username, time.Since(client.JoinTime).Minutes())
+			pendingMessage += fmt.Sprintf("[ %s ] 已在线 %.1f 分钟\n", client.Username, time.Since(client.JoinTime).Minutes())
 		}
 		pendingMessage += "</blockquote>\n"
 	} else {
@@ -636,9 +690,13 @@ func changePinedMessage(online []OnlineClient, add, remove []string) {
 		}
 	}
 
+	if !isOnlineClientMessagePin {
+		pendingMessage += "<blockquote expandable>无法置顶用户列表消息，请检查机器人是否拥有对应的权限，您也可以手动置顶此消息</blockquote>"
+	}
+
 	_, err := privateOpts.Thebot.EditMessageText(privateOpts.Ctx, &bot.EditMessageTextParams{
 		ChatID: tsData.GroupID,
-		MessageID: onlineClientMessageID,
+		MessageID: tsData.OnlineClientMessageID,
 		Text:   pendingMessage,
 		ParseMode: models.ParseModeHTML,
 	})
