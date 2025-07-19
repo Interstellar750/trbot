@@ -3,8 +3,10 @@ package plugin_utils
 import (
 	"errors"
 	"fmt"
+	"trbot/utils/flate"
 	"trbot/utils/handler_params"
 
+	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -17,8 +19,15 @@ type StateHandler struct {
 	// handler will auto remove when Remaining == 0
 	//
 	// if Remaining == -1, it will never remove
-	Remaining   int
-	Handler     func(*handler_params.Update) error
+	Remaining     int
+	Handler       func(*handler_params.Update) error
+	// A function that will be run after the user sends the `/cancle` command
+	//
+	// If it is nil, the program will send a message to the user that the operation
+	// has been canceled, otherwise CancelHandler will handle it by itself.
+	//
+	// And then the program will remove this state handler
+	CancelHandler func(*handler_params.Update) error
 }
 
 func AddStateHandler(handler StateHandler) bool {
@@ -92,6 +101,30 @@ func RunStateHandler(opts *handler_params.Update) bool {
 			Str("pluginName", handler.PluginName).
 			Logger()
 
+		if opts.Update.Message.Text == "/cancel" {
+			if handler.CancelHandler != nil {
+				err := handler.CancelHandler(opts)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Msg("Error in CancelHandler")
+				}
+			} else {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID: opts.ChatInfo.ID,
+					Text:   "已取消操作",
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "state canceled").
+						Msg(flate.SendMessage.Str())
+				}
+			}
+
+			delete(AllPlugins.StateHandler, opts.ChatInfo.ID)
+			return true
+		}
 		logger.Info().Msg("Hit state handler")
 		if handler.Handler == nil {
 			logger.Error().Msg("Handler is nil")
