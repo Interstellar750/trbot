@@ -656,7 +656,7 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 	// var checkcount int static
 
 	// 没有新加入和离开用户，等待一阵子后再更新用户在线时间
-	if len(add) + len(remove) == 0 && checkcount < 6 {
+	if len(add) + len(remove) == 0 && checkcount < 12 {
 		checkcount++
 		return
 	} else {
