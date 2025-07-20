@@ -371,9 +371,9 @@ func listenUserStatus(ctx context.Context) {
 		plugin_utils.RemoveHandlerByChatIDHandler(tsData.GroupID, "teamspeak_get_opts")
 	}
 
-	// 清除上一次的置顶消息
+	// 取消置顶上一次的置顶消息
 	if tsData.OnlineClientMessageID != 0 {
-		_, err := privateOpts.Thebot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+		_, err := privateOpts.Thebot.UnpinChatMessage(ctx, &bot.UnpinChatMessageParams{
 			ChatID:    tsData.GroupID,
 			MessageID: tsData.OnlineClientMessageID,
 		})
@@ -383,7 +383,7 @@ func listenUserStatus(ctx context.Context) {
 				Int64("chatID", tsData.GroupID).
 				Int("messageID", tsData.OnlineClientMessageID).
 				Str("content", "latest pinned online client status").
-				Msg(flate.DeleteMessage.Str())
+				Msg(flate.UnpinChatMessage.Str())
 		}
 		tsData.OnlineClientMessageID = 0
 	}
