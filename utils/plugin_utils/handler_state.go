@@ -7,6 +7,7 @@ import (
 	"trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -112,7 +113,8 @@ func RunStateHandler(opts *handler_params.Update) bool {
 			} else {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.ChatInfo.ID,
-					Text:   "已取消操作",
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					Text:   fmt.Sprintf("已取消当前 [ %s ] 操作", handler.PluginName),
 				})
 				if err != nil {
 					logger.Error().

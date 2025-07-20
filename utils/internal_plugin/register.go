@@ -150,6 +150,24 @@ func Register(ctx context.Context) {
 				return nil
 			},
 		},
+		{
+			SlashCommand: "cancel",
+			MessageHandler: func(opts *handler_params.Message) error {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:          opts.Message.Chat.ID,
+					Text:            "您当前并没有任何操作需要取消",
+					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+				})
+				if err != nil {
+					zerolog.Ctx(opts.Ctx).Error().
+						Err(err).
+						Str("content", "there is no state handler").
+						Msg(flate.SendMessage.Str())
+					return fmt.Errorf(flate.SendMessage.Fmt(), "there is no state handler", err)
+				}
+				return nil
+			},
+		},
 	}...)
 
 	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
