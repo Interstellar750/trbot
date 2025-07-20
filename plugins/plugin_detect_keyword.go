@@ -44,11 +44,11 @@ func init() {
 	})
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
-			CallbackDatePrefix:   "detectkw_g",
+			CallbackDataPrefix:   "detectkw_g",
 			CallbackQueryHandler: groupManageCallbackHandler,
 		},
 		{
-			CallbackDatePrefix:   "detectkw_u",
+			CallbackDataPrefix:   "detectkw_u",
 			CallbackQueryHandler: userManageCallbackHandler,
 		},
 	}...)

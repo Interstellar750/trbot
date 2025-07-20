@@ -824,7 +824,7 @@ func init() {
 		UpdateHandler: udoneseGroupHandler,
 	})
 	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
-		CallbackDatePrefix:   "udonese",
+		CallbackDataPrefix:   "udonese",
 		UpdateHandler: udoneseCallbackHandler,
 	})
 }

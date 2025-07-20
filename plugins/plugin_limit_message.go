@@ -54,7 +54,7 @@ func init() {
 		MessageHandler: SomeMessageOnlyHandler,
 	})
 	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
-		CallbackDatePrefix:   "limitmsg_",
+		CallbackDataPrefix:   "limitmsg_",
 		CallbackQueryHandler: LimitMessageCallback,
 	})
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{

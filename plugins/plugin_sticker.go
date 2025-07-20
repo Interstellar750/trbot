@@ -42,16 +42,16 @@ func init() {
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
 			// 不转换格式，打包下载整个贴纸包
-			CallbackDatePrefix: "s",
+			CallbackDataPrefix: "s",
 			CallbackQueryHandler: DownloadStickerPackCallBackHandler,
 		},
 		{
 			// 将贴纸包中的静态贴纸全部转换为 PNG 格式并打包
-			CallbackDatePrefix: "S",
+			CallbackDataPrefix: "S",
 			CallbackQueryHandler: DownloadStickerPackCallBackHandler,
 		},
 		{
-			CallbackDatePrefix: "c",
+			CallbackDataPrefix: "c",
 			CallbackQueryHandler: collectStickerSet,
 		},
 	}...)
@@ -1055,7 +1055,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-				Str("callbackQuery", opts.CallbackQuery.Data).
+				Str("callbackQueryData", opts.CallbackQuery.Data).
 				Str("content", "collect channel ID not set").
 				Msg(flate.AnswerCallbackQuery.Str())
 		}

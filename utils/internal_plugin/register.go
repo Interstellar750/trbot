@@ -134,10 +134,15 @@ func Register(ctx context.Context) {
 				// fmt.Println(info)
 				// return
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID:          opts.Message.Chat.ID,
-					Text:            mess.OutputVersionInfo(),
-					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
-					ParseMode:       models.ParseModeMarkdownV1,
+					ChatID:             opts.Message.Chat.ID,
+					Text:               mess.OutputVersionInfo(),
+					ReplyParameters:    &models.ReplyParameters{ MessageID: opts.Message.ID },
+					ParseMode:          models.ParseModeMarkdownV1,
+					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
+					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "关闭",
+						CallbackData: "delete_this_message",
+					}}}},
 				})
 				if err != nil {
 					zerolog.Ctx(opts.Ctx).Error().
@@ -211,7 +216,7 @@ func Register(ctx context.Context) {
 	// 通过消息按钮触发的请求
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
-			CallbackDatePrefix: "inline_default_",
+			CallbackDataPrefix: "inline_default_",
 			UpdateHandler: func(opts *handler_params.Update) error {
 				logger := zerolog.Ctx(opts.Ctx).
 					With().
@@ -321,12 +326,34 @@ func Register(ctx context.Context) {
 			},
 		},
 		{
-			CallbackDatePrefix:   "help",
+			CallbackDataPrefix:   "help",
 			CallbackQueryHandler: helpCallbackHandler,
 		},
 		{
-			CallbackDatePrefix:   "HBMT", // Handler By Message Type
+			CallbackDataPrefix:   "HBMT", // Handler By Message Type
 			UpdateHandler: plugin_utils.SelectByMessageTypeHandlerCallback,
+		},
+		{
+			CallbackDataPrefix:   "delete_this_message",
+			CallbackQueryHandler: func(opts *handler_params.CallbackQuery) error {
+				if opts.CallbackQuery != nil {
+					_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+						ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
+						MessageID: opts.CallbackQuery.Message.Message.ID,
+					})
+					if err != nil {
+						zerolog.Ctx(opts.Ctx).Error().
+							Err(err).
+							Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+							Str("callbackQueryData", opts.CallbackQuery.Data).
+							Str("content", "unknown message from callbackQuery request to delete").
+							Msg(flate.DeleteMessage.Str())
+						return fmt.Errorf(flate.DeleteMessage.Fmt(), "unknown message from callbackQuery request to delete", err)
+					}
+				}
+				return nil
+			},
 		},
 	}...)
 

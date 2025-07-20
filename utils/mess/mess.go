@@ -52,7 +52,7 @@ func OutputVersionInfo() string {
 		info += fmt.Sprintf("`Version:   `%s\n", consts.Version)
 		info += fmt.Sprintf("`Branch:    `%s\n", consts.Branch)
 		info += fmt.Sprintf("`Commit:    `[%s](%s%s) (%s)\n", consts.Commit[:10], gitURL, consts.Commit, consts.Changes)
-		info += fmt.Sprintf("`BuildAt:   `%s\n", consts.BuildAt)
+		info += fmt.Sprintf("`BuildAt:   `[%s](%s%s)\n", consts.BuildAt, "https://timestamp.online/timestamp/", consts.BuildAt)
 		info += fmt.Sprintf("`BuildOn:   `%s\n", consts.BuildOn)
 		info += fmt.Sprintf("`Runtime:   `%s\n", runtime.Version())
 		info += fmt.Sprintf("`Goroutine: `%d\n", runtime.NumGoroutine())

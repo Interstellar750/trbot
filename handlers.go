@@ -1000,9 +1000,9 @@ func callbackQueryHandler(params *handler_params.Update) {
 	}
 
 	for _, plugin := range plugin_utils.AllPlugins.CallbackQuery {
-		if strings.HasPrefix(params.Update.CallbackQuery.Data, plugin.CallbackDatePrefix) {
+		if strings.HasPrefix(params.Update.CallbackQuery.Data, plugin.CallbackDataPrefix) {
 			slogger := callbackQueryLogger.With().
-				Str("handlerPrefix", plugin.CallbackDatePrefix).
+				Str("handlerPrefix", plugin.CallbackDataPrefix).
 				Logger()
 
 			slogger.Info().Msg("Hit callback query handler")

@@ -6,7 +6,7 @@ import "trbot/utils/handler_params"
 // 例如贴纸包名的长度最大为 62 个字符，再使用一个符号来隔开内容时，实际上能使用的识别字符长度只有一个字符。
 // 你也可以忽略这个提醒，但在发送消息时使用 ReplyMarkup 参数添加按钮的时候，需要评断并控制一下 CallbackData 的长度是否超过了 64 个字符，否则消息会无法发出。
 type CallbackQuery struct {
-	CallbackDatePrefix string
+	CallbackDataPrefix string
 
 	// only allowed access to `update.CallbackQuery` field, If the handler can handle multiple update types, register it as an `UpdateHandler`.
 	CallbackQueryHandler func(*handler_params.CallbackQuery) error

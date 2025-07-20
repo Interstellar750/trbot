@@ -216,7 +216,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 		Str("funcName", "SelectHandlerByMessageTypeHandlerCallback").
 		Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 		Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-		Str("callbackQuery", opts.Update.CallbackQuery.Data).
+		Str("callbackQueryData", opts.Update.CallbackQuery.Data).
 		Logger()
 
 	var handlerErr flate.MultErr
