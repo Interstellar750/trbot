@@ -30,6 +30,14 @@ func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
 
 	var handlerCount int
 	for _, handler := range handlers {
+		if handler.PluginName == "" || handler.UpdateHandler == nil {
+			log.Error().
+				Str("funcName", "AddHandlerByChatIDHandlers").
+				Str("pluginName", handler.PluginName).
+				Int64("forChatID", handler.ForChatID).
+				Msgf("Not enough parameters, skip this handler")
+			continue
+		}
 		if AllPlugins.HandlerByChatID[handler.ForChatID] == nil { AllPlugins.HandlerByChatID[handler.ForChatID] = map[string]ByChatIDHandler{} }
 
 		_, isExist := AllPlugins.HandlerByChatID[handler.ForChatID][handler.PluginName]
