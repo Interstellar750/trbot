@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"trbot/utils"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 
@@ -107,7 +107,7 @@ func startHandler(params *handler_params.Update) error {
 		logger.Error().
 			Err(err).
 			Str("content", "bot welcome").
-			Msg(flate.SendMessage.Str())
+			Msg(flaterr.SendMessage.Str())
 	}
 
 	return err
@@ -134,7 +134,7 @@ func helpHandler(params *handler_params.Message) error {
 			Dict(utils.GetChatDict(&params.Message.Chat)).
 			Dict(utils.GetUserDict(params.Message.From)).
 			Str("content", "bot help keyboard").
-			Msg(flate.SendMessage.Str())
+			Msg(flaterr.SendMessage.Str())
 	}
 	return err
 }
@@ -156,7 +156,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 			logger.Error().
 				Err(err).
 				Str("content", "bot help keyboard").
-				Msg(flate.DeleteMessage.Str())
+				Msg(flaterr.DeleteMessage.Str())
 		}
 		return err
 	} else if strings.HasPrefix(params.CallbackQuery.Data, "help-handler_") {
@@ -193,7 +193,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 						Err(err).
 						Str("pluginName", handler.Name).
 						Str("content", "plugin help message").
-						Msg(flate.EditMessageText.Str())
+						Msg(flaterr.EditMessageText.Str())
 				}
 				return err
 			}
@@ -207,7 +207,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 			logger.Error().
 				Err(err).
 				Str("content", "help page is not exist").
-				Msg(flate.AnswerCallbackQuery.Str())
+				Msg(flaterr.AnswerCallbackQuery.Str())
 		}
 	}
 
@@ -221,7 +221,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 		logger.Error().
 			Err(err).
 			Str("content", "bot help keyboard").
-			Msg(flate.EditMessageText.Str())
+			Msg(flaterr.EditMessageText.Str())
 	}
 	return err
 }

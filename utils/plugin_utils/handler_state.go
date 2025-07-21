@@ -3,7 +3,7 @@ package plugin_utils
 import (
 	"errors"
 	"fmt"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot"
@@ -120,7 +120,7 @@ func RunStateHandler(opts *handler_params.Update) bool {
 					logger.Error().
 						Err(err).
 						Str("content", "state canceled").
-						Msg(flate.SendMessage.Str())
+						Msg(flaterr.SendMessage.Str())
 				}
 			}
 

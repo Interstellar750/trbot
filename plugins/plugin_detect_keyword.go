@@ -10,7 +10,7 @@ import (
 	"time"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
@@ -219,7 +219,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 		Str("funcName", "addKeywordHandler").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if opts.Message.Chat.Type == models.ChatTypePrivate {
 		// 与机器人的私聊对话
@@ -258,8 +258,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "no group for user notice").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "no group for user notice", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "no group for user notice", err)
 			}
 		} else {
 			if len(opts.Fields) == 1 {
@@ -275,8 +275,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 						Err(err).
 						Dict(utils.GetUserDict(opts.Message.From)).
 						Str("content", "user group list keyboard").
-						Msg(flate.SendMessage.Str())
-					handlerErr.Addf(flate.SendMessage.Fmt(), "user group list keyboard", err)
+						Msg(flaterr.SendMessage.Str())
+					handlerErr.Addf(flaterr.SendMessage.Fmt(), "user group list keyboard", err)
 				}
 			} else {
 				// 限制关键词长度
@@ -294,8 +294,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 							Dict(utils.GetUserDict(opts.Message.From)).
 							Int("length", len(opts.Fields[1])).
 							Str("content", "keyword is too long").
-							Msg(flate.SendMessage.Str())
-						handlerErr.Addf(flate.SendMessage.Fmt(), "keyword is too long", err)
+							Msg(flaterr.SendMessage.Str())
+						handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword is too long", err)
 					}
 				} else {
 					if user.AddingChatID != 0 {
@@ -407,8 +407,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 								Err(err).
 								Dict(utils.GetUserDict(opts.Message.From)).
 								Str("content", "keyword added notice").
-								Msg(flate.SendMessage.Str())
-							handlerErr.Addf(flate.SendMessage.Fmt(), "keyword added notice", err)
+								Msg(flaterr.SendMessage.Str())
+							handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword added notice", err)
 						}
 					} else {
 						_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -423,8 +423,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 								Err(err).
 								Dict(utils.GetUserDict(opts.Message.From)).
 								Str("content", "keyword adding select keyboard").
-								Msg(flate.SendMessage.Str())
-							handlerErr.Addf(flate.SendMessage.Fmt(), "keyword adding select keyboard", err)
+								Msg(flaterr.SendMessage.Str())
+							handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword adding select keyboard", err)
 						}
 					}
 				}
@@ -452,8 +452,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "function is disabled by admins").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "function is disabled by admins", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "function is disabled by admins", err)
 			}
 		} else {
 			if chat.AddTime == "" {
@@ -500,8 +500,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 						Err(err).
 						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "group record link button").
-						Msg(flate.SendMessage.Str())
-					handlerErr.Addf(flate.SendMessage.Fmt(), "group record link button", err)
+						Msg(flaterr.SendMessage.Str())
+					handlerErr.Addf(flaterr.SendMessage.Fmt(), "group record link button", err)
 				}
 			} else {
 				// 限制关键词长度
@@ -519,7 +519,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 							Dict(utils.GetChatDict(&opts.Message.Chat)).
 							Int("keywordLength", len(opts.Fields[1])).
 							Str("content", "keyword is too long").
-							Msg(flate.SendMessage.Str())
+							Msg(flaterr.SendMessage.Str())
 						handlerErr.Addf("failed to send `keyword is too long` message: %w", err)
 					}
 				} else {
@@ -635,8 +635,8 @@ func addKeywordHandler(opts *handler_params.Message) error {
 							Dict(utils.GetUserDict(opts.Message.From)).
 							Dict(utils.GetChatDict(&opts.Message.Chat)).
 							Str("content", "keyword added notice").
-							Msg(flate.SendMessage.Str())
-						handlerErr.Addf(flate.SendMessage.Fmt(), "keyword added notice", err)
+							Msg(flaterr.SendMessage.Str())
+						handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword added notice", err)
 					}
 				}
 			}
@@ -653,7 +653,7 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 		Str("funcName", "addKeywordStateHandler").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if opts.Update.Message.Text != "" {
 		keyword := strings.ToLower(strings.Fields(opts.Update.Message.Text)[0])
@@ -672,8 +672,8 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Int("length", len(keyword)).
 					Str("content", "keyword is too long").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "keyword is too long", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword is too long", err)
 			}
 		} else {
 			user := KeywordDataList.Users[opts.Update.Message.From.ID]
@@ -783,8 +783,8 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Update.Message.From)).
 					Str("content", "keyword added notice").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "keyword added notice", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword added notice", err)
 			}
 		}
 	} else {
@@ -802,8 +802,8 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Update.Message.From)).
 				Str("content", "keyword invalid notice").
-				Msg(flate.SendMessage.Str())
-			handlerErr.Addf(flate.SendMessage.Fmt(), "keyword invalid notice", err)
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword invalid notice", err)
 		}
 		// plugin_utils.EditStateHandler(opts.Update.Message.Chat.ID, 1, nil)
 	}
@@ -840,7 +840,7 @@ func buildListenList() {
 }
 
 func KeywordDetector(opts *handler_params.Update) error {
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 	var text string
 	if opts.Update.Message.Caption != "" {
 		text = strings.ToLower(opts.Update.Message.Caption)
@@ -890,7 +890,7 @@ func notifyUser(opts *handler_params.Update, user KeywordUserList, chatname, key
 		Str("funcName", "notifyUser").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	var messageLink string = fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID)
 
@@ -914,8 +914,8 @@ func notifyUser(opts *handler_params.Update, user KeywordUserList, chatname, key
 			Int64("userID", user.UserID).
 			Str("keyword", keyword).
 			Str("content", "keyword detected notice to user").
-			Msg(flate.SendMessage.Str())
-		handlerErr.Addf(flate.SendMessage.Fmt(), "keyword detected notice to user", err)
+			Msg(flaterr.SendMessage.Str())
+		handlerErr.Addf(flaterr.SendMessage.Fmt(), "keyword detected notice to user", err)
 	}
 	user.MentionCount++
 	KeywordDataList.Users[user.UserID] = user
@@ -930,7 +930,7 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 		Str("funcName", "groupManageCallbackHandler").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.CallbackQuery.Message.Message.Chat.ID, opts.CallbackQuery.From.ID) {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -944,8 +944,8 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "no permission to change group functions").
-				Msg(flate.AnswerCallbackQuery.Str())
-			handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), "no permission to change group functions", err)
+				Msg(flaterr.AnswerCallbackQuery.Str())
+			handlerErr.Addf(flaterr.AnswerCallbackQuery.Fmt(), "no permission to change group functions", err)
 		}
 	} else {
 		chat := KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID]
@@ -981,8 +981,8 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "group function manager keyboard").
-				Msg(flate.EditMessageText.Str())
-			handlerErr.Addf(flate.EditMessageText.Fmt(), "group function manager keyboard", err)
+				Msg(flaterr.EditMessageText.Str())
+			handlerErr.Addf(flaterr.EditMessageText.Fmt(), "group function manager keyboard", err)
 		}
 	}
 
@@ -996,7 +996,7 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 		Str("funcName", "userManageCallbackHandler").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 	user := KeywordDataList.Users[opts.CallbackQuery.From.ID]
 
 	switch opts.CallbackQuery.Data {
@@ -1025,8 +1025,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Err(err).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "this group is disable by admins").
-				Msg(flate.AnswerCallbackQuery.Str())
-			handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), "this group is disable by admins", err)
+				Msg(flaterr.AnswerCallbackQuery.Str())
+			handlerErr.Addf(flaterr.AnswerCallbackQuery.Fmt(), "this group is disable by admins", err)
 		}
 		return handlerErr.Flat()
 	default:
@@ -1102,8 +1102,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 								Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 								Str("callbackQueryData", opts.CallbackQuery.Data).
 								Str("content", "add keyword has been canceled notice").
-								Msg(flate.EditMessageText.Str())
-							handlerErr.Addf(flate.EditMessageText.Fmt(), "add keyword has been canceled notice", err)
+								Msg(flaterr.EditMessageText.Str())
+							handlerErr.Addf(flaterr.EditMessageText.Fmt(), "add keyword has been canceled notice", err)
 						}
 					} else {
 						var buttons [][]models.InlineKeyboardButton
@@ -1178,7 +1178,7 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 								Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 								Str("callbackQueryData", opts.CallbackQuery.Data).
 								Str("content", "keyword list keyboard with deleted keyword notice").
-								Msg(flate.EditMessageText.Str())
+								Msg(flaterr.EditMessageText.Str())
 						}
 					}
 				}
@@ -1234,8 +1234,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 							Str("callbackQueryData", opts.CallbackQuery.Data).
 							Str("content", "ready to add keyword notice").
-							Msg(flate.EditMessageText.Str())
-						handlerErr.Addf(flate.EditMessageText.Fmt(), "ready to add keyword notice", err)
+							Msg(flaterr.EditMessageText.Str())
+						handlerErr.Addf(flaterr.EditMessageText.Fmt(), "ready to add keyword notice", err)
 					} else {
 						plugin_utils.AddStateHandler(plugin_utils.StateHandler{
 							ForChatID: opts.CallbackQuery.Message.Message.Chat.ID,
@@ -1361,8 +1361,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "group keyword list keyboard").
-						Msg(flate.EditMessageText.Str())
-					handlerErr.Addf(flate.EditMessageText.Fmt(), "group keyword list keyboard", err)
+						Msg(flaterr.EditMessageText.Str())
+					handlerErr.Addf(flaterr.EditMessageText.Fmt(), "group keyword list keyboard", err)
 				}
 			}
 
@@ -1410,8 +1410,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "keyword manager keyboard").
-						Msg(flate.EditMessageText.Str())
-					handlerErr.Addf(flate.EditMessageText.Fmt(), "keyword manager keyboard", err)
+						Msg(flaterr.EditMessageText.Str())
+					handlerErr.Addf(flaterr.EditMessageText.Fmt(), "keyword manager keyboard", err)
 				}
 			}
 
@@ -1532,8 +1532,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "keyword added notice").
-						Msg(flate.EditMessageText.Str())
-					handlerErr.Addf(flate.EditMessageText.Fmt(),"keyword added notice", err)
+						Msg(flaterr.EditMessageText.Str())
+					handlerErr.Addf(flaterr.EditMessageText.Fmt(),"keyword added notice", err)
 				}
 			}
 
@@ -1553,8 +1553,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Str("callbackQueryData", opts.CallbackQuery.Data).
 			Str("content", "main manager keyboard").
-			Msg(flate.EditMessageText.Str())
-		handlerErr.Addf(flate.EditMessageText.Fmt(), "main manager keyboard", err)
+			Msg(flaterr.EditMessageText.Str())
+		handlerErr.Addf(flaterr.EditMessageText.Fmt(), "main manager keyboard", err)
 	}
 
 	KeywordDataList.Users[opts.CallbackQuery.From.ID] = user
@@ -1579,7 +1579,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 		Str("funcName", "startPrefixAddGroup").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	user := KeywordDataList.Users[opts.Message.From.ID]
 	if user.AddTime == "" {
@@ -1662,8 +1662,8 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "added group in user list").
-				Msg(flate.SendMessage.Str())
-			handlerErr.Addf(flate.SendMessage.Fmt(), "added group in user list", err)
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addf(flaterr.SendMessage.Fmt(), "added group in user list", err)
 		}
 	}
 	err := SaveKeywordList(opts.Ctx)

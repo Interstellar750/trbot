@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -18,11 +18,6 @@ import (
 	"github.com/multiplay/go-ts3"
 	"github.com/rs/zerolog"
 )
-
-// loginname serveradmin
-// password 34lBKaih
-// api key BACfzGIw3NCmmmqBXe1HAyi1p8BpCsUUeVb8JZQ
-// sever admin privilege key Wwm5L2zNOHNiROqshy22fU9kconSORl+Pdt9aRqN
 
 var tsClient *ts3.Client
 var tsErr     error
@@ -72,7 +67,7 @@ func init() {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts
 				plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-					ForChatID:        tsData.GroupID,
+					ForChatID:     tsData.GroupID,
 					PluginName:    "teamspeak_get_opts",
 					UpdateHandler: getOptsHandler,
 				})
@@ -89,7 +84,7 @@ func init() {
 	})
 
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
-		SlashCommand: "ts3",
+		SlashCommand:  "ts3",
 		UpdateHandler: showStatus,
 	})
 }
@@ -101,7 +96,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str("funcName", "initTeamSpeak").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	err := yaml.LoadYAML(tsDataPath, &tsData)
 	if err != nil {
@@ -265,7 +260,7 @@ func showStatus(opts *handler_params.Update) error {
 		Str("funcName", "showStatus").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	var pendingMessage string
 
@@ -347,7 +342,7 @@ func showStatus(opts *handler_params.Update) error {
 			Err(err).
 			Int64("chatID", opts.Update.Message.Chat.ID).
 			Str("content", "teamspeak online client status").
-			Msg(flate.SendMessage.Str())
+			Msg(flaterr.SendMessage.Str())
 		handlerErr.Addf("failed to send `teamspeak online client status: %w`", err)
 	}
 
@@ -383,7 +378,7 @@ func listenUserStatus(ctx context.Context) {
 				Int64("chatID", tsData.GroupID).
 				Int("messageID", tsData.OnlineClientMessageID).
 				Str("content", "latest pinned online client status").
-				Msg(flate.UnpinChatMessage.Str())
+				Msg(flaterr.UnpinChatMessage.Str())
 		}
 		tsData.OnlineClientMessageID = 0
 	}
@@ -425,7 +420,7 @@ func listenUserStatus(ctx context.Context) {
 							Err(err).
 							Int64("chatID", tsData.GroupID).
 							Str("content", "success reconnect to server notice").
-							Msg(flate.SendMessage.Str())
+							Msg(flaterr.SendMessage.Str())
 					} else {
 						time.Sleep(time.Second * 3)
 						var deleteMessageIDs []int = []int{botMessage.ID}
@@ -443,7 +438,7 @@ func listenUserStatus(ctx context.Context) {
 								Int64("chatID", tsData.GroupID).
 								Int("messageID", botMessage.ID).
 								Str("content", "success reconnect to server notice").
-								Msg(flate.DeleteMessages.Str())
+								Msg(flaterr.DeleteMessages.Str())
 						}
 					}
 				} else {
@@ -491,7 +486,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 					Err(err).
 					Int64("chatID", tsData.GroupID).
 					Str("content", "failed to check online client 5 times, start auto reconnect").
-					Msg(flate.SendMessage.Str())
+					Msg(flaterr.SendMessage.Str())
 			} else {
 				reconnectMessageID = botMessage.ID
 			}
@@ -534,7 +529,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 						Err(err).
 						Int64("chatID", tsData.GroupID).
 						Str("content", "start listen teamspeak user changes").
-						Msg(flate.SendMessage.Str())
+						Msg(flaterr.SendMessage.Str())
 					return nowOnlineClient
 				}
 				tsData.OnlineClientMessageID = message.ID
@@ -580,7 +575,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 							Err(err).
 							Int64("chatID", tsData.GroupID).
 							Str("content", "listen teamspeak user changes").
-							Msg(flate.PinChatMessage.Str())
+							Msg(flaterr.PinChatMessage.Str())
 					}
 				}
 			}
@@ -642,7 +637,7 @@ func notifyClientChange(add, remove []string) {
 			Err(err).
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
-			Msg(flate.SendMessage.Str())
+			Msg(flaterr.SendMessage.Str())
 	}
 }
 
@@ -705,6 +700,6 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 			Err(err).
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
-			Msg(flate.EditMessageText.Str())
+			Msg(flaterr.EditMessageText.Str())
 	}
 }

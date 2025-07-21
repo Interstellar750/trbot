@@ -1,4 +1,4 @@
-package flate
+package flaterr
 
 type Msg string
 
@@ -45,6 +45,6 @@ func (m Msg) Fmt() string {
 	case PinChatMessage:         return "failed to pin [%s] message: %w"
 	case UnpinChatMessage:       return "failed to unpin [%s] message: %w"
 	default:
-		return "unknown error: content [%s], err %w"
+		return "unknown err content [%s]: %w"
 	}
 }

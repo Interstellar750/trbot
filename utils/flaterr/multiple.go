@@ -1,4 +1,4 @@
-package flate
+package flaterr
 
 import (
 	"errors"

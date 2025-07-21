@@ -1,4 +1,4 @@
-package flate
+package flaterr
 
 // return "content", str
 func Cont(str string) (string, string) {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -98,7 +98,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if opts.Message.ReplyToMessage == nil || opts.Message.ReplyToMessage.Photo == nil {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -110,7 +110,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 			logger.Error().
 				Err(err).
 				Str("content", "need reply to a photo").
-				Msg(flate.SendMessage.Str())
+				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addf("failed to send `need reply to a photo` message: %w", err)
 		}
 	} else {
@@ -130,7 +130,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 				logger.Error().
 					Err(err).
 					Str("content", "photo cache error").
-					Msg(flate.SendMessage.Str())
+					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addf("failed to send `photo cache error` message: %w", err)
 			}
 		} else {
@@ -150,7 +150,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 				logger.Error().
 					Err(err).
 					Str("content", "search images link buttons").
-					Msg(flate.SendMessage.Str())
+					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addf("failed to send `search images link buttons` message: %w", err)
 			}
 		}
@@ -175,7 +175,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 		Dict(utils.GetUserDict(opts.Update.Message.From)).
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if isMoveMessage {
 		logger.Info().
@@ -199,7 +199,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "photo cache error").
-				Msg(flate.SendMessage.Str())
+				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addf("failed to send `photo cache error` message: %w", err)
 		}
 	} else {
@@ -219,7 +219,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "search images link buttons").
-				Msg(flate.SendMessage.Str())
+				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addf("failed to send `search images link buttons` message: %w", err)
 		}
 	}

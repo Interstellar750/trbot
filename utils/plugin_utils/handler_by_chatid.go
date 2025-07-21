@@ -1,7 +1,7 @@
 package plugin_utils
 
 import (
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 
 	"github.com/rs/zerolog"
@@ -58,7 +58,7 @@ func RemoveHandlerByChatIDHandler(chatID int64, pluginName string) {
 
 func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 	var handlerRunCount int
-	var handlerErr      flate.MultErr
+	var handlerErr      flaterr.MultErr
 
 	logger := zerolog.Ctx(params.Ctx).
 		With().

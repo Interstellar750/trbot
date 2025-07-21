@@ -11,7 +11,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
@@ -53,8 +53,8 @@ func Register(ctx context.Context) {
 						Err(err).
 						Str("command", "/chatinfo").
 						Str("content", "chat info").
-						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Fmt(), "chat info", err)
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "chat info", err)
 				}
 				return nil
 			},
@@ -76,8 +76,8 @@ func Register(ctx context.Context) {
 						Err(err).
 						Str("command", "/test").
 						Str("content", "test channel link").
-						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Fmt(), "test channel link", err)
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "test channel link", err)
 				}
 				return nil
 			},
@@ -121,8 +121,8 @@ func Register(ctx context.Context) {
 						Err(err).
 						Str("command", "/fileid").
 						Str("content", "media file ID info").
-						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Fmt(), "media file ID info", err)
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "media file ID info", err)
 				}
 				return nil
 			},
@@ -149,8 +149,8 @@ func Register(ctx context.Context) {
 						Err(err).
 						Str("command", "/version").
 						Str("content", "bot version info").
-						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Fmt(), "bot version info", err)
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "bot version info", err)
 				}
 				return nil
 			},
@@ -167,8 +167,8 @@ func Register(ctx context.Context) {
 					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Str("content", "there is no state handler").
-						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Fmt(), "there is no state handler", err)
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "there is no state handler", err)
 				}
 				return nil
 			},
@@ -197,8 +197,8 @@ func Register(ctx context.Context) {
 					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
 						Str("content", "select inline default command keyboard").
-						Msg(flate.SendMessage.Str())
-					return fmt.Errorf(flate.SendMessage.Fmt(), "select inline default command keyboard", err)
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "select inline default command keyboard", err)
 				}
 				return nil
 			},
@@ -223,7 +223,7 @@ func Register(ctx context.Context) {
 					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 					Logger()
 
-				var handlerErr flate.MultErr
+				var handlerErr flaterr.MultErr
 
 				if opts.Update.CallbackQuery.Data == "inline_default_none" {
 					err := database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
@@ -251,8 +251,8 @@ func Register(ctx context.Context) {
 									Err(err).
 									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
 									Str("content", "inline command select keyboard").
-									Msg(flate.EditMessageReplyMarkup.Str())
-								handlerErr.Addt(flate.EditMessageReplyMarkup, "inline command select keyboard", err)
+									Msg(flaterr.EditMessageReplyMarkup.Str())
+								handlerErr.Addt(flaterr.EditMessageReplyMarkup, "inline command select keyboard", err)
 							}
 						}
 					}
@@ -276,8 +276,8 @@ func Register(ctx context.Context) {
 									logger.Error().
 										Err(err).
 										Str("content", "inline command changed").
-										Msg(flate.AnswerCallbackQuery.Str())
-									handlerErr.Addt(flate.AnswerCallbackQuery, "inline command changed", err)
+										Msg(flaterr.AnswerCallbackQuery.Str())
+									handlerErr.Addt(flaterr.AnswerCallbackQuery, "inline command changed", err)
 								}
 								break
 							}
@@ -311,8 +311,8 @@ func Register(ctx context.Context) {
 										logger.Error().
 											Err(err).
 											Str("content", "inline command select keyboard").
-											Msg(flate.EditMessageReplyMarkup.Str())
-										handlerErr.Addt(flate.EditMessageReplyMarkup, "inline command select keyboard", err)
+											Msg(flaterr.EditMessageReplyMarkup.Str())
+										handlerErr.Addt(flaterr.EditMessageReplyMarkup, "inline command select keyboard", err)
 									}
 								}
 							}
@@ -348,8 +348,8 @@ func Register(ctx context.Context) {
 							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 							Str("callbackQueryData", opts.CallbackQuery.Data).
 							Str("content", "unknown message from callbackQuery request to delete").
-							Msg(flate.DeleteMessage.Str())
-						return fmt.Errorf(flate.DeleteMessage.Fmt(), "unknown message from callbackQuery request to delete", err)
+							Msg(flaterr.DeleteMessage.Str())
+						return fmt.Errorf(flaterr.DeleteMessage.Fmt(), "unknown message from callbackQuery request to delete", err)
 					}
 				}
 				return nil
@@ -372,7 +372,7 @@ func Register(ctx context.Context) {
 					Dict(utils.GetUserDict(opts.InlineQuery.From)).
 					Logger()
 
-				var handlerErr flate.MultErr
+				var handlerErr flaterr.MultErr
 
 				keywords := utils.InlineExtractKeywords(opts.Fields)
 				if len(keywords) == 0 {
@@ -392,8 +392,8 @@ func Register(ctx context.Context) {
 						logger.Error().
 							Err(err).
 							Str("content", "uaav command usage tips").
-							Msg(flate.AnswerInlineQuery.Str())
-						handlerErr.Addt(flate.AnswerInlineQuery, "uaav command usage tips", err)
+							Msg(flaterr.AnswerInlineQuery.Str())
+						handlerErr.Addt(flaterr.AnswerInlineQuery, "uaav command usage tips", err)
 					}
 				} else if len(keywords) == 1 {
 					if strings.HasPrefix(keywords[0], "https://") {
@@ -410,8 +410,8 @@ func Register(ctx context.Context) {
 							logger.Error().
 								Err(err).
 								Str("content", "uaav valid voice url").
-								Msg(flate.AnswerInlineQuery.Str())
-							handlerErr.Addt(flate.AnswerInlineQuery, "uaav valid voice url", err)
+								Msg(flaterr.AnswerInlineQuery.Str())
+							handlerErr.Addt(flaterr.AnswerInlineQuery, "uaav valid voice url", err)
 						}
 					} else {
 						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
@@ -430,8 +430,8 @@ func Register(ctx context.Context) {
 							logger.Error().
 								Err(err).
 								Str("content", "uaav invalid URL").
-								Msg(flate.AnswerInlineQuery.Str())
-							handlerErr.Addt(flate.AnswerInlineQuery, "uaav invalid URL", err)
+								Msg(flaterr.AnswerInlineQuery.Str())
+							handlerErr.Addt(flaterr.AnswerInlineQuery, "uaav invalid URL", err)
 						}
 					}
 				} else {
@@ -451,8 +451,8 @@ func Register(ctx context.Context) {
 						logger.Error().
 							Err(err).
 							Str("content", "uaav too much argumunt").
-							Msg(flate.AnswerInlineQuery.Str())
-						handlerErr.Addt(flate.AnswerInlineQuery, "uaav too much argumunt", err)
+							Msg(flaterr.AnswerInlineQuery.Str())
+						handlerErr.Addt(flaterr.AnswerInlineQuery, "uaav too much argumunt", err)
 					}
 				}
 				return handlerErr.Flat()
@@ -559,7 +559,7 @@ func Register(ctx context.Context) {
 					Dict(utils.GetUserDict(opts.InlineQuery.From)).
 					Logger()
 
-				var handlerErr flate.MultErr
+				var handlerErr flaterr.MultErr
 
 				logs, err := mess.ReadLog()
 				if err != nil {
@@ -591,8 +591,8 @@ func Register(ctx context.Context) {
 						logger.Error().
 							Err(err).
 							Str("content", "log infos").
-							Msg(flate.AnswerInlineQuery.Str())
-						handlerErr.Addt(flate.AnswerInlineQuery, "log infos", err)
+							Msg(flaterr.AnswerInlineQuery.Str())
+						handlerErr.Addt(flaterr.AnswerInlineQuery, "log infos", err)
 					}
 				}
 				return handlerErr.Flat()
@@ -607,7 +607,7 @@ func Register(ctx context.Context) {
 				IsOnlyAllowAdmin:    true,
 			},
 			InlineHandler: func(opts *handler_params.InlineQuery) error {
-				var handlerErr flate.MultErr
+				var handlerErr flaterr.MultErr
 				signals.SIGNALS.PluginDB_reload <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
@@ -629,8 +629,8 @@ func Register(ctx context.Context) {
 						Dict(utils.GetUserDict(opts.InlineQuery.From)).
 						Str("query", opts.InlineQuery.Query).
 						Str("content", "plugin database reloaded").
-						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addt(flate.AnswerInlineQuery, "plugin database reloaded", err)
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "plugin database reloaded", err)
 				}
 				return handlerErr.Flat()
 			},
@@ -644,7 +644,7 @@ func Register(ctx context.Context) {
 				IsOnlyAllowAdmin:    true,
 			},
 			InlineHandler: func(opts *handler_params.InlineQuery) error {
-				var handlerErr flate.MultErr
+				var handlerErr flaterr.MultErr
 				signals.SIGNALS.PluginDB_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
@@ -666,8 +666,8 @@ func Register(ctx context.Context) {
 						Dict(utils.GetUserDict(opts.InlineQuery.From)).
 						Str("query", opts.InlineQuery.Query).
 						Str("content", "plugin database saved").
-						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addt(flate.AnswerInlineQuery, "plugin database saved", err)
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "plugin database saved", err)
 				}
 				return handlerErr.Flat()
 			},
@@ -681,7 +681,7 @@ func Register(ctx context.Context) {
 				IsOnlyAllowAdmin:    true,
 			},
 			UpdateHandler: func(opts *handler_params.Update) error {
-				var handlerErr flate.MultErr
+				var handlerErr flaterr.MultErr
 				signals.SIGNALS.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.Update.InlineQuery.ID,
@@ -703,8 +703,8 @@ func Register(ctx context.Context) {
 						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
 						Str("query", opts.Update.InlineQuery.Query).
 						Str("content", "database saved").
-						Msg(flate.AnswerInlineQuery.Str())
-					handlerErr.Addt(flate.AnswerInlineQuery, "database saved", err)
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "database saved", err)
 				}
 				return handlerErr.Flat()
 			},

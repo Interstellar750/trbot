@@ -17,7 +17,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -122,7 +122,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		Dict(utils.GetUserDict(opts.Update.Message.From)).
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if isMoveMessage {
 		logger.Info().
@@ -159,8 +159,8 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "sticker download error").
-				Msg(flate.SendMessage.Str())
-			handlerErr.Addf(flate.SendMessage.Fmt(), "sticker download error", err)
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addf(flaterr.SendMessage.Fmt(), "sticker download error", err)
 		}
 	} else {
 		documentParams := &bot.SendDocumentParams{
@@ -220,8 +220,8 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "sticker file").
-				Msg(flate.SendDocument.Str())
-			handlerErr.Addf(flate.SendDocument.Fmt(), "sticker file", err)
+				Msg(flaterr.SendDocument.Str())
+			handlerErr.Addf(flaterr.SendDocument.Fmt(), "sticker file", err)
 		}
 	}
 
@@ -503,7 +503,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 		Str("funcName", "DownloadStickerPackCallBackHandler").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
@@ -516,8 +516,8 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 			Err(err).
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Str("content", "start download stickerset notice").
-			Msg(flate.SendMessage.Str())
-		handlerErr.Addf(flate.SendMessage.Fmt(), "start download stickerset notice", err)
+			Msg(flaterr.SendMessage.Str())
+		handlerErr.Addf(flaterr.SendMessage.Fmt(), "start download stickerset notice", err)
 	}
 
 	err = database.IncrementalUsageCount(opts.Ctx, opts.CallbackQuery.Message.Message.Chat.ID, db_struct.StickerSetDownloaded)
@@ -558,8 +558,8 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 				Err(err).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "get sticker set info error").
-				Msg(flate.SendMessage.Str())
-			handlerErr.Addf(flate.SendMessage.Fmt(), "get sticker set info error", err)
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addf(flaterr.SendMessage.Fmt(), "get sticker set info error", err)
 		}
 	} else {
 		logger.Info().
@@ -589,8 +589,8 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "download sticker set error").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "download sticker set error", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "download sticker set error", err)
 			}
 		} else {
 			documentParams := &bot.SendDocumentParams{
@@ -612,8 +612,8 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "sticker set zip file").
-					Msg(flate.SendDocument.Str())
-				handlerErr.Addf(flate.SendDocument.Fmt(), "sticker set zip file", err)
+					Msg(flaterr.SendDocument.Str())
+				handlerErr.Addf(flaterr.SendDocument.Fmt(), "sticker set zip file", err)
 			}
 
 			_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -625,8 +625,8 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start download stickerset notice").
-					Msg(flate.DeleteMessage.Str())
-				handlerErr.Addf(flate.DeleteMessage.Fmt(), "start download sticker set notice", err)
+					Msg(flaterr.DeleteMessage.Str())
+				handlerErr.Addf(flaterr.DeleteMessage.Fmt(), "start download sticker set notice", err)
 			}
 		}
 	}
@@ -1043,7 +1043,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 		Str("funcName", "collectStickerSet").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if StickerCollectionChannelID == 0 {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -1057,7 +1057,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("callbackQueryData", opts.CallbackQuery.Data).
 				Str("content", "collect channel ID not set").
-				Msg(flate.AnswerCallbackQuery.Str())
+				Msg(flaterr.AnswerCallbackQuery.Str())
 		}
 	} else {
 		stickerSetName := strings.TrimPrefix(opts.CallbackQuery.Data, "c_")
@@ -1080,8 +1080,8 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "get sticker set info error").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "get sticker set info error", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "get sticker set info error", err)
 			}
 		} else {
 			_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -1093,8 +1093,8 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					Err(err).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start downloading sticker pack notice").
-					Msg(flate.AnswerCallbackQuery.Str())
-				handlerErr.Addf(flate.AnswerCallbackQuery.Fmt(), " send `start downloading sticker pack notice` callback answer: %w", err)
+					Msg(flaterr.AnswerCallbackQuery.Str())
+				handlerErr.Addf(flaterr.AnswerCallbackQuery.Fmt(), " send `start downloading sticker pack notice` callback answer: %w", err)
 			}
 			stickerData, err := getStickerPack(opts.Ctx, opts.Thebot, stickerSet, false)
 			if err != nil {
@@ -1114,8 +1114,8 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Err(err).
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "download sticker set error").
-						Msg(flate.SendMessage.Str())
-					handlerErr.Addf(flate.SendMessage.Fmt(), "download sticker set error", err)
+						Msg(flaterr.SendMessage.Str())
+					handlerErr.Addf(flaterr.SendMessage.Fmt(), "download sticker set error", err)
 				}
 			} else {
 				var pendingMessage string = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n", stickerData.StickerSetTitle, stickerData.StickerSetName)
@@ -1144,8 +1144,8 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Str("stickerSetName", stickerSetName).
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "collect sticker set file").
-						Msg(flate.SendDocument.Str())
-					handlerErr.Addf(flate.SendDocument.Fmt(), "collect sticker set", err)
+						Msg(flaterr.SendDocument.Str())
+					handlerErr.Addf(flaterr.SendDocument.Fmt(), "collect sticker set", err)
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID: opts.CallbackQuery.From.ID,
 						Text: fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
@@ -1159,8 +1159,8 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 							Str("stickerSetName", stickerSetName).
 							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 							Str("content", "collect sticker set failed notice").
-							Msg(flate.SendMessage.Str())
-						handlerErr.Addf(flate.SendMessage.Fmt(), "collect sticker set failed notice", err)
+							Msg(flaterr.SendMessage.Str())
+						handlerErr.Addf(flaterr.SendMessage.Fmt(), "collect sticker set failed notice", err)
 					}
 				}
 			}
@@ -1182,7 +1182,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 		Str("funcName", "getStickerPackInfo").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 	var stickerSetName string
 
 	if strings.HasPrefix(opts.Message.Text, "https://t.me/addstickers/") {
@@ -1211,8 +1211,8 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "get sticker set info error").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "get sticker set info error", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "get sticker set info error", err)
 			}
 		} else {
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -1235,8 +1235,8 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "sticker set info").
-					Msg(flate.SendMessage.Str())
-				handlerErr.Addf(flate.SendMessage.Fmt(), "sticker set info", err)
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addf(flaterr.SendMessage.Fmt(), "sticker set info", err)
 			}
 		}
 	} else {
@@ -1250,8 +1250,8 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "empty sticker link notice").
-				Msg(flate.SendMessage.Str())
-			handlerErr.Addf(flate.SendMessage.Fmt(), "empty sticker link notice", err)
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addf(flaterr.SendMessage.Fmt(), "empty sticker link notice", err)
 		}
 	}
 
@@ -1275,7 +1275,7 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 		Dict(utils.GetUserDict(opts.Update.Message.From)).
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	logger.Info().
 		Msg("Start download GIF")
@@ -1296,8 +1296,8 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "MP4 download error").
-				Msg(flate.SendMessage.Str())
-			handlerErr.Addf(flate.SendMessage.Fmt(), "MP4 download error", err)
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addf(flaterr.SendMessage.Fmt(), "MP4 download error", err)
 		}
 	} else {
 		_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
@@ -1313,8 +1313,8 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 			logger.Error().
 				Err(err).
 				Str("content", "GIF file").
-				Msg(flate.SendDocument.Str())
-			handlerErr.Addf(flate.SendDocument.Fmt(), "GIF file", err)
+				Msg(flaterr.SendDocument.Str())
+			handlerErr.Addf(flaterr.SendDocument.Fmt(), "GIF file", err)
 		}
 	}
 

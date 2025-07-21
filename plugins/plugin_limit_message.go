@@ -11,7 +11,7 @@ import (
 
 	"trbot/utils"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -133,7 +133,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 		Str("funcName", "SomeMessageOnlyHandler").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if opts.Message.Chat.Type == models.ChatTypePrivate {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -146,7 +146,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 				Err(err).
 				Dict(utils.GetChatDict(&opts.Message.Chat)).
 				Str("content", "limit message only allows in group").
-				Msg(flate.SendMessage.Str())
+				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addf("failed to send `limit message only allows in group` message: %w", err)
 		}
 	} else {
@@ -171,7 +171,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 						Err(err).
 						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "limit message main menu").
-						Msg(flate.SendMessage.Str())
+						Msg(flaterr.SendMessage.Str())
 					handlerErr.Addf("failed to send `limit message main menu` message: %w", err)
 				}
 				_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -183,7 +183,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 						Err(err).
 						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "limit message command").
-						Msg(flate.DeleteMessage.Str())
+						Msg(flaterr.DeleteMessage.Str())
 					handlerErr.Addf("failed to delete `limit message command` message: %w", err)
 				}
 				if isNeedInit {
@@ -206,7 +206,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 						Err(err).
 						Dict(utils.GetChatDict(&opts.Message.Chat)).
 						Str("content", "bot need be admin and delete message permission").
-						Msg(flate.SendMessage.Str())
+						Msg(flaterr.SendMessage.Str())
 					handlerErr.Addf("failed to send `bot need be admin and delete message permission` message: %w", err)
 				}
 			}
@@ -220,7 +220,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Str("content", "non-admin can not change limit message config").
-					Msg(flate.SendMessage.Str())
+					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addf("failed to send `non-admin can not change limit message config` message: %w", err)
 			}
 			time.Sleep(time.Second * 5)
@@ -236,7 +236,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 					Err(err).
 					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Str("content", "non-admin can not change limit message config").
-					Msg(flate.DeleteMessages.Str())
+					Msg(flaterr.DeleteMessages.Str())
 				handlerErr.Addf("failed to delete `non-admin can not change limit message config` messages: %w", err)
 			}
 		}
@@ -255,7 +255,7 @@ func DeleteNotAllowMessage(opts *handler_params.Update) error {
 		Int("messageID", opts.Update.Message.ID).
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	var deleteAction bool
 	var deleteHelp   string = "当前模式："
@@ -317,7 +317,7 @@ func DeleteNotAllowMessage(opts *handler_params.Update) error {
 					logger.Error().
 						Err(err).
 						Str("content", "test mode delete message notification").
-						Msg(flate.SendMessage.Str())
+						Msg(flaterr.SendMessage.Str())
 					handlerErr.Addf("failed to send `test mode delete message notification` message: %w", err)
 				}
 			} else if deleteAction {
@@ -331,7 +331,7 @@ func DeleteNotAllowMessage(opts *handler_params.Update) error {
 						Str("messageType", string(thisMsgType.AsValue())).
 						Str("content", "message trigger limit message rules").
 						Bool("IsLogicAnd", thisChat.IsLogicAnd).
-						Msg(flate.DeleteMessage.Str())
+						Msg(flaterr.DeleteMessage.Str())
 					handlerErr.Addf("failed to delete `message trigger limit message rules` message: %w", err)
 				} else {
 					logger.Info().
@@ -572,7 +572,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 		Str("funcName", "LimitMessageCallback").
 		Logger()
 
-	var handlerErr flate.MultErr
+	var handlerErr flaterr.MultErr
 
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.CallbackQuery.Message.Message.Chat.ID, opts.CallbackQuery.From.ID) {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -586,7 +586,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 				Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "no permission to change limit message config").
-				Msg(flate.AnswerCallbackQuery.Str())
+				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addf("failed to send `no permission to change limit message config` callback answer: %w", err)
 		}
 	} else {
@@ -614,7 +614,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "limit message type keyboard").
-					Msg(flate.EditMessageText.Str())
+					Msg(flaterr.EditMessageText.Str())
 				handlerErr.Addf("failed to edit message to `limit message type keyboard`: %w", err)
 			}
 		case "limitmsg_typekb_switchrule":
@@ -634,7 +634,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "limit message attribute keyboard").
-					Msg(flate.EditMessageText.Str())
+					Msg(flaterr.EditMessageText.Str())
 				handlerErr.Addf("failed to edit message to `limit message attribute keyboard`: %w", err)
 			}
 		case "limitmsg_attrkb_switchrule":
@@ -654,7 +654,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "limit message main menu or test mode delete message notification").
-					Msg(flate.DeleteMessage.Str())
+					Msg(flaterr.DeleteMessage.Str())
 				handlerErr.Addf("failed to delete `limit message main menu or test mode delete message notification` message: %w", err)
 			}
 		case "limitmsg_switchenable":
@@ -690,7 +690,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "test mode turned off notice").
-					Msg(flate.EditMessageText.Str())
+					Msg(flaterr.EditMessageText.Str())
 				handlerErr.Addf("failed to edit message to `test mode turned off notice`: %w", err)
 			}
 		default:
@@ -722,7 +722,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "limit message type keyboard").
-						Msg(flate.EditMessageReplyMarkup.Str())
+						Msg(flaterr.EditMessageReplyMarkup.Str())
 					handlerErr.Addf("failed to edit message reply markup to `limit message type keyboard`: %w", err)
 				}
 			} else if strings.HasPrefix(opts.CallbackQuery.Data, "limitmsg_attr_") {
@@ -753,7 +753,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("callbackQueryData", opts.CallbackQuery.Data).
 						Str("content", "limit message attribute keyboard").
-						Msg(flate.EditMessageReplyMarkup.Str())
+						Msg(flaterr.EditMessageReplyMarkup.Str())
 					handlerErr.Addf("failed to edit message reply markup to `limit message attribute keyboard`: %w", err)
 				}
 			}
@@ -779,7 +779,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					logger.Error().
 						Err(err).
 						Str("content", "failed to save limit message list").
-						Msg(flate.AnswerCallbackQuery.Str())
+						Msg(flaterr.AnswerCallbackQuery.Str())
 					handlerErr.Addf("failed to send `failed to save limit message list` callback answer: %w", err)
 				}
 			}
@@ -803,7 +803,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("callbackQueryData", opts.CallbackQuery.Data).
 					Str("content", "limit message main menu").
-					Msg(flate.EditMessageText.Str())
+					Msg(flaterr.EditMessageText.Str())
 				handlerErr.Addf("failed to edit message to `limit message main menu`: %w", err)
 			}
 		}

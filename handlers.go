@@ -11,7 +11,7 @@ import (
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
-	"trbot/utils/flate"
+	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -344,7 +344,7 @@ func messageHandler(opts *handler_params.Update) {
 				messageLogger.Error().
 					Err(err).
 					Str("content", "no this command").
-					Msg(flate.SendMessage.Str())
+					Msg(flaterr.SendMessage.Str())
 			}
 		} else if strings.HasSuffix(strings.Fields(opts.Update.Message.Text)[0], "@" + consts.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
@@ -359,7 +359,7 @@ func messageHandler(opts *handler_params.Update) {
 				messageLogger.Error().
 					Err(err).
 					Str("content", "no this command").
-					Msg(flate.SendMessage.Str())
+					Msg(flaterr.SendMessage.Str())
 			}
 			time.Sleep(time.Second * 10)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
@@ -373,7 +373,7 @@ func messageHandler(opts *handler_params.Update) {
 				messageLogger.Error().
 					Err(err).
 					Str("content", "no this command").
-					Msg(flate.DeleteMessages.Str())
+					Msg(flaterr.DeleteMessages.Str())
 			}
 		}
 		return
@@ -429,7 +429,7 @@ func messageHandler(opts *handler_params.Update) {
 				Err(err).
 				Str("messageType", msgType).
 				Str("content", "no handler by message type plugin for this private chat").
-				Msg(flate.SendMessage.Str())
+				Msg(flaterr.SendMessage.Str())
 		}
 	}
 	if err != nil {
@@ -513,7 +513,7 @@ func inlineHandler(opts *handler_params.Update) {
 			inlineLogger.Error().
 				Err(err).
 				Str("content", "bot inline handler list").
-				Msg(flate.AnswerInlineQuery.Str())
+				Msg(flaterr.AnswerInlineQuery.Str())
 		}
 	} else if strings.HasPrefix(opts.Update.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
 		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则提示错误
@@ -550,7 +550,7 @@ func inlineHandler(opts *handler_params.Update) {
 					slogger.Error().
 						Err(err).
 						Str("content", "sub inline handler").
-						Msg(flate.AnswerInlineQuery.Str())
+						Msg(flaterr.AnswerInlineQuery.Str())
 					// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 				}
 				return
@@ -634,7 +634,7 @@ func inlineHandler(opts *handler_params.Update) {
 			inlineLogger.Error().
 				Err(err).
 				Str("content", "no this inline command").
-				Msg(flate.AnswerInlineQuery.Str())
+				Msg(flaterr.AnswerInlineQuery.Str())
 		}
 	} else {
 		// inline query 不以命令符号开头，检查是否有默认 handler
@@ -674,7 +674,7 @@ func inlineHandler(opts *handler_params.Update) {
 						slogger.Error().
 							Err(err).
 							Str("content", "user default inline handler result").
-							Msg(flate.AnswerInlineQuery.Str())
+							Msg(flaterr.AnswerInlineQuery.Str())
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
@@ -758,7 +758,7 @@ func inlineHandler(opts *handler_params.Update) {
 				defaultHandlerLogger.Error().
 					Err(err).
 					Str("content", "invalid user default inline handler").
-					Msg(flate.AnswerInlineQuery.Str())
+					Msg(flaterr.AnswerInlineQuery.Str())
 			}
 			return
 		} else if configs.BotConfig.InlineDefaultHandler != "" {
@@ -801,7 +801,7 @@ func inlineHandler(opts *handler_params.Update) {
 						slogger.Error().
 							Err(err).
 							Str("content", "bot default inline handler result").
-							Msg(flate.AnswerInlineQuery.Str())
+							Msg(flaterr.AnswerInlineQuery.Str())
 						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
 					}
 					return
@@ -890,7 +890,7 @@ func inlineHandler(opts *handler_params.Update) {
 				defaultHandlerLogger.Error().
 					Err(err).
 					Str("content", "invalid bot default inline handler").
-					Msg(flate.AnswerInlineQuery.Str())
+					Msg(flaterr.AnswerInlineQuery.Str())
 			}
 			return
 		}
@@ -927,7 +927,7 @@ func inlineHandler(opts *handler_params.Update) {
 			inlineLogger.Error().
 				Err(err).
 				Str("content", "bot no default inline handler").
-				Msg(flate.AnswerInlineQuery.Str())
+				Msg(flaterr.AnswerInlineQuery.Str())
 		}
 	}
 }
@@ -965,7 +965,7 @@ func callbackQueryHandler(params *handler_params.Update) {
 			callbackQueryLogger.Error().
 				Err(err).
 				Str("content", "this callback request is processing").
-				Msg(flate.AnswerCallbackQuery.Str())
+				Msg(flaterr.AnswerCallbackQuery.Str())
 		}
 		return
 	} else if params.ChatInfo.HasPendingCallbackQuery {
@@ -982,7 +982,7 @@ func callbackQueryHandler(params *handler_params.Update) {
 			callbackQueryLogger.Error().
 				Err(err).
 				Str("content", "a callback request is processing, send new request later").
-				Msg(flate.AnswerCallbackQuery.Str())
+				Msg(flaterr.AnswerCallbackQuery.Str())
 		}
 		return
 	} else {
