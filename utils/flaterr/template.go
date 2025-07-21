@@ -14,9 +14,10 @@ const (
 	DeleteMessages         Msg = "Failed to delete messages"
 	AnswerCallbackQuery    Msg = "Failed to answer callback query"
 	AnswerInlineQuery      Msg = "Failed to answer inline query"
-	GetFile                Msg = "Failed to get file"
+	GetFile                Msg = "Failed to get file info"
 	PinChatMessage         Msg = "Failed to pin chat message"
 	UnpinChatMessage       Msg = "Failed to unpin chat message"
+	GetStickerSet          Msg = "Failed to get sticker set info"
 )
 
 // return message as string
@@ -41,9 +42,10 @@ func (m Msg) Fmt() string {
 	case DeleteMessages:         return "failed to delete [%s] messages: %w"
 	case AnswerCallbackQuery:    return "failed to send [%s] callback answer: %w"
 	case AnswerInlineQuery:      return "failed to send [%s] inline answer: %w"
-	case GetFile:                return "failed to get [%s] file: %w"
+	case GetFile:                return "failed to get [%s] file info: %w"
 	case PinChatMessage:         return "failed to pin [%s] message: %w"
 	case UnpinChatMessage:       return "failed to unpin [%s] message: %w"
+	case GetStickerSet:          return "failed to get [%s] sticker set info: %w"
 	default:
 		return "unknown err content [%s]: %w"
 	}

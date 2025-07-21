@@ -91,7 +91,7 @@ func checkNested(target any, value reflect.Value) bool {
 func UserIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool {
 	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{ ChatID: chatID })
 	if err != nil {
-		log.Printf("Failed to get chat administrators: %v", err)
+		log.Printf("Failed to get chat administrators: %w", err)
 		return false
 	}
 
@@ -138,7 +138,7 @@ func UserHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatI
 		ChatID: chatID,
 	})
 	if err != nil {
-		log.Printf("Failed to get chat administrators: %v", err)
+		log.Printf("Failed to get chat administrators: %w", err)
 		return false
 	}
 

@@ -22,6 +22,8 @@ func saveMessageHandler(opts *handler_params.Message) error {
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "saveMessageHandler").
+		Dict(utils.GetUserDict(opts.Message.From)).
+		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -30,17 +32,23 @@ func saveMessageHandler(opts *handler_params.Message) error {
 
 	messageParams := &bot.SendMessageParams{
 		ChatID:          opts.Message.Chat.ID,
-		ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 		ParseMode:       models.ParseModeHTML,
-		ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text:                         "点击浏览您的收藏",
-			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
-		}}}},
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{
+				Text:                         "点击浏览您的收藏",
+				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+			}},
+			{{
+				Text:         "关闭",
+				CallbackData: "delete_this_message",
+			}},
+		}},
 	}
 
 	if !UserSavedMessage.AgreePrivacyPolicy {
 		messageParams.Text = "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息"
-		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "点击查看",
 			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", consts.BotMe.Username),
 		}}}}
@@ -48,10 +56,9 @@ func saveMessageHandler(opts *handler_params.Message) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "need agree privacy policy").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `need agree privacy policy` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "need agree privacy policy", err)
 		}
 	} else {
 		if UserSavedMessage.Limit == 0 && UserSavedMessage.Count == 0 {
@@ -66,10 +73,9 @@ func saveMessageHandler(opts *handler_params.Message) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "reach saved limit").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf("failed to send `reach saved limit` message: %w", err)
+				handlerErr.Addt(flaterr.SendMessage, "reach saved limit", err)
 			}
 		} else {
 			// var pendingMessage string
@@ -145,7 +151,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.OnlyText[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -162,7 +167,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存文本"
 						}
 					case replyMsgType.Audio:
@@ -182,7 +186,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Audio[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -200,7 +203,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存音乐"
 						}
 					case replyMsgType.Animation:
@@ -220,7 +222,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Mpeg4gif[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -237,7 +238,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存 GIF"
 						}
 					case replyMsgType.Document:
@@ -258,7 +258,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 										}
 										n.Description = DescriptionText
 										UserSavedMessage.Item.Gif[i] = n
-										SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 									}
 									break
 								}
@@ -274,7 +273,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 								})
 								UserSavedMessage.Count++
 								UserSavedMessage.SavedTimes++
-								SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								messageParams.Text = "已保存 GIF (文件)"
 							}
 						} else {
@@ -294,7 +292,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 										}
 										n.Description = DescriptionText
 										UserSavedMessage.Item.Document[i] = n
-										SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 									}
 									break
 								}
@@ -311,7 +308,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 								})
 								UserSavedMessage.Count++
 								UserSavedMessage.SavedTimes++
-								SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								messageParams.Text = "已保存文件"
 							}
 						}
@@ -332,7 +328,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Photo[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -350,7 +345,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存图片"
 						}
 					case replyMsgType.Sticker:
@@ -370,7 +364,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Sticker[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -417,7 +410,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							}
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存贴纸"
 						}
 					case replyMsgType.Video:
@@ -437,7 +429,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Video[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -458,7 +449,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存视频"
 						}
 					case replyMsgType.VideoNote:
@@ -478,7 +468,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.VideoNote[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -493,7 +482,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存圆形视频"
 						}
 					case replyMsgType.Voice:
@@ -513,7 +501,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 									}
 									n.Description = DescriptionText
 									UserSavedMessage.Item.Voice[i] = n
-									SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 								}
 								break
 							}
@@ -534,7 +521,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 							})
 							UserSavedMessage.Count++
 							UserSavedMessage.SavedTimes++
-							SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 							messageParams.Text = "已保存语音"
 						}
 					default:
@@ -542,28 +528,28 @@ func saveMessageHandler(opts *handler_params.Message) error {
 				}
 
 				if needSave {
+					SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
 					err := SaveSavedMessageList(opts.Ctx)
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Dict(utils.GetUserDict(opts.Message.From)).
-							Str("saveMessageType", string(replyMsgType.AsValue())).
+							Str("messageType", string(replyMsgType.AsValue())).
 							Msg("Failed to save savedmessage list after save a item")
 						handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
 
 						_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-							ChatID: opts.Message.Chat.ID,
-							Text:   fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
-							ParseMode: models.ParseModeHTML,
+							ChatID:          opts.Message.Chat.ID,
+							Text:            fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
+							ParseMode:       models.ParseModeHTML,
+							ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 						})
 						if err != nil {
 							logger.Error().
 								Err(err).
-								Dict(utils.GetUserDict(opts.Message.From)).
-								Str("saveMessageType", string(replyMsgType.AsValue())).
+								Str("messageType", string(replyMsgType.AsValue())).
 								Str("content", "failed to save savedmessage list notice").
 								Msg(flaterr.SendMessage.Str())
-							handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
+							handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
 						}
 
 						return handlerErr.Flat()
@@ -578,7 +564,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "saved message response").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf("failed to send `saved message response` message: %w", err)
+				handlerErr.Addt(flaterr.SendMessage, "saved message response", err)
 			}
 		}
 	}
@@ -597,7 +583,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 // 	if !ChannelSavedMessage.AgreePrivacyPolicy {
 // 		messageParams.ChatID = opts.Update.ChannelPost.From.ID
 // 		messageParams.Text = "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息"
-// 		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+// 		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 // 			Text: "点击查看",
 // 			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_channel_privacy_policy", consts.BotMe.Username),
 // 		}}}}
@@ -632,13 +618,13 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 	var targetMessage *models.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
 
 	messageParams := &bot.SendMessageParams{
-		ChatID:    opts.Update.CallbackQuery.From.ID,
-		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID},
-		ParseMode: models.ParseModeHTML,
-		// ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-		// 	Text:                         "点击浏览您的收藏",
-		// 	SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
-		// }}}},
+		ChatID:          opts.Update.CallbackQuery.From.ID,
+		ParseMode:       models.ParseModeHTML,
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text:         "关闭",
+			CallbackData: "delete_this_message",
+		}}}},
 	}
 
 	var handlerErr flaterr.MultErr
@@ -709,7 +695,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存文本"
 			}
 		case replyMsgType.Audio:
@@ -732,7 +717,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存音乐"
 			}
 		case replyMsgType.Animation:
@@ -754,7 +738,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存 GIF"
 			}
 		case replyMsgType.Document:
@@ -776,7 +759,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 					})
 					UserSavedMessage.Count++
 					UserSavedMessage.SavedTimes++
-					SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 					messageParams.Text = "已保存 GIF (文件)"
 				}
 			} else {
@@ -798,7 +780,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 					})
 					UserSavedMessage.Count++
 					UserSavedMessage.SavedTimes++
-					SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 					messageParams.Text = "已保存文件"
 				}
 			}
@@ -821,7 +802,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存图片"
 			}
 		case replyMsgType.Sticker:
@@ -871,7 +851,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				}
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存贴纸"
 			}
 		case replyMsgType.Video:
@@ -897,7 +876,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存视频"
 			}
 		case replyMsgType.VideoNote:
@@ -917,7 +895,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存圆形视频"
 			}
 		case replyMsgType.Voice:
@@ -939,7 +916,6 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 				})
 				UserSavedMessage.Count++
 				UserSavedMessage.SavedTimes++
-				SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 				messageParams.Text = "已保存语音"
 			}
 		default:
@@ -947,27 +923,28 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 	}
 
 	if !isSaved {
+		SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
 		err := SaveSavedMessageList(opts.Ctx)
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Str("saveMessageType", string(replyMsgType.AsValue())).
+				Str("messageType", string(replyMsgType.AsValue())).
 				Msg("Failed to save savedmessage list after save a item")
 			handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Update.CallbackQuery.From.ID,
-				ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID},
-				Text:   fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
-				ParseMode: models.ParseModeHTML,
+				ChatID:          opts.Update.CallbackQuery.From.ID,
+				ParseMode:       models.ParseModeHTML,
+				Text:            fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID },
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("saveMessageType", string(replyMsgType.AsValue())).
+					Str("messageType", string(replyMsgType.AsValue())).
 					Str("content", "failed to save savedmessage list notice").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf(flaterr.SendMessage.Fmt(), "failed to save savedmessage list notice", err)
+				handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
 			}
 			return handlerErr.Flat()
 		}
@@ -977,21 +954,15 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("saveMessageType", string(replyMsgType.AsValue())).
+			Str("messageType", string(replyMsgType.AsValue())).
 			Str("content", "message saved notice").
 			Msg(flaterr.SendMessage.Str())
-		handlerErr.Addf(flaterr.SendMessage.Fmt(), "message saved notice", err)
+		handlerErr.Addt(flaterr.SendMessage, "message saved notice", err)
 	}
 	return handlerErr.Flat()
 }
 
 func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
-	logger := zerolog.Ctx(opts.Ctx).
-		With().
-		Str("pluginName", "Saved Message").
-		Str("funcName", "InlineShowSavedMessageHandler").
-		Logger()
-
 	var handlerErr flaterr.MultErr
 	var InlineSavedMessageResultList []models.InlineQueryResult
 	var button *models.InlineQueryResultsButton
@@ -1001,6 +972,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	keywordFields := utils.InlineExtractKeywords(opts.Fields)
 
 	if len(keywordFields) == 0 {
+		// 没有搜索关键词，返回所有消息
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
 			if n.onlyText != nil {
@@ -1027,6 +999,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		}
 		InlineSavedMessageResultList = all
 	} else {
+		// 有搜索关键词，返回匹配的消息
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
 			if n.onlyText != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.onlyText.Description, n.onlyText.Title}) {
@@ -1053,11 +1026,12 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		}
 		InlineSavedMessageResultList = all
 
+		// 如果没有匹配的内容，则返回一个提示信息
 		if len(InlineSavedMessageResultList) == 0 {
 			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
-				ID:          "none",
-				Title:       "没有符合关键词的内容",
-				Description: fmt.Sprintf("没有找到包含 %s 的内容", keywordFields),
+				ID:                  "none",
+				Title:               "没有符合关键词的内容",
+				Description:         fmt.Sprintf("没有找到包含 %s 的内容", keywordFields),
 				InputMessageContent: models.InputTextMessageContent{
 					MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
 					ParseMode:   models.ParseModeMarkdownV1,
@@ -1086,33 +1060,30 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		InlineQueryID: opts.InlineQuery.ID,
 		Results:       utils.InlineResultPagination(opts.Fields, InlineSavedMessageResultList),
 		IsPersonal:    true,
+		CacheTime:     0,
 		Button:        button,
 	})
 	if err != nil {
-		logger.Error().
+		zerolog.Ctx(opts.Ctx).Error().
 			Err(err).
+			Str("pluginName", "Saved Message").
+			Str("funcName", "InlineShowSavedMessageHandler").
 			Dict(utils.GetUserDict(opts.InlineQuery.From)).
 			Str("query", opts.InlineQuery.Query).
 			Str("content", "saved message result").
 			Msg(flaterr.AnswerInlineQuery.Str())
-		handlerErr.Addf("failed to send `saved message result` inline answer: %w", err)
+		handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
 	}
 
 	return handlerErr.Flat()
 }
 
 func SendPrivacyPolicy(opts *handler_params.Message) error {
-	logger := zerolog.Ctx(opts.Ctx).
-		With().
-		Str("pluginName", "Saved Message").
-		Str("funcName", "SendPrivacyPolicy").
-		Logger()
-
 	var handlerErr flaterr.MultErr
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Message.Chat.ID,
-		Text: "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
+		Text:   "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
 			"<blockquote expandable>本机器人提供收藏信息功能，您可以在回复一条信息时输入 /save 来收藏它，之后在 inline 模式下随时浏览您的收藏内容并发送\n\n" +
 
 			"我们会记录哪些数据？\n" +
@@ -1131,20 +1102,22 @@ func SendPrivacyPolicy(opts *handler_params.Message) error {
 
 			"\n\n" +
 			"内容待补充...",
-		ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
-		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "点击同意以上内容",
 			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy_agree", consts.BotMe.Username),
 		}}}},
 		ParseMode: models.ParseModeHTML,
 	})
 	if err != nil {
-		logger.Error().
+		zerolog.Ctx(opts.Ctx).Error().
 			Err(err).
+			Str("pluginName", "Saved Message").
+			Str("funcName", "SendPrivacyPolicy").
 			Dict(utils.GetUserDict(opts.Message.From)).
 			Str("content", "saved message privacy policy").
 			Msg(flaterr.SendMessage.Str())
-		handlerErr.Addf("failed to send `saved message privacy policy` message: %w", err)
+		handlerErr.Addt(flaterr.SendMessage, "saved message privacy policy", err)
 	}
 
 	return handlerErr.Flat()
@@ -1155,6 +1128,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "AgreePrivacyPolicy").
+		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -1167,29 +1141,27 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(opts.Message.From)).
 			Msg("failed to save savemessage list after user agree privacy policy")
 		handlerErr.Addf("failed to save savemessage list after user agree privacy policy: %w", err)
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Message.Chat.ID,
-			Text:   fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
+			ChatID:    opts.Message.Chat.ID,
+			Text:      fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "failed to save savedmessage list notice").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `failed to save savedmessage list notice` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
 		}
 	} else {
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.Message.Chat.ID,
 			Text:            "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
-			ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
-			ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+			ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 				Text:                         "点击浏览您的收藏",
 				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
 			}}}},
@@ -1197,10 +1169,9 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "saved message function enabled").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `saved message function enabled` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "saved message function enabled", err)
 		} else {
 			buildSavedMessageByMessageHandlers()
 		}
@@ -1256,7 +1227,7 @@ func Init() {
 		Name:        "收藏消息",
 		Description: "此功能可以收藏用户指定的消息，之后使用 inline 模式查看并发送保存的内容\n\n保存消息：\n向机器人发送要保存的消息，然后使用 <code>/save 关键词</code> 命令回复要保存的消息，关键词可以忽略。若机器人在群组中，也可以直接使用 <code>/save 关键词</code> 命令回复要保存的消息。\n\n发送保存的消息：点击下方的按钮来使用 inline 模式，当您多次在 inline 模式下使用此 bot 时，在输入框中输入 <code>@</code> 即可看到 bot 会出现在列表中",
 		ParseMode:   models.ParseModeHTML,
-		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{
 				Text:                         "点击浏览您的收藏",
 				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",

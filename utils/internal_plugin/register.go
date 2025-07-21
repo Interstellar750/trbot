@@ -44,7 +44,7 @@ func Register(ctx context.Context) {
 			MessageHandler: func(opts *handler_params.Message) error {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
-					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 					Text:            fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", opts.Message.Chat.Type, opts.Message.Chat.ID, opts.Message.Chat.Username),
 					ParseMode:       models.ParseModeHTML,
 				})
@@ -65,8 +65,8 @@ func Register(ctx context.Context) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					Text:            "您可以订阅测试频道以查看最近的更新更新内容",
-					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
-					ReplyMarkup:     &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+					ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "测试频道",
 						URL:  "https://t.me/viewtrbot",
 					}}}},
@@ -88,22 +88,24 @@ func Register(ctx context.Context) {
 				var pendingMessage string
 				if opts.Message.ReplyToMessage != nil {
 					if opts.Message.ReplyToMessage.Sticker != nil {
-						pendingMessage = fmt.Sprintf("Type: [Sticker] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Sticker.FileID)
+						pendingMessage = fmt.Sprintf("Type: [Sticker]\nFileID: [<code>%s</code>]", opts.Message.ReplyToMessage.Sticker.FileID)
 					} else if opts.Message.ReplyToMessage.Document != nil {
-						pendingMessage = fmt.Sprintf("Type: [Document] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Document.FileID)
+						pendingMessage = fmt.Sprintf("Type: [Document]\nFileID: [<code>%s</code>]", opts.Message.ReplyToMessage.Document.FileID)
 					} else if opts.Message.ReplyToMessage.Photo != nil {
-						pendingMessage += fmt.Sprintf("Type: [Photo]\nPhotoID: [<code>%s</code>]\n", opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID)
+						pendingMessage += "Type: [Photo]\n"
 						if len(opts.Fields) > 1 && opts.Fields[1] == "all" { // 如果有 all 参数则显示图片所有分辨率的 File ID
 							for i, n := range opts.Message.ReplyToMessage.Photo {
-								pendingMessage += fmt.Sprintf("\nPhotoID_%d: W:%d H:%d Size:%d\nUniqueID: [<code>%s</code>]\n", i, n.Width, n.Height, n.FileSize, n.FileUniqueID)
+								pendingMessage += fmt.Sprintf("\nPhotoID_%d: [<code>%s</code>]\nUniqueID: [<code>%s</code>]\nW:%d H:%d Size:%d\n", i, n.FileID, n.FileUniqueID, n.Width, n.Height, n.FileSize)
 							}
+						} else {
+							pendingMessage += fmt.Sprintf("PhotoID: [<code>%s</code>]", opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID)
 						}
 					} else if opts.Message.ReplyToMessage.Video != nil {
-						pendingMessage = fmt.Sprintf("Type: [Video] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Video.FileID)
+						pendingMessage = fmt.Sprintf("Type: [Video]\nFileID: [<code>%s</code>]", opts.Message.ReplyToMessage.Video.FileID)
 					} else if opts.Message.ReplyToMessage.Voice != nil {
-						pendingMessage = fmt.Sprintf("Type: [Voice] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Voice.FileID)
+						pendingMessage = fmt.Sprintf("Type: [Voice]\nFileID: [<code>%s</code>]", opts.Message.ReplyToMessage.Voice.FileID)
 					} else if opts.Message.ReplyToMessage.Audio != nil {
-						pendingMessage = fmt.Sprintf("Type: [Audio] \nFileID: [<code>%v</code>]", opts.Message.ReplyToMessage.Audio.FileID)
+						pendingMessage = fmt.Sprintf("Type: [Audio]\nFileID: [<code>%s</code>]", opts.Message.ReplyToMessage.Audio.FileID)
 					} else {
 						pendingMessage = "Unknown message type"
 					}
@@ -113,7 +115,7 @@ func Register(ctx context.Context) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					Text:            pendingMessage,
-					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 					ParseMode:       models.ParseModeHTML,
 				})
 				if err != nil {
@@ -139,7 +141,7 @@ func Register(ctx context.Context) {
 					ReplyParameters:    &models.ReplyParameters{ MessageID: opts.Message.ID },
 					ParseMode:          models.ParseModeMarkdownV1,
 					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
-					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "关闭",
 						CallbackData: "delete_this_message",
 					}}}},
@@ -161,7 +163,7 @@ func Register(ctx context.Context) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					Text:            "您当前并没有任何操作需要取消",
-					ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 				})
 				if err != nil {
 					zerolog.Ctx(opts.Ctx).Error().
@@ -461,6 +463,7 @@ func Register(ctx context.Context) {
 		},
 		{
 			Command: "by",
+			Description: "使用 file ID 发送内容",
 			Attr: plugin_utils.InlineHandlerAttr{
 				IsHideInCommandList: true,
 				IsCantBeDefault: true,

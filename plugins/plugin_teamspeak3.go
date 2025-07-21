@@ -43,11 +43,12 @@ var reconnectMessageID int
 
 type TSServerQuery struct {
 	// get Name And Password in TeamSpeak 3 Client -> `Tools` -> `ServerQuery Login`
-	URL      string `yaml:"URL"`
-	Name     string `yaml:"Name"`
-	Password string `yaml:"Password"`
-	GroupID  int64  `yaml:"GroupID"`
-	OnlineClientMessageID int `yaml:"OnlineClientMessageID"`
+	URL             string          `yaml:"URL"`
+	Name            string          `yaml:"Name"`
+	Password        string          `yaml:"Password"`
+	GroupID         int64           `yaml:"GroupID"`
+	GroupType       models.ChatType `yaml:"GroupType"` // group or supergroup
+	PinnedMessageID int             `yaml:"PinnedMessageID"`
 }
 
 type OnlineClient struct {
@@ -242,12 +243,10 @@ func getOptsHandler(opts *handler_params.Update) error {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsData.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		logger.Debug().
-			Msg("success get opts by handler")
+		logger.Debug().Msg("success get opts by handler")
 		if !isLoginFailed {
 			go listenUserStatus(opts.Ctx)
-			logger.Debug().
-				Msg("success start listen user status")
+			logger.Debug().Msg("success start listen user status")
 		}
 	}
 	return nil
@@ -269,12 +268,10 @@ func showStatus(opts *handler_params.Update) error {
 	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsData.GroupID {
 		privateOpts = opts
 		isCanListening = true
-		logger.Debug().
-			Msg("success get opts by showStatus")
+		logger.Debug().Msg("success get opts by showStatus")
 		if !isLoginFailed {
 			go listenUserStatus(opts.Ctx)
-			logger.Debug().
-				Msg("success start listen user status")
+			logger.Debug().Msg("success start listen user status")
 		}
 		// pendingMessage += fmt.Sprintln("已准备好发送用户状态")
 	}
@@ -343,7 +340,7 @@ func showStatus(opts *handler_params.Update) error {
 			Int64("chatID", opts.Update.Message.Chat.ID).
 			Str("content", "teamspeak online client status").
 			Msg(flaterr.SendMessage.Str())
-		handlerErr.Addf("failed to send `teamspeak online client status: %w`", err)
+		handlerErr.Addt(flaterr.SendMessage, "teamspeak online client status", err)
 	}
 
 	return handlerErr.Flat()
@@ -360,6 +357,10 @@ func listenUserStatus(ctx context.Context) {
 	listenTicker := time.NewTicker(pollingInterval)
 	defer listenTicker.Stop()
 
+	if tsData.GroupType == "" {
+		tsData.GroupType = privateOpts.Update.Message.Chat.Type
+	}
+
 	if hasHandlerByChatID {
 		hasHandlerByChatID = false
 		// 获取到 privateOpts 后删掉 handler by chatID
@@ -367,20 +368,20 @@ func listenUserStatus(ctx context.Context) {
 	}
 
 	// 取消置顶上一次的置顶消息
-	if tsData.OnlineClientMessageID != 0 {
+	if tsData.PinnedMessageID != 0 {
 		_, err := privateOpts.Thebot.UnpinChatMessage(ctx, &bot.UnpinChatMessageParams{
 			ChatID:    tsData.GroupID,
-			MessageID: tsData.OnlineClientMessageID,
+			MessageID: tsData.PinnedMessageID,
 		})
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Int64("chatID", tsData.GroupID).
-				Int("messageID", tsData.OnlineClientMessageID).
+				Int("messageID", tsData.PinnedMessageID).
 				Str("content", "latest pinned online client status").
 				Msg(flaterr.UnpinChatMessage.Str())
 		}
-		tsData.OnlineClientMessageID = 0
+		tsData.PinnedMessageID = 0
 	}
 
 	var retryCount int
@@ -397,8 +398,7 @@ func listenUserStatus(ctx context.Context) {
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(ctx, &checkFailedCount, beforeOnlineClient)
 			} else {
-				logger.Info().
-					Msg("try reconnect...")
+				logger.Info().Msg("try reconnect...")
 				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
 				if retryCount < 15 { retryCount++ }
 				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
@@ -408,8 +408,7 @@ func listenUserStatus(ctx context.Context) {
 					// 重新初始化成功则恢复 ticker 速度
 					retryCount = 1
 					listenTicker.Reset(pollingInterval)
-					logger.Info().
-						Msg("reconnect success")
+					logger.Info().Msg("reconnect success")
 					botMessage, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 						ChatID:    tsData.GroupID,
 						Text:      "已成功与服务器重新建立连接",
@@ -517,7 +516,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 				Msg("online client change detected")
 			notifyClientChange(added, removed)
 		} else {
-			if tsData.OnlineClientMessageID == 0 {
+			if tsData.PinnedMessageID == 0 {
 				message, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 					ChatID:    tsData.GroupID,
 					Text:      "开始监听 Teamspeak 3 用户状态",
@@ -532,7 +531,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 						Msg(flaterr.SendMessage.Str())
 					return nowOnlineClient
 				}
-				tsData.OnlineClientMessageID = message.ID
+				tsData.PinnedMessageID = message.ID
 				err = yaml.SaveYAML(tsDataPath, &tsData)
 				if err != nil {
 					logger.Error().
@@ -542,24 +541,24 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 				} else {
 					// 置顶消息提醒
 					ok, err := privateOpts.Thebot.PinChatMessage(privateOpts.Ctx, &bot.PinChatMessageParams{
-						ChatID: tsData.GroupID,
-						MessageID: tsData.OnlineClientMessageID,
+						ChatID:              tsData.GroupID,
+						MessageID:           tsData.PinnedMessageID,
 						DisableNotification: true,
 					})
 					if ok {
 						isOnlineClientMessagePin = true
 						// 删除置顶消息提示
 						plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-							PluginName: "remove pin message notice",
-							ChatType: models.ChatTypeSupergroup,
-							MessageType: message_utils.PinnedMessage,
-							ForChatID: tsData.GroupID,
+							PluginName:       "remove pin message notice",
+							ChatType:         tsData.GroupType,
+							MessageType:      message_utils.PinnedMessage,
+							ForChatID:        tsData.GroupID,
 							AllowAutoTrigger: true,
 							UpdateHandler: func(opts *handler_params.Update) error {
 								if opts.Update.Message.PinnedMessage != nil {
-									if opts.Update.Message.PinnedMessage.Message.ID == tsData.OnlineClientMessageID {
+									if opts.Update.Message.PinnedMessage.Message.ID == tsData.PinnedMessageID {
 										_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-											ChatID: tsData.GroupID,
+											ChatID:    tsData.GroupID,
 											MessageID: opts.Update.Message.ID,
 										})
 										// 不管成功与否，都注销这个 handler
@@ -691,7 +690,7 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 
 	_, err := privateOpts.Thebot.EditMessageText(privateOpts.Ctx, &bot.EditMessageTextParams{
 		ChatID: tsData.GroupID,
-		MessageID: tsData.OnlineClientMessageID,
+		MessageID: tsData.PinnedMessageID,
 		Text:   pendingMessage,
 		ParseMode: models.ParseModeHTML,
 	})

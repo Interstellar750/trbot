@@ -98,7 +98,7 @@ func startHandler(params *handler_params.Update) error {
 		ParseMode:          models.ParseModeMarkdownV1,
 		ReplyParameters:    &models.ReplyParameters{ MessageID: params.Update.Message.ID },
 		LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
-		ReplyMarkup:        &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+		ReplyMarkup:        &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:                         "尝试 Inline 模式",
 			SwitchInlineQueryCurrentChat: " ",
 		}}}},
@@ -123,8 +123,7 @@ func helpHandler(params *handler_params.Message) error {
 	_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
 		ChatID:             params.Message.Chat.ID,
 		Text:               fmt.Sprintf("当前 bot 中有 %d 个帮助文档", len(plugin_utils.AllPlugins.HandlerHelp)),
-		ParseMode:          models.ParseModeMarkdownV1,
-		ReplyParameters:    &models.ReplyParameters{MessageID: params.Message.ID},
+		ReplyParameters:    &models.ReplyParameters{ MessageID: params.Message.ID },
 		LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 		ReplyMarkup:        plugin_utils.BuildHandlerHelpKeyboard(),
 	})
@@ -169,7 +168,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 				if handler.ReplyMarkup != nil {
 					replyMarkup = handler.ReplyMarkup
 				} else {
-					replyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+					replyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 						{
 							Text:         "返回",
 							CallbackData: "help",

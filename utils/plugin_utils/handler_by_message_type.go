@@ -100,6 +100,16 @@ func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 
 	var handlerCount int
 	for _, handler := range handlers {
+		if handler.PluginName == "" || handler.ChatType == "" || handler.MessageType == "" || handler.UpdateHandler == nil {
+			log.Error().
+				Str("funcName", "AddHandlerByMessageTypePlugins").
+				Str("pluginName", handler.PluginName).
+				Str("chatType", string(handler.ChatType)).
+				Str("messageType", string(handler.MessageType)).
+				Int64("forChatID", handler.ForChatID).
+				Msgf("Not enough parameters, skip this handler")
+			continue
+		}
 		if AllPlugins.HandlerByMessageType[handler.ChatType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType] = map[message_utils.MessageTypeList]map[int64]map[string]ByMessageTypeHandler{} }
 		if AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType] = map[int64]map[string]ByMessageTypeHandler{} }
 		if AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID] == nil { AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID] = map[string]ByMessageTypeHandler{} }
@@ -267,7 +277,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 							Err(err).
 							Str("content", "error in by message type handler notice").
 							Msg(flaterr.SendMessage.Str())
-						handlerErr.Addf(flaterr.SendMessage.Fmt(), "error in by message type handler notice", err)
+						handlerErr.Addt(flaterr.SendMessage, "error in by message type handler notice", err)
 					}
 				} else {
 					_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -279,7 +289,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 							Err(err).
 							Str("content", "select by message type handler keyboard").
 							Msg(flaterr.DeleteMessages.Str())
-						handlerErr.Addf(flaterr.DeleteMessage.Fmt(), "select by message type handler keyboard", err)
+						handlerErr.Addt(flaterr.DeleteMessage, "select by message type handler keyboard", err)
 					}
 				}
 			} else {
@@ -319,7 +329,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 								Err(err).
 								Str("content", "error in by message type handler notice").
 								Msg(flaterr.SendMessage.Str())
-							handlerErr.Addf(flaterr.SendMessage.Fmt(), "error in by message type handler notice", err)
+							handlerErr.Addt(flaterr.SendMessage, "error in by message type handler notice", err)
 						}
 					} else {
 						_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -331,7 +341,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 								Err(err).
 								Str("content", "select by message type handler keyboard").
 								Msg(flaterr.DeleteMessages.Str())
-							handlerErr.Addf(flaterr.DeleteMessage.Fmt(), "select by message type handler keyboard", err)
+							handlerErr.Addt(flaterr.DeleteMessage, "select by message type handler keyboard", err)
 						}
 					}
 				} else {
@@ -345,7 +355,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 							Err(err).
 							Str("content", "this by message type handler is not exist").
 							Msg(flaterr.AnswerCallbackQuery.Str())
-						handlerErr.Addf(flaterr.AnswerCallbackQuery.Fmt(), "this by message type handler is not exist", err)
+						handlerErr.Addt(flaterr.AnswerCallbackQuery, "this by message type handler is not exist", err)
 					}
 				}
 			}

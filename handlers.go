@@ -139,7 +139,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			logger.Info().
 				Dict(utils.GetUserDict(&update.CallbackQuery.From)).
 				Dict("chat", chat).
-				Str("query", update.CallbackQuery.Data).
+				Str("callbackQueryDate", update.CallbackQuery.Data).
 				Msg("callback query")
 		case updateType.MessageReaction:
 			// 私聊或群组表情回应
@@ -942,7 +942,7 @@ func callbackQueryHandler(params *handler_params.Update) {
 	callbackQueryLogger := zerolog.Ctx(params.Ctx).
 		With().
 		Dict(utils.GetUserDict(&params.Update.CallbackQuery.From)).
-		Str("queryData", params.Update.CallbackQuery.Data).
+		Str("callbackQueryData", params.Update.CallbackQuery.Data).
 		Logger()
 
 	var callbackQueryParams = handler_params.CallbackQuery{

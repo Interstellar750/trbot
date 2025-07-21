@@ -25,19 +25,13 @@ import (
 
 var UdoneseData Udonese
 var UdoneseErr  error
-
-var UdoneseDir  string = filepath.Join(consts.YAMLDataBaseDir, "udonese/")
-var UdonesePath string = filepath.Join(UdoneseDir, consts.YAMLFileName)
-var UdonGroupID  int64 = -1002205667779
-// var UdonGroupID  int64 = -1002499888124 // trbot
-var UdoneseManagerIDs []int64 = []int64{
-	872082796,  // akaudon
-	1086395364, // trle5
-}
+var UdonesePath string = filepath.Join(consts.YAMLDataBaseDir, "udonese/", consts.YAMLFileName)
 
 type Udonese struct {
-	Count int           `yaml:"count"`
-	List  []UdoneseWord `yaml:"list"`
+	GroupID    int64         `yaml:"GroupID"`
+	ManagerIDs []int64       `yaml:"ManagerIDs"`
+	Count      int           `yaml:"Count"`
+	List       []UdoneseWord `yaml:"List"`
 }
 
 // 获取全部的词
@@ -186,6 +180,7 @@ func SaveUdonese(ctx context.Context) error {
 		Str("funcName", "SaveUdonese").
 		Logger()
 
+	UdoneseData.Count = len(UdoneseData.List)
 	err := yaml.SaveYAML(UdonesePath, &UdoneseData)
 	if err != nil {
 		logger.Error().
@@ -242,7 +237,6 @@ func addUdonese(ctx context.Context, params *UdoneseWord) *UdoneseWord {
 		Interface("meaningList", params.MeaningList).
 		Msg("Add new word")
 	UdoneseData.List = append(UdoneseData.List, *params)
-	UdoneseData.Count++
 	return nil
 }
 
@@ -258,9 +252,9 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	isManager := utils.AnyContains(opts.Message.From.ID, UdoneseManagerIDs)
+	isManager := utils.AnyContains(opts.Message.From.ID, UdoneseData.ManagerIDs)
 
-	if opts.Message.Chat.ID != UdonGroupID {
+	if opts.Message.Chat.ID != UdoneseData.GroupID {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Message.Chat.ID,
 			Text:      "抱歉，此命令仅在部分群组可用",
@@ -272,9 +266,9 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetChatDict(&opts.Message.Chat)).
-				Str("content", "/udonese not allowed group").
+				Str("content", "not in allowed group").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `/udonese not allowed group` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "not in allowed group", err)
 		}
 	} else {
 		if len(opts.Fields) < 3 {
@@ -292,9 +286,9 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 						logger.Error().
 							Err(err).
 							Int64("chatID", opts.Message.Chat.ID).
-							Str("content", "/udonese admin command help").
+							Str("content", "admin command help").
 							Msg(flaterr.SendMessage.Str())
-						handlerErr.Addf("failed to send `/udonese admin command help` message: %w", err)
+						handlerErr.Addt(flaterr.SendMessage, "admin command help", err)
 					}
 				} else /* 词信息 */ {
 					checkWord := opts.Fields[1]
@@ -318,9 +312,9 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 							logger.Error().
 								Err(err).
 								Int64("chatID", opts.Message.Chat.ID).
-								Str("content", "/udonese admin command no this word").
+								Str("content", "admin command no this word").
 								Msg(flaterr.SendMessage.Str())
-							handlerErr.Addf("failed to send `/udonese admin command no this word` message: %w", err)
+							handlerErr.Addt(flaterr.SendMessage, "admin command no this word", err)
 						}
 					} else {
 						_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -335,9 +329,9 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 							logger.Error().
 								Err(err).
 								Int64("chatID", opts.Message.Chat.ID).
-								Str("content", "/udonese manage keyboard").
+								Str("content", "udonese manage keyboard").
 								Msg(flaterr.SendMessage.Str())
-							handlerErr.Addf("failed to send `/udonese manage keyboard` message: %w", err)
+							handlerErr.Addt(flaterr.SendMessage, "udonese manage keyboard", err)
 						}
 					}
 				}
@@ -353,9 +347,9 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 					logger.Info().
 						Err(err).
 						Int64("chatID", opts.Message.Chat.ID).
-						Str("content", "/udonese command help").
+						Str("content", "udonese command help").
 						Msg(flaterr.SendMessage.Str())
-					handlerErr.Addf("failed to send `/udonese command help` message: %w", err)
+					handlerErr.Addt(flaterr.SendMessage, "udonese command help", err)
 				}
 			}
 		} else {
@@ -484,33 +478,33 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 							Str("messageText", opts.Message.Text).
 							Str("content", "failed save udonese list notice").
 							Msg(flaterr.SendMessage.Str())
-						handlerErr.Addf("failed to send `failed to save udonese list notice` message: %w", err)
+						handlerErr.Addt(flaterr.SendMessage, "failed to save udonese list notice", err)
 					}
 					return handlerErr.Flat()
-				} else {
-					pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.Fields[1])
-					pendingMessage += fmt.Sprintf("[%s] ", meaning)
+				}
 
-					// 来源的用户或频道
-					if fromUsername != "" {
-						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", fromUsername, fromName)
-					} else if fromID != 0 {
-						if fromID < 0 {
-							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(fromID), fromName)
-						} else {
-							pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", fromID, fromName)
-						}
+				pendingMessage += fmt.Sprintf("已添加 [<code>%s</code>]\n", opts.Fields[1])
+				pendingMessage += fmt.Sprintf("[%s] ", meaning)
+
+				// 来源的用户或频道
+				if fromUsername != "" {
+					pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/%s\">%s</a> ", fromUsername, fromName)
+				} else if fromID != 0 {
+					if fromID < 0 {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(fromID), fromName)
+					} else {
+						pendingMessage += fmt.Sprintf("From <a href=\"https://t.me/@id%d\">%s</a> ", fromID, fromName)
 					}
+				}
 
-					// 由其他用户添加时的信息
-					if viaUsername != "" {
-						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", viaUsername, viaName)
-					} else if viaID != 0 {
-						if viaID < 0 {
-							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(viaID), viaName)
-						} else {
-							pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", viaID, viaName)
-						}
+				// 由其他用户添加时的信息
+				if viaUsername != "" {
+					pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/%s\">%s</a> ", viaUsername, viaName)
+				} else if viaID != 0 {
+					if viaID < 0 {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/c/%s/0\">%s</a> ", utils.RemoveIDPrefix(viaID), viaName)
+					} else {
+						pendingMessage += fmt.Sprintf("Via <a href=\"https://t.me/@id%d\">%s</a> ", viaID, viaName)
 					}
 				}
 			}
@@ -529,7 +523,7 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 					Dict(utils.GetChatDict(&opts.Message.Chat)).
 					Str("content", "udonese keyword added").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf("failed to send `udonese keyword added` message: %w", err)
+				handlerErr.Addt(flaterr.SendMessage, "udonese keyword added", err)
 			} else {
 				time.Sleep(time.Second * 10)
 				_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
@@ -546,7 +540,7 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 						Ints("messageIDs", []int{ opts.Message.ID, botMessage.ID }).
 						Str("content", "udonese keyword added").
 						Msg(flaterr.DeleteMessages.Str())
-					handlerErr.Addf("failed to delete `udonese keyword added` messages: %w", err)
+					handlerErr.Addt(flaterr.DeleteMessages, "udonese keyword added", err)
 				}
 			}
 		}
@@ -710,7 +704,7 @@ func udoneseGroupHandler(opts *handler_params.Update) error {
 					Int64("chatID", opts.Update.Message.Chat.ID).
 					Str("content", "sms command usage").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf("failed to send `sms command usage` message: %w", err)
+				handlerErr.Addt(flaterr.SendMessage, "sms command usage", err)
 			}
 		} else {
 			// 在数据库循环查找这个词
@@ -729,7 +723,7 @@ func udoneseGroupHandler(opts *handler_params.Update) error {
 							Int64("chatID", opts.Update.Message.Chat.ID).
 							Str("content", "sms keyword meaning").
 							Msg(flaterr.SendMessage.Str())
-						handlerErr.Addf("failed to send `sms keyword meaning` message: %w", err)
+						handlerErr.Addt(flaterr.SendMessage, "sms keyword meaning", err)
 					}
 					return handlerErr.Flat()
 				}
@@ -753,7 +747,7 @@ func udoneseGroupHandler(opts *handler_params.Update) error {
 						Int64("chatID", opts.Update.Message.Chat.ID).
 						Str("content", "sms keyword meaning").
 						Msg(flaterr.SendMessage.Str())
-					handlerErr.Addf("failed to send `sms keyword meaning` message: %w", err)
+					handlerErr.Addt(flaterr.SendMessage, "sms keyword meaning", err)
 				}
 				return handlerErr.Flat()
 			}
@@ -777,7 +771,7 @@ func udoneseGroupHandler(opts *handler_params.Update) error {
 				Int("messageID", botMessage.ID).
 				Str("content", "sms keyword no meaning").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `sms keyword no meaning` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "sms keyword no meaning", err)
 		} else {
 			time.Sleep(time.Second * 10)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
@@ -791,7 +785,7 @@ func udoneseGroupHandler(opts *handler_params.Update) error {
 					Int("messageID", botMessage.ID).
 					Str("content", "sms keyword no meaning").
 					Msg(flaterr.DeleteMessage.Str())
-				handlerErr.Addf("failed to delete `sms keyword no meaning` message: %w", err)
+				handlerErr.Addt(flaterr.DeleteMessage, "sms keyword no meaning", err)
 			}
 		}
 	}
@@ -819,7 +813,7 @@ func init() {
 		MessageHandler: addUdoneseHandler,
 	})
 	plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-		ForChatID:         UdonGroupID,
+		ForChatID:       UdoneseData.GroupID,
 		PluginName:     "udoneseGroupHandler",
 		UpdateHandler: udoneseGroupHandler,
 	})
@@ -838,7 +832,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 
 	var handlerErr flaterr.MultErr
 
-	if !utils.AnyContains(opts.Update.CallbackQuery.From.ID, UdoneseManagerIDs) {
+	if !utils.AnyContains(opts.Update.CallbackQuery.From.ID, UdoneseData.ManagerIDs) {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.Update.CallbackQuery.ID,
 			Text: "不可以！",
@@ -850,7 +844,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 				Str("callbackQueryID", opts.Update.CallbackQuery.ID).
 				Str("content", "udonese no edit permissions").
 				Msg(flaterr.AnswerCallbackQuery.Str())
-			handlerErr.Addf("failed to send `udonese no edit permissions` inline result: %w", err)
+			handlerErr.Addt(flaterr.AnswerCallbackQuery, "udonese no edit permissions", err)
 		}
 	} else {
 		if opts.Update.CallbackQuery.Data == "udonese_done" {
@@ -865,7 +859,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 					Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
 					Str("content", "udonese keyword manage keyboard").
 					Msg(flaterr.DeleteMessage.Str())
-				handlerErr.Addf("failed to delete `udonese keyword manage keyboard` inline result: %w", err)
+				handlerErr.Addt(flaterr.DeleteMessage, "udonese keyword manage keyboard", err)
 			}
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_word_") {
 			word := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_word_")
@@ -890,7 +884,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 					Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
 					Str("content", "udonese word meaning list").
 					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addf("failed to edit message to `udonese keyword manage keyboard`: %w", err)
+				handlerErr.Addt(flaterr.EditMessageText, "udonese keyword manage keyboard", err)
 			}
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_meaning_") {
 			wordAndIndex := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "udonese_meaning_")
@@ -944,7 +938,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 					MessageID: opts.Update.CallbackQuery.Message.Message.ID,
 					Text: pendingMessage,
 					ParseMode: models.ParseModeHTML,
-					ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 						{
 							Text: "删除此意思",
 							CallbackData: fmt.Sprintf("udonese_delmeaning_%s_%d", wordAndIndexList[0], meanningIndex),
@@ -962,7 +956,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 						Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
 						Str("content", "udonese meaning manage keyboard").
 						Msg(flaterr.EditMessageText.Str())
-					handlerErr.Addf("failed to edit message to `udonese meaning manage keyboard`: %w", err)
+					handlerErr.Addt(flaterr.EditMessageText, "udonese meaning manage keyboard", err)
 				}
 			}
 		} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "udonese_delmeaning_") {
@@ -1011,7 +1005,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 							Err(err).
 							Str("content", "failed to save udonese data after delete meaning").
 							Msg(flaterr.AnswerCallbackQuery.Str())
-						handlerErr.Addf("failed to send `failed to save udonese data after delete meaning` callback answer: %w", err)
+						handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to save udonese data after delete meaning", err)
 					}
 				} else {
 					_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
@@ -1028,7 +1022,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 							Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
 							Str("content", "udonese meaning manage keyboard after delete meaning").
 							Msg(flaterr.EditMessageText.Str())
-						handlerErr.Addf("failed to edit message to `udonese meaning manage keyboard after delete meaning`: %w", err)
+						handlerErr.Addt(flaterr.EditMessageText, "udonese meaning manage keyboard after delete meaning", err)
 					}
 				}
 			}
@@ -1058,7 +1052,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 					logger.Error().
 						Err(err).
 						Msg(flaterr.AnswerCallbackQuery.Str())
-					handlerErr.Addf("failed to send `failed to save udonese data after delete word` callback answer: %w", err)
+					handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to save udonese data after delete word", err)
 				}
 			} else {
 				_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
@@ -1078,7 +1072,7 @@ func udoneseCallbackHandler(opts *handler_params.Update) error {
 						Int("messageID", opts.Update.CallbackQuery.Message.Message.ID).
 						Str("content", "udonese word deleted notice").
 						Msg(flaterr.EditMessageText.Str())
-					handlerErr.Addf("failed to edit message to `udonese word deleted notice`: %w", err)
+					handlerErr.Addt(flaterr.EditMessageText, "udonese word deleted notice", err)
 				}
 			}
 		}

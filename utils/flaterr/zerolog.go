@@ -3,7 +3,6 @@ package flaterr
 // return "content", str
 func Cont(str string) (string, string) {
 	return "content", str
-
 }
 
 func (ew *ErrWrapper) Cont(content string) *ErrWrapper {

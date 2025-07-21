@@ -43,14 +43,15 @@ func init() {
 		{
 			// 不转换格式，打包下载整个贴纸包
 			CallbackDataPrefix: "s",
-			CallbackQueryHandler: DownloadStickerPackCallBackHandler,
+			CallbackQueryHandler: DownloadStickerPackCallbackHandler,
 		},
 		{
 			// 将贴纸包中的静态贴纸全部转换为 PNG 格式并打包
 			CallbackDataPrefix: "S",
-			CallbackQueryHandler: DownloadStickerPackCallBackHandler,
+			CallbackQueryHandler: DownloadStickerPackCallbackHandler,
 		},
 		{
+			// 下载贴纸包中的所有贴纸并打包发送到收藏频道
 			CallbackDataPrefix: "c",
 			CallbackQueryHandler: collectStickerSet,
 		},
@@ -73,7 +74,7 @@ func init() {
 		ParseMode:   models.ParseModeHTML,
 	})
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-		PluginName:      "贴纸下载",
+		PluginName:      "下载贴纸",
 		ChatType:         models.ChatTypePrivate,
 		MessageType:      message_utils.Sticker,
 		AllowAutoTrigger: true,
@@ -160,7 +161,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "sticker download error").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf(flaterr.SendMessage.Fmt(), "sticker download error", err)
+			handlerErr.Addt(flaterr.SendMessage, "sticker download error", err)
 		}
 	} else {
 		documentParams := &bot.SendDocumentParams{
@@ -221,7 +222,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "sticker file").
 				Msg(flaterr.SendDocument.Str())
-			handlerErr.Addf(flaterr.SendDocument.Fmt(), "sticker file", err)
+			handlerErr.Addt(flaterr.SendDocument, "sticker file", err)
 		}
 	}
 
@@ -311,8 +312,9 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 				logger.Error().
 					Err(err).
 					Str("fileID", opts.Update.Message.Sticker.FileID).
-					Msg("Failed to get sticker file info")
-				return nil, fmt.Errorf("failed to get sticker file [%s] info: %w", opts.Update.Message.Sticker.FileID, err)
+					Str("content", "sticker file info").
+					Msg(flaterr.GetFile.Str())
+				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Update.Message.Sticker.FileID, err)
 			}
 
 			// 组合链接下载贴纸源文件
@@ -399,13 +401,13 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 						return nil, fmt.Errorf("failed to create directory [%s] to convert sticker file: %w", GIFFilePath, err)
 					}
 
-					// 读取原贴纸文件，转码后存储到 png 格式贴纸的完整目录
+					// 读取原贴纸文件，转码后存储到 GIF 格式贴纸的完整目录
 					err = convertWebMToGif(originFullPath, toGIFFullPath)
 					if err != nil {
 						logger.Error().
 							Err(err).
 							Str("originFullPath", originFullPath).
-							Msg("Failed to convert webm to GIF")
+							Msg("Failed to convert WebM to GIF")
 						return nil, fmt.Errorf("failed to convert webm [%s] to GIF: %w", originFullPath, err)
 					}
 				} else {
@@ -413,8 +415,8 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 					logger.Error().
 						Err(err).
 						Str("toGIFFullPath", toGIFFullPath).
-						Msg("Failed to read converted file info")
-					return nil, fmt.Errorf("failed to read converted sticker file [%s] info: %w", toGIFFullPath, err)
+						Msg("Failed to read converted GIF file info")
+					return nil, fmt.Errorf("failed to read converted GIF sticker file [%s] info: %w", toGIFFullPath, err)
 				}
 			} else {
 				// 文件存在，跳过转换
@@ -460,25 +462,25 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 					logger.Error().
 						Err(err).
 						Str("originFullPath", originFullPath).
-						Msg("Failed to convert webp to png")
-					return nil, fmt.Errorf("failed to convert webp [%s] to png: %w", originFullPath, err)
+						Msg("Failed to convert WebP to PNG")
+					return nil, fmt.Errorf("failed to convert WebP [%s] to PNG: %w", originFullPath, err)
 				}
 			} else {
 				// 其他错误
 				logger.Error().
 					Err(err).
 					Str("toPNGFullPath", toPNGFullPath).
-					Msg("Failed to read converted sticker file info")
-				return nil, fmt.Errorf("failed to read converted png sticker file [%s] info : %w", toPNGFullPath, err)
+					Msg("Failed to read converted PNG sticker file info")
+				return nil, fmt.Errorf("failed to read converted PNG sticker file [%s] info : %w", toPNGFullPath, err)
 			}
 		} else {
 			// 文件存在，跳过转换
 			logger.Debug().
 				Str("toPNGFullPath", toPNGFullPath).
-				Msg("Sticker file already converted to png")
+				Msg("Sticker file already converted to PNG")
 		}
 
-		// 处理完成，将最后要读取的目录设为转码后 png 格式贴纸的完整目录
+		// 处理完成，将最后要读取的目录设为转码后 PNG 格式贴纸的完整目录
 		data.IsConverted = true
 		finalFullPath = toPNGFullPath
 	}
@@ -496,7 +498,7 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 	return &data, nil
 }
 
-func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) error {
+func DownloadStickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
@@ -517,7 +519,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Str("content", "start download stickerset notice").
 			Msg(flaterr.SendMessage.Str())
-		handlerErr.Addf(flaterr.SendMessage.Fmt(), "start download stickerset notice", err)
+		handlerErr.Addt(flaterr.SendMessage, "start download stickerset notice", err)
 	}
 
 	err = database.IncrementalUsageCount(opts.Ctx, opts.CallbackQuery.Message.Message.Chat.ID, db_struct.StickerSetDownloaded)
@@ -529,24 +531,25 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 		handlerErr.Addf("failed to incremental sticker set download count: %w", err)
 	}
 
-	var packName  string
+	var setName  string
 	var isOnlyPNG bool
 	if opts.CallbackQuery.Data[0:2] == "S_" {
-		packName = strings.TrimPrefix(opts.CallbackQuery.Data, "S_")
+		setName = strings.TrimPrefix(opts.CallbackQuery.Data, "S_")
 		isOnlyPNG = true
 	} else {
-		packName = strings.TrimPrefix(opts.CallbackQuery.Data, "s_")
+		setName = strings.TrimPrefix(opts.CallbackQuery.Data, "s_")
 		isOnlyPNG = false
 	}
 
 	// 通过贴纸的 packName 获取贴纸集
-	stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: packName })
+	stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: setName })
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-			Msg("Failed to get sticker set info")
-		handlerErr.Addf("Failed to get sticker set info: %w", err)
+			Str("setName", setName).
+			Msg(flaterr.GetStickerSet.Str())
+		handlerErr.Addt(flaterr.GetStickerSet, setName, err)
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.CallbackQuery.From.ID,
@@ -559,7 +562,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "get sticker set info error").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf(flaterr.SendMessage.Fmt(), "get sticker set info error", err)
+			handlerErr.Addt(flaterr.SendMessage, "get sticker set info error", err)
 		}
 	} else {
 		logger.Info().
@@ -590,7 +593,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "download sticker set error").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf(flaterr.SendMessage.Fmt(), "download sticker set error", err)
+				handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
 			}
 		} else {
 			documentParams := &bot.SendDocumentParams{
@@ -613,7 +616,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "sticker set zip file").
 					Msg(flaterr.SendDocument.Str())
-				handlerErr.Addf(flaterr.SendDocument.Fmt(), "sticker set zip file", err)
+				handlerErr.Addt(flaterr.SendDocument, "sticker set zip file", err)
 			}
 
 			_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
@@ -626,7 +629,7 @@ func DownloadStickerPackCallBackHandler(opts *handler_params.CallbackQuery) erro
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start download stickerset notice").
 					Msg(flaterr.DeleteMessage.Str())
-				handlerErr.Addf(flaterr.DeleteMessage.Fmt(), "start download sticker set notice", err)
+				handlerErr.Addt(flaterr.DeleteMessage, "start download sticker set notice", err)
 			}
 		}
 	}
@@ -696,8 +699,9 @@ func getStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 						Err(err).
 						Int("stickerIndex", i).
 						Str("fileID", sticker.FileID).
-						Msg("Failed to get sticker file info")
-					return nil, fmt.Errorf("failed to get file info %s: %w", sticker.FileID, err)
+						Str("content", "sticker file info").
+						Msg(flaterr.GetFile.Str())
+					return nil, fmt.Errorf(flaterr.GetFile.Fmt(), sticker.FileID, err)
 				}
 
 				// 下载贴纸文件
@@ -782,15 +786,15 @@ func getStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 							Msg("Failed to create directory to convert file")
 						return nil, fmt.Errorf("failed to create directory [%s] to convert file: %w", PNGFilePath, err)
 					}
-					// 将 webp 转换为 png
+					// 将 webp 转换为 PNG
 					err = convertWebPToPNG(originFullPath, toPNGFullPath)
 					if err != nil {
 						logger.Error().
 							Err(err).
 							Int("stickerIndex", i).
 							Str("originFullPath", originFullPath).
-							Msg("Failed to convert webp to png")
-						return nil, fmt.Errorf("failed to converting webp to png [%s]: %w", originFullPath, err)
+							Msg("Failed to convert WebP to PNG")
+						return nil, fmt.Errorf("failed to converting WebP to PNG [%s]: %w", originFullPath, err)
 					}
 				} else {
 					// 其他错误
@@ -798,8 +802,8 @@ func getStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 						Err(err).
 						Int("stickerIndex", i).
 						Str("toPNGFullPath", toPNGFullPath).
-						Msg("Failed to read converted file info")
-					return nil, fmt.Errorf("failed to read converted file info: %w", err)
+						Msg("Failed to read converted PNG file info")
+					return nil, fmt.Errorf("failed to read converted PNG file info: %w", err)
 				}
 			} else {
 				logger.Trace().
@@ -1004,7 +1008,7 @@ func zipFolder(srcDir, zipFile string) error {
 }
 
 func showCachedStickers(opts *handler_params.Message) error {
-	var button [][]models.InlineKeyboardButton
+	var button     [][]models.InlineKeyboardButton
 	var tempButton []models.InlineKeyboardButton
 
 	entries, err := os.ReadDir(StickerCache_path)
@@ -1028,10 +1032,10 @@ func showCachedStickers(opts *handler_params.Message) error {
 	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Message.Chat.ID,
 		Text: "请选择要查看的贴纸包",
-		ReplyMarkup: models.InlineKeyboardMarkup{
+		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: button,
 		},
-		MessageEffectID: "5104841245755180586",
+		// MessageEffectID: "5104841245755180586",
 	})
 	return err
 }
@@ -1041,6 +1045,8 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 		With().
 		Str("pluginName", "StickerDownload").
 		Str("funcName", "collectStickerSet").
+		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -1054,10 +1060,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-				Str("callbackQueryData", opts.CallbackQuery.Data).
 				Str("content", "collect channel ID not set").
 				Msg(flaterr.AnswerCallbackQuery.Str())
+			handlerErr.Addt(flaterr.AnswerCallbackQuery, "collect channel ID not set", err)
 		}
 	} else {
 		stickerSetName := strings.TrimPrefix(opts.CallbackQuery.Data, "c_")
@@ -1066,9 +1071,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-				Msg("Failed to get sticker set info")
-			handlerErr.Addf("Failed to get sticker set info: %w", err)
+				Str("stickerSetName", stickerSetName).
+				Msg(flaterr.GetStickerSet.Str())
+			handlerErr.Addt(flaterr.GetStickerSet, stickerSetName, err)
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.CallbackQuery.From.ID,
@@ -1078,10 +1083,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "get sticker set info error").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf(flaterr.SendMessage.Fmt(), "get sticker set info error", err)
+				handlerErr.Addt(flaterr.SendMessage, "get sticker set info error", err)
 			}
 		} else {
 			_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -1091,16 +1095,14 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start downloading sticker pack notice").
 					Msg(flaterr.AnswerCallbackQuery.Str())
-				handlerErr.Addf(flaterr.AnswerCallbackQuery.Fmt(), " send `start downloading sticker pack notice` callback answer: %w", err)
+				handlerErr.Addt(flaterr.AnswerCallbackQuery, "start downloading sticker pack notice", err)
 			}
 			stickerData, err := getStickerPack(opts.Ctx, opts.Thebot, stickerSet, false)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Msg("Failed to download sticker set")
 				handlerErr.Addf("failed to download sticker set: %w", err)
 
@@ -1112,10 +1114,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "download sticker set error").
 						Msg(flaterr.SendMessage.Str())
-					handlerErr.Addf(flaterr.SendMessage.Fmt(), "download sticker set error", err)
+					handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
 				}
 			} else {
 				var pendingMessage string = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n", stickerData.StickerSetTitle, stickerData.StickerSetName)
@@ -1142,10 +1143,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						Err(err).
 						Int64("channelID", StickerCollectionChannelID).
 						Str("stickerSetName", stickerSetName).
-						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "collect sticker set file").
 						Msg(flaterr.SendDocument.Str())
-					handlerErr.Addf(flaterr.SendDocument.Fmt(), "collect sticker set", err)
+					handlerErr.Addt(flaterr.SendDocument, "collect sticker set", err)
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID: opts.CallbackQuery.From.ID,
 						Text: fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
@@ -1157,10 +1157,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 							Err(err).
 							Int64("channelID", StickerCollectionChannelID).
 							Str("stickerSetName", stickerSetName).
-							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 							Str("content", "collect sticker set failed notice").
 							Msg(flaterr.SendMessage.Str())
-						handlerErr.Addf(flaterr.SendMessage.Fmt(), "collect sticker set failed notice", err)
+						handlerErr.Addt(flaterr.SendMessage, "collect sticker set failed notice", err)
 					}
 				}
 			}
@@ -1197,14 +1196,15 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 			logger.Error().
 				Err(err).
 				Dict(utils.GetUserDict(opts.Message.From)).
-				Msg("Failed to get sticker set info")
-			handlerErr.Addf("Failed to get sticker set info: %w", err)
+				Str("stickerSetName", stickerSetName).
+				Msg(flaterr.GetStickerSet.Str())
+			handlerErr.Addt(flaterr.GetStickerSet, stickerSetName, err)
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Message.From.ID,
-				Text:   fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", err),
+				ChatID:          opts.Message.From.ID,
+				Text:            fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>%s</blockquote>", err),
+				ParseMode:       models.ParseModeHTML,
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
 				logger.Error().
@@ -1212,16 +1212,16 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "get sticker set info error").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf(flaterr.SendMessage.Fmt(), "get sticker set info error", err)
+				handlerErr.Addt(flaterr.SendMessage, "get sticker set info error", err)
 			}
 		} else {
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID: opts.Message.From.ID,
-				Text:   fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerSet.Name, stickerSet.Title, len(stickerSet.Stickers)),
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ChatID:              opts.Message.From.ID,
+				Text:                fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerSet.Name, stickerSet.Title, len(stickerSet.Stickers)),
+				ParseMode:           models.ParseModeHTML,
 				DisableNotification: true,
-				ParseMode: models.ParseModeHTML,
-				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+				ReplyParameters:     &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 					{
 						{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", stickerSet.Name) },
 					},
@@ -1236,7 +1236,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 					Dict(utils.GetUserDict(opts.Message.From)).
 					Str("content", "sticker set info").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf(flaterr.SendMessage.Fmt(), "sticker set info", err)
+				handlerErr.Addt(flaterr.SendMessage, "sticker set info", err)
 			}
 		}
 	} else {
@@ -1251,7 +1251,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 				Dict(utils.GetUserDict(opts.Message.From)).
 				Str("content", "empty sticker link notice").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf(flaterr.SendMessage.Fmt(), "empty sticker link notice", err)
+			handlerErr.Addt(flaterr.SendMessage, "empty sticker link notice", err)
 		}
 	}
 
@@ -1297,7 +1297,7 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "MP4 download error").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf(flaterr.SendMessage.Fmt(), "MP4 download error", err)
+			handlerErr.Addt(flaterr.SendMessage, "MP4 download error", err)
 		}
 	} else {
 		_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
@@ -1314,7 +1314,7 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "GIF file").
 				Msg(flaterr.SendDocument.Str())
-			handlerErr.Addf(flaterr.SendDocument.Fmt(), "GIF file", err)
+			handlerErr.Addt(flaterr.SendDocument, "GIF file", err)
 		}
 	}
 
@@ -1347,8 +1347,8 @@ func downloadGifHandler(opts *handler_params.Update) (io.Reader, error) {
 				logger.Error().
 					Err(err).
 					Str("fileID", opts.Update.Message.Animation.FileID).
-					Msg("Failed to get GIF file info")
-				return nil, fmt.Errorf("failed to get GIF file [%s] info: %w", opts.Update.Message.Animation.FileID, err)
+					Msg(flaterr.GetFile.Str())
+				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Update.Message.Animation.FileID, err)
 			}
 
 			// 组合链接下载贴纸源文件

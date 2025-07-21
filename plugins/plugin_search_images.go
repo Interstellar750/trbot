@@ -25,8 +25,8 @@ var imageBaseURL   string = "https://alist.trle5.xyz/d/cache/photo/"
 
 func init() {
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-		PluginName: "search images",
-		ChatType: models.ChatTypePrivate,
+		PluginName: "获取搜图链接",
+		ChatType:    models.ChatTypePrivate,
 		MessageType: message_utils.Photo,
 		AllowAutoTrigger: true,
 		UpdateHandler: searchImageHandler,
@@ -111,7 +111,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 				Err(err).
 				Str("content", "need reply to a photo").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `need reply to a photo` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "need reply to a photo", err)
 		}
 	} else {
 		photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Message.ReplyToMessage)
@@ -131,7 +131,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 					Err(err).
 					Str("content", "photo cache error").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf("failed to send `photo cache error` message: %w", err)
+				handlerErr.Addt(flaterr.SendMessage, "photo cache error", err)
 			}
 		} else {
 			linkPreviewURL := imageBaseURL + photoPath
@@ -151,7 +151,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 					Err(err).
 					Str("content", "search images link buttons").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addf("failed to send `search images link buttons` message: %w", err)
+				handlerErr.Addt(flaterr.SendMessage, "search images link buttons", err)
 			}
 		}
 	}
@@ -200,7 +200,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "photo cache error").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `photo cache error` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "photo cache error", err)
 		}
 	} else {
 		linkPreviewURL := imageBaseURL + photoPath
@@ -220,7 +220,7 @@ func searchImageHandler(opts *handler_params.Update) error {
 				Err(err).
 				Str("content", "search images link buttons").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addf("failed to send `search images link buttons` message: %w", err)
+			handlerErr.Addt(flaterr.SendMessage, "search images link buttons", err)
 		}
 	}
 
@@ -237,20 +237,22 @@ func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (s
 	var photoFileName string = fmt.Sprintf("%d-%s.jpg", msg.From.ID, msg.Photo[len(msg.Photo)-1].FileID)
 	var photoFullPath string = filepath.Join(photoCachedDir, photoFileName)
 
-	_, err := os.Stat(photoFullPath) // 检查贴纸源文件是否已缓存
+	_, err := os.Stat(photoFullPath) // 检查图片源文件是否已缓存
 	if err != nil {
-		// 如果贴纸源文件未缓存，则下载
+		// 如果图片源文件未缓存，则下载
 		if os.IsNotExist(err) {
 			fileInfo, err := thebot.GetFile(ctx, &bot.GetFileParams{
 				FileID: msg.Photo[len(msg.Photo)-1].FileID,
 			})
 			if err != nil {
 				logger.Error().
-				Err(err).
-				Msg("Failed to get photo file")
-				return "", fmt.Errorf("failed to get photo file: %w", err)
+					Err(err).
+					Str("fileID", msg.Photo[len(msg.Photo)-1].FileID).
+					Str("content", "photo file").
+					Msg(flaterr.GetFile.Str())
+				return "", fmt.Errorf(flaterr.GetFile.Fmt(), msg.Photo[len(msg.Photo)-1].FileID, err)
 			} else {
-				// 组合链接下载贴纸源文件
+				// 组合链接下载图片源文件
 				resp, err := http.Get(thebot.FileDownloadLink(fileInfo))
 				if err != nil {
 					logger.Error().
@@ -281,7 +283,7 @@ func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (s
 				}
 				defer downloadedPhoto.Close()
 
-				// 将下载的原贴纸写入空文件
+				// 将下载的原图片写入空文件
 				_, err = io.Copy(downloadedPhoto, resp.Body)
 				if err != nil {
 					logger.Error().
@@ -324,6 +326,11 @@ func buildSearchLinksKeboard(photoPath string) models.ReplyMarkup {
 	}
 
 	if len(tempButton) > 0 { button = append(button, tempButton) }
+
+	button = append(button, []models.InlineKeyboardButton{{
+		Text:         "🚫 关闭菜单",
+		CallbackData: "delete_this_message",
+	}})
 
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: button,
