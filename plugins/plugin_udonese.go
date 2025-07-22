@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -796,7 +797,23 @@ func udoneseGroupHandler(opts *handler_params.Update) error {
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Udonese",
-		Func: ReadUdonese,
+		Func: func(ctx context.Context) error {
+			err := ReadUdonese(ctx)
+			if err != nil {
+				return err
+			} else {
+				if UdoneseData.GroupID != 0 {
+					plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
+						ForChatID:       UdoneseData.GroupID,
+						PluginName:     "udoneseGroupHandler",
+						UpdateHandler:   udoneseGroupHandler,
+					})
+				} else {
+					return errors.New("Udonese group ID is not set")
+				}
+			}
+			return nil
+		},
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "Udonese",
@@ -811,11 +828,6 @@ func init() {
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "udonese",
 		MessageHandler: addUdoneseHandler,
-	})
-	plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-		ForChatID:       UdoneseData.GroupID,
-		PluginName:     "udoneseGroupHandler",
-		UpdateHandler: udoneseGroupHandler,
 	})
 	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
 		CallbackDataPrefix:   "udonese",
