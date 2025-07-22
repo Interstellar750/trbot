@@ -71,6 +71,7 @@ func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "RunByChatIDHandlers").
+		Str("chatType", string(params.Update.Message.Chat.Type)).
 		Logger()
 
 	if AllPlugins.HandlerByChatID[params.Update.Message.Chat.ID] != nil {
@@ -95,7 +96,8 @@ func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 				handlerErr.Addf("hit by chat ID handler [%s], but this handler all function is nil, skip", name)
 			}
 		}
-	} else if AllPlugins.HandlerByChatID[0] != nil {
+	}
+	if AllPlugins.HandlerByChatID[0] != nil {
 		for name, handler := range AllPlugins.HandlerByChatID[0] {
 			slogger := logger.With().
 				Str("handlerName", name).

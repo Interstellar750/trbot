@@ -150,6 +150,8 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 		With().
 		Str("funcName", "RunByChatIDHandlers").
 		Str("messageType", string(msgType)).
+		Str("chatType", string(params.Update.Message.Chat.Type)).
+		Int64("chatID", params.Update.Message.Chat.ID).
 		Logger()
 
 	var needBuildSelectKeyboard bool = true
@@ -182,11 +184,13 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 								slogger.Error().
 									Err(err).
 									Msg("Error in by message type handler")
+								handlerErr.Addf("Error in by message type handler [%s]: %w", name, err)
 							}
 							isProcessed = true
 							needBuildSelectKeyboard = false
 						} else {
 							slogger.Warn().Msg("Hit by message type handler, but this handler function is nil, skip")
+							handlerErr.Addf("hit by message type handler [%s], but this handler all function is nil, skip", name)
 						}
 
 					}
@@ -198,6 +202,11 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 				handlerKeyboard, count := AllPlugins.HandlerByMessageType.BuildSelectKeyboard(params.Update.Message.Chat.Type, msgType, params.Update.Message.Chat.ID)
 				if len(handlerKeyboard) > 0 {
 					isProcessed = true
+					slogger := logger.With().
+						Int("handlerCount", count).
+						Logger()
+
+					slogger.Info().Msg("Send a handler by message type select keyboard to user")
 					// 多个 handler 自动回复一条带按钮的消息让用户手动操作
 					_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
 						ChatID:    params.Update.Message.Chat.ID,
@@ -206,11 +215,11 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 						ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: handlerKeyboard },
 					})
 					if err != nil {
-						logger.Error().
+						slogger.Error().
 							Err(err).
-							Int("handlerCount", count).
 							Str("content", "handler by message type select keyboard").
 							Msg(flaterr.SendMessage.Str())
+						handlerErr.Addt(flaterr.SendMessage, "handler by message type select keyboard", err)
 					}
 				}
 			}
