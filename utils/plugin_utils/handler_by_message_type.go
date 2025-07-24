@@ -190,7 +190,7 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 							needBuildSelectKeyboard = false
 						} else {
 							slogger.Warn().Msg("Hit by message type handler, but this handler function is nil, skip")
-							handlerErr.Addf("hit by message type handler [%s], but this handler all function is nil, skip", name)
+							handlerErr.Addf("hit by message type handler [%s], but this handler function is nil, skip", name)
 						}
 
 					}

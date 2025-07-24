@@ -134,17 +134,17 @@ func sendSearchLinks(opts *handler_params.Message) error {
 				handlerErr.Addt(flaterr.SendMessage, "photo cache error", err)
 			}
 		} else {
-			linkPreviewURL := imageBaseURL + photoPath
+			// linkPreviewURL := imageBaseURL + photoPath
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Message.Chat.ID,
 				Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 				ReplyMarkup: buildSearchLinksKeboard(photoPath),
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
-				LinkPreviewOptions: &models.LinkPreviewOptions{
-					URL: &linkPreviewURL,
-					PreferSmallMedia: bot.True(),
-					ShowAboveText: bot.True(),
-				},
+				// LinkPreviewOptions: &models.LinkPreviewOptions{
+				// 	URL: &linkPreviewURL,
+				// 	PreferSmallMedia: bot.True(),
+				// 	ShowAboveText: bot.True(),
+				// },
 			})
 			if err != nil {
 				logger.Error().
@@ -203,17 +203,17 @@ func searchImageHandler(opts *handler_params.Update) error {
 			handlerErr.Addt(flaterr.SendMessage, "photo cache error", err)
 		}
 	} else {
-		linkPreviewURL := imageBaseURL + photoPath
+		// linkPreviewURL := imageBaseURL + photoPath
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Update.Message.Chat.ID,
 			Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 			ReplyMarkup: buildSearchLinksKeboard(photoPath),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
-			LinkPreviewOptions: &models.LinkPreviewOptions{
-				URL: &linkPreviewURL,
-				PreferSmallMedia: bot.True(),
-				ShowAboveText: bot.True(),
-			},
+			// LinkPreviewOptions: &models.LinkPreviewOptions{
+			// 	URL: &linkPreviewURL,
+			// 	PreferSmallMedia: bot.True(),
+			// 	ShowAboveText: bot.True(),
+			// },
 		})
 		if err != nil {
 			logger.Error().

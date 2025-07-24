@@ -92,8 +92,8 @@ func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 					handlerErr.Addf("Error in by chat ID handler [%s]: %w", name, err)
 				}
 			} else {
-				slogger.Warn().Msg("Hit by chat ID handler, but this handler all function is nil, skip")
-				handlerErr.Addf("hit by chat ID handler [%s], but this handler all function is nil, skip", name)
+				slogger.Warn().Msg("Hit by chat ID handler, but this handler function is nil, skip")
+				handlerErr.Addf("hit by chat ID handler [%s], but this handler function is nil, skip", name)
 			}
 		}
 	}
@@ -107,8 +107,8 @@ func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 			slogger.Info().Msg("Hit by chat ID handler for any chat")
 
 			if handler.UpdateHandler == nil {
-				slogger.Warn().Msg("Hit by chat ID handler, but this handler all function is nil, skip")
-				handlerErr.Addf("hit by chat ID handler [%s], but this handler all function is nil, skip", name)
+				slogger.Warn().Msg("Hit by chat ID handler, but this handler function is nil, skip")
+				handlerErr.Addf("hit by chat ID handler [%s], but this handler function is nil, skip", name)
 				continue
 			}
 			handlerRunCount++
