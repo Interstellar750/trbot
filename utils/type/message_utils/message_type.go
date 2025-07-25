@@ -47,6 +47,19 @@ func (mt MessageType)AsValue() MessageTypeList {
 	return ""
 }
 
+func (mt MessageType)Str() string {
+	val := reflect.ValueOf(mt)
+	typ := reflect.TypeOf(mt)
+
+	for i := 0; i < val.NumField(); i++ {
+		if val.Field(i).Bool() {
+			return string(MessageTypeList(typ.Field(i).Name))
+		}
+	}
+
+	return ""
+}
+
 type MessageTypeList string
 
 const (
@@ -73,9 +86,12 @@ const (
 	Giveaway      MessageTypeList = "Giveaway"
 )
 
+func (mtl MessageTypeList)Str() string  {
+	return string(mtl)
+}
+
 // 判断消息的类型
-func GetMessageType(msg *models.Message) MessageType {
-	var msgType MessageType
+func GetMessageType(msg *models.Message) (msgType MessageType) {
 	if msg.Document != nil {
 		if msg.Animation != nil && msg.Animation.FileID == msg.Document.FileID && msg.Document.MimeType == "video/mp4" {
 			msgType.Animation = true
@@ -140,5 +156,6 @@ func GetMessageType(msg *models.Message) MessageType {
 	if msg.Text != "" {
 		msgType.OnlyText = true
 	}
-	return msgType
+
+	return
 }

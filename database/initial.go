@@ -18,7 +18,8 @@ type DatabaseBackend struct {
 	// 数据库等级，低优先级的数据库不会实时同步更改，程序仅会在高优先级数据库不可用才会尝试使用其中的数据
 	IsLowLevel bool
 
-	Initializer func(ctx context.Context) error // 数据库初始化函数
+	// 数据库初始化函数
+	Initializer func(ctx context.Context) error
 
 	// 数据库保存和读取函数
 	SaveDatabase func(ctx context.Context) error
@@ -69,7 +70,7 @@ func AddDatabaseBackends(ctx context.Context, backends ...DatabaseBackend) int {
 }
 
 func InitAndListDatabases(ctx context.Context) {
-	logger := zerolog.Ctx(ctx)
+	// redis
 	AddDatabaseBackends(ctx, DatabaseBackend{
 		Name:        "redis",
 		Initializer: redis_db.InitializeDB,
@@ -82,7 +83,7 @@ func InitAndListDatabases(ctx context.Context) {
 		UpdateOperationStatus: redis_db.UpdateOperationStatus,
 		SetCustomFlag:         redis_db.SetCustomFlag,
 	})
-
+	// yaml
 	AddDatabaseBackends(ctx, DatabaseBackend{
 		Name:        "yaml",
 		IsLowLevel:  true,
@@ -101,11 +102,11 @@ func InitAndListDatabases(ctx context.Context) {
 	})
 
 	if len(DBBackends) + len(DBBackends_LowLevel) == 0 {
-		logger.Fatal().
+		zerolog.Ctx(ctx).Fatal().
 			Msg("No database available")
 	}
 
-	logger.Info().
+	zerolog.Ctx(ctx).Info().
 		Int("highLevel", len(DBBackends)).
 		Int("lowLevel", len(DBBackends_LowLevel)).
 		Msg("Available databases")

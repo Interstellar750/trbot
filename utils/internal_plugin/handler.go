@@ -13,28 +13,21 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func startHandler(params *handler_params.Update) error {
+func startHandler(params *handler_params.Message) error {
 	defer utils.PanicCatcher(params.Ctx, "startHandler")
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "startHandler").
-		Dict(utils.GetChatDict(&params.Update.Message.Chat)).
-		Dict(utils.GetUserDict(params.Update.Message.From)).
-		Str("text",    params.Update.Message.Text).
+		Dict(utils.GetChatDict(&params.Message.Chat)).
+		Dict(utils.GetUserDict(params.Message.From)).
+		Str("text",    params.Message.Text).
 		Logger()
 
-	var messageParams = handler_params.Message{
-		Ctx:      params.Ctx,
-		Thebot:   params.Thebot,
-		Message:  params.Update.Message,
-		ChatInfo: params.ChatInfo,
-		Fields:   strings.Fields(params.Update.Message.Text),
-	}
-
-	if len(messageParams.Fields) > 1 {
+	if len(params.Fields) > 1 {
+		// todo: move to RunSlashStartWithPrefixCommandHandlers
 		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.WithPrefixHandler {
-			if strings.HasPrefix(messageParams.Fields[1], plugin.Prefix) {
-				inlineArgument := strings.Split(messageParams.Fields[1], "_")
+			if strings.HasPrefix(params.Fields[1], plugin.Prefix) {
+				inlineArgument := strings.Split(params.Fields[1], "_")
 				if inlineArgument[1] == plugin.Argument {
 					slogger := logger.With().
 						Str("handlerPrefix", plugin.Prefix).
@@ -42,66 +35,50 @@ func startHandler(params *handler_params.Update) error {
 						Str("handlerName", plugin.Name).
 						Logger()
 
-					slogger.Info().Msg("Hit /start command handler by prefix")
-
-					var err error
-					switch {
-					case plugin.MessageHandler != nil:
-						err = plugin.MessageHandler(&messageParams)
-					case plugin.UpdateHandler != nil:
-						err = plugin.UpdateHandler(params)
-					default:
+					if plugin.MessageHandler != nil {
+						slogger.Info().Msg("Hit /start command handler by prefix")
+						err := plugin.MessageHandler(params)
+						if err != nil {
+							slogger.Error().
+								Err(err).
+								Msg("Error in /start command handler by prefix trigger")
+						}
+						return err
+					} else {
 						slogger.Warn().Msg("Hit /start command handler by prefix, but this handler all function is nil, skip")
-						continue
 					}
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Msg("Error in /start command handler by prefix trigger")
-					}
-					return err
 				}
 			}
 		}
+		// todo: move to RunSlashStartCommandHandlers
 		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.Handler {
-			if messageParams.Fields[1] == plugin.Argument {
+			if params.Fields[1] == plugin.Argument {
 				slogger := logger.With().
 					Str("handlerArgument", plugin.Argument).
 					Str("handlerName", plugin.Name).
 					Logger()
 
-				slogger.Info().Msg("Hit /start command handler by argument")
-
-				var err error
-				switch {
-				case plugin.MessageHandler != nil:
-					err = plugin.MessageHandler(&messageParams)
-				case plugin.UpdateHandler != nil:
-					err = plugin.UpdateHandler(params)
-				default:
-					slogger.Warn().Msg("Hit /start command handler by argument, but this handler all function is nil, skip")
-					continue
+				if plugin.MessageHandler != nil {
+					slogger.Info().Msg("Hit /start command handler by argument")
+					err := plugin.MessageHandler(params)
+					if err != nil {
+						slogger.Error().
+							Err(err).
+							Msg("Error in /start command handler by argument")
+					}
+					return err
+				} else {
+					slogger.Warn().Msg("Hit /start command handler by argument, but this handler function is nil, skip")
 				}
-				if err != nil {
-					slogger.Error().
-						Err(err).
-						Msg("Error in /start command handler by argument")
-				}
-				return err
 			}
 		}
 	}
 
 	_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
-		ChatID:             params.Update.Message.Chat.ID,
-		Text:               fmt.Sprintf("Hello, *%s %s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 png 图片\n\n您也可以使用 [inline](https://telegram.org/blog/inline-bots?setln=en) 模式进行交互，点击下方的按钮来使用它", params.Update.Message.From.FirstName, params.Update.Message.From.LastName),
+		ChatID:             params.Message.Chat.ID,
+		Text:               fmt.Sprintf("Hello, *%s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 PNG 或 GIF 图片\n\n您可以打开左下角的命令菜单或发送 /help 命令来查看更多帮助信息", utils.ShowUserName(params.Message.From)),
 		ParseMode:          models.ParseModeMarkdownV1,
-		ReplyParameters:    &models.ReplyParameters{ MessageID: params.Update.Message.ID },
-		LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
-		ReplyMarkup:        &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text:                         "尝试 Inline 模式",
-			SwitchInlineQueryCurrentChat: " ",
-		}}}},
+		ReplyParameters:    &models.ReplyParameters{ MessageID: params.Message.ID },
 	})
 	if err != nil {
 		logger.Error().

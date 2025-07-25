@@ -2,8 +2,8 @@ package plugin_utils
 
 import (
 	"strings"
-	"trbot/utils"
 	"trbot/utils/handler_params"
+	"trbot/utils/type/contain"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
@@ -13,7 +13,6 @@ type SuffixCommand struct {
 	SuffixCommand  string
 	ForChatType    []models.ChatType // default for private, group, supergroup
 	MessageHandler func(*handler_params.Message) error
-	UpdateHandler  func(*handler_params.Update)  error
 }
 
 func AddSuffixCommandHandlers(handlers ...SuffixCommand) int {
@@ -32,47 +31,27 @@ func AddSuffixCommandHandlers(handlers ...SuffixCommand) int {
 }
 
 // is already run or not, error message
-func RunSuffixCommandHandlers(params *handler_params.Update) (bool, error) {
-	var isProcessed bool
-	var err         error
-
-	logger := zerolog.Ctx(params.Ctx).
-		With().
-		Str("funcName", "RunSuffixCommandPlugin").
-		Logger()
-
-	fields := strings.Fields(params.Update.Message.Text)
-
+func RunSuffixCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.SuffixCommand {
-		if strings.HasSuffix(fields[len(fields)-1], plugin.SuffixCommand) && utils.AnyContains(params.Update.Message.Chat.Type, plugin.ForChatType) {
-			logger.Info().
+		if strings.HasSuffix(params.Fields[len(params.Fields)-1], plugin.SuffixCommand) && contain.ChatType(params.Message.Chat.Type, plugin.ForChatType...) {
+			logger := zerolog.Ctx(params.Ctx).With().
+				Str("funcName", "RunSuffixCommandHandlers").
 				Str("suffixCommand", plugin.SuffixCommand).
-				Msg("Hit suffix command handler")
+				Logger()
 
-			switch {
-			case plugin.MessageHandler != nil:
-				err = plugin.MessageHandler(&handler_params.Message{
-					Ctx:      params.Ctx,
-					Thebot:   params.Thebot,
-					Message:  params.Update.Message,
-					ChatInfo: params.ChatInfo,
-					Fields:   fields,
-				})
-			case plugin.UpdateHandler != nil:
-				err = plugin.UpdateHandler(params)
-			default:
-				logger.Warn().
-					Msg("Hit suffix command handler, but this handler all function is nil, skip")
-				continue
-			}
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Error in suffix command handler")
+			if plugin.MessageHandler != nil {
+				logger.Info().Msg("Hit suffix command handler")
+				err := plugin.MessageHandler(params)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Msg("Error in suffix command handler")
+				}
 				return true, err
+			} else {
+				logger.Warn().Msg("Hit suffix command handler, but this handler function is nil, skip")
 			}
-			isProcessed = true
 		}
 	}
-	return isProcessed, err
+	return false, nil
 }

@@ -16,6 +16,7 @@ import (
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/signals"
+	"trbot/utils/type/contain"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -32,11 +33,12 @@ func Register(ctx context.Context) {
 	// 以 `/` 符号开头的命令
 	plugin_utils.AddSlashCommandHandlers([]plugin_utils.SlashCommand{
 		{
-			SlashCommand: "start",
-			UpdateHandler: startHandler,
+			SlashCommand:   "start",
+			ForChatType: []models.ChatType{models.ChatTypePrivate},
+			MessageHandler: startHandler,
 		},
 		{
-			SlashCommand: "help",
+			SlashCommand:   "help",
 			MessageHandler: helpHandler,
 		},
 		{
@@ -180,13 +182,15 @@ func Register(ctx context.Context) {
 	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
 	plugin_utils.AddSlashStartWithPrefixCommandHandlers([]plugin_utils.SlashStartWithPrefixHandler{
 		{
-			Prefix:   "via-inline",
-			Argument: "noreply",
-			MessageHandler:  nil, // 不回复
+			Name:           "no reply",
+			Prefix:         "via-inline",
+			Argument:       "noreply",
+			MessageHandler: nil, // 不回复
 		},
 		{
-			Prefix:   "via-inline",
-			Argument: "change-inline-command",
+			Name:           "change default inline command",
+			Prefix:         "via-inline",
+			Argument:       "change-inline-command",
 			MessageHandler: func(opts *handler_params.Message) error {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
@@ -210,6 +214,7 @@ func Register(ctx context.Context) {
 	// 触发：'/start <Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
 	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
 		{
+			Name:           "no reply",
 			Argument:       "noreply",
 			MessageHandler: nil, // 不回复
 		},
@@ -219,16 +224,16 @@ func Register(ctx context.Context) {
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
 			CallbackDataPrefix: "inline_default_",
-			UpdateHandler: func(opts *handler_params.Update) error {
+			CallbackQueryHandler: func(opts *handler_params.CallbackQuery) error {
 				logger := zerolog.Ctx(opts.Ctx).
 					With().
-					Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Logger()
 
 				var handlerErr flaterr.MultErr
 
-				if opts.Update.CallbackQuery.Data == "inline_default_none" {
-					err := database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
+				if opts.CallbackQuery.Data == "inline_default_none" {
+					err := database.SetCustomFlag(opts.Ctx, opts.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, "")
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -236,7 +241,7 @@ func Register(ctx context.Context) {
 						handlerErr.Addf("failed to remove inline default command flag: %w", err)
 					} else {
 						// if chatinfo get from redis database, it won't be the newst data, need reload it from database
-						opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
+						opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.CallbackQuery.From.ID)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -244,25 +249,25 @@ func Register(ctx context.Context) {
 							handlerErr.Addf("failed to get chat info: %w", err)
 						} else {
 							_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-								ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
-								MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
+								ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+								MessageID:   opts.CallbackQuery.Message.Message.ID,
 								ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 							})
 							if err != nil {
 								logger.Error().
 									Err(err).
-									Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
+									Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 									Str("content", "inline command select keyboard").
 									Msg(flaterr.EditMessageReplyMarkup.Str())
 								handlerErr.Addt(flaterr.EditMessageReplyMarkup, "inline command select keyboard", err)
 							}
 						}
 					}
-				} else if strings.HasPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_") {
-					callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_noedit_")
+				} else if strings.HasPrefix(opts.CallbackQuery.Data, "inline_default_noedit_") {
+					callbackField := strings.TrimPrefix(opts.CallbackQuery.Data, "inline_default_noedit_")
 					for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
 						if inlinePlugin.Command == callbackField {
-							err := database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
+							err := database.SetCustomFlag(opts.Ctx, opts.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
 							if err != nil {
 								logger.Error().
 									Err(err).
@@ -270,7 +275,7 @@ func Register(ctx context.Context) {
 								handlerErr.Addf("failed to change inline default command flag: %w", err)
 							} else {
 								_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-									CallbackQueryID: opts.Update.CallbackQuery.ID,
+									CallbackQueryID: opts.CallbackQuery.ID,
 									Text:            fmt.Sprintf("已成功将您的 inline 模式默认命令设为 \"%s\"", callbackField),
 									ShowAlert:       true,
 								})
@@ -286,10 +291,10 @@ func Register(ctx context.Context) {
 						}
 					}
 				} else {
-					callbackField := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "inline_default_")
+					callbackField := strings.TrimPrefix(opts.CallbackQuery.Data, "inline_default_")
 					for _, inlinePlugin := range plugin_utils.AllPlugins.InlineCommandList {
 						if inlinePlugin.Command == callbackField {
-							err := database.SetCustomFlag(opts.Ctx, opts.Update.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
+							err := database.SetCustomFlag(opts.Ctx, opts.CallbackQuery.From.ID, db_struct.DefaultInlinePlugin, callbackField)
 							if err != nil {
 								logger.Error().
 									Err(err).
@@ -297,7 +302,7 @@ func Register(ctx context.Context) {
 								handlerErr.Addf("failed to change inline default command flag: %w", err)
 							} else {
 								// if chatinfo get from redis database, it won't be the latest data, need reload it from database
-								opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.Update.CallbackQuery.From.ID)
+								opts.ChatInfo, err = database.GetChatInfo(opts.Ctx, opts.CallbackQuery.From.ID)
 								if err != nil {
 									logger.Error().
 										Err(err).
@@ -305,8 +310,8 @@ func Register(ctx context.Context) {
 									handlerErr.Addf("failed to get chat info: %w", err)
 								} else {
 									_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-										ChatID:      opts.Update.CallbackQuery.Message.Message.Chat.ID,
-										MessageID:   opts.Update.CallbackQuery.Message.Message.ID,
+										ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+										MessageID:   opts.CallbackQuery.Message.Message.ID,
 										ReplyMarkup: plugin_utils.BuildDefaultInlineCommandSelectKeyboard(opts.ChatInfo),
 									})
 									if err != nil {
@@ -333,7 +338,7 @@ func Register(ctx context.Context) {
 		},
 		{
 			CallbackDataPrefix:   "HBMT", // Handler By Message Type
-			UpdateHandler: plugin_utils.SelectByMessageTypeHandlerCallback,
+			CallbackQueryHandler: plugin_utils.SelectByMessageTypeHandlerCallback,
 		},
 		{
 			CallbackDataPrefix:   "delete_this_message",
@@ -472,7 +477,7 @@ func Register(ctx context.Context) {
 				var result []models.InlineQueryResult
 
 				if len(opts.Fields) < 3 {
-					if len(opts.Fields) == 2 && utils.AnyContains(opts.Fields[1], "photo", "video", "audio", "document", "sticker") {
+					if len(opts.Fields) == 2 && contain.String(opts.Fields[1], "photo", "video", "audio", "document", "sticker") {
 						result = append(result, &models.InlineQueryResultArticle{
 							ID:          "needFileID",
 							Title:       fmt.Sprintf("请继续输入 %s 类型的文件 ID", opts.Fields[1]),
@@ -683,11 +688,11 @@ func Register(ctx context.Context) {
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
-			UpdateHandler: func(opts *handler_params.Update) error {
+			InlineHandler: func(opts *handler_params.InlineQuery) error {
 				var handlerErr flaterr.MultErr
 				signals.SIGNALS.Database_save <- true
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.Update.InlineQuery.ID,
+					InlineQueryID: opts.InlineQuery.ID,
 					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 						ID:          "savedb-back",
 						Title:       "已请求保存数据库",
@@ -703,8 +708,8 @@ func Register(ctx context.Context) {
 				if err != nil {
 					zerolog.Ctx(opts.Ctx).Error().
 						Err(err).
-						Dict(utils.GetUserDict(opts.Update.InlineQuery.From)).
-						Str("query", opts.Update.InlineQuery.Query).
+						Dict(utils.GetUserDict(opts.InlineQuery.From)).
+						Str("query", opts.InlineQuery.Query).
 						Str("content", "database saved").
 						Msg(flaterr.AnswerInlineQuery.Str())
 					handlerErr.Addt(flaterr.AnswerInlineQuery, "database saved", err)

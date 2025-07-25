@@ -544,11 +544,11 @@ func buildSavedMessageByMessageHandlers() {
 		if user.AgreePrivacyPolicy {
 			for _, msgType := range msgTypeList {
 				plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-					PluginName:    "保存消息到收藏夹",
-					ChatType:      models.ChatTypePrivate,
-					ForChatID:     chatID,
-					MessageType:   msgType,
-					UpdateHandler: saveMessageFromCallbackQuery,
+					PluginName:     "保存消息到收藏夹",
+					ChatType:       models.ChatTypePrivate,
+					ForChatID:      chatID,
+					MessageType:    msgType,
+					MessageHandler: saveMessageFromCallbackQueryHandler,
 				})
 			}
 		}

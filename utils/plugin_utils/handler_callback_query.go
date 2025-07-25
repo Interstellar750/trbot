@@ -8,10 +8,7 @@ import "trbot/utils/handler_params"
 type CallbackQuery struct {
 	CallbackDataPrefix string
 
-	// only allowed access to `update.CallbackQuery` field, If the handler can handle multiple update types, register it as an `UpdateHandler`.
 	CallbackQueryHandler func(*handler_params.CallbackQuery) error
-	// with full access to `update`, If both `CallbackQueryHandler` and `UpdateHandler` are set, only `CallbackQueryHandler` will be called.
-	UpdateHandler        func(*handler_params.Update)        error
 }
 
 func AddCallbackQueryHandlers(handlers ...CallbackQuery) int {

@@ -24,10 +24,9 @@ type InlineCommandList struct {
 // 需要返回一个列表，将由程序的分页函数来控制分页和输出
 type InlineHandler struct {
 	Command       string
+	Description   string
 	Attr          InlineHandlerAttr
 	InlineHandler func(*handler_params.InlineQuery) []models.InlineQueryResult
-	UpdateHandler func(*handler_params.Update)      []models.InlineQueryResult // when InlineHandler is nil, UpdateHandler will be called
-	Description string
 }
 
 func AddInlineHandlerHandlers(handlers ...InlineHandler) int {
@@ -46,10 +45,9 @@ func AddInlineHandlerHandlers(handlers ...InlineHandler) int {
 // 完全由插件自行控制输出
 type InlineManualHandler struct {
 	Command     string
+	Description string
 	Attr        InlineHandlerAttr
 	InlineHandler func(*handler_params.InlineQuery) error
-	UpdateHandler func(*handler_params.Update)      error // when InlineHandler is nil, UpdateHandler will be called
-	Description string
 }
 
 func AddInlineManualHandlerHandlers(handlers ...InlineManualHandler) int {
@@ -68,10 +66,9 @@ func AddInlineManualHandlerHandlers(handlers ...InlineManualHandler) int {
 // 符合命令前缀，完全由插件自行控制输出
 type InlinePrefixHandler struct {
 	PrefixCommand string
+	Description   string
 	Attr          InlineHandlerAttr
 	InlineHandler func(*handler_params.InlineQuery) error
-	UpdateHandler func(*handler_params.Update)      error // when InlineHandler is nil, UpdateHandler will be called
-	Description   string
 }
 
 func AddInlinePrefixHandlerPlugins(handlers ...InlinePrefixHandler) int {
@@ -109,12 +106,12 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 
 	inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{
 		{
-			Text: "取消默认命令",
+			Text:         "取消默认命令",
 			CallbackData: "inline_default_none",
 		},
 		{
-			Text: "浏览 inline 命令菜单",
-			SwitchInlineQueryCurrentChat: "+",
+			Text:                         "浏览 inline 命令菜单",
+			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol,
 		},
 	})
 

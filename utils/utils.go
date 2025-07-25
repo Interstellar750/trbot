@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
+	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
@@ -17,73 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 )
-
-// 如果 target 是 candidates 的一部分, 返回 true
-// 常规类型会判定值是否相等，字符串如果包含也符合条件，例如 "bc" 在 "abcd" 中
-// this is a bad function
-func AnyContains(target any, candidates ...any) bool {
-	for _, candidate := range candidates {
-		switch c := candidate.(type) {
-		case reflect.Kind:
-			if len(c.String()) == 0 { continue }
-		case []int64:
-			if len(c) == 0 { continue }
-		}
-		if candidate == nil { continue }
-		// fmt.Println(reflect.ValueOf(target).Kind(), reflect.ValueOf(candidate).Kind(), reflect.Array, reflect.Slice)
-		targetKind := reflect.ValueOf(target).Kind()
-		candidateKind := reflect.ValueOf(candidate).Kind()
-		if targetKind != candidateKind && !AnyContains(candidateKind, reflect.Slice, reflect.Array) {
-			log.Printf("[Warn] (func)AnyContains: candidate(%v) not match target(%v)", candidateKind, targetKind)
-		}
-		switch c := candidate.(type) {
-		case string:
-			if targetKind == reflect.String && strings.Contains(strings.ToLower(c), strings.ToLower(target.(string))) {
-				return true
-			}
-		default:
-			if reflect.DeepEqual(target, c) {
-				return true
-			}
-			if reflect.ValueOf(c).Kind() == reflect.Slice || reflect.ValueOf(c).Kind() == reflect.Array {
-				if checkNested(target, reflect.ValueOf(c)) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-// 为 AnyContains 的递归函数
-func checkNested(target any, value reflect.Value) bool {
-	// fmt.Println(reflect.ValueOf(value.Index(0).Interface()).Kind())
-	if reflect.TypeOf(target) != reflect.TypeOf(value.Index(0).Interface()) && !AnyContains(reflect.ValueOf(value.Index(0).Interface()).Kind(), reflect.Slice, reflect.Array) {
-		log.Printf("[Error] (func)AnyContains: candidates's subitem(%v) not match target(%v), skip this compare", reflect.TypeOf(value.Index(0).Interface()), reflect.TypeOf(target))
-		return false
-	}
-	for i := 0; i < value.Len(); i++ {
-		element := value.Index(i).Interface()
-		switch c := element.(type) {
-		case string:
-			if reflect.ValueOf(target).Kind() == reflect.String && strings.Contains(strings.ToLower(c), strings.ToLower(target.(string))) {
-				return true
-			}
-		default:
-			if reflect.DeepEqual(target, c) {
-				return true
-			}
-			// Check nested slices or arrays
-			elemValue := reflect.ValueOf(c)
-			if elemValue.Kind() == reflect.Slice || elemValue.Kind() == reflect.Array {
-				if checkNested(target, elemValue) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
 
 // 检查用户是否是管理员
 // chat type: "private", "group", "supergroup", or "channel"
@@ -114,18 +46,16 @@ func UserIsAdmin(ctx context.Context, thebot *bot.Bot, chatID, userID any) bool 
 	}
 
 	switch value := userID.(type) {
-	case int:
-		return AnyContains(value, admins_userIDs)
 	case int64:
 		// fmt.Println(value)
-		return AnyContains(value, admins_userIDs)
+		return contain.Int64(value, admins_userIDs...)
 	case string:
 		// fmt.Println(value)
 		if strings.ContainsAny(value, "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ_") {
-			return AnyContains(value, admins_usernames)
+			return contain.SubStringCaseInsensitive(value, admins_usernames...)
 		} else {
 			int_userID, _ := strconv.Atoi(value)
-			return AnyContains(int64(int_userID), admins_userIDs)
+			return contain.Int64(int64(int_userID), admins_userIDs...)
 		}
 	default:
 		log.Println("userID type not supported")
@@ -155,18 +85,16 @@ func UserHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatI
 		}
 	}
 	switch value := userID.(type) {
-	case int:
-		return AnyContains(value, adminshavepermission_userIDs)
 	case int64:
 		// fmt.Println(value)
-		return AnyContains(value, adminshavepermission_userIDs)
+		return contain.Int64(value, adminshavepermission_userIDs...)
 	case string:
 		// fmt.Println(value)
 		if strings.ContainsAny(value, "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ_") {
-			return AnyContains(value, adminshavepermission_usernames)
+			return contain.SubStringCaseInsensitive(value, adminshavepermission_usernames...)
 		} else {
 			int_userID, _ := strconv.Atoi(value)
-			return AnyContains(int64(int_userID), adminshavepermission_userIDs)
+			return contain.Int64(int64(int_userID), adminshavepermission_userIDs...)
 		}
 	default:
 		log.Println("userID type not supported")
@@ -328,14 +256,14 @@ func InlineQueryMatchMultKeyword(fields []string, keywords []string) bool {
 		if len(keywords) == 0 {
 			return false
 		}
-		if AnyContains(fields[0], keywords) {
+		if contain.SubStringCaseInsensitive(fields[0], keywords...) {
 			return true
 		}
 	} else {
 		var allMatch bool = true
 
 		for _, n := range fields {
-			if AnyContains(n, keywords) {
+			if contain.SubStringCaseInsensitive(n, keywords...) {
 				// 保持 current 内容，继续过滤
 				// continue
 			} else {
@@ -362,6 +290,7 @@ func CommandMaybeWithSuffixUsername(commandFields []string, command string) bool
 
 // return user fullname
 func ShowUserName(user *models.User) string {
+	if user == nil { return "" }
 	if user.LastName != "" {
 		return user.FirstName + " " + user.LastName
 	} else {
@@ -371,6 +300,7 @@ func ShowUserName(user *models.User) string {
 
 // return chat fullname
 func ShowChatName(chat *models.Chat) string {
+	if chat == nil { return "" }
 	if chat.Title != "" { // 群组
 		return chat.Title
 	} else if chat.LastName != "" { // 可能是用户正在与 bot 发送信息
@@ -424,13 +354,6 @@ func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) st
 	return senderLink
 }
 
-// https://jasonkayzk.github.io/2021/09/26/在Golang发生Panic后打印出堆栈信息/
-func getCurrentGoroutineStack() string {
-	var buf [4096]byte
-	n := runtime.Stack(buf[:], false)
-	return string(buf[:n])
-}
-
 func PanicCatcher(ctx context.Context, funcName string) {
 	logger := zerolog.Ctx(ctx)
 
@@ -448,9 +371,7 @@ func PanicCatcher(ctx context.Context, funcName string) {
 
 // return a "user" string and a `zerolog.Dict()` with `name`(string), `username`(string), `ID`(int64) *zerolog.Event
 func GetUserDict(user *models.User) (string, *zerolog.Event) {
-	if user == nil {
-		return "user", zerolog.Dict()
-	}
+	if user == nil { return "user", zerolog.Dict() }
 	return "user", zerolog.Dict().
 		Str("name", ShowUserName(user)).
 		Str("username", user.Username).
@@ -459,9 +380,7 @@ func GetUserDict(user *models.User) (string, *zerolog.Event) {
 
 // return a "chat" string and a `zerolog.Dict()` with `name`(string), `username`(string), `ID`(int64), `type`(string) *zerolog.Event
 func GetChatDict(chat *models.Chat) (string, *zerolog.Event) {
-	if chat == nil {
-		return "chat", zerolog.Dict()
-	}
+	if chat == nil { return "chat", zerolog.Dict() }
 	return "chat", zerolog.Dict().
 		Str("name", ShowChatName(chat)).
 		Str("username", chat.Username).

@@ -16,7 +16,6 @@ type SlashStartHandler struct {
 	Argument       string
 	ForChatType    []models.ChatType // default for private
 	MessageHandler func(*handler_params.Message) error
-	UpdateHandler  func(*handler_params.Update)  error
 }
 
 func AddSlashStartCommandHandlers(handlers ...SlashStartHandler) int {
@@ -40,7 +39,6 @@ type SlashStartWithPrefixHandler struct {
 	Argument       string
 	ForChatType    []models.ChatType // default for private
 	MessageHandler func(*handler_params.Message) error
-	UpdateHandler  func(*handler_params.Update)  error
 }
 
 func AddSlashStartWithPrefixCommandHandlers(handlers ...SlashStartWithPrefixHandler) int {

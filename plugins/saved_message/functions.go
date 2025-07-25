@@ -34,16 +34,16 @@ func saveMessageHandler(opts *handler_params.Message) error {
 		ChatID:          opts.Message.Chat.ID,
 		ParseMode:       models.ParseModeHTML,
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
+			{
 				Text:                         "点击浏览您的收藏",
 				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
-			}},
-			{{
+			},
+			{
 				Text:         "关闭",
 				CallbackData: "delete_this_message",
-			}},
-		}},
+			},
+		}}},
 	}
 
 	if !UserSavedMessage.AgreePrivacyPolicy {
@@ -604,23 +604,22 @@ func saveMessageHandler(opts *handler_params.Message) error {
 
 // }
 
-func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
-	if opts.Update.CallbackQuery == nil || opts.Update.CallbackQuery.Message.Message.ReplyToMessage == nil { return nil }
+func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
+	if opts.Message == nil { return nil }
 
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
 		Str("funcName", "saveMessageFromCallBackQuery").
-		Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-		Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
-	var targetMessage *models.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
+	var targetMessage *models.Message = opts.Message
 
 	messageParams := &bot.SendMessageParams{
-		ChatID:          opts.Update.CallbackQuery.From.ID,
+		ChatID:          opts.ChatInfo.ID,
 		ParseMode:       models.ParseModeHTML,
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID },
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:         "关闭",
 			CallbackData: "delete_this_message",
@@ -629,7 +628,7 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 
 	var handlerErr flaterr.MultErr
 
-	UserSavedMessage := SavedMessageSet[opts.Update.CallbackQuery.From.ID]
+	UserSavedMessage := SavedMessageSet[opts.ChatInfo.ID]
 
 	var originInfo *OriginInfo
 	if targetMessage.ForwardOrigin != nil && targetMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
@@ -923,25 +922,25 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 	}
 
 	if !isSaved {
-		SavedMessageSet[opts.Update.CallbackQuery.From.ID] = UserSavedMessage
+		SavedMessageSet[opts.ChatInfo.ID] = UserSavedMessage
 		err := SaveSavedMessageList(opts.Ctx)
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Str("messageType", string(replyMsgType.AsValue())).
+				Str("messageType", replyMsgType.Str()).
 				Msg("Failed to save savedmessage list after save a item")
 			handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.CallbackQuery.From.ID,
+				ChatID:          opts.ChatInfo.ID,
 				ParseMode:       models.ParseModeHTML,
 				Text:            fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.CallbackQuery.Message.Message.ReplyToMessage.ID },
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("messageType", string(replyMsgType.AsValue())).
+					Str("messageType", replyMsgType.Str()).
 					Str("content", "failed to save savedmessage list notice").
 					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
@@ -954,7 +953,7 @@ func saveMessageFromCallbackQuery(opts *handler_params.Update) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("messageType", string(replyMsgType.AsValue())).
+			Str("messageType", replyMsgType.Str()).
 			Str("content", "message saved notice").
 			Msg(flaterr.SendMessage.Str())
 		handlerErr.Addt(flaterr.SendMessage, "message saved notice", err)
@@ -1236,6 +1235,16 @@ func Init() {
 				Text:         "将此功能设定为您的默认 inline 命令",
 				CallbackData: "inline_default_noedit_saved",
 			}},
+			{
+				{
+					Text:         "返回",
+					CallbackData: "help",
+				},
+				{
+					Text:         "关闭",
+					CallbackData: "help-close",
+				},
+			},
 		}},
 	})
 }

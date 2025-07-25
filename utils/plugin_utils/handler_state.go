@@ -20,15 +20,15 @@ type StateHandler struct {
 	// handler will auto remove when Remaining == 0
 	//
 	// if Remaining == -1, it will never remove
-	Remaining     int
-	Handler       func(*handler_params.Update) error
+	Remaining      int
+	MessageHandler func(*handler_params.Message) error
 	// A function that will be run after the user sends the `/cancle` command
 	//
 	// If it is nil, the program will send a message to the user that the operation
 	// has been canceled, otherwise CancelHandler will handle it by itself.
 	//
 	// And then the program will remove this state handler
-	CancelHandler func(*handler_params.Update) error
+	CancelHandler func(*handler_params.Message) error
 }
 
 func AddStateHandler(handler StateHandler) bool {
@@ -51,7 +51,7 @@ func AddStateHandler(handler StateHandler) bool {
 			Msg("No remaining times set, registration skipped")
 		return false
 	}
-	if handler.Handler == nil {
+	if handler.MessageHandler == nil {
 		log.Error().
 			Str("funcName", "AddStateHandler").
 			Int64("forChatID", handler.ForChatID).
@@ -70,7 +70,7 @@ func RemoveStateHandler(chatID int64) {
 }
 
 // this can't edit `remainingTime` to `0` or `stateFunc` to `nil`, if you need remove state handler, use `plugin_utils.RemoveStateHandler()`
-func EditStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_params.Update) error) (bool, error) {
+func EditStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_params.Message) error) (bool, error) {
 	if chatID == 0 { return false, errors.New("chatID is required") }
 
 	targetHandler, isExist := AllPlugins.StateHandler[chatID]
@@ -85,24 +85,24 @@ func EditStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_p
 		targetHandler.Remaining = remainingTime
 	}
 	if stateFunc != nil {
-		targetHandler.Handler = stateFunc
+		targetHandler.MessageHandler = stateFunc
 	}
 	AllPlugins.StateHandler[chatID] = targetHandler
 	return true, nil
 }
 
-func RunStateHandler(opts *handler_params.Update) bool {
-	if opts.ChatInfo.ID == 0 { return false }
-	handler, isExist := AllPlugins.StateHandler[opts.ChatInfo.ID]
+func RunStateHandler(opts *handler_params.Message) bool {
+	if AllPlugins.StateHandler == nil { return false }
+	handler, isExist := AllPlugins.StateHandler[opts.Message.From.ID]
 	if isExist {
 		logger := zerolog.Ctx(opts.Ctx).
 			With().
 			Str("funcName", "RunStateHandler").
-			Int64("forChatID", opts.ChatInfo.ID).
+			Int64("forChatID", handler.ForChatID).
 			Str("pluginName", handler.PluginName).
 			Logger()
 
-		if opts.Update.Message.Text == "/cancel" {
+		if opts.Message.Text == "/cancel" {
 			if handler.CancelHandler != nil {
 				err := handler.CancelHandler(opts)
 				if err != nil {
@@ -112,8 +112,8 @@ func RunStateHandler(opts *handler_params.Update) bool {
 				}
 			} else {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-					ChatID: opts.ChatInfo.ID,
-					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+					ChatID: handler.ForChatID,
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 					Text:   fmt.Sprintf("已取消当前 [ %s ] 操作", handler.PluginName),
 				})
 				if err != nil {
@@ -128,12 +128,12 @@ func RunStateHandler(opts *handler_params.Update) bool {
 			return true
 		}
 		logger.Info().Msg("Hit state handler")
-		if handler.Handler == nil {
+		if handler.MessageHandler == nil {
 			logger.Error().Msg("Handler is nil")
 			return false
 		}
 		if handler.Remaining > 0 { handler.Remaining-- }
-		err := handler.Handler(opts)
+		err := handler.MessageHandler(opts)
 		if err != nil {
 			logger.Error().
 				Err(err).

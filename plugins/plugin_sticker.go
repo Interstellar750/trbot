@@ -20,6 +20,7 @@ import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
@@ -74,22 +75,22 @@ func init() {
 		ParseMode:   models.ParseModeHTML,
 	})
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-		PluginName:      "下载贴纸",
+		PluginName:       "下载贴纸",
 		ChatType:         models.ChatTypePrivate,
 		MessageType:      message_utils.Sticker,
 		AllowAutoTrigger: true,
-		UpdateHandler:    EchoStickerHandler,
+		MessageHandler:   EchoStickerHandler,
 	})
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "cachedsticker",
 		MessageHandler: showCachedStickers,
 	})
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-		PluginName:      "MP4 转 GIF",
+		PluginName:       "MP4 转 GIF",
 		ChatType:         models.ChatTypePrivate,
 		MessageType:      message_utils.Animation,
 		AllowAutoTrigger: true,
-		UpdateHandler:    convertMP4ToGifHandler,
+		MessageHandler:   convertMP4ToGifHandler,
 	})
 }
 
@@ -107,36 +108,22 @@ type stickerDatas struct {
 	tgs  int
 }
 
-func EchoStickerHandler(opts *handler_params.Update) error {
-	var isMoveMessage bool
-
-	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
-		// if this handler trigger by `handler by message type`, copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`
-		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
-		isMoveMessage = true
-	}
-
+func EchoStickerHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
 		Str("funcName", "EchoStickerHandler").
-		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
 
-	if isMoveMessage {
-		logger.Info().
-			Str("callbackQueryData", opts.Update.CallbackQuery.Data).
-			Msg("copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`")
-	}
-
 	logger.Info().
-		Str("emoji", opts.Update.Message.Sticker.Emoji).
-		Str("setName", opts.Update.Message.Sticker.SetName).
+		Str("emoji", opts.Message.Sticker.Emoji).
+		Str("setName", opts.Message.Sticker.SetName).
 		Msg("Start download sticker")
 
-	err := database.IncrementalUsageCount(opts.Ctx, opts.Update.Message.From.ID, db_struct.StickerDownloaded)
+	err := database.IncrementalUsageCount(opts.Ctx, opts.Message.From.ID, db_struct.StickerDownloaded)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -152,7 +139,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		handlerErr.Addf("error when downloading sticker: %w", err)
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    opts.Update.Message.From.ID,
+			ChatID:    opts.Message.From.ID,
 			Text:      fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
@@ -165,23 +152,23 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		}
 	} else {
 		documentParams := &bot.SendDocumentParams{
-			ChatID:                      opts.Update.Message.From.ID,
+			ChatID:                      opts.Message.From.ID,
 			ParseMode:                   models.ParseModeHTML,
-			ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Message.ID },
 			DisableNotification:         true,
 			DisableContentTypeDetection: true, // Prevent the server convert GIF to MP4
 		}
 
 		var stickerFilePrefix, stickerFileSuffix string
 
-		if opts.Update.Message.Sticker.IsVideo {
+		if opts.Message.Sticker.IsVideo {
 			if stickerData.IsConverted {
 				stickerFileSuffix = "gif"
 			} else {
 				documentParams.Caption = "<blockquote>see <a href=\"https://wikipedia.org/wiki/WebM\">wikipedia/WebM</a></blockquote>"
 				stickerFileSuffix = "webm"
 			}
-		} else if opts.Update.Message.Sticker.IsAnimated {
+		} else if opts.Message.Sticker.IsAnimated {
 			documentParams.Caption = "<blockquote>see <a href=\"https://core.telegram.org/stickers#animated-stickers\">stickers/animated-stickers</a></blockquote>"
 			stickerFileSuffix = "tgs.file"
 		} else {
@@ -193,14 +180,14 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 		} else {
 			var button [][]models.InlineKeyboardButton = [][]models.InlineKeyboardButton{
 				{
-					{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.Update.Message.Sticker.SetName) },
+					{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.Message.Sticker.SetName) },
 				},
 				{
-					{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Update.Message.Sticker.SetName) },
+					{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) },
 				},
 			}
 
-			if StickerCollectionChannelID != 0 && utils.AnyContains(opts.Update.Message.From.ID, configs.BotConfig.AdminIDs) {
+			if StickerCollectionChannelID != 0 && contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
 				button = append(button, []models.InlineKeyboardButton{{
 					Text: "⭐️ 收藏至频道",
 					CallbackData: fmt.Sprintf("c_%s", stickerData.StickerSetName),
@@ -229,7 +216,7 @@ func EchoStickerHandler(opts *handler_params.Update) error {
 	return handlerErr.Flat()
 }
 
-func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
+func EchoSticker(opts *handler_params.Message) (*stickerDatas, error) {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
@@ -240,9 +227,9 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 	var fileSuffix string // `webp`, `webm`, `tgs`
 
 	// 根据贴纸类型设置文件扩展名
-	if opts.Update.Message.Sticker.IsVideo {
+	if opts.Message.Sticker.IsVideo {
 		fileSuffix = "webm"
-	} else if opts.Update.Message.Sticker.IsAnimated {
+	} else if opts.Message.Sticker.IsAnimated {
 		fileSuffix = "tgs"
 	} else {
 		fileSuffix = "webp"
@@ -252,21 +239,21 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 	var stickerSetNamePrivate  string // `-custom` or `duck_2_video`
 
 	// 检查一下贴纸是否有 packName，没有的话就是自定义贴纸
-	if opts.Update.Message.Sticker.SetName != "" {
+	if opts.Message.Sticker.SetName != "" {
 		// 获取贴纸包信息
-		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: opts.Update.Message.Sticker.SetName })
+		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: opts.Message.Sticker.SetName })
 		if err != nil {
 			// this sticker has a setname, but that sticker set has been deleted
 			// it may also be because of an error in obtaining sticker there are no static stickers in the sticker set information, so just let the user try again.
 			logger.Warn().
 				Err(err).
-				Str("setName", opts.Update.Message.Sticker.SetName).
+				Str("setName", opts.Message.Sticker.SetName).
 				Msg("Failed to get sticker set info, download it as a custom sticker")
 
 			// 到这里是因为用户发送的贴纸对应的贴纸包已经被删除了，但贴纸中的信息还有对应的 SetName，会触发查询，但因为贴纸包被删了就查不到，将 index 值设为 -1，缓存后当作自定义贴纸继续
 			data.IsCustomSticker   = true
-			stickerSetNamePrivate  = opts.Update.Message.Sticker.SetName
-			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, -1, opts.Update.Message.Sticker.FileID)
+			stickerSetNamePrivate  = opts.Message.Sticker.SetName
+			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Message.Sticker.SetName, -1, opts.Message.Sticker.FileID)
 		} else {
 			// sticker is in a sticker set
 			data.StickerCount    = len(stickerSet.Stickers)
@@ -275,22 +262,22 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 
 			// 寻找贴纸在贴纸包中的索引并赋值
 			for i, n := range stickerSet.Stickers {
-				if n.FileID == opts.Update.Message.Sticker.FileID {
+				if n.FileID == opts.Message.Sticker.FileID {
 					data.StickerIndex = i
 					break
 				}
 			}
 
 			// 在这个条件下，贴纸包名和贴纸索引都存在，赋值完整的贴纸文件名
-			stickerSetNamePrivate  = opts.Update.Message.Sticker.SetName
-			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Update.Message.Sticker.SetName, data.StickerIndex, opts.Update.Message.Sticker.FileID)
+			stickerSetNamePrivate  = opts.Message.Sticker.SetName
+			stickerFileNameWithDot = fmt.Sprintf("%s %d %s.", opts.Message.Sticker.SetName, data.StickerIndex, opts.Message.Sticker.FileID)
 		}
 	} else {
 		// this sticker doesn't have a setname, so it is a custom sticker
 		// 自定义贴纸，防止与普通贴纸包冲突，将贴纸包名设置为 `-custom`，文件名仅有 FileID 用于辨识
 		data.IsCustomSticker   = true
 		stickerSetNamePrivate  = "-custom"
-		stickerFileNameWithDot = fmt.Sprintf("%s.", opts.Update.Message.Sticker.FileID)
+		stickerFileNameWithDot = fmt.Sprintf("%s.", opts.Message.Sticker.FileID)
 	}
 
 	var stickerFileDir string = filepath.Join(StickerCache_path, stickerSetNamePrivate)      // 保存贴纸源文件的目录 .cache/sticker/setName/
@@ -307,14 +294,14 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 				Msg("Sticker file not cached, downloading")
 
 			// 从服务器获取文件信息
-			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Update.Message.Sticker.FileID })
+			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Message.Sticker.FileID })
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("fileID", opts.Update.Message.Sticker.FileID).
+					Str("fileID", opts.Message.Sticker.FileID).
 					Str("content", "sticker file info").
 					Msg(flaterr.GetFile.Str())
-				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Update.Message.Sticker.FileID, err)
+				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Message.Sticker.FileID, err)
 			}
 
 			// 组合链接下载贴纸源文件
@@ -372,11 +359,11 @@ func EchoSticker(opts *handler_params.Update) (*stickerDatas, error) {
 			Msg("Sticker file already cached")
 	}
 
-	if opts.Update.Message.Sticker.IsAnimated {
+	if opts.Message.Sticker.IsAnimated {
 		// tgs
 		// 不需要转码，直接读取原贴纸文件
 		finalFullPath = originFullPath
-	} else if opts.Update.Message.Sticker.IsVideo {
+	} else if opts.Message.Sticker.IsVideo {
 		if configs.BotConfig.FFmpegPath != "" {
 			// webm, convert to GIF
 			var GIFFilePath   string = filepath.Join(StickerCacheGIF_path, stickerSetNamePrivate) // 转码后为 png 格式的目录 .cache/sticker_png/setName/
@@ -1129,11 +1116,11 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 				if stickerData.tgs > 0 {
 					pendingMessage += fmt.Sprintf("%d(矢量) ", stickerData.tgs)
 				}
-				_, err := opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
-					ChatID: StickerCollectionChannelID,
-					ParseMode: models.ParseModeMarkdownV1,
-					Caption: fmt.Sprintf("%s 共 %d 个贴纸\n存档时间 %s", pendingMessage, stickerData.StickerCount, time.Now().Format(time.RFC3339)),
-					Document: &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data},
+				channelMessage, err := opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
+					ChatID:      StickerCollectionChannelID,
+					ParseMode:   models.ParseModeMarkdownV1,
+					Caption:     fmt.Sprintf("%s 共 %d 个贴纸\n存档时间 %s", pendingMessage, stickerData.StickerCount, time.Now().Format(time.RFC3339)),
+					Document:    &models.InputFileUpload{ Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data },
 					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "查看贴纸包", URL: "https://t.me/addstickers/" + stickerData.StickerSetName },
 					}}},
@@ -1160,6 +1147,24 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 							Str("content", "collect sticker set failed notice").
 							Msg(flaterr.SendMessage.Str())
 						handlerErr.Addt(flaterr.SendMessage, "collect sticker set failed notice", err)
+					}
+				} else {
+					_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
+						ChatID:    opts.CallbackQuery.From.ID,
+						MessageID: opts.CallbackQuery.Message.Message.ID,
+						ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
+							{{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.CallbackQuery.Message.Message.ReplyToMessage.Sticker.SetName) }},
+							{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.CallbackQuery.Message.Message.ReplyToMessage.Sticker.SetName) }},
+							{{ Text: "✅ 已收藏至频道", URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(channelMessage.Chat.ID), channelMessage.ID) }},
+						}},
+					})
+					if err != nil {
+						logger.Err(err).
+							Int64("channelID", StickerCollectionChannelID).
+							Str("stickerSetName", stickerSetName).
+							Str("content", "collect sticker set success notice").
+							Msg(flaterr.EditMessageReplyMarkup.Str())
+						handlerErr.Addt(flaterr.EditMessageReplyMarkup, "collect sticker set success notice", err)
 					}
 				}
 			}
@@ -1258,13 +1263,9 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func convertMP4ToGifHandler(opts *handler_params.Update) error {
-	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
-		// if this handler trigger by `handler by message type`, copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`
-		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
-	}
+func convertMP4ToGifHandler(opts *handler_params.Message) error {
 
-	if opts.Update.Message == nil || opts.Update.Message.Animation == nil {
+	if opts.Message == nil || opts.Message.Animation == nil {
 		return nil
 	}
 
@@ -1272,7 +1273,7 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 		With().
 		Str("pluginName", "StickerDownload").
 		Str("funcName", "convertWebMToGifHandler").
-		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -1288,7 +1289,7 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 		handlerErr.Addf("error when downloading MP4: %w", err)
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    opts.Update.Message.From.ID,
+			ChatID:    opts.Message.From.ID,
 			Text:      fmt.Sprintf("下载 GIF 时发生了一些错误\n<blockquote expandable>Failed to download MP4: %s</blockquote>", err),
 			ParseMode: models.ParseModeHTML,
 		})
@@ -1301,11 +1302,11 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 		}
 	} else {
 		_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
-			ChatID:                      opts.Update.Message.From.ID,
-			Caption:                     fmt.Sprintf("视频长度 %d 秒\n分辨率 %d*%dpx", opts.Update.Message.Animation.Duration, opts.Update.Message.Animation.Width, opts.Update.Message.Animation.Height),
-			Document:                    &models.InputFileUpload{ Filename: strings.TrimSuffix(opts.Update.Message.Animation.FileName, ".MP4") + ".GIF", Data: GIFFile },
+			ChatID:                      opts.Message.From.ID,
+			Caption:                     fmt.Sprintf("视频长度 %d 秒\n分辨率 %d*%dpx", opts.Message.Animation.Duration, opts.Message.Animation.Width, opts.Message.Animation.Height),
+			Document:                    &models.InputFileUpload{ Filename: strings.Split(opts.Message.Animation.FileName, ".")[0] + ".GIF", Data: GIFFile },
 			ParseMode:                   models.ParseModeHTML,
-			ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			ReplyParameters:             &models.ReplyParameters{ MessageID: opts.Message.ID },
 			DisableNotification:         true,
 			DisableContentTypeDetection: true, // Prevent the server convert GIF to MP4
 		})
@@ -1321,16 +1322,15 @@ func convertMP4ToGifHandler(opts *handler_params.Update) error {
 	return handlerErr.Flat()
 }
 
-func downloadGifHandler(opts *handler_params.Update) (io.Reader, error) {
-
+func downloadGifHandler(opts *handler_params.Message) (io.Reader, error) {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
 		Str("funcName", "downloadGifHandler").
 		Logger()
 
-	var originFullPath string = filepath.Join(MP4Cache_path, opts.Update.Message.Animation.FileID + ".MP4")
-	var toGifFullPath  string = filepath.Join(GIFCache_path, opts.Update.Message.Animation.FileID + ".GIF")
+	var originFullPath string = filepath.Join(MP4Cache_path, opts.Message.Animation.FileID + ".MP4")
+	var toGifFullPath  string = filepath.Join(GIFCache_path, opts.Message.Animation.FileID + ".GIF")
 
 	_, err := os.Stat(originFullPath) // 检查是否已缓存
 	if err != nil {
@@ -1342,13 +1342,13 @@ func downloadGifHandler(opts *handler_params.Update) (io.Reader, error) {
 				Msg("GIF file not cached, downloading")
 
 			// 从服务器获取文件信息
-			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Update.Message.Animation.FileID })
+			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Message.Animation.FileID })
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("fileID", opts.Update.Message.Animation.FileID).
+					Str("fileID", opts.Message.Animation.FileID).
 					Msg(flaterr.GetFile.Str())
-				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Update.Message.Animation.FileID, err)
+				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Message.Animation.FileID, err)
 			}
 
 			// 组合链接下载贴纸源文件

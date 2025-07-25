@@ -67,8 +67,8 @@ func (c config)LevelForZeroLog(forLogFile bool) zerolog.Level {
 		return zerolog.PanicLevel
 	default:
 		if forLogFile {
-			fmt.Printf("Unknown log level [ %s ], using error level for log file", c.LogLevel)
-			return zerolog.ErrorLevel
+			fmt.Printf("Unknown log level [ %s ], using warn level for log file", c.LogLevel)
+			return zerolog.WarnLevel
 		} else {
 			fmt.Printf("Unknown log level [ %s ], using info level for console", c.LogLevel)
 			return zerolog.InfoLevel

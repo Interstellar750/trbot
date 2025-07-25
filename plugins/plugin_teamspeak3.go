@@ -37,7 +37,7 @@ var resetListenTicker chan bool = make(chan bool)
 var pollingInterval   time.Duration = time.Second * 5
 
 var tsData      TSServerQuery
-var privateOpts *handler_params.Update
+var privateOpts *handler_params.Message
 
 var reconnectMessageID int
 
@@ -70,7 +70,7 @@ func init() {
 				plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
 					ForChatID:     tsData.GroupID,
 					PluginName:    "teamspeak_get_opts",
-					UpdateHandler: getOptsHandler,
+					MessageHandler: getOptsHandler,
 				})
 				hasHandlerByChatID = true
 			}
@@ -86,7 +86,7 @@ func init() {
 
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:  "ts3",
-		UpdateHandler: showStatus,
+		MessageHandler: showStatus,
 	})
 }
 
@@ -233,14 +233,14 @@ func initTeamSpeak(ctx context.Context) bool {
 }
 
 // 用于首次初始化成功时只要对应群组有任何消息，都能自动获取 privateOpts 用来定时发送消息，并开启监听协程
-func getOptsHandler(opts *handler_params.Update) error {
+func getOptsHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
 		Str("funcName", "getOptsHandler").
 		Logger()
 
-	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsData.GroupID {
+	if !isListening && isCanReInit && opts.Message.Chat.ID == tsData.GroupID {
 		privateOpts = opts
 		isCanListening = true
 		logger.Debug().Msg("success get opts by handler")
@@ -252,7 +252,7 @@ func getOptsHandler(opts *handler_params.Update) error {
 	return nil
 }
 
-func showStatus(opts *handler_params.Update) error {
+func showStatus(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
@@ -265,7 +265,7 @@ func showStatus(opts *handler_params.Update) error {
 
 	// 如果首次初始化没成功，没有添加根据群组 ID 来触发的 handler，用户发送 /ts3 后可以通过这个来自动获取 opts 并启动监听
 	// if isSuccessInit && !isCanListening && opts.Update != nil && opts.Update.Message != nil && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
-	if !isListening && isCanReInit && opts.Update.Message.Chat.ID == tsData.GroupID {
+	if !isListening && isCanReInit && opts.Message.Chat.ID == tsData.GroupID {
 		privateOpts = opts
 		isCanListening = true
 		logger.Debug().Msg("success get opts by showStatus")
@@ -329,15 +329,15 @@ func showStatus(opts *handler_params.Update) error {
 	}
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID:    opts.Update.Message.Chat.ID,
+		ChatID:    opts.Message.Chat.ID,
 		Text:      pendingMessage,
 		ParseMode: models.ParseModeHTML,
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 	})
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Int64("chatID", opts.Update.Message.Chat.ID).
+			Int64("chatID", opts.Message.Chat.ID).
 			Str("content", "teamspeak online client status").
 			Msg(flaterr.SendMessage.Str())
 		handlerErr.Addt(flaterr.SendMessage, "teamspeak online client status", err)
@@ -358,7 +358,7 @@ func listenUserStatus(ctx context.Context) {
 	defer listenTicker.Stop()
 
 	if tsData.GroupType == "" {
-		tsData.GroupType = privateOpts.Update.Message.Chat.Type
+		tsData.GroupType = privateOpts.Message.Chat.Type
 	}
 
 	if hasHandlerByChatID {
@@ -554,12 +554,12 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 							MessageType:      message_utils.PinnedMessage,
 							ForChatID:        tsData.GroupID,
 							AllowAutoTrigger: true,
-							UpdateHandler: func(opts *handler_params.Update) error {
-								if opts.Update.Message.PinnedMessage != nil {
-									if opts.Update.Message.PinnedMessage.Message.ID == tsData.PinnedMessageID {
+							MessageHandler:   func(opts *handler_params.Message) error {
+								if opts.Message.PinnedMessage != nil {
+									if opts.Message.PinnedMessage.Message.ID == tsData.PinnedMessageID {
 										_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 											ChatID:    tsData.GroupID,
-											MessageID: opts.Update.Message.ID,
+											MessageID: opts.Message.ID,
 										})
 										// 不管成功与否，都注销这个 handler
 										plugin_utils.RemoveHandlerByMessageTypeHandler(models.ChatTypeSupergroup, message_utils.PinnedMessage, tsData.GroupID, "remove pin message notice")

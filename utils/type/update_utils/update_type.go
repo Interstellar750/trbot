@@ -47,6 +47,19 @@ func (ut UpdateType)AsValue() UpdateTypeList {
 	return ""
 }
 
+func (ut UpdateType)Str() string {
+	val := reflect.ValueOf(ut)
+	typ := reflect.TypeOf(ut)
+
+	for i := 0; i < val.NumField(); i++ {
+		if val.Field(i).Bool() {
+			return string(UpdateTypeList(typ.Field(i).Name))
+		}
+	}
+
+	return ""
+}
+
 type UpdateTypeList string
 
 const (
@@ -75,9 +88,12 @@ const (
 	RemovedChatBoost       	UpdateTypeList = "RemovedChatBoost"
 )
 
+func (utl UpdateTypeList)Str() string  {
+	return string(utl)
+}
+
 // 判断更新的类型
-func GetUpdateType(update *models.Update) UpdateType {
-	var updateType UpdateType
+func GetUpdateType(update *models.Update) (updateType UpdateType) {
 	if update.Message != nil {
 		updateType.Message = true
 	}
@@ -144,5 +160,6 @@ func GetUpdateType(update *models.Update) UpdateType {
 	if update.RemovedChatBoost != nil {
 		updateType.RemovedChatBoost = true
 	}
-	return updateType
+
+	return
 }

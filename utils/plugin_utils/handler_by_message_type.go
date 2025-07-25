@@ -48,27 +48,16 @@ type ByMessageTypeHandler struct {
 	MessageType      message_utils.MessageTypeList
 	AllowAutoTrigger bool // Allow auto trigger when there is only one handler of the same type
 	/*
-		Only update type handler can register, if there is more than
+		Only Message type handler can register, if there is more than
 		one handler of the same type, the bot will send a keyboard
 		to let the user choose which handler they want to use.
 
-		If that, the update type that trigger this function
-		will be `update.CallbackQuery`, not `update.Message`.
-
-		To register this type of handler, make sure the
-		function can handle both update types.
-
-		You can try to simply copy the message data from
-		`update.CallbackQuery.Message.Message.ReplyToMessage`
-		to `update.Message` at the beginning of the handler as follow:
-
-		```
-		if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
-			opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
-		}
-		````
+		In this case, the `params.Message` in the handler parameters is
+		actually `update.CallbackQuery.Message.Message.ReplyToMessage`,
+		you don't need to handle the `CallbackQuery``, but note that
+		the `Message.From`` field in this message will always be bot.
 	*/
-	UpdateHandler func(*handler_params.Update) error // with full access to `update`.
+	MessageHandler func(*handler_params.Message) error
 }
 
 /*
@@ -79,28 +68,17 @@ type ByMessageTypeHandler struct {
 	this plugin and send a keyboard to let the
 	user choose which plugin they want to use.
 
-	In this case, the data that the plugin needs
-	to process will change from `update.Message` to
-	in `opts.Update.CallbackQuery.Message.Message.ReplyToMessage`.
-
-	But I'm not sure whether this field will be empty,
-	so need to manually judge it in the plugin.
-
-	You can try to simply copy the data to `update.Message`
-	at the beginning of the plugin as follow:
-
-	```
-	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
-		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
-	}
-	```
+	In this case, the `params.Message` in the handler parameters is
+	actually `update.CallbackQuery.Message.Message.ReplyToMessage`,
+	you don't need to handle the `CallbackQuery``, but note that
+	the `Message.From`` field in this message will always be bot.
 */
 func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 	if AllPlugins.HandlerByMessageType == nil { AllPlugins.HandlerByMessageType = HandlerByMessageTypes{} }
 
 	var handlerCount int
 	for _, handler := range handlers {
-		if handler.PluginName == "" || handler.ChatType == "" || handler.MessageType == "" || handler.UpdateHandler == nil {
+		if handler.PluginName == "" || handler.ChatType == "" || handler.MessageType == "" || handler.MessageHandler == nil {
 			log.Error().
 				Str("funcName", "AddHandlerByMessageTypePlugins").
 				Str("pluginName", handler.PluginName).
@@ -134,31 +112,29 @@ func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 
 func RemoveHandlerByMessageTypeHandler(chatType models.ChatType, messageType message_utils.MessageTypeList, chatID int64, handlerName string) {
 	if AllPlugins.HandlerByMessageType == nil { return }
-
-	// _, isExist := AllPlugins.HandlerByMessageType[chatType][messageType][chatID][handlerName]
-	// if isExist {
-		delete(AllPlugins.HandlerByMessageType[chatType][messageType][chatID], handlerName)
-	// }
+	delete(AllPlugins.HandlerByMessageType[chatType][messageType][chatID], handlerName)
 }
 
-func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, error) {
+// is processed, message type, error
+func RunByMessageTypeHandlers(params *handler_params.Message) (bool, string, error) {
+	if AllPlugins.HandlerByMessageType == nil { return false, "", nil }
 	var isProcessed bool
 	var handlerErr  flaterr.MultErr
 
-	msgType := message_utils.GetMessageType(params.Update.Message).AsValue()
+	msgType := message_utils.GetMessageType(params.Message).AsValue()
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "RunByChatIDHandlers").
-		Str("messageType", string(msgType)).
-		Str("chatType", string(params.Update.Message.Chat.Type)).
-		Int64("chatID", params.Update.Message.Chat.ID).
+		Str("messageType", msgType.Str()).
+		Str("chatType", string(params.Message.Chat.Type)).
+		Int64("chatID", params.Message.Chat.ID).
 		Logger()
 
 	var needBuildSelectKeyboard bool = true
 
-	if AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type] != nil {
-		handlerCount    := len(AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][params.Update.Message.Chat.ID])
-		anyHandlerCount := len(AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][0])
+	if AllPlugins.HandlerByMessageType[params.Message.Chat.Type] != nil {
+		handlerCount    := len(AllPlugins.HandlerByMessageType[params.Message.Chat.Type][msgType][params.Message.Chat.ID])
+		anyHandlerCount := len(AllPlugins.HandlerByMessageType[params.Message.Chat.Type][msgType][0])
 		if handlerCount + anyHandlerCount > 0 {
 			if handlerCount + anyHandlerCount == 1 {
 				// 总共只有一个 handler
@@ -166,10 +142,10 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 				if handlerCount == 1 {
 					// 如果这唯一一个 handler 是针对此 chat 的，就将 targetChatID 设置为此 chat ID
 					// 否则就会触发任意 chat ID 可用的 handler
-					targetChatID = params.Update.Message.Chat.ID
+					targetChatID = params.Message.Chat.ID
 				}
 				// 虽然是遍历，但实际上只能遍历一次
-				for name, handler := range AllPlugins.HandlerByMessageType[params.Update.Message.Chat.Type][msgType][targetChatID] {
+				for name, handler := range AllPlugins.HandlerByMessageType[params.Message.Chat.Type][msgType][targetChatID] {
 					if handler.AllowAutoTrigger {
 						// 允许自动触发的 handler
 						slogger := logger.With().
@@ -177,9 +153,9 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 							Int64("forChatID", handler.ForChatID).
 							Logger()
 
-						if handler.UpdateHandler != nil {
+						if handler.MessageHandler != nil {
 							slogger.Info().Msg("Hit by message type handler")
-							err := handler.UpdateHandler(params)
+							err := handler.MessageHandler(params)
 							if err != nil {
 								slogger.Error().
 									Err(err).
@@ -199,7 +175,7 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 
 			// handler 多于一个或许没有允许自动触发的 handler，就会发送选择键盘
 			if needBuildSelectKeyboard {
-				handlerKeyboard, count := AllPlugins.HandlerByMessageType.BuildSelectKeyboard(params.Update.Message.Chat.Type, msgType, params.Update.Message.Chat.ID)
+				handlerKeyboard, count := AllPlugins.HandlerByMessageType.BuildSelectKeyboard(params.Message.Chat.Type, msgType, params.Message.Chat.ID)
 				if len(handlerKeyboard) > 0 {
 					isProcessed = true
 					slogger := logger.With().
@@ -209,9 +185,9 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 					slogger.Info().Msg("Send a handler by message type select keyboard to user")
 					// 多个 handler 自动回复一条带按钮的消息让用户手动操作
 					_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
-						ChatID:    params.Update.Message.Chat.ID,
+						ChatID:    params.Message.Chat.ID,
 						Text:      fmt.Sprintf("请选择一个 [ %s ] 类型消息的功能", msgType),
-						ReplyParameters: &models.ReplyParameters{ MessageID: params.Update.Message.ID },
+						ReplyParameters: &models.ReplyParameters{ MessageID: params.Message.ID },
 						ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: handlerKeyboard },
 					})
 					if err != nil {
@@ -226,22 +202,22 @@ func RunByMessageTypeHandlers(params *handler_params.Update) (bool, string, erro
 		}
 	}
 
-	return isProcessed, string(msgType), handlerErr.Flat()
+	return isProcessed, msgType.Str(), handlerErr.Flat()
 }
 
-func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
+func SelectByMessageTypeHandlerCallback(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("funcName", "SelectHandlerByMessageTypeHandlerCallback").
-		Dict(utils.GetUserDict(&opts.Update.CallbackQuery.From)).
-		Dict(utils.GetChatDict(&opts.Update.CallbackQuery.Message.Message.Chat)).
-		Str("callbackQueryData", opts.Update.CallbackQuery.Data).
+		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+		Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
+		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 
 	var handlerErr flaterr.MultErr
 
-	if strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") {
-		pluginName := strings.TrimPrefix(opts.Update.CallbackQuery.Data, "HBMT_")
+	if strings.HasPrefix(opts.CallbackQuery.Data, "HBMT_") {
+		pluginName := strings.TrimPrefix(opts.CallbackQuery.Data, "HBMT_")
 		if pluginName == "" {
 			err := fmt.Errorf("user selected callback query doesn't have enough fields")
 			logger.Error().
@@ -249,20 +225,26 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 				Msg("Failed to trigger by message type handler")
 			handlerErr.Addf("Failed to trigger by message type handler: %w", err)
 		} else {
-			messageType := message_utils.GetMessageType(opts.Update.CallbackQuery.Message.Message.ReplyToMessage).AsValue()
-			handler, isExist := AllPlugins.HandlerByMessageType[opts.Update.CallbackQuery.Message.Message.Chat.Type][messageType][opts.Update.CallbackQuery.Message.Message.Chat.ID][pluginName]
+			messageType := message_utils.GetMessageType(opts.CallbackQuery.Message.Message.ReplyToMessage).AsValue()
+			handler, isExist := AllPlugins.HandlerByMessageType[opts.CallbackQuery.Message.Message.Chat.Type][messageType][opts.CallbackQuery.Message.Message.Chat.ID][pluginName]
 			if isExist {
 				logger.Debug().
-					Str("chatType", string(opts.Update.CallbackQuery.Message.Message.Chat.Type)).
-					Str("messageType", string(messageType)).
-					Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+					Str("chatType", string(opts.CallbackQuery.Message.Message.Chat.Type)).
+					Str("messageType", messageType.Str()).
+					Int64("chatID", opts.CallbackQuery.Message.Message.Chat.ID).
 					Str("pluginName", pluginName).
 					Msg("User selected a by message type handler")
-				if handler.UpdateHandler == nil {
+				if handler.MessageHandler == nil {
 					logger.Warn().Msg("Hit by message type handler, but this handler function is nil, ignore")
 					return handlerErr.Addf("hit by message type handler [%s], but this handler function is nil, ignore", pluginName).Flat()
 				}
-				err := handler.UpdateHandler(opts)
+				err := handler.MessageHandler(&handler_params.Message{
+					Ctx:      opts.Ctx,
+					Thebot:   opts.Thebot,
+					Message:  opts.CallbackQuery.Message.Message.ReplyToMessage,
+					ChatInfo: opts.ChatInfo,
+					Fields:   strings.Fields(opts.CallbackQuery.Message.Message.Text),
+				})
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -277,7 +259,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 					handlerErr.Addf("error in by message type handler: %w", err)
 
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID:    opts.Update.CallbackQuery.From.ID,
+						ChatID:    opts.CallbackQuery.From.ID,
 						Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>%s</blockquote>", pluginName, err),
 						ParseMode: models.ParseModeHTML,
 					})
@@ -290,8 +272,8 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 					}
 				} else {
 					_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-						ChatID:    opts.Update.CallbackQuery.From.ID,
-						MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+						ChatID:    opts.CallbackQuery.From.ID,
+						MessageID: opts.CallbackQuery.Message.Message.ID,
 					})
 					if err != nil {
 						logger.Error().
@@ -302,19 +284,25 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 					}
 				}
 			} else {
-				handler, isExist := AllPlugins.HandlerByMessageType[opts.Update.CallbackQuery.Message.Message.Chat.Type][messageType][0][pluginName]
+				handler, isExist := AllPlugins.HandlerByMessageType[opts.CallbackQuery.Message.Message.Chat.Type][messageType][0][pluginName]
 				if isExist {
 					logger.Debug().
-						Str("chatType", string(opts.Update.CallbackQuery.Message.Message.Chat.Type)).
-						Str("messageType", string(messageType)).
-						Int64("chatID", opts.Update.CallbackQuery.Message.Message.Chat.ID).
+						Str("chatType", string(opts.CallbackQuery.Message.Message.Chat.Type)).
+						Str("messageType", messageType.Str()).
+						Int64("chatID", opts.CallbackQuery.Message.Message.Chat.ID).
 						Str("pluginName", pluginName).
 						Msg("User selected a by message type handler")
-					if handler.UpdateHandler == nil {
+					if handler.MessageHandler == nil {
 						logger.Warn().Msg("Hit by message type handler, but this handler function is nil, ignore")
 						return handlerErr.Addf("hit by message type handler [%s], but this handler function is nil, ignore", pluginName).Flat()
 					}
-					err := handler.UpdateHandler(opts)
+					err := handler.MessageHandler(&handler_params.Message{
+						Ctx:      opts.Ctx,
+						Thebot:   opts.Thebot,
+						Message:  opts.CallbackQuery.Message.Message.ReplyToMessage,
+						ChatInfo: opts.ChatInfo,
+						Fields:   strings.Fields(opts.CallbackQuery.Message.Message.Text),
+					})
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -329,7 +317,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 						handlerErr.Addf("error in by message type handler: %w", err)
 
 						_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-							ChatID:    opts.Update.CallbackQuery.From.ID,
+							ChatID:    opts.CallbackQuery.From.ID,
 							Text:      fmt.Sprintf("调用 %s 功能时发生了一些错误\n<blockquote expandable>%s</blockquote>", pluginName, err),
 							ParseMode: models.ParseModeHTML,
 						})
@@ -342,8 +330,8 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 						}
 					} else {
 						_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-							ChatID:    opts.Update.CallbackQuery.From.ID,
-							MessageID: opts.Update.CallbackQuery.Message.Message.ID,
+							ChatID:    opts.CallbackQuery.From.ID,
+							MessageID: opts.CallbackQuery.Message.Message.ID,
 						})
 						if err != nil {
 							logger.Error().
@@ -355,7 +343,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.Update) error {
 					}
 				} else {
 					_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-						CallbackQueryID: opts.Update.CallbackQuery.ID,
+						CallbackQueryID: opts.CallbackQuery.ID,
 						Text: fmt.Sprintf("此功能 [ %s ] 不可用，可能是管理员已经移除了这个功能", pluginName),
 						ShowAlert: true,
 					})

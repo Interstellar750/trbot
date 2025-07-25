@@ -704,26 +704,26 @@ func addKeywordHandler(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func addKeywordStateHandler(opts *handler_params.Update) error {
-	if opts.Update.Message == nil { return nil }
+func addKeywordStateHandler(opts *handler_params.Message) error {
+	if opts.Message == nil { return nil }
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
 		Str("funcName", "addKeywordStateHandler").
-		Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
-		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Dict(utils.GetChatDict(&opts.Message.Chat)).
+		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
 
-	if opts.Update.Message.Text != "" {
-		keyword := strings.ToLower(strings.Fields(opts.Update.Message.Text)[0])
+	if opts.Message.Text != "" {
+		keyword := strings.ToLower(strings.Fields(opts.Message.Text)[0])
 
 		if len(keyword) > 30 {
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
+				ChatID:          opts.Message.Chat.ID,
 				Text:            "抱歉，单个关键词长度不能超过 30 个英文字符",
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			})
 			if err != nil {
 				logger.Error().
@@ -734,7 +734,7 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 				handlerErr.Addt(flaterr.SendMessage, "keyword is too long", err)
 			}
 		} else {
-			user := KeywordDataList.Users[opts.Update.Message.From.ID]
+			user := KeywordDataList.Users[opts.Message.From.ID]
 			var pendingMessage string
 			var button models.ReplyMarkup
 			var isKeywordExist bool
@@ -814,7 +814,7 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 				button = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 					{
 						Text:         "↩️ 撤销操作",
-						CallbackData: fmt.Sprintf("detectkw_u_undo_%d_%s", user.AddingChatID, opts.Update.Message.Text),
+						CallbackData: fmt.Sprintf("detectkw_u_undo_%d_%s", user.AddingChatID, opts.Message.Text),
 					},
 					{
 						Text:         "⬅️ 停止添加关键词",
@@ -825,9 +825,9 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 			}
 
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Update.Message.Chat.ID,
+				ChatID:          opts.Message.Chat.ID,
 				Text:            pendingMessage,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 				ParseMode:       models.ParseModeHTML,
 				ReplyMarkup:     button,
 			})
@@ -841,9 +841,9 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 		}
 	} else {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Update.Message.Chat.ID,
+			ChatID: opts.Message.Chat.ID,
 			Text: "请输入有效的关键词",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 				Text:         "⬅️ 停止添加关键词",
 				CallbackData: "detectkw_u_finish",
@@ -856,7 +856,7 @@ func addKeywordStateHandler(opts *handler_params.Update) error {
 				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addt(flaterr.SendMessage, "keyword invalid notice", err)
 		}
-		// plugin_utils.EditStateHandler(opts.Update.Message.Chat.ID, 1, nil)
+		// plugin_utils.EditStateHandler(opts.Message.Chat.ID, 1, nil)
 	}
 
 	return handlerErr.Flat()
@@ -890,40 +890,40 @@ func buildListenList() {
 			plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
 				ForChatID:      chat.ChatID,
 				PluginName:     "detect_keyword",
-				UpdateHandler:  keywordDetector,
+				MessageHandler:  keywordDetector,
 			})
 		}
 	}
 }
 
-func keywordDetector(opts *handler_params.Update) error {
+func keywordDetector(opts *handler_params.Message) error {
 	var handlerErr flaterr.MultErr
 	var text string
 
-	if opts.Update.Message.Caption != "" {
-		text = strings.ToLower(opts.Update.Message.Caption)
-	} else if opts.Update.Message.Text != "" {
-		text = strings.ToLower(opts.Update.Message.Text)
+	if opts.Message.Caption != "" {
+		text = strings.ToLower(opts.Message.Caption)
+	} else if opts.Message.Text != "" {
+		text = strings.ToLower(opts.Message.Text)
 	} else {
 		// 没有文字和 caption 直接返回
 		return nil
 	}
 
 	// 遍历该群组中启用此功能的用户 ID
-	for _, userID := range KeywordDataList.Chats[opts.Update.Message.Chat.ID].UsersID {
+	for _, userID := range KeywordDataList.Chats[opts.Message.Chat.ID].UsersID {
 		// 获取用户信息，开始匹配关键词
 		user := KeywordDataList.Users[userID]
 		if !user.IsDisable && !user.IsNotInit {
 			// 如果用户设定排除了自己发送的消息，则跳过
-			if !user.IsIncludeSelf && opts.Update.Message.From.ID == userID { continue }
+			if !user.IsIncludeSelf && opts.Message.From.ID == userID { continue }
 
 			// 用户为单独群组设定的关键词
 			for _, userChatKeywordList := range user.ChatsForUser {
 				// 判断是否是此群组
-				if userChatKeywordList.ChatID == opts.Update.Message.Chat.ID {
+				if userChatKeywordList.ChatID == opts.Message.Chat.ID {
 					for _, keyword := range userChatKeywordList.Keyword {
 						if strings.Contains(text, keyword) {
-							return handlerErr.Add(notifyUser(opts, user, opts.Update.Message.Chat.Title, keyword, text, false)).Flat()
+							return handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, keyword, text, false)).Flat()
 						}
 					}
 				}
@@ -931,7 +931,7 @@ func keywordDetector(opts *handler_params.Update) error {
 			// 用户全局设定的关键词
 			for _, userGlobalKeyword := range user.GlobalKeyword {
 				if strings.Contains(text, userGlobalKeyword) {
-					return handlerErr.Add(notifyUser(opts, user, opts.Update.Message.Chat.Title, userGlobalKeyword, text, true)).Flat()
+					return handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, userGlobalKeyword, text, true)).Flat()
 				}
 			}
 		}
@@ -939,20 +939,20 @@ func keywordDetector(opts *handler_params.Update) error {
 	return handlerErr.Flat()
 }
 
-func notifyUser(opts *handler_params.Update, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) error {
+func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) error {
 	var handlerErr flaterr.MultErr
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
 		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
-			utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Update.Message, models.ParseModeHTML),
+			utils.RemoveIDPrefix(opts.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Message, models.ParseModeHTML),
 			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, text,
 		),
 		ParseMode:           models.ParseModeHTML,
 		DisableNotification: user.IsSilentNotice,
 		ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "前往查看",
-			URL:   fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Update.Message.Chat.ID), opts.Update.Message.ID),
+			URL:   fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Message.Chat.ID), opts.Message.ID),
 		}}}},
 	})
 	if err != nil {
@@ -960,7 +960,7 @@ func notifyUser(opts *handler_params.Update, user KeywordUserList, chatname, key
 			Err(err).
 			Str("pluginName", "DetectKeyword").
 			Str("funcName", "notifyUser").
-			Dict(utils.GetChatDict(&opts.Update.Message.Chat)).
+			Dict(utils.GetChatDict(&opts.Message.Chat)).
 			Int64("userID", user.UserID).
 			Str("keyword", keyword).
 			Str("content", "keyword detected notice to user").
@@ -1221,7 +1221,7 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 						ForChatID: opts.CallbackQuery.Message.Message.Chat.ID,
 						PluginName: "addKeywordState",
 						Remaining: -1,
-						Handler: addKeywordStateHandler,
+						MessageHandler: addKeywordStateHandler,
 					})
 				}
 			}

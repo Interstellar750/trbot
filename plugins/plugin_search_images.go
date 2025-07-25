@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/flaterr"
@@ -25,11 +24,11 @@ var imageBaseURL   string = "https://alist.trle5.xyz/d/cache/photo/"
 
 func init() {
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
-		PluginName: "获取搜图链接",
-		ChatType:    models.ChatTypePrivate,
-		MessageType: message_utils.Photo,
+		PluginName:       "获取搜图链接",
+		ChatType:         models.ChatTypePrivate,
+		MessageType:      message_utils.Photo,
 		AllowAutoTrigger: true,
-		UpdateHandler: searchImageHandler,
+		MessageHandler:   searchImageHandler,
 	})
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "searchlinks",
@@ -159,40 +158,27 @@ func sendSearchLinks(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func searchImageHandler(opts *handler_params.Update) error {
-	var isMoveMessage bool
-
-	if opts.Update.Message == nil && opts.Update.CallbackQuery != nil && strings.HasPrefix(opts.Update.CallbackQuery.Data, "HBMT_") && opts.Update.CallbackQuery.Message.Message != nil && opts.Update.CallbackQuery.Message.Message.ReplyToMessage != nil {
-		// if this handler trigger by `handler by message type`, copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`
-		opts.Update.Message = opts.Update.CallbackQuery.Message.Message.ReplyToMessage
-		isMoveMessage = true
-	}
+func searchImageHandler(opts *handler_params.Message) error {
 
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "search_images").
 		Str("funcName", "searchImageHandler").
-		Dict(utils.GetUserDict(opts.Update.Message.From)).
+		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
 
-	if isMoveMessage {
-		logger.Info().
-			Str("callbackQueryData", opts.Update.CallbackQuery.Data).
-			Msg("copy `update.CallbackQuery.Message.Message.ReplyToMessage` to `update.Message`")
-	}
-
-	photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Update.Message)
+	photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Message)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Msg("Error when cache photo")
 		handlerErr.Addf("error when cache photo: %w", err)
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Update.Message.Chat.ID,
+			ChatID: opts.Message.Chat.ID,
 			Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", err.Error()),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
@@ -205,10 +191,10 @@ func searchImageHandler(opts *handler_params.Update) error {
 	} else {
 		// linkPreviewURL := imageBaseURL + photoPath
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Update.Message.Chat.ID,
+			ChatID: opts.Message.Chat.ID,
 			Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 			ReplyMarkup: buildSearchLinksKeboard(photoPath),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Update.Message.ID },
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			// LinkPreviewOptions: &models.LinkPreviewOptions{
 			// 	URL: &linkPreviewURL,
 			// 	PreferSmallMedia: bot.True(),
