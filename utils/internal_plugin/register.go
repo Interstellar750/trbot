@@ -34,7 +34,7 @@ func Register(ctx context.Context) {
 	plugin_utils.AddSlashCommandHandlers([]plugin_utils.SlashCommand{
 		{
 			SlashCommand:   "start",
-			ForChatType: []models.ChatType{models.ChatTypePrivate},
+			ForChatType:    []models.ChatType{models.ChatTypePrivate},
 			MessageHandler: startHandler,
 		},
 		{

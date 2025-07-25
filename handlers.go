@@ -145,12 +145,13 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 			// replymarkup 回调
 			var chat = zerolog.Dict()
 			if update.CallbackQuery.Message.Message != nil {
+				// some time `update.CallbackQuery.Message` will be nil
 				_, chat = utils.GetChatDict(&update.CallbackQuery.Message.Message.Chat)
 			}
 			logger.Info().
 				Dict(utils.GetUserDict(&update.CallbackQuery.From)).
 				Dict("chat", chat).
-				Str("callbackQueryDate", update.CallbackQuery.Data).
+				Str("callbackQueryData", update.CallbackQuery.Data).
 				Msg("callback query")
 		case updateType.MessageReaction:
 			// 私聊或群组表情回应
