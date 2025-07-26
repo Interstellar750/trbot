@@ -6,10 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
 
@@ -33,22 +36,28 @@ var isLoginFailed  bool = false
 
 var hasHandlerByChatID bool
 
-var resetListenTicker chan bool = make(chan bool)
-var pollingInterval   time.Duration = time.Second * 5
+var resetListenTicker = make(chan bool)
 
 var tsData      TSServerQuery
 var privateOpts *handler_params.Message
 
+var checkcount         int
+var isMessagePinned    bool
 var reconnectMessageID int
+// var oldMessageIDs      []int
 
 type TSServerQuery struct {
 	// get Name And Password in TeamSpeak 3 Client -> `Tools` -> `ServerQuery Login`
-	URL             string          `yaml:"URL"`
-	Name            string          `yaml:"Name"`
-	Password        string          `yaml:"Password"`
-	GroupID         int64           `yaml:"GroupID"`
-	GroupType       models.ChatType `yaml:"GroupType"` // group or supergroup
-	PinnedMessageID int             `yaml:"PinnedMessageID"`
+	URL                   string `yaml:"URL"`
+	Name                  string `yaml:"Name"`
+	Password              string `yaml:"Password"`
+	GroupID               int64  `yaml:"GroupID"`
+	PollingInterval       int    `yaml:"PollingInterval"`
+	SendMessageMode       bool   `yaml:"SendMessageMode"`
+	AutoDeleteMessage     bool   `yaml:"AutoDeleteMessage"`
+	DeleteTimeoutInMinute int    `yaml:"DeleteTimeoutInMinute"`
+	PinMessageMode        bool   `yaml:"PinMessageMode"`
+	PinnedMessageID       int    `yaml:"PinnedMessageID"`
 }
 
 type OnlineClient struct {
@@ -56,9 +65,6 @@ type OnlineClient struct {
 	JoinTime time.Time
 }
 
-var isOnlineClientMessagePin bool
-var usePinMessageMethod bool = true
-var checkcount int
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
@@ -68,8 +74,8 @@ func init() {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts
 				plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-					ForChatID:     tsData.GroupID,
-					PluginName:    "teamspeak_get_opts",
+					ForChatID:      tsData.GroupID,
+					PluginName:     "teamspeak_get_opts",
 					MessageHandler: getOptsHandler,
 				})
 				hasHandlerByChatID = true
@@ -78,15 +84,25 @@ func init() {
 		},
 	})
 
+	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+		Name:   "teamspeak",
+		Loader: readTeamspeakData,
+		Saver:  saveTeamspeakData,
+	})
+
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "TeamSpeak 检测用户变动",
 		Description: "注意：使用此功能需要先在配置文件中手动填写配置文件\n\n使用 /ts3 命令随时查看服务器在线用户和监听状态，监听轮询时间为每 5 秒检测一次，若无法与服务器取得连接，将会自动尝试重新连接",
-		ParseMode:   models.ParseModeHTML,
 	})
 
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:  "ts3",
 		MessageHandler: showStatus,
+	})
+
+	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
+		CallbackDataPrefix: "teamspeak",
+		CallbackQueryHandler: teamspeakCallbackHandler,
 	})
 }
 
@@ -97,36 +113,12 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str("funcName", "initTeamSpeak").
 		Logger()
 
-	var handlerErr flaterr.MultErr
-
-	err := yaml.LoadYAML(tsDataPath, &tsData)
+	// 读取配置文件
+	err := readTeamspeakData(ctx)
 	if err != nil {
-		if os.IsNotExist(err) {
-			logger.Warn().
-				Err(err).
-				Str("path", tsDataPath).
-				Msg("Not found teamspeak config file. Created new one")
-			err = yaml.SaveYAML(tsDataPath, &TSServerQuery{})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("path", tsDataPath).
-					Msg("Failed to create empty config")
-				tsErr = handlerErr.Addf("failed to create empty config: %w", err).Flat()
-				isCanReInit = false
-				return false
-			}
-		} else {
-			logger.Error().
-				Err(err).
-				Str("path", tsDataPath).
-				Msg("Failed to read config file")
-
-			// 读取配置文件内容失败也不允许重新启动
-			tsErr = handlerErr.Addf("failed to read config file: %w", err).Flat()
-			isCanReInit = false
-			return false
-		}
+		tsErr = fmt.Errorf("failed to read teamspeak config data: %w", err)
+		isCanReInit = false
+		return false
 	}
 
 	// 如果服务器地址为空不允许重新启动
@@ -134,7 +126,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Str("path", tsDataPath).
 			Msg("No URL in config")
-		tsErr = handlerErr.Addf("no URL in config").Flat()
+		tsErr = fmt.Errorf("no URL in config")
 		isCanReInit = false
 		return false
 	} else {
@@ -145,7 +137,7 @@ func initTeamSpeak(ctx context.Context) bool {
 				Err(err).
 				Str("path", tsDataPath).
 				Msg("Failed to connect to server")
-			tsErr = handlerErr.Addf("failed to connnect to server: %w", err).Flat()
+			tsErr = fmt.Errorf("failed to connnect to server: %w", err)
 			return false
 		}
 	}
@@ -155,7 +147,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Str("path", tsDataPath).
 			Msg("No Name/Password in config")
-		tsErr = handlerErr.Addf("no Name/Password in config").Flat()
+		tsErr = fmt.Errorf("no Name/Password in config")
 		isCanReInit = false
 		return false
 	} else {
@@ -165,7 +157,7 @@ func initTeamSpeak(ctx context.Context) bool {
 				Err(err).
 				Str("path", tsDataPath).
 				Msg("Failed to login to server")
-			tsErr = handlerErr.Addf("failed to login to server: %w", err).Flat()
+			tsErr = fmt.Errorf("failed to login to server: %w", err)
 			isLoginFailed = true
 			return false
 		} else {
@@ -178,7 +170,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Str("path", tsDataPath).
 			Msg("No GroupID in config")
-		tsErr = handlerErr.Addf("no GroupID in config").Flat()
+		tsErr = fmt.Errorf("no GroupID in config")
 		isCanReInit = false
 		return false
 	}
@@ -190,7 +182,7 @@ func initTeamSpeak(ctx context.Context) bool {
 			Err(err).
 			Str("path", tsDataPath).
 			Msg("Failed to get server version")
-		tsErr = handlerErr.Addf("failed to get server version: %w", err).Flat()
+		tsErr = fmt.Errorf("failed to get server version: %w", err)
 		return false
 	} else {
 		logger.Info().
@@ -206,7 +198,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Err(err).
 			Msg("Failed to switch server")
-		tsErr = handlerErr.Addf("failed to switch server: %w", err).Flat()
+		tsErr = fmt.Errorf("failed to switch server: %w", err)
 		return false
 	}
 
@@ -216,7 +208,8 @@ func initTeamSpeak(ctx context.Context) bool {
 		logger.Error().
 			Err(err).
 			Msg("Failed to get bot info")
-		tsErr = handlerErr.Addf("failed to get bot info: %w", err).Flat()
+		tsErr = fmt.Errorf("failed to get bot info: %w", err)
+		return false
 	} else if m != nil && m.ClientName != botNickName {
 		// 当 bot 自己的 nickname 不等于配置文件中的 nickname 时，才进行修改
 		err = tsClient.SetNick(botNickName)
@@ -224,12 +217,72 @@ func initTeamSpeak(ctx context.Context) bool {
 			logger.Error().
 				Err(err).
 				Msg("Failed to set bot nickname")
-			tsErr = handlerErr.Addf("failed to set nickname: %w", err).Flat()
+			tsErr = fmt.Errorf("failed to set nickname: %w", err)
+			return false
 		}
 	}
 
 	// 没遇到不可重新初始化的部分则返回初始化成功
 	return true
+}
+
+func readTeamspeakData(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str("funcName", "ReadTeamspeakData").
+		Logger()
+
+	err := yaml.LoadYAML(tsDataPath, &tsData)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Err(err).
+				Str("path", tsDataPath).
+				Msg("Not found teamspeak config file. Created new one")
+			err = yaml.SaveYAML(tsDataPath, &TSServerQuery{
+				PollingInterval:     5,
+				SendMessageMode:     true,
+				DeleteTimeoutInMinute: 10,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", tsDataPath).
+					Msg("Failed to create empty config")
+				return fmt.Errorf("failed to create empty config: %w", err)
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", tsDataPath).
+				Msg("Failed to read config file")
+
+			// 读取配置文件内容失败也不允许重新启动
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+	}
+
+	return err
+}
+
+func saveTeamspeakData(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str("funcName", "SaveTeamspeakData").
+		Logger()
+
+	err := yaml.SaveYAML(tsDataPath, &tsData)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("path", tsDataPath).
+			Msg("Failed to save teamspeak data")
+		return fmt.Errorf("failed to save teamspeak data: %w", err)
+	}
+
+	return nil
 }
 
 // 用于首次初始化成功时只要对应群组有任何消息，都能自动获取 privateOpts 用来定时发送消息，并开启监听协程
@@ -261,10 +314,7 @@ func showStatus(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	var pendingMessage string
-
 	// 如果首次初始化没成功，没有添加根据群组 ID 来触发的 handler，用户发送 /ts3 后可以通过这个来自动获取 opts 并启动监听
-	// if isSuccessInit && !isCanListening && opts.Update != nil && opts.Update.Message != nil && opts.Update.Message.Chat.ID == tsServerQuery.GroupID {
 	if !isListening && isCanReInit && opts.Message.Chat.ID == tsData.GroupID {
 		privateOpts = opts
 		isCanListening = true
@@ -273,8 +323,9 @@ func showStatus(opts *handler_params.Message) error {
 			go listenUserStatus(opts.Ctx)
 			logger.Debug().Msg("success start listen user status")
 		}
-		// pendingMessage += fmt.Sprintln("已准备好发送用户状态")
 	}
+
+	var pendingMessage string
 
 	if isSuccessInit && isCanListening {
 		onlineClient, err := tsClient.Server.ClientList()
@@ -328,11 +379,20 @@ func showStatus(opts *handler_params.Message) error {
 		}
 	}
 
+	var buttons [][]models.InlineKeyboardButton
+	if opts.Message.Chat.ID == tsData.GroupID {
+		buttons = [][]models.InlineKeyboardButton{{{
+			Text:         "管理此功能",
+			CallbackData: "teamspeak",
+		}}}
+	}
+
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID:    opts.Message.Chat.ID,
-		Text:      pendingMessage,
-		ParseMode: models.ParseModeHTML,
+		ChatID:          opts.Message.Chat.ID,
+		Text:            pendingMessage,
+		ParseMode:       models.ParseModeHTML,
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: buttons },
 	})
 	if err != nil {
 		logger.Error().
@@ -354,12 +414,13 @@ func listenUserStatus(ctx context.Context) {
 		Logger()
 
 	isListening = true
-	listenTicker := time.NewTicker(pollingInterval)
+	if tsData.PollingInterval == 0 { tsData.PollingInterval = 5 }
+	listenTicker := time.NewTicker(time.Second * time.Duration(tsData.PollingInterval))
 	defer listenTicker.Stop()
 
-	if tsData.GroupType == "" {
-		tsData.GroupType = privateOpts.Message.Chat.Type
-	}
+	// if tsData.DeleteTimeoutInMinute == 0 { tsData.DeleteTimeoutInMinute = 10 }
+	// deleteMessageTicker := time.NewTicker(time.Second * time.Duration(tsData.DeleteTimeoutInMinute))
+	// defer deleteMessageTicker.Stop()
 
 	if hasHandlerByChatID {
 		hasHandlerByChatID = false
@@ -391,9 +452,10 @@ func listenUserStatus(ctx context.Context) {
 	for {
 		select {
 		case <-resetListenTicker:
-			listenTicker.Reset(pollingInterval)
+			listenTicker.Reset(time.Second * time.Duration(tsData.PollingInterval))
 			isCanListening = true
 			retryCount = 0
+		// case <-deleteMessageTicker.C:
 		case <-listenTicker.C:
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(ctx, &checkFailedCount, beforeOnlineClient)
@@ -407,7 +469,7 @@ func listenUserStatus(ctx context.Context) {
 					isCanListening = true
 					// 重新初始化成功则恢复 ticker 速度
 					retryCount = 1
-					listenTicker.Reset(pollingInterval)
+					listenTicker.Reset(time.Second * time.Duration(tsData.PollingInterval))
 					logger.Info().Msg("reconnect success")
 					botMessage, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 						ChatID:    tsData.GroupID,
@@ -508,14 +570,15 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 				})
 			}
 		}
-		added, removed := DiffSlices(before, nowOnlineClient)
-		if len(added) + len(removed) > 0 && !usePinMessageMethod {
+		added, removed := diffSlices(before, nowOnlineClient)
+		if tsData.SendMessageMode && len(added) + len(removed) > 0 {
 			logger.Debug().
 				Int("clientJoin", len(added)).
 				Int("clientLeave", len(removed)).
 				Msg("online client change detected")
 			notifyClientChange(added, removed)
-		} else {
+		}
+		if tsData.PinMessageMode {
 			if tsData.PinnedMessageID == 0 {
 				message, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 					ChatID:    tsData.GroupID,
@@ -546,11 +609,11 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 						DisableNotification: true,
 					})
 					if ok {
-						isOnlineClientMessagePin = true
+						isMessagePinned = true
 						// 删除置顶消息提示
 						plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
 							PluginName:       "remove pin message notice",
-							ChatType:         tsData.GroupType,
+							ChatType:         privateOpts.Message.Chat.Type,
 							MessageType:      message_utils.PinnedMessage,
 							ForChatID:        tsData.GroupID,
 							AllowAutoTrigger: true,
@@ -584,7 +647,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 	}
 }
 
-func DiffSlices(before, now []OnlineClient) (added, removed []string) {
+func diffSlices(before, now []OnlineClient) (added, removed []string) {
 	beforeMap := make(map[string]bool)
 	nowMap    := make(map[string]bool)
 
@@ -626,7 +689,7 @@ func notifyClientChange(add, remove []string) {
 		}
 	}
 
-	_, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
+	msg, err := privateOpts.Thebot.SendMessage(privateOpts.Ctx, &bot.SendMessageParams{
 		ChatID: tsData.GroupID,
 		Text:   pendingMessage,
 		ParseMode: models.ParseModeHTML,
@@ -637,6 +700,9 @@ func notifyClientChange(add, remove []string) {
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
 			Msg(flaterr.SendMessage.Str())
+	} else {
+		// oldMessageIDs = append(oldMessageIDs, msg.ID)
+		go deleteOldMessage(msg.ID)
 	}
 }
 
@@ -684,7 +750,7 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 		}
 	}
 
-	if !isOnlineClientMessagePin {
+	if !isMessagePinned {
 		pendingMessage += "<blockquote expandable>无法置顶用户列表消息，请检查机器人是否拥有对应的权限，您也可以手动置顶此消息</blockquote>"
 	}
 
@@ -700,5 +766,159 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 			Int64("chatID", tsData.GroupID).
 			Str("content", "teamspeak user change notify").
 			Msg(flaterr.EditMessageText.Str())
+	}
+}
+
+func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str("funcName", "teamspeakCallbackHandler").
+		Str("callbackQueryData", opts.CallbackQuery.Data).
+		Logger()
+
+	var handlerErr flaterr.MultErr
+
+	if contain.Int64(opts.CallbackQuery.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsData.GroupID)...) || contain.Int64(opts.CallbackQuery.From.ID, configs.BotConfig.AdminIDs...) {
+		var needEdit bool = true
+		var needSave bool = false
+
+		switch opts.CallbackQuery.Data {
+		case "teamspeak_pinmessage":
+			if tsData.PinMessageMode && !tsData.SendMessageMode {
+				needEdit = false
+				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.CallbackQuery.ID,
+					Text:            "您至少要保留一个检测用户变动的方式",
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "at least need one notice method").
+						Msg(flaterr.AnswerCallbackQuery.Str())
+					handlerErr.Addt(flaterr.AnswerCallbackQuery, "at least need one notice method", err)
+				}
+			} else {
+				tsData.PinMessageMode = !tsData.PinMessageMode
+				needSave = true
+			}
+		case "teamspeak_sendmessage":
+			if tsData.SendMessageMode && !tsData.PinMessageMode {
+				needEdit = false
+				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.CallbackQuery.ID,
+					Text:            "您至少要保留一个检测用户变动的方式",
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "at least need one notice method").
+						Msg(flaterr.AnswerCallbackQuery.Str())
+					handlerErr.Addt(flaterr.AnswerCallbackQuery, "at least need one notice method", err)
+				}
+			} else {
+				tsData.SendMessageMode = !tsData.SendMessageMode
+				needSave = true
+			}
+		case "teamspeak_sendmessage_autodelete":
+			tsData.AutoDeleteMessage = !tsData.AutoDeleteMessage
+			needSave = true
+		}
+
+		if needEdit {
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
+				Text:      "选择通知用户变动的方式",
+				ReplyMarkup: buildTeamspeakConfigKeyboard(),
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "teamspeak manage keyboard").
+					Msg(flaterr.EditMessageText.Str())
+				handlerErr.Addt(flaterr.EditMessageText, "teamspeak manage keyboard", err)
+			}
+		}
+
+		if needSave {
+			err := saveTeamspeakData(opts.Ctx)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to save teamspeak data")
+				handlerErr.Addf("failed to save teamspeak data: %w", err)
+			}
+		}
+	} else {
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: opts.CallbackQuery.ID,
+			Text:            "您没有权限修改此内容",
+			ShowAlert:       true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "no permission to change teamspeak config").
+				Msg(flaterr.AnswerCallbackQuery.Str())
+			handlerErr.Addt(flaterr.AnswerCallbackQuery, "no permission to change teamspeak config", err)
+		}
+	}
+
+	return handlerErr.Flat()
+}
+
+func buildTeamspeakConfigKeyboard() models.ReplyMarkup {
+	var buttons [][]models.InlineKeyboardButton
+
+	if tsData.SendMessageMode {
+		buttons = append(buttons, []models.InlineKeyboardButton{
+			{
+				Text: utils.TextForTrueOrFalse(tsData.SendMessageMode, "✅ ", "") + "发送消息通知",
+				CallbackData: "teamspeak_sendmessage",
+			},
+			{
+				Text: utils.TextForTrueOrFalse(tsData.AutoDeleteMessage, "✅ ", "") + "自动删除旧消息",
+				CallbackData: "teamspeak_sendmessage_autodelete",
+			},
+		})
+	} else {
+		buttons = append(buttons, []models.InlineKeyboardButton{{
+			Text: utils.TextForTrueOrFalse(tsData.SendMessageMode, "✅ ", "") + "发送消息通知",
+			CallbackData: "teamspeak_sendmessage",
+		}})
+	}
+
+	buttons = append(buttons, []models.InlineKeyboardButton{{
+		Text: utils.TextForTrueOrFalse(tsData.PinMessageMode, "✅", "") + "显示在置顶消息",
+		CallbackData: "teamspeak_pinmessage",
+	}})
+	buttons = append(buttons, []models.InlineKeyboardButton{{
+		Text: "关闭菜单",
+		CallbackData: "delete_this_message",
+	}},)
+
+	return &models.InlineKeyboardMarkup{ InlineKeyboard: buttons }
+}
+
+// This is not a good solution
+func deleteOldMessage(msgID int) {
+	if tsData.DeleteTimeoutInMinute == 0 { tsData.DeleteTimeoutInMinute = 10 }
+	time.Sleep(time.Minute * time.Duration(tsData.DeleteTimeoutInMinute))
+	_, err := privateOpts.Thebot.DeleteMessage(privateOpts.Ctx, &bot.DeleteMessageParams{
+		ChatID: tsData.GroupID,
+		MessageID: msgID,
+	})
+	if err != nil {
+		zerolog.Ctx(privateOpts.Ctx).Error().
+			Err(err).
+			Str("pluginName", "teamspeak3").
+			Str("funcName", "deleteOldMessage").
+			Int("messageID", msgID).
+			Int("deleteMessageMinute", tsData.DeleteTimeoutInMinute).
+			Str("content", "teamspeak user change notify").
+			Msg(flaterr.DeleteMessage.Str())
 	}
 }

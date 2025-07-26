@@ -840,6 +840,7 @@ func udoneseCallbackHandler(opts *handler_params.CallbackQuery) error {
 		With().
 		Str("pluginName", "Udonese").
 		Str("funcName", "udoneseCallbackHandler").
+		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -854,7 +855,6 @@ func udoneseCallbackHandler(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Str("callbackQueryID", opts.CallbackQuery.ID).
 				Str("content", "udonese no edit permissions").
 				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addt(flaterr.AnswerCallbackQuery, "udonese no edit permissions", err)
@@ -906,7 +906,6 @@ func udoneseCallbackHandler(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("callbackQueryData", opts.CallbackQuery.Data).
 					Msg("Failed to parse meanning index")
 				handlerErr.Addf("failed to parse meanning index: %w", err)
 			} else {
@@ -979,7 +978,6 @@ func udoneseCallbackHandler(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("callbackQueryData", opts.CallbackQuery.Data).
 					Msg("Failed to parse meanning index")
 				handlerErr.Addf("failed to parse meanning index: %w", err)
 			} else {

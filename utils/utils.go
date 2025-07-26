@@ -17,6 +17,22 @@ import (
 	"github.com/rs/zerolog"
 )
 
+func GetChatAdminIDs(ctx context.Context, thebot *bot.Bot, chatID any) (ids []int64) {
+	admins, err := thebot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{ ChatID: chatID })
+	if err != nil {
+		log.Printf("Failed to get chat administrators: %w", err)
+		return nil
+	}
+	for _, n := range admins {
+		if n.Administrator != nil {
+			ids = append(ids, n.Administrator.User.ID)
+		} else if n.Owner != nil {
+			ids = append(ids, n.Owner.User.ID)
+		}
+	}
+	return
+}
+
 // 检查用户是否是管理员
 // chat type: "private", "group", "supergroup", or "channel"
 // not work for "private" chats
