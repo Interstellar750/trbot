@@ -380,7 +380,7 @@ func showStatus(opts *handler_params.Message) error {
 	}
 
 	var buttons [][]models.InlineKeyboardButton
-	if opts.Message.Chat.ID == tsData.GroupID {
+	if opts.Message.Chat.ID == tsData.GroupID && contain.Int64(opts.Message.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsData.GroupID)...) || contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
 		buttons = [][]models.InlineKeyboardButton{{{
 			Text:         "管理此功能",
 			CallbackData: "teamspeak",
