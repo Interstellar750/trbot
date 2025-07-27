@@ -8,6 +8,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
+	"trbot/utils/inline_utils"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"unicode/utf8"
@@ -968,7 +969,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 	SavedMessage := SavedMessageSet[opts.ChatInfo.ID]
 
-	keywordFields := utils.InlineExtractKeywords(opts.Fields)
+	keywordFields := inline_utils.ExtractKeywords(opts.Fields)
 
 	if len(keywordFields) == 0 {
 		// 没有搜索关键词，返回所有消息
@@ -1001,25 +1002,25 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		// 有搜索关键词，返回匹配的消息
 		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
-			if n.onlyText != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.onlyText.Description, n.onlyText.Title}) {
+			if n.onlyText != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.onlyText.Description, n.onlyText.Title}) {
 				all = append(all, n.onlyText)
-			} else if n.audio != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description, n.sharedData.Title, n.sharedData.FileName}) {
+			} else if n.audio != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description, n.sharedData.Title, n.sharedData.FileName}) {
 				all = append(all, n.audio)
-			} else if n.document != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
+			} else if n.document != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
 				all = append(all, n.document)
-			} else if n.gif != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
+			} else if n.gif != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
 				all = append(all, n.gif)
-			} else if n.mpeg4gif != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
+			} else if n.mpeg4gif != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
 				all = append(all, n.mpeg4gif)
-			} else if n.photo != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
+			} else if n.photo != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
 				all = append(all, n.photo)
-			} else if n.sticker != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description, n.sharedData.FileName}) {
+			} else if n.sticker != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description, n.sharedData.FileName}) {
 				all = append(all, n.sticker)
-			} else if n.video != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
+			} else if n.video != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
 				all = append(all, n.video)
-			} else if n.videoNote != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
+			} else if n.videoNote != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
 				all = append(all, n.videoNote)
-			} else if n.voice != nil && utils.InlineQueryMatchMultKeyword(keywordFields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
+			} else if n.voice != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
 				all = append(all, n.voice)
 			}
 		}
@@ -1057,7 +1058,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: opts.InlineQuery.ID,
-		Results:       utils.InlineResultPagination(opts.Fields, InlineSavedMessageResultList),
+		Results:       inline_utils.ResultPagination(opts.Fields, InlineSavedMessageResultList),
 		IsPersonal:    true,
 		CacheTime:     0,
 		Button:        button,

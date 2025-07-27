@@ -11,6 +11,7 @@ import (
 	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
+	"trbot/utils/inline_utils"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
@@ -473,7 +474,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 					ResultList := plugin.InlineHandler(opts)
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.InlineQuery.ID,
-						Results:       utils.InlineResultPagination(opts.Fields, ResultList),
+						Results:       inline_utils.ResultPagination(opts.Fields, ResultList),
 						IsPersonal:    true,
 						CacheTime:     0,
 					})
@@ -580,7 +581,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 						resultList := plugin.InlineHandler(opts)
 						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 							InlineQueryID: opts.InlineQuery.ID,
-							Results:       utils.InlineResultPagination(opts.Fields, resultList),
+							Results:       inline_utils.ResultPagination(opts.Fields, resultList),
 							IsPersonal:    true,
 							CacheTime:     0,
 						})
@@ -682,7 +683,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 						resultList := plugin.InlineHandler(opts)
 						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 							InlineQueryID: opts.InlineQuery.ID,
-							Results:       utils.InlineResultPagination(opts.Fields, resultList),
+							Results:       inline_utils.ResultPagination(opts.Fields, resultList),
 							IsPersonal:    true,
 							CacheTime:     0,
 							Button: &models.InlineQueryResultsButton{

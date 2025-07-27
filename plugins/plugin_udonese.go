@@ -15,6 +15,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
+	"trbot/utils/inline_utils"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
@@ -558,7 +559,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 		opts.Fields[i] = strings.ToLower(opts.Fields[i])
 	}
 
-	keywordFields := utils.InlineExtractKeywords(opts.Fields)
+	keywordFields := inline_utils.ExtractKeywords(opts.Fields)
 
 	// 仅 :sms 参数，或带有分页符号，输出全部词
 	if len(keywordFields) == 0 {
@@ -588,7 +589,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 			} else {
 				pendingMessage = fmt.Sprintf("已使用 %d 次，暂无意思", data.Used)
 			}
-			if utils.InlineQueryMatchMultKeyword(keywordFields, []string{strings.ToLower(data.Word)}) {
+			if inline_utils.MatchMultKeyword(keywordFields, []string{strings.ToLower(data.Word)}) {
 				udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 					ID:    data.Word + "-word",
 					Title: data.Word,
@@ -600,9 +601,9 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 				})
 			}
 			// 通过意思查找词
-			if utils.InlineQueryMatchMultKeyword(keywordFields, data.OnlyMeaning()) {
+			if inline_utils.MatchMultKeyword(keywordFields, data.OnlyMeaning()) {
 				for i, n := range data.MeaningList {
-					if utils.InlineQueryMatchMultKeyword(keywordFields, []string{strings.ToLower(n.Meaning)}) {
+					if inline_utils.MatchMultKeyword(keywordFields, []string{strings.ToLower(n.Meaning)}) {
 						udoneseResultList = append(udoneseResultList, &models.InlineQueryResultArticle{
 							ID:    fmt.Sprintf("%s-meaning-%d", data.Word, i),
 							Title: n.Meaning,

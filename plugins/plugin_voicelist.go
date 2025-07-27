@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/handler_params"
+	"trbot/utils/inline_utils"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
 
@@ -138,7 +138,7 @@ func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResu
 		}}
 	}
 
-	keywordFields := utils.InlineExtractKeywords(opts.Fields)
+	keywordFields := inline_utils.ExtractKeywords(opts.Fields)
 
 	// 没有查询字符串或使用分页搜索符号，返回所有结果
 	if len(keywordFields) == 0 {
@@ -155,7 +155,7 @@ func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResu
 	} else {
 		for _, voicePack := range VoiceLists {
 			for _, voice := range voicePack.Voices {
-				if utils.InlineQueryMatchMultKeyword(keywordFields, []string{voicePack.Name, voice.Title, voice.Caption}) {
+				if inline_utils.MatchMultKeyword(keywordFields, []string{voicePack.Name, voice.Title, voice.Caption}) {
 					results = append(results, &models.InlineQueryResultVoice{
 						ID:       voice.ID,
 						Title:    voicePack.Name + ": " + voice.Title,

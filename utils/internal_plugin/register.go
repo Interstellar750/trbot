@@ -13,6 +13,7 @@ import (
 	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
+	"trbot/utils/inline_utils"
 	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/signals"
@@ -381,7 +382,7 @@ func Register(ctx context.Context) {
 
 				var handlerErr flaterr.MultErr
 
-				keywords := utils.InlineExtractKeywords(opts.Fields)
+				keywords := inline_utils.ExtractKeywords(opts.Fields)
 				if len(keywords) == 0 {
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.InlineQuery.ID,
