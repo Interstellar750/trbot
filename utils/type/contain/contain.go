@@ -44,7 +44,7 @@ func StringEqualFold(target string, candidates ...string) bool {
 
 func SubString(target string, candidates ...string) bool {
 	for _, candidate := range candidates {
-		if strings.Contains(target, candidate) {
+		if strings.Contains(candidate, target) {
 			return true
 		}
 	}
@@ -53,7 +53,7 @@ func SubString(target string, candidates ...string) bool {
 
 func SubStringCaseInsensitive(target string, candidates ...string) bool {
 	for _, candidate := range candidates {
-		if strings.Contains(strings.ToLower(target), strings.ToLower(candidate)) {
+		if strings.Contains(strings.ToLower(candidate), strings.ToLower(target)) {
 			return true
 		}
 	}
