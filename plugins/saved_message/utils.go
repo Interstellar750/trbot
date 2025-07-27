@@ -150,7 +150,7 @@ func (s *SavedMessageItems) All() []sortstruct {
 			ID:                  v.ID,
 			Title:               v.TitleAndMessageText,
 			Description:         v.Description,
-			InputMessageContent: models.InputTextMessageContent{
+			InputMessageContent: &models.InputTextMessageContent{
 				MessageText:        v.TitleAndMessageText,
 				Entities:           v.Entities,
 				LinkPreviewOptions: v.LinkPreviewOptions,

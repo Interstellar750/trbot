@@ -18,7 +18,6 @@ import (
 
 var VoiceLists   []VoicePack
 var VoiceListErr error
-
 var VoiceListDir string = filepath.Join(consts.YAMLDataBaseDir, "voices/")
 
 func init() {
@@ -27,7 +26,7 @@ func init() {
 		Func: ReadVoicePackFromPath,
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
-		Name: "Voice List",
+		Name:   "Voice List",
 		Loader: ReadVoicePackFromPath,
 	})
 	plugin_utils.AddInlineHandlerHandlers(plugin_utils.InlineHandler{
@@ -122,8 +121,7 @@ func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResu
 	var results []models.InlineQueryResult
 
 	if VoiceLists == nil {
-		zerolog.Ctx(opts.Ctx).
-			Warn().
+		zerolog.Ctx(opts.Ctx).Warn().
 			Str("pluginName", "Voice List").
 			Str("funcName", "VoiceListHandler").
 			Str("VoiceListDir", VoiceListDir).
@@ -167,12 +165,12 @@ func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResu
 		}
 		if len(results) == 0 {
 			results = append(results, &models.InlineQueryResultArticle{
-				ID:    "none",
-				Title: "没有符合关键词的内容",
-				Description: fmt.Sprintf("没有找到包含 %s 的内容", keywordFields),
-				InputMessageContent: models.InputTextMessageContent{
+				ID:                  "none",
+				Title:               "没有符合关键词的内容",
+				Description:         fmt.Sprintf("没有找到包含 %s 的内容", keywordFields),
+				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
-					ParseMode: models.ParseModeMarkdownV1,
+					ParseMode:    models.ParseModeMarkdownV1,
 				},
 			})
 		}
@@ -180,12 +178,12 @@ func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResu
 
 	if VoiceListErr != nil {
 		return append([]models.InlineQueryResult{&models.InlineQueryResultArticle{
-			ID:       "none",
-			Title:    "读取语音文件时发生错误，请联系机器人管理员",
-			Description: "点此显示错误信息",
-			InputMessageContent: models.InputTextMessageContent{
+			ID:                  "none",
+			Title:               "读取语音文件时发生错误，请联系机器人管理员",
+			Description:         "点此显示错误信息",
+			InputMessageContent: &models.InputTextMessageContent{
 				MessageText: fmt.Sprintf("读取语音文件时发生错误<blockquote expandable>%s</blockquote>", VoiceListErr),
-				ParseMode: models.ParseModeHTML,
+				ParseMode:   models.ParseModeHTML,
 			},
 		}}, results...)
 	}

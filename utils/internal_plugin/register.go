@@ -14,7 +14,6 @@ import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
-	"trbot/utils/mess"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/signals"
 	"trbot/utils/type/contain"
@@ -140,7 +139,7 @@ func Register(ctx context.Context) {
 				// return
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:             opts.Message.Chat.ID,
-					Text:               mess.OutputVersionInfo(),
+					Text:               utils.OutputVersionInfo(),
 					ReplyParameters:    &models.ReplyParameters{ MessageID: opts.Message.ID },
 					ParseMode:          models.ParseModeMarkdownV1,
 					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
@@ -570,7 +569,7 @@ func Register(ctx context.Context) {
 
 				var handlerErr flaterr.MultErr
 
-				logs, err := mess.ReadLog()
+				logs, err := utils.ReadLog()
 				if err != nil {
 					logger.Error().
 						Err(err).

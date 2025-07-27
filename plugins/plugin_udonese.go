@@ -574,7 +574,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 				ID:    data.Word + "-word",
 				Title: data.Word,
 				Description: pendingMessage,
-				InputMessageContent: models.InputTextMessageContent{
+				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: data.OutputMeanings(),
 					ParseMode: models.ParseModeHTML,
 				},
@@ -594,7 +594,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 					ID:    data.Word + "-word",
 					Title: data.Word,
 					Description: pendingMessage,
-					InputMessageContent: models.InputTextMessageContent{
+					InputMessageContent: &models.InputTextMessageContent{
 						MessageText: data.OutputMeanings(),
 						ParseMode: models.ParseModeHTML,
 					},
@@ -608,7 +608,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 							ID:    fmt.Sprintf("%s-meaning-%d", data.Word, i),
 							Title: n.Meaning,
 							Description: fmt.Sprintf("%s 对应的词是 %s", n.Meaning, data.Word),
-							InputMessageContent: models.InputTextMessageContent{
+							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: fmt.Sprintf("%s 对应的词是 <code>%s</code>", n.Meaning, data.Word),
 								ParseMode: models.ParseModeHTML,
 							},
@@ -622,7 +622,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 				ID:       "none",
 				Title:    "没有符合关键词的内容",
 				Description: fmt.Sprintf("没有找到包含 %s 的词或意思，若想查看添加方法，请点击这条内容", keywordFields),
-				InputMessageContent: models.InputTextMessageContent{
+				InputMessageContent: &models.InputTextMessageContent{
 					MessageText: "没有这个词，使用 `udonese <词> <意思>` 来添加吧",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
@@ -634,7 +634,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 			ID:    "none",
 			Title: "没有记录任何内容",
 			Description: "什么都没有，使用 `/udonese <词> <意思>` 来添加吧",
-			InputMessageContent: models.InputTextMessageContent{
+			InputMessageContent: &models.InputTextMessageContent{
 				MessageText: "使用 `/udonese <词> <单个意思>` 来添加记录",
 				ParseMode: models.ParseModeMarkdownV1,
 			},
