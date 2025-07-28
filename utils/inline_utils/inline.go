@@ -10,167 +10,217 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-// 将 InlineQueryResult 列表进行分页处理
-func ResultPagination(fields []string, results []models.InlineQueryResult) []models.InlineQueryResult {
-	// 当 result 的数量超过 InlineResultsPerPage 时，进行分页
-	// fmt.Println(len(results), InlineResultsPerPage)
-	if len(results) > configs.BotConfig.InlineResultsPerPage {
-		// 获取 update.InlineQuery.Query 末尾的 `<分页符号><数字>` 来选择输出第几页
-		var pageNow int = 1
-		var pageSize = (configs.BotConfig.InlineResultsPerPage - 1)
+type ParsedQuery struct {
+	SubCommand string
+	Keywords   []string
+	Category   string
+	Page       int
+	LastChar   string
+}
 
-		pageNow, err := ExtractPageNumber(fields)
-		// 读取页码发生错误
-		if err != nil {
-			// 输入了分页符号没有输入数字
-			if fields[len(fields)-1][1:] == "" {
+func ParseInlineFields(fields []string) ParsedQuery {
+	result := ParsedQuery{}
+
+	for i, field := range fields {
+		switch {
+		case i == 0 && strings.HasPrefix(field, configs.BotConfig.InlineSubCommandSymbol):
+			result.SubCommand = strings.TrimPrefix(field, configs.BotConfig.InlineSubCommandSymbol)
+		case strings.HasPrefix(field, configs.BotConfig.InlineCategorySymbol):
+			catStr := strings.TrimPrefix(field, configs.BotConfig.InlineCategorySymbol)
+			if catStr != "" {
+				if result.Category != "" {
+					// previous category was not empty, so it's a keyword
+					result.Keywords = append(result.Keywords, configs.BotConfig.InlineCategorySymbol + result.Category)
+				}
+				result.Category = catStr
+			} else if i + 1 == len(fields) {
+				result.LastChar = field
+			} else {
+				result.Keywords = append(result.Keywords, field)
+			}
+		case strings.HasPrefix(field, configs.BotConfig.InlinePaginationSymbol):
+			pageStr := strings.TrimPrefix(field, configs.BotConfig.InlinePaginationSymbol)
+			if pageNum, err := strconv.Atoi(pageStr); err == nil {
+				if result.Page != 0 {
+					// previous page was not empty, so it's a keyword
+					result.Keywords = append(result.Keywords, configs.BotConfig.InlinePaginationSymbol + strconv.Itoa(result.Page))
+				}
+				result.Page = pageNum
+			} else if i + 1 == len(fields) {
+				result.LastChar = field
+			} else {
+				result.Keywords = append(result.Keywords, field)
+			}
+		default:
+			result.Keywords = append(result.Keywords, field)
+			if i + 1 == len(fields) && len(field) == 1 {
+				result.LastChar = field
+			}
+		}
+	}
+
+	if result.Page == 0 {
+		result.Page = 1
+	}
+
+	// zerolog/log
+	// log.Warn().
+	// 	Interface("parsedQuery", result).
+	// 	Msg("Parsed query")
+
+	return result
+}
+
+func ParseInlineQuery(query string) ParsedQuery {
+	return ParseInlineFields(strings.Fields(query))
+}
+
+// 将 InlineQueryResult 列表进行分页处理
+func ResultPagination(parsedQuery ParsedQuery, results []models.InlineQueryResult) []models.InlineQueryResult {
+	var pageSize    int = (configs.BotConfig.InlineResultsPerPage - 1)
+	var resultCount int = len(results)
+
+	if parsedQuery.LastChar != "" {
+		switch parsedQuery.LastChar {
+		case configs.BotConfig.InlinePaginationSymbol: // 最后一个字符为分页符号
+			if resultCount < configs.BotConfig.InlineResultsPerPage {
+				return append([]models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:          "noNeedPagination",
+					Title:       "没有多余的内容",
+					Description: fmt.Sprintf("只有以下 %d 个条目", resultCount),
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+				}}, results...)
+			} else {
 				return []models.InlineQueryResult{&models.InlineQueryResultArticle{
 					ID:          "keepInputNumber",
 					Title:       "请继续输入数字",
-					Description: fmt.Sprintf("继续输入一个数字来查看对应的页面，当前列表有 %d 页", (len(results) + pageSize - 1) / pageSize),
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: "用户在尝试进行分页时点击了分页提示...",
-						ParseMode:   models.ParseModeMarkdownV1,
-					},
-				}}
-			} else {
-				// 在分页符号后输入了非数字字符
-				return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:          "noThisOperation",
-					Title:       "无效的操作",
-					Description: fmt.Sprintf("若您想翻页查看，请尝试输入 `%s2` 来查看第二页", configs.BotConfig.InlinePaginationSymbol),
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: "用户在尝试进行分页时输入了错误的页码并点击了分页提示...",
-						ParseMode:   models.ParseModeMarkdownV1,
-					},
+					Description: fmt.Sprintf("继续输入一个数字来查看对应的页面，当前列表有 %d 页", (resultCount + pageSize - 1) / pageSize),
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试进行分页时点击了提示信息..." },
 				}}
 			}
+		case configs.BotConfig.InlineCategorySymbol: // 最后一个字符为分类符号
+			results = append([]models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:          "noCategory",
+				Title:       "没有分类",
+				Description: "这个插件并没有设定任何分类",
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
+			}}, results...)
 		}
+	}
 
-		start := (pageNow - 1) * pageSize
-		end := start + pageSize
+	// 当 result 的数量超过 InlineResultsPerPage 时，进行分页
+	if resultCount > configs.BotConfig.InlineResultsPerPage {
+		var pageSize = (configs.BotConfig.InlineResultsPerPage - 1)
 
-		if start < 0 || start >= len(results) {
+		start := (parsedQuery.Page - 1) * pageSize
+		end   := start + pageSize
+
+		if start < 0 || start >= resultCount {
 			return []models.InlineQueryResult{&models.InlineQueryResultArticle{
 				ID:          "wrongPageNumber",
 				Title:       "错误的页码",
-				Description: fmt.Sprintf("您输入的页码 %d 超出范围，当前列表有 %d 页", pageNow, (len(results)+pageSize-1)/pageSize),
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "用户在浏览不存在的页面时点击了错误页码提示...",
-					ParseMode:   models.ParseModeMarkdownV1,
-				},
+				Description: fmt.Sprintf("您输入的页码 %d 超出范围，当前列表有 %d 页", parsedQuery.Page, (resultCount + pageSize - 1) / pageSize),
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在浏览不存在的页面时点击了错误页码提示..." },
 			}}
 		}
 
-		if end > len(results) {
-			end = len(results)
-		}
+		if end > resultCount { end = resultCount }
 		pageResults := results[start:end]
 
 		// 添加翻页提示
-		if end < len(results) {
-			totalPages := (len(results) + pageSize - 1) / pageSize
+		if end < resultCount {
+			totalPages := (resultCount + pageSize - 1) / pageSize
 			pageResults = append(pageResults, &models.InlineQueryResultArticle{
 				ID:          "paginationPage",
-				Title:       fmt.Sprintf("当前您在第 %d 页", pageNow),
-				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages-pageNow, configs.BotConfig.InlinePaginationSymbol, pageNow+1),
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "用户在挑选内容时点击了分页提示...",
-					ParseMode:   models.ParseModeMarkdownV1,
-				},
+				Title:       fmt.Sprintf("当前您在第 %d 页", parsedQuery.Page),
+				Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", totalPages - parsedQuery.Page, configs.BotConfig.InlinePaginationSymbol, parsedQuery.Page + 1),
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在挑选内容时点击了分页提示..." },
 			})
 		} else {
 			pageResults = append(pageResults, &models.InlineQueryResultArticle{
 				ID:          "paginationPage",
-				Title:       fmt.Sprintf("当前您在第 %d 页", pageNow),
+				Title:       fmt.Sprintf("当前您在第 %d 页", parsedQuery.Page),
 				Description: "后面已经没有东西了",
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "用户在挑选内容时点击了分页提示...",
-					ParseMode:   models.ParseModeMarkdownV1,
-				},
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在挑选内容时点击了分页提示..." },
 			})
 		}
 
 		return pageResults
-	} else if len(fields) > 0 && strings.HasPrefix(fields[len(fields)-1], configs.BotConfig.InlinePaginationSymbol) {
-		return []models.InlineQueryResult{&models.InlineQueryResultArticle{
-			ID:          "noNeedPagination",
-			Title:       "没有多余的内容",
-			Description: fmt.Sprintf("只有 %d 个条目，你想翻页也没有多的了", len(results)),
-			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
-				ParseMode:   models.ParseModeMarkdownV1,
-			},
-		}}
 	} else {
+		if parsedQuery.Page > 1 {
+			return append([]models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:          "noNeedPagination",
+				Title:       "没有多余的内容",
+				Description: fmt.Sprintf("只有以下 %d 个条目", resultCount),
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+			}}, results...)
+		}
 		return results
 	}
 }
 
-// 从 inline 字段中提取子命令字符串
-func ExtractSubCommand(fields []string) string {
-	if len(fields) == 0 {
-		return ""
+// include ResultPagination
+func ResultCategory(parsedQuery ParsedQuery, categoryResults map[string][]models.InlineQueryResult) []models.InlineQueryResult {
+	var resultCount int
+
+	var categorys []string
+	for name, results := range categoryResults {
+		if len(results) > 0 {
+			categorys = append(categorys, name)
+			resultCount += len(results)
+		}
 	}
 
-	// 判断是不是子命令
-	if strings.HasPrefix(fields[0], configs.BotConfig.InlineSubCommandSymbol) {
-		return strings.TrimPrefix(fields[0], configs.BotConfig.InlineSubCommandSymbol)
-	}
-	return ""
-}
-
-// 从 Inline 字段中提取查询关键词，去除子命令的前缀或后缀的分页符号
-func ExtractKeywords(fields []string) []string {
-	if len(fields) == 0 {
-		return []string{}
+	if parsedQuery.LastChar == configs.BotConfig.InlineCategorySymbol {
+		// 最后一个字符为分类符号
+		return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+			ID:          "keepInputCategory",
+			Title:       "请继续输入分类名称",
+			Description: fmt.Sprintf("当前列表有 %v 分类", categorys),
+			InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
+		}}
 	}
 
-	// 判断是不是子命令
-	if strings.HasPrefix(fields[0], configs.BotConfig.InlineSubCommandSymbol) {
-		fields = fields[1:]
-	}
-	// 判断有没有分页符号
-	if len(fields) > 0 && strings.HasPrefix(fields[len(fields)-1], configs.BotConfig.InlinePaginationSymbol) {
-		fields = fields[:len(fields)-1]
-	}
+	if parsedQuery.Category != "" {
+		result, IsExist := categoryResults[parsedQuery.Category]
+		if !IsExist || len(result) == 0 {
+			return []models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:          "noThisCategory",
+				Title:       fmt.Sprintf("无效的 [ %s ] 分类", parsedQuery.Category),
+				Description: fmt.Sprintf("当前列表有 %s 分类", categorys),
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试访问不存在的分类时点击了提示信息..." },
+			}}
+		}
 
-	return fields
-}
-
-// 从 inline 字段中提取页码
-func ExtractPageNumber(fields []string) (int, error) {
-	if len(fields) == 0 {
-		return 1, nil
+		return ResultPagination(parsedQuery, result)
+	} else {
+		var allResults []models.InlineQueryResult
+		for _, result := range categoryResults {
+			allResults = append(allResults, result...)
+		}
+		return ResultPagination(parsedQuery, allResults)
 	}
-
-	// 判断有没有分页符号
-	if strings.HasPrefix(fields[len(fields)-1], configs.BotConfig.InlinePaginationSymbol) {
-		return strconv.Atoi(fields[len(fields)-1][1:])
-	}
-	return 1, nil
 }
 
 // 从 inline 查询字段中匹配多个关键词
-func MatchMultKeyword(fields []string, keywords []string) bool {
+func MatchMultKeyword(targetKeywords []string, keywords []string) bool {
 	var allkeywords int
 
-	fields = ExtractKeywords(fields)
-	if len(fields) != 0 {
-		allkeywords = len(fields)
+	if len(targetKeywords) != 0 {
+		allkeywords = len(targetKeywords)
 	}
 	// fmt.Println(allkeywords)
 	if allkeywords == 1 {
 		if len(keywords) == 0 {
 			return false
 		}
-		if contain.SubStringCaseInsensitive(fields[0], keywords...) {
+		if contain.SubStringCaseInsensitive(targetKeywords[0], keywords...) {
 			return true
 		}
 	} else {
 		var allMatch bool = true
 
-		for _, n := range fields {
+		for _, n := range targetKeywords {
 			if contain.SubStringCaseInsensitive(n, keywords...) {
 				// 保持 current 内容，继续过滤
 				// continue

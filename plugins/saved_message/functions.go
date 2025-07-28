@@ -964,84 +964,93 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 
 func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	var handlerErr flaterr.MultErr
-	var InlineSavedMessageResultList []models.InlineQueryResult
-	var button *models.InlineQueryResultsButton
+	var button     *models.InlineQueryResultsButton
 
-	SavedMessage := SavedMessageSet[opts.ChatInfo.ID]
+	SavedMessage  := SavedMessageSet[opts.ChatInfo.ID]
+	parsedQuery   := inline_utils.ParseInlineFields(opts.Fields)
 
-	keywordFields := inline_utils.ExtractKeywords(opts.Fields)
+	var resultCount int
 
-	if len(keywordFields) == 0 {
+	var (
+		onlyText  []models.InlineQueryResult
+		audio     []models.InlineQueryResult
+		document  []models.InlineQueryResult
+		gif       []models.InlineQueryResult
+		photo     []models.InlineQueryResult
+		sticker   []models.InlineQueryResult
+		video     []models.InlineQueryResult
+		videoNote []models.InlineQueryResult
+		voice     []models.InlineQueryResult
+		mpeg4gif  []models.InlineQueryResult
+	)
+
+	if len(parsedQuery.Keywords) == 0 {
 		// 没有搜索关键词，返回所有消息
-		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
 			if n.onlyText != nil {
-				all = append(all, n.onlyText)
+				onlyText = append(onlyText, n.onlyText)
 			} else if n.audio != nil {
-				all = append(all, n.audio)
+				audio = append(audio, n.audio)
 			} else if n.document != nil {
-				all = append(all, n.document)
+				document = append(document, n.document)
 			} else if n.gif != nil {
-				all = append(all, n.gif)
+				gif = append(gif, n.gif)
 			} else if n.photo != nil {
-				all = append(all, n.photo)
+				photo = append(photo, n.photo)
 			} else if n.sticker != nil {
-				all = append(all, n.sticker)
+				sticker = append(sticker, n.sticker)
 			} else if n.video != nil {
-				all = append(all, n.video)
+				video = append(video, n.video)
 			} else if n.videoNote != nil {
-				all = append(all, n.videoNote)
+				videoNote = append(videoNote, n.videoNote)
 			} else if n.voice != nil {
-				all = append(all, n.voice)
+				voice = append(voice, n.voice)
 			} else if n.mpeg4gif != nil {
-				all = append(all, n.mpeg4gif)
+				mpeg4gif = append(mpeg4gif, n.mpeg4gif)
 			}
+			resultCount++
 		}
-		InlineSavedMessageResultList = all
 	} else {
 		// 有搜索关键词，返回匹配的消息
-		var all []models.InlineQueryResult
 		for _, n := range SavedMessage.Item.All() {
-			if n.onlyText != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.onlyText.Description, n.onlyText.Title}) {
-				all = append(all, n.onlyText)
-			} else if n.audio != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.audio.Caption, n.sharedData.Description, n.sharedData.Title, n.sharedData.FileName}) {
-				all = append(all, n.audio)
-			} else if n.document != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.document.Title, n.document.Caption, n.document.Description}) {
-				all = append(all, n.document)
-			} else if n.gif != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
-				all = append(all, n.gif)
-			} else if n.mpeg4gif != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
-				all = append(all, n.mpeg4gif)
-			} else if n.photo != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
-				all = append(all, n.photo)
-			} else if n.sticker != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description, n.sharedData.FileName}) {
-				all = append(all, n.sticker)
-			} else if n.video != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.video.Title, n.video.Caption, n.video.Description}) {
-				all = append(all, n.video)
-			} else if n.videoNote != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
-				all = append(all, n.videoNote)
-			} else if n.voice != nil && inline_utils.MatchMultKeyword(keywordFields, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
-				all = append(all, n.voice)
+			if n.onlyText != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.onlyText.Description, n.onlyText.Title}) {
+				onlyText = append(onlyText, n.onlyText)
+			} else if n.audio != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.audio.Caption, n.sharedData.Description, n.sharedData.Title, n.sharedData.FileName}) {
+				audio = append(audio, n.audio)
+			} else if n.document != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.document.Title, n.document.Caption, n.document.Description}) {
+				document = append(document, n.document)
+			} else if n.gif != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
+				gif = append(gif, n.gif)
+			} else if n.mpeg4gif != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
+				mpeg4gif = append(mpeg4gif, n.mpeg4gif)
+			} else if n.photo != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
+				photo = append(photo, n.photo)
+			} else if n.sticker != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description, n.sharedData.FileName}) {
+				sticker = append(sticker, n.sticker)
+			} else if n.video != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.video.Title, n.video.Caption, n.video.Description}) {
+				video = append(video, n.video)
+			} else if n.videoNote != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
+				videoNote = append(videoNote, n.videoNote)
+			} else if n.voice != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
+				voice = append(voice, n.voice)
 			}
 		}
-		InlineSavedMessageResultList = all
+		resultCount = len(onlyText) + len(audio) + len(document) + len(gif) + len(mpeg4gif) + len(photo) + len(sticker) + len(video) + len(videoNote) + len(voice)
 
 		// 如果没有匹配的内容，则返回一个提示信息
-		if len(InlineSavedMessageResultList) == 0 {
-			InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
+		if resultCount == 0 {
+			onlyText = append(onlyText, &models.InlineQueryResultArticle{
 				ID:                  "none",
 				Title:               "没有符合关键词的内容",
-				Description:         fmt.Sprintf("没有找到包含 %s 的内容", keywordFields),
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "用户在找不到想看的东西时无奈点击了提示信息...",
-					ParseMode:   models.ParseModeMarkdownV1,
-				},
+				Description:         fmt.Sprintf("没有找到包含 %s 的内容", parsedQuery.Keywords),
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
 			})
+			resultCount++
 		}
 	}
 
-	if len(InlineSavedMessageResultList) == 0 {
-		InlineSavedMessageResultList = append(InlineSavedMessageResultList, &models.InlineQueryResultArticle{
+	if resultCount == 0 {
+		onlyText = append(onlyText, &models.InlineQueryResultArticle{
 			ID:          "empty",
 			Title:       "没有保存内容（点击查看详细教程）",
 			Description: "对一条信息回复 /save 来保存它",
@@ -1058,7 +1067,18 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: opts.InlineQuery.ID,
-		Results:       inline_utils.ResultPagination(opts.Fields, InlineSavedMessageResultList),
+		Results:       inline_utils.ResultCategory(parsedQuery, map[string][]models.InlineQueryResult{
+			"text":      onlyText,
+			"audio":     audio,
+			"document":  document,
+			"gif":       gif,
+			"photo":     photo,
+			"sticker":   sticker,
+			"video":     video,
+			"videoNote": videoNote,
+			"voice":     voice,
+			"mpeg4gif":  mpeg4gif,
+		}),
 		IsPersonal:    true,
 		CacheTime:     0,
 		Button:        button,

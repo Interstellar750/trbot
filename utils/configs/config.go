@@ -32,8 +32,9 @@ type config struct {
 	RedisDatabaseID int    `yaml:"RedisDatabaseID"`
 
 	// inline mode config
-	InlineDefaultHandler   string `yaml:"InlineDefaultHandler"`   // Leave empty to show inline menu
+	InlineDefaultHandler   string `yaml:"InlineDefaultHandler"`   // leave empty to show inline menu
 	InlineSubCommandSymbol string `yaml:"InlineSubCommandSymbol"` // default is "+"
+	InlineCategorySymbol   string `yaml:"InlineCategorySymbol"`   // default is "="
 	InlinePaginationSymbol string `yaml:"InlinePaginationSymbol"` // default is "-"
 	InlineResultsPerPage   int    `yaml:"InlineResultsPerPage"`   // default 50, maxinum 50, see https://core.telegram.org/bots/api#answerinlinequery
 
@@ -83,8 +84,9 @@ func CreateDefaultConfig() config {
 		LogFileLevel: "warn",
 
 		InlineSubCommandSymbol: "+",
+		InlineCategorySymbol:   "=",
 		InlinePaginationSymbol: "-",
-		InlineResultsPerPage: 50,
+		InlineResultsPerPage:   50,
 		AllowedUpdates: bot.AllowedUpdates{
 			models.AllowedUpdateMessage,
 			models.AllowedUpdateEditedMessage,

@@ -136,7 +136,7 @@ func VoiceListHandler(opts *handler_params.InlineQuery) []models.InlineQueryResu
 		}}
 	}
 
-	keywordFields := inline_utils.ExtractKeywords(opts.Fields)
+	keywordFields := inline_utils.ParseInlineFields(opts.Fields).Keywords
 
 	// 没有查询字符串或使用分页搜索符号，返回所有结果
 	if len(keywordFields) == 0 {

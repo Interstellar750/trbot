@@ -559,7 +559,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 		opts.Fields[i] = strings.ToLower(opts.Fields[i])
 	}
 
-	keywordFields := inline_utils.ExtractKeywords(opts.Fields)
+	keywordFields := inline_utils.ParseInlineFields(opts.Fields).Keywords
 
 	// 仅 :sms 参数，或带有分页符号，输出全部词
 	if len(keywordFields) == 0 {

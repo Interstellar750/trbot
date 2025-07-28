@@ -273,37 +273,36 @@ func CheckConfig(ctx context.Context) {
 
 	if BotConfig.LogLevel == "" {
 		BotConfig.LogLevel = "info"
-		logger.Warn().
-			Msg("LogLevel is not set, use default value: info")
+		logger.Warn().Msg("LogLevel is not set, use default value: info")
 	}
 
 	if BotConfig.LogFileLevel == "" {
 		BotConfig.LogFileLevel = "warn"
-		logger.Warn().
-			Msg("LogFileLevel is not set, use default value: warn")
+		logger.Warn().Msg("LogFileLevel is not set, use default value: warn")
 	}
 
 	if BotConfig.InlineDefaultHandler == "" {
-		logger.Info().
-			Msg("Inline default handler is not set, default show all commands")
+		logger.Info().Msg("Inline default handler is not set, default show all commands")
 	}
 
 	if BotConfig.InlineSubCommandSymbol == "" {
 		BotConfig.InlineSubCommandSymbol = "+"
-		logger.Info().
-			Msg("Inline sub command symbol is not set, use default value: `+` (plus sign)")
+		logger.Info().Msg("Inline sub command symbol is not set, use default value: `+` (plus sign)")
+	}
+
+	if BotConfig.InlineCategorySymbol == "" {
+		BotConfig.InlineCategorySymbol = "="
+		logger.Info().Msg("Inline category symbol is not set, use default value: `=` (equal sign)")
 	}
 
 	if BotConfig.InlinePaginationSymbol == "" {
 		BotConfig.InlinePaginationSymbol = "-"
-		logger.Info().
-			Msg("Inline pagination symbol is not set, use default value: `-` (minus sign)")
+		logger.Info().Msg("Inline pagination symbol is not set, use default value: `-` (minus sign)")
 	}
 
 	if BotConfig.InlineResultsPerPage == 0 {
 		BotConfig.InlineResultsPerPage = 50
-		logger.Info().
-			Msg("Inline results per page number is not set, set it to 50")
+		logger.Info().Msg("Inline results per page number is not set, set it to 50")
 	} else if BotConfig.InlineResultsPerPage < 1 || BotConfig.InlineResultsPerPage > 50 {
 		logger.Warn().
 			Int("invalidNumber", BotConfig.InlineResultsPerPage).
@@ -340,6 +339,7 @@ func CheckConfig(ctx context.Context) {
 	logger.Info().
 		Str("DefaultHandler",   BotConfig.InlineDefaultHandler).
 		Str("SubCommandSymbol", BotConfig.InlineSubCommandSymbol).
+		Str("CategorySymbol",   BotConfig.InlineCategorySymbol).
 		Str("PaginationSymbol", BotConfig.InlinePaginationSymbol).
 		Int("ResultsPerPage",   BotConfig.InlineResultsPerPage).
 		Msg("Inline mode config has been read")

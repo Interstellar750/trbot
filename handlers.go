@@ -409,56 +409,11 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 		Str("query", opts.InlineQuery.Query).
 		Logger()
 
-	var IsAdmin bool = contain.Int64(opts.InlineQuery.From.ID, configs.BotConfig.AdminIDs...)
+	IsAdmin     := contain.Int64(opts.InlineQuery.From.ID, configs.BotConfig.AdminIDs...)
+	parsedQuery := inline_utils.ParseInlineFields(opts.Fields)
 
-	if opts.InlineQuery.Query == configs.BotConfig.InlineSubCommandSymbol {
-		// 仅输入了命令符号，展示命令列表
-		var inlineButton = &models.InlineQueryResultsButton{
-			Text: "点击此处修改默认命令",
-			StartParameter: "via-inline_change-inline-command",
-		}
-		// 展示全部命令
-		var results []models.InlineQueryResult
-		results = append(results, &models.InlineQueryResultArticle{
-			ID:    "keepInput",
-			Title: "请不要点击列表中的命令",
-			Description: "由于限制，您需要手动输入完整的命令",
-			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: "请不要点击选单中的命令...",
-			},
-		})
-		for _, plugin := range plugin_utils.AllPlugins.InlineCommandList {
-			if !IsAdmin && plugin.Attr.IsHideInCommandList { continue }
-			var command = &models.InlineQueryResultArticle{
-				ID:    "inlineMenu_" + plugin.Command,
-				Title: plugin.Command,
-				Description: plugin.Description,
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "请不要点击选单中的命令...",
-				},
-			}
-
-			if plugin.Attr.IsHideInCommandList { command.Description = "隐藏 | " + command.Description }
-			if plugin.Attr.IsOnlyAllowAdmin { command.Description = "管理员 | " + command.Description }
-
-			results = append(results, command)
-		}
-
-		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.InlineQuery.ID,
-			Results:       results,
-			Button:        inlineButton,
-			IsPersonal:    true,
-			CacheTime:     0,
-		})
-		if err != nil {
-			inlineLogger.Error().
-				Err(err).
-				Str("content", "bot inline handler list").
-				Msg(flaterr.AnswerInlineQuery.Str())
-		}
-	} else if strings.HasPrefix(opts.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
-		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则提示错误
+	if strings.HasPrefix(opts.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
+		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则显示命令菜单
 
 		// 插件处理完后返回全部列表，由设定好的函数进行分页输出
 		for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
@@ -474,7 +429,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 					ResultList := plugin.InlineHandler(opts)
 					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 						InlineQueryID: opts.InlineQuery.ID,
-						Results:       inline_utils.ResultPagination(opts.Fields, ResultList),
+						Results:       inline_utils.ResultPagination(parsedQuery, ResultList),
 						IsPersonal:    true,
 						CacheTime:     0,
 					})
@@ -541,23 +496,57 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 		// 没有触发任何 handler
 		inlineLogger.Debug().Msg("No any handler is hit")
 
-		// 没有匹配到任何命令
-		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.InlineQuery.ID,
-			Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+		// 创建变量存放提示和命令菜单
+		var results []models.InlineQueryResult = []models.InlineQueryResult{ &models.InlineQueryResultArticle{
+			ID:                  "keepInput",
+			Title:               "请不要点击列表中的命令",
+			Description:         "由于限制，您需要手动输入完整的命令",
+			InputMessageContent: &models.InputTextMessageContent{ MessageText: "请不要点击选单中的命令..." },
+		}}
+
+		// 添加匹配输入的命令列表
+		for _, plugin := range plugin_utils.AllPlugins.InlineCommandList {
+			if !IsAdmin && plugin.Attr.IsHideInCommandList { continue }
+			if strings.HasPrefix(plugin.Command, parsedQuery.SubCommand) {
+				var description string
+				if plugin.Attr.IsOnlyAllowAdmin    { description += "管理员 | " }
+				if plugin.Attr.IsHideInCommandList { description += "隐藏 | "   }
+
+				results = append(results, &models.InlineQueryResultArticle{
+					ID:          "inlineMenu_" + plugin.Command,
+					Title:       plugin.Command,
+					Description: description + plugin.Description,
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "请不要点击选单中的命令...",
+					},
+				})
+			}
+		}
+
+		// 没有匹配的命令
+		if len(results) == 1 {
+			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
 				ID:                  "noinlinecommand",
 				Title:               fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
 				Description:         "请检查命令是否正确",
-				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "您在使用 inline 模式时没有输入正确的命令...",
-					ParseMode: models.ParseModeMarkdownV1,
-				},
-			}},
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "您在使用 inline 模式时没有输入正确的命令..." },
+			}}
+		}
+
+		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+			InlineQueryID: opts.InlineQuery.ID,
+			Results:       results,
+			IsPersonal:    true,
+			CacheTime:     0,
+			Button:        &models.InlineQueryResultsButton{
+				Text:           "点击此处修改默认命令",
+				StartParameter: "via-inline_change-inline-command",
+			},
 		})
 		if err != nil {
 			inlineLogger.Error().
 				Err(err).
-				Str("content", "no this inline command").
+				Str("content", "bot inline handler list").
 				Msg(flaterr.AnswerInlineQuery.Str())
 		}
 	} else {
@@ -581,7 +570,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 						resultList := plugin.InlineHandler(opts)
 						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 							InlineQueryID: opts.InlineQuery.ID,
-							Results:       inline_utils.ResultPagination(opts.Fields, resultList),
+							Results:       inline_utils.ResultPagination(parsedQuery, resultList),
 							IsPersonal:    true,
 							CacheTime:     0,
 						})
@@ -647,7 +636,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.InlineQuery.ID,
 				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:                  "noinlineplugin",
+					ID:                  "noInlinePlugin",
 					Title:               fmt.Sprintf("不存在的默认命令 [%s]", opts.ChatInfo.DefaultInlinePlugin),
 					Description:         "或许是因为管理员已经移除了这个插件，请重新选择一个默认命令",
 					InputMessageContent: &models.InputTextMessageContent{ MessageText: "此默认命令无效，或许是因为管理员已经移除了这个插件，请重新选择一个默认命令" },
@@ -683,7 +672,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 						resultList := plugin.InlineHandler(opts)
 						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 							InlineQueryID: opts.InlineQuery.ID,
-							Results:       inline_utils.ResultPagination(opts.Fields, resultList),
+							Results:       inline_utils.ResultPagination(parsedQuery, resultList),
 							IsPersonal:    true,
 							CacheTime:     0,
 							Button: &models.InlineQueryResultsButton{
@@ -759,7 +748,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			 _, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: opts.InlineQuery.ID,
 				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:    "invaliddefaulthandler",
+					ID:    "invalidDefaultHandler",
 					Title: "管理员设定了无效的默认命令",
 					Description: pendingMessage,
 					InputMessageContent: &models.InputTextMessageContent{
@@ -767,7 +756,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 					},
 				}},
 				Button: &models.InlineQueryResultsButton{
-					Text: "您可以点击此处设定一个默认命令",
+					Text:           "您可以点击此处设定一个默认命令",
 					StartParameter: "via-inline_change-inline-command",
 				},
 			})
