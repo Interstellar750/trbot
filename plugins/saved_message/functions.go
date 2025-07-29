@@ -981,7 +981,6 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		video     []models.InlineQueryResult
 		videoNote []models.InlineQueryResult
 		voice     []models.InlineQueryResult
-		mpeg4gif  []models.InlineQueryResult
 	)
 
 	if len(parsedQuery.Keywords) == 0 {
@@ -1006,7 +1005,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			} else if n.voice != nil {
 				voice = append(voice, n.voice)
 			} else if n.mpeg4gif != nil {
-				mpeg4gif = append(mpeg4gif, n.mpeg4gif)
+				gif = append(gif, n.mpeg4gif)
 			}
 			resultCount++
 		}
@@ -1022,7 +1021,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			} else if n.gif != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
 				gif = append(gif, n.gif)
 			} else if n.mpeg4gif != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
-				mpeg4gif = append(mpeg4gif, n.mpeg4gif)
+				gif = append(gif, n.mpeg4gif)
 			} else if n.photo != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
 				photo = append(photo, n.photo)
 			} else if n.sticker != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description, n.sharedData.FileName}) {
@@ -1035,7 +1034,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				voice = append(voice, n.voice)
 			}
 		}
-		resultCount = len(onlyText) + len(audio) + len(document) + len(gif) + len(mpeg4gif) + len(photo) + len(sticker) + len(video) + len(videoNote) + len(voice)
+		resultCount = len(onlyText) + len(audio) + len(document) + len(gif) + len(photo) + len(sticker) + len(video) + len(videoNote) + len(voice)
 
 		// 如果没有匹配的内容，则返回一个提示信息
 		if resultCount == 0 {
@@ -1077,7 +1076,6 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			"video":     video,
 			"videoNote": videoNote,
 			"voice":     voice,
-			"mpeg4gif":  mpeg4gif,
 		}),
 		IsPersonal:    true,
 		CacheTime:     0,
