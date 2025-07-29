@@ -570,6 +570,14 @@ func addKeywordHandler(opts *handler_params.Message) error {
 			}
 		} else {
 			if chat.AddTime == "" {
+				var initByID int64
+
+				if opts.Message.From != nil {
+					initByID = opts.Message.From.ID
+				} else if opts.Message.SenderChat != nil {
+					initByID = opts.Message.SenderChat.ID
+				}
+
 				// 初始化群组
 				chat = KeywordChatList{
 					ChatID:       opts.Message.Chat.ID,
@@ -577,7 +585,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 					ChatUsername: opts.Message.Chat.Username,
 					ChatType:     opts.Message.Chat.Type,
 					AddTime:      time.Now().Format(time.RFC3339),
-					InitByID:     opts.Message.From.ID,
+					InitByID:     initByID,
 				}
 				KeywordDataList.Chats[opts.Message.Chat.ID] = chat
 				err := saveKeywordList(opts.Ctx)
@@ -613,7 +621,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 						Msg(flaterr.SendMessage.Str())
 					handlerErr.Addt(flaterr.SendMessage, "group record link button", err)
 				}
-			} else {
+			} else if opts.Message.Chat.Type != models.ChatTypeChannel {
 				// 限制关键词长度
 				if len(opts.Fields[1]) > 30 {
 					_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
