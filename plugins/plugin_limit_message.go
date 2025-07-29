@@ -547,7 +547,7 @@ func buildMessageAllKB(chat AllowMessages) models.ReplyMarkup {
 	chatAllow = append(chatAllow, []models.InlineKeyboardButton{
 		{
 			Text:         "🚫 关闭菜单",
-			CallbackData: "limitmsg_done",
+			CallbackData: "delete_this_message",
 		},
 		{
 			Text:         "🔄 " + utils.TextForTrueOrFalse(chat.IsEnable, "当前已启用 ✅", "当前已关闭 ❌"),
@@ -637,18 +637,6 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 			needEditMainMenuMessage = true
 		case "limitmsg_back":
 			needEditMainMenuMessage = true
-		case "limitmsg_done":
-			_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
-				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.CallbackQuery.Message.Message.ID,
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "limit message main menu or test mode delete message notification").
-					Msg(flaterr.DeleteMessage.Str())
-				handlerErr.Addt(flaterr.DeleteMessage, "limit message main menu or test mode delete message notification", err)
-			}
 		case "limitmsg_switchenable":
 			thisChat.IsEnable = !thisChat.IsEnable
 			if thisChat.IsEnable { thisChat.IsUnderTest = false }
@@ -669,11 +657,11 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 			needSavelimitMessageList = true
 			needRebuildGroupList = true
 			_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
-				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
-				MessageID: opts.CallbackQuery.Message.Message.ID,
+				ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID:   opts.CallbackQuery.Message.Message.ID,
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-					Text: "删除此提醒",
-					CallbackData: "limitmsg_done",
+					Text:         "删除此提醒",
+					CallbackData: "delete_this_message",
 				}}}},
 			})
 			if err != nil {

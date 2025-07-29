@@ -1261,7 +1261,7 @@ func Init() {
 				},
 				{
 					Text:         "关闭",
-					CallbackData: "help-close",
+					CallbackData: "delete_this_message",
 				},
 			},
 		}},

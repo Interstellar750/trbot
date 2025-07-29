@@ -36,16 +36,16 @@ func startHandler(params *handler_params.Message) error {
 						Logger()
 
 					if plugin.MessageHandler != nil {
-						slogger.Info().Msg("Hit /start command handler by prefix")
+						slogger.Info().Msg("Hit by prefix /start command handler")
 						err := plugin.MessageHandler(params)
 						if err != nil {
 							slogger.Error().
 								Err(err).
-								Msg("Error in /start command handler by prefix trigger")
+								Msg("Error in by prefix /start command handler")
 						}
 						return err
 					} else {
-						slogger.Warn().Msg("Hit /start command handler by prefix, but this handler all function is nil, skip")
+						slogger.Warn().Msg("Hit by prefix /start command handler, but this handler function is nil, skip")
 					}
 				}
 			}
@@ -59,16 +59,16 @@ func startHandler(params *handler_params.Message) error {
 					Logger()
 
 				if plugin.MessageHandler != nil {
-					slogger.Info().Msg("Hit /start command handler by argument")
+					slogger.Info().Msg("Hit by argument /start command handler")
 					err := plugin.MessageHandler(params)
 					if err != nil {
 						slogger.Error().
 							Err(err).
-							Msg("Error in /start command handler by argument")
+							Msg("Error in by argument /start command handler")
 					}
 					return err
 				} else {
-					slogger.Warn().Msg("Hit /start command handler by argument, but this handler function is nil, skip")
+					slogger.Warn().Msg("Hit by argument /start command handler, but this handler function is nil, skip")
 				}
 			}
 		}
@@ -77,10 +77,10 @@ func startHandler(params *handler_params.Message) error {
 	var err error
 	if params.Message.Chat.Type == models.ChatTypePrivate {
 		_, err = params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
-			ChatID:             params.Message.Chat.ID,
-			Text:               fmt.Sprintf("Hello, *%s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 PNG 或 GIF 图片\n\n您可以打开左下角的命令菜单或发送 /help 命令来查看更多帮助信息", utils.ShowUserName(params.Message.From)),
-			ParseMode:          models.ParseModeMarkdownV1,
-			ReplyParameters:    &models.ReplyParameters{ MessageID: params.Message.ID },
+			ChatID:          params.Message.Chat.ID,
+			Text:            fmt.Sprintf("Hello, *%s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 PNG 或 GIF 图片\n\n您可以打开左下角的命令菜单或发送 /help 命令来查看更多帮助信息", utils.ShowUserName(params.Message.From)),
+			ParseMode:       models.ParseModeMarkdownV1,
+			ReplyParameters: &models.ReplyParameters{ MessageID: params.Message.ID },
 		})
 		if err != nil {
 			logger.Error().
@@ -95,21 +95,17 @@ func startHandler(params *handler_params.Message) error {
 
 func helpHandler(params *handler_params.Message) error {
 	defer utils.PanicCatcher(params.Ctx, "helpHandler")
-	logger := zerolog.Ctx(params.Ctx).
-		With().
-		Str("funcName", "helpHandler").
-		Logger()
 
 	_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
-		ChatID:             params.Message.Chat.ID,
-		Text:               fmt.Sprintf("当前 bot 中有 %d 个帮助文档", len(plugin_utils.AllPlugins.HandlerHelp)),
-		ReplyParameters:    &models.ReplyParameters{ MessageID: params.Message.ID },
-		LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
-		ReplyMarkup:        plugin_utils.BuildHandlerHelpKeyboard(),
+		ChatID:          params.Message.Chat.ID,
+		Text:            fmt.Sprintf("当前 bot 中有 %d 个帮助文档", len(plugin_utils.AllPlugins.HandlerHelp)),
+		ReplyParameters: &models.ReplyParameters{ MessageID: params.Message.ID },
+		ReplyMarkup:     plugin_utils.BuildHandlerHelpKeyboard(),
 	})
 	if err != nil {
-		logger.Error().
+		zerolog.Ctx(params.Ctx).Error().
 			Err(err).
+			Str("funcName", "helpHandler").
 			Dict(utils.GetChatDict(&params.Message.Chat)).
 			Dict(utils.GetUserDict(params.Message.From)).
 			Str("content", "bot help keyboard").
@@ -126,19 +122,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 		Dict(utils.GetChatDict(&params.CallbackQuery.Message.Message.Chat)).
 		Logger()
 
-	if params.CallbackQuery.Data == "help-close" {
-		_, err := params.Thebot.DeleteMessage(params.Ctx, &bot.DeleteMessageParams{
-			ChatID:    params.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: params.CallbackQuery.Message.Message.ID,
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "bot help keyboard").
-				Msg(flaterr.DeleteMessage.Str())
-		}
-		return err
-	} else if strings.HasPrefix(params.CallbackQuery.Data, "help-handler_") {
+	if strings.HasPrefix(params.CallbackQuery.Data, "help-handler_") {
 		handlerName := strings.TrimPrefix(params.CallbackQuery.Data, "help-handler_")
 		for _, handler := range plugin_utils.AllPlugins.HandlerHelp {
 			if handler.Name == handlerName {
@@ -155,7 +139,7 @@ func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 						},
 						{
 							Text:         "关闭",
-							CallbackData: "help-close",
+							CallbackData: "delete_this_message",
 						},
 					}}}
 				}
