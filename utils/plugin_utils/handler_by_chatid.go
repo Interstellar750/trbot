@@ -73,52 +73,48 @@ func RunByChatIDHandlers(params *handler_params.Message) (int, error) {
 		Str("chatType", string(params.Message.Chat.Type)).
 		Logger()
 
-	if AllPlugins.HandlerByChatID[params.Message.Chat.ID] != nil {
-		for name, handler := range AllPlugins.HandlerByChatID[params.Message.Chat.ID] {
-			slogger := logger.With().
-				Str("handlerName", name).
-				Int64("forChatID", handler.ForChatID).
-				Logger()
+	for name, handler := range AllPlugins.HandlerByChatID[params.Message.Chat.ID] {
+		slogger := logger.With().
+			Str("handlerName", name).
+			Int64("forChatID", handler.ForChatID).
+			Logger()
 
-			if handler.MessageHandler != nil {
-				slogger.Info().Msg("Hit by chat ID handler")
-				handlerRunCount++
-				err := handler.MessageHandler(params)
-				if err != nil {
-					slogger.Error().
-						Err(err).
-						Msg("Error in by chat ID handler")
-					handlerErr.Addf("Error in by chat ID handler [%s]: %w", name, err)
-				}
-			} else {
-				slogger.Warn().Msg("Hit by chat ID handler, but this handler function is nil, skip")
-				handlerErr.Addf("hit by chat ID handler [%s], but this handler function is nil, skip", name)
+		if handler.MessageHandler != nil {
+			slogger.Info().Msg("Hit by chat ID handler")
+			handlerRunCount++
+			err := handler.MessageHandler(params)
+			if err != nil {
+				slogger.Error().
+					Err(err).
+					Msg("Error in by chat ID handler")
+				handlerErr.Addf("Error in by chat ID handler [%s]: %w", name, err)
 			}
+		} else {
+			slogger.Warn().Msg("Hit by chat ID handler, but this handler function is nil, skip")
+			handlerErr.Addf("hit by chat ID handler [%s], but this handler function is nil, skip", name)
 		}
 	}
-	if AllPlugins.HandlerByChatID[0] != nil {
-		for name, handler := range AllPlugins.HandlerByChatID[0] {
-			slogger := logger.With().
-				Str("handlerName", name).
-				Int64("forChatID", handler.ForChatID).
-				Logger()
+	for name, handler := range AllPlugins.HandlerByChatID[0] {
+		slogger := logger.With().
+			Str("handlerName", name).
+			Int64("forChatID", handler.ForChatID).
+			Logger()
 
-			if handler.MessageHandler != nil {
-				slogger.Info().Msg("Hit by chat ID handler for any chat")
-				handlerRunCount++
-				err := handler.MessageHandler(params)
-				if err != nil {
-					slogger.Error().
-						Err(err).
-						Msg("Error in by chat ID handler for any chat")
-					handlerErr.Addf("Error in by chat ID handler for any chat [%s]: %w", name, err)
-				}
-			} else {
-				slogger.Warn().Msg("Hit by chat ID handler, but this handler function is nil, skip")
-				handlerErr.Addf("hit by chat ID handler [%s], but this handler function is nil, skip", name)
+		if handler.MessageHandler != nil {
+			slogger.Info().Msg("Hit by chat ID handler for any chat")
+			handlerRunCount++
+			err := handler.MessageHandler(params)
+			if err != nil {
+				slogger.Error().
+					Err(err).
+					Msg("Error in by chat ID handler for any chat")
+				handlerErr.Addf("Error in by chat ID handler for any chat [%s]: %w", name, err)
 			}
-
+		} else {
+			slogger.Warn().Msg("Hit by chat ID handler, but this handler function is nil, skip")
+			handlerErr.Addf("hit by chat ID handler [%s], but this handler function is nil, skip", name)
 		}
+
 	}
 
 	return handlerRunCount, handlerErr.Flat()

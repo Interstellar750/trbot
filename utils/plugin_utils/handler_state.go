@@ -92,7 +92,7 @@ func EditStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_p
 }
 
 func RunStateHandler(opts *handler_params.Message) bool {
-	if AllPlugins.StateHandler == nil { return false }
+	if AllPlugins.StateHandler == nil || opts.Message.From == nil { return false }
 	handler, isExist := AllPlugins.StateHandler[opts.Message.From.ID]
 	if isExist {
 		logger := zerolog.Ctx(opts.Ctx).

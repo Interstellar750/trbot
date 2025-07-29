@@ -41,7 +41,7 @@ func init() {
 					ParseMode:   models.ParseModeHTML,
 					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 						{{
-							Text: "将此机器人添加到群组",
+							Text: "将此机器人添加到群组或频道",
 							URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", consts.BotMe.Username),
 						}},
 						{
@@ -67,6 +67,12 @@ func init() {
 	})
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
 		SlashCommand:   "setkeyword",
+		ForChatType: []models.ChatType{
+			models.ChatTypePrivate,
+			models.ChatTypeGroup,
+			models.ChatTypeSupergroup,
+			models.ChatTypeChannel,
+		},
 		MessageHandler: addKeywordHandler,
 	})
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
@@ -946,7 +952,7 @@ func keywordDetector(opts *handler_params.Message) error {
 		user := KeywordDataList.Users[userID]
 		if !user.IsDisable && !user.IsNotInit {
 			// 如果用户设定排除了自己发送的消息，则跳过
-			if !user.IsIncludeSelf && opts.Message.From.ID == userID { continue }
+			if !user.IsIncludeSelf && opts.Message.From != nil && opts.Message.From.ID == userID { continue }
 
 			// 用户为单独群组设定的关键词
 			for _, userChatKeywordList := range user.ChatsForUser {
@@ -975,7 +981,7 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
-		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 群组中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
+		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
 			utils.RemoveIDPrefix(opts.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Message, models.ParseModeHTML),
 			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, text,
 		),
@@ -983,7 +989,7 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 		DisableNotification: user.IsSilentNotice,
 		ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "前往查看",
-			URL:   fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Message.Chat.ID), opts.Message.ID),
+			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Message.Chat.ID), opts.Message.ID),
 		}}}},
 	})
 	if err != nil {
@@ -1018,8 +1024,8 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.CallbackQuery.Message.Message.Chat.ID, opts.CallbackQuery.From.ID) {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.CallbackQuery.ID,
-			Text: "您没有权限修改此配置",
-			ShowAlert: true,
+			Text:            "您没有权限修改此配置",
+			ShowAlert:       true,
 		})
 		if err != nil {
 			logger.Error().
@@ -1028,38 +1034,66 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addt(flaterr.AnswerCallbackQuery, "no permission to change group functions", err)
 		}
-	} else {
+	} else if opts.CallbackQuery.Data == "detectkw_g_switch" {
 		chat := KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID]
-
-		if opts.CallbackQuery.Data == "detectkw_g_switch" {
-			// 群组里的全局开关，是否允许群组内用户使用这个功能，优先级最高
-			chat.IsDisable = !chat.IsDisable
-			KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID] = chat
-			buildListenList()
-			err := saveKeywordList(opts.Ctx)
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Failed to change group switch and save keyword list")
-				handlerErr.Addf("failed to change group switch and save keyword list: %w", err)
-			}
-		}
-
-		_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-			ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
-			MessageID:   opts.CallbackQuery.Message.Message.ID,
-			Text:        fmt.Sprintf("消息关键词检测\n此功能允许用户设定一些关键词，当机器人检测到群组内的消息包含用户设定的关键词时，向用户发送提醒\n\n当前群组中有 %d 个用户启用了此功能\n\n%s", len(chat.UsersID),  utils.TextForTrueOrFalse(chat.IsDisable, "已为当前群组关闭关键词检测功能，已设定了关键词的用户将无法再收到此群组的提醒", "")),
-			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text: "🔄 当前状态: " + utils.TextForTrueOrFalse(chat.IsDisable, "已禁用 ❌", "已启用 ✅"),
-				CallbackData: "detectkw_g_switch",
-			}}}},
-		})
+		// 群组里的全局开关，是否允许群组内用户使用这个功能，优先级最高
+		chat.IsDisable = !chat.IsDisable
+		KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID] = chat
+		buildListenList()
+		err := saveKeywordList(opts.Ctx)
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Str("content", "group function manager keyboard").
-				Msg(flaterr.EditMessageText.Str())
-			handlerErr.Addt(flaterr.EditMessageText, "group function manager keyboard", err)
+				Msg("Failed to change group switch and save keyword list")
+			handlerErr.Addf("failed to change group switch and save keyword list: %w", err)
+			_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: opts.CallbackQuery.ID,
+				Text:            "更改此选项时发生错误",
+				ShowAlert:       true,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "failed to change group switch notice").
+					Msg(flaterr.AnswerCallbackQuery.Str())
+				handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to change group switch notice", err)
+			}
+		} else {
+			var buttons [][]models.InlineKeyboardButton
+
+			if chat.IsDisable {
+				buttons = [][]models.InlineKeyboardButton{
+					{{
+						Text:         "🔄 当前状态: 已禁用 ❌",
+						CallbackData: "detectkw_g_switch",
+					}},
+				}
+			} else {
+				buttons = [][]models.InlineKeyboardButton{
+					{{
+						Text: "设定关键词",
+						URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", consts.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
+					}},
+					{{
+						Text:         "🔄 当前状态: 已启用 ✅",
+						CallbackData: "detectkw_g_switch",
+					}},
+				}
+			}
+
+			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID:   opts.CallbackQuery.Message.Message.ID,
+				Text:        fmt.Sprintf("消息关键词检测\n%s\n\n当前群组中有 %d 个用户启用了此功能",utils.TextForTrueOrFalse(chat.IsDisable, "已为当前群组关闭关键词检测功能，已设定了关键词的用户将无法再收到此群组的提醒", "此功能允许用户设定一些关键词，当机器人检测到群组内的消息包含用户设定的关键词时，向用户发送提醒"), len(chat.UsersID)),
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: buttons},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "group function manager keyboard").
+					Msg(flaterr.EditMessageText.Str())
+				handlerErr.Addt(flaterr.EditMessageText, "group function manager keyboard", err)
+			}
 		}
 	}
 
@@ -1541,15 +1575,19 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 			logger.Error().
 				Err(err).
 				Msg("Failed to parse chat ID when user add a group by /start command")
-			return handlerErr.Addf("failed to parse chat ID when user add a group by /start command: %w", err).Flat()
+			handlerErr.Addf("failed to parse chat ID when user add a group by /start command: %w", err)
 		}
 
 		chat, isExist := KeywordDataList.Chats[groupID_int64]
 		if !isExist {
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:          opts.Message.Chat.ID,
-				Text:            "无法添加群组, 请尝试在对应群组中发送 /setkeyword 命令后再尝试点击 [ 设定关键词 ] 按钮",
+				Text:            "无法添加群组，请尝试在对应群组中发送 /setkeyword 命令后再尝试点击 [ 设定关键词 ] 按钮",
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "将此机器人添加到群组或频道",
+					URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", consts.BotMe.Username),
+				}}}},
 			})
 			if err != nil {
 				logger.Error().

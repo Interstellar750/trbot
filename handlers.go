@@ -340,19 +340,19 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 		})
 	case updateType.InlineQuery:
 		inlineHandler(&handler_params.InlineQuery{
-		Ctx:         opts.Ctx,
-		Thebot:      opts.Thebot,
-		InlineQuery: opts.Update.InlineQuery,
-		ChatInfo:    opts.ChatInfo,
-		Fields:      strings.Fields(opts.Update.InlineQuery.Query),
-	})
+			Ctx:         opts.Ctx,
+			Thebot:      opts.Thebot,
+			InlineQuery: opts.Update.InlineQuery,
+			ChatInfo:    opts.ChatInfo,
+			Fields:      strings.Fields(opts.Update.InlineQuery.Query),
+		})
 	case updateType.CallbackQuery:
 		callbackQueryHandler(&handler_params.CallbackQuery{
-		Ctx:           opts.Ctx,
-		Thebot:        opts.Thebot,
-		CallbackQuery: opts.Update.CallbackQuery,
-		ChatInfo:      opts.ChatInfo,
-	})
+			Ctx:           opts.Ctx,
+			Thebot:        opts.Thebot,
+			CallbackQuery: opts.Update.CallbackQuery,
+			ChatInfo:      opts.ChatInfo,
+		})
 	}
 }
 
