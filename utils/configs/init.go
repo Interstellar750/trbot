@@ -187,7 +187,7 @@ func readBotToken(ctx context.Context) error {
 
 	// 都不存在，提示错误
 	logger.Warn().
-		Msg("No bot token in environment, .env file and yaml config file, try create a bot from https://t.me/@botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token and fill it")
+		Msg("No bot token in environment, `.env` file and yaml config file, try create a bot from https://t.me/@botfather https://core.telegram.org/bots/tutorial#obtain-your-bot-token and fill it")
 	return fmt.Errorf("no bot token")
 
 }
@@ -290,14 +290,14 @@ func CheckConfig(ctx context.Context) {
 		logger.Info().Msg("Inline sub command symbol is not set, use default value: `+` (plus sign)")
 	}
 
-	if BotConfig.InlineCategorySymbol == "" {
-		BotConfig.InlineCategorySymbol = "="
-		logger.Info().Msg("Inline category symbol is not set, use default value: `=` (equal sign)")
-	}
-
 	if BotConfig.InlinePaginationSymbol == "" {
 		BotConfig.InlinePaginationSymbol = "-"
 		logger.Info().Msg("Inline pagination symbol is not set, use default value: `-` (minus sign)")
+	}
+
+	if BotConfig.InlineCategorySymbol == "" {
+		BotConfig.InlineCategorySymbol = "="
+		logger.Info().Msg("Inline category symbol is not set, use default value: `=` (equal sign)")
 	}
 
 	if BotConfig.InlineResultsPerPage == 0 {

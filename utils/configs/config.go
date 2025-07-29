@@ -11,7 +11,7 @@ import (
 
 // default "./config.yaml", can be changed by env
 var ConfigPath string = "./config.yaml"
-var BotConfig config
+var BotConfig  config
 
 type config struct {
 	// bot config
@@ -34,8 +34,8 @@ type config struct {
 	// inline mode config
 	InlineDefaultHandler   string `yaml:"InlineDefaultHandler"`   // leave empty to show inline menu
 	InlineSubCommandSymbol string `yaml:"InlineSubCommandSymbol"` // default is "+"
-	InlineCategorySymbol   string `yaml:"InlineCategorySymbol"`   // default is "="
 	InlinePaginationSymbol string `yaml:"InlinePaginationSymbol"` // default is "-"
+	InlineCategorySymbol   string `yaml:"InlineCategorySymbol"`   // default is "="
 	InlineResultsPerPage   int    `yaml:"InlineResultsPerPage"`   // default 50, maxinum 50, see https://core.telegram.org/bots/api#answerinlinequery
 
 	AllowedUpdates bot.AllowedUpdates `yaml:"AllowedUpdates"`
@@ -84,8 +84,8 @@ func CreateDefaultConfig() config {
 		LogFileLevel: "warn",
 
 		InlineSubCommandSymbol: "+",
-		InlineCategorySymbol:   "=",
 		InlinePaginationSymbol: "-",
+		InlineCategorySymbol:   "=",
 		InlineResultsPerPage:   50,
 		AllowedUpdates: bot.AllowedUpdates{
 			models.AllowedUpdateMessage,

@@ -103,6 +103,20 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
 					Msg("pinMessage")
+			} else if update.Message.NewChatMembers != nil {
+				for _, chatMember := range update.Message.NewChatMembers {
+					logger.Info().
+						Dict(utils.GetUserDict(&chatMember)).
+						Dict(utils.GetChatDict(&update.Message.Chat)).
+						Int("messageID", update.Message.ID).
+						Msg("newChatMemberMessage")
+				}
+			} else if update.Message.LeftChatMember != nil {
+				logger.Info().
+					Dict(utils.GetUserDict(update.Message.LeftChatMember)).
+					Dict(utils.GetChatDict(&update.Message.Chat)).
+					Int("messageID", update.Message.ID).
+					Msg("leftChatMemberMessage")
 			} else {
 				logger.Info().
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
@@ -290,6 +304,14 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Str("editedText", update.EditedChannelPost.Text).
 					Msg("edited channel post")
 			}
+		case updateType.ChatMember:
+			logger.Info().
+				Dict(utils.GetUserDict(&update.ChatMember.From)).
+				Dict(utils.GetChatDict(&update.ChatMember.Chat)).
+				Str("oldType", string(update.ChatMember.OldChatMember.Type)).
+				Str("newType", string(update.ChatMember.NewChatMember.Type)).
+				Str("notice", "the user field may not be the actual user whose status was changed").
+				Msg("chatMemberUpdated")
 		default:
 			// 其他没有加入的更新类型
 			logger.Warn().
