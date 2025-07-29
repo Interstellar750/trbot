@@ -33,7 +33,7 @@ func AddFullCommandHandlers(handlers ...FullCommand) int {
 // is already run or not, error message
 func RunFullCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.FullCommand {
-		if strings.HasPrefix(params.Message.Text, plugin.FullCommand) && contain.ChatType(params.Message.Chat.Type, plugin.ForChatType...) {
+		if strings.HasPrefix(params.Message.Text, plugin.FullCommand) && contain.AnyType(params.Message.Chat.Type, plugin.ForChatType...) {
 			logger := zerolog.Ctx(params.Ctx).With().
 				Str("funcName", "RunFullCommandHandlers").
 				Str("FullCommand", plugin.FullCommand).

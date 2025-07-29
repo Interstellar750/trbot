@@ -373,7 +373,7 @@ func messageHandler(opts *handler_params.Message) {
 		return
 	}
 
-	// 判断是否为预设的命令
+	// 判断是否为命令
 	isProcessed, err := plugin_utils.RunCommandHandlers(opts)
 	if isProcessed {
 		if err != nil {
@@ -409,7 +409,6 @@ func messageHandler(opts *handler_params.Message) {
 			Bool("isProcessed", isProcessed).
 			Msg("Error when running by message type handler")
 	}
-
 
 	// 最后才运行针对群组 ID 的 handler
 	// handler by chat ID

@@ -30,7 +30,35 @@ var KeywordDataPath string = filepath.Join(consts.YAMLDataBaseDir, "detectkeywor
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Detect Keyword",
-		Func: readKeywordList,
+		Func: func(ctx context.Context) error{
+			err := readKeywordList(ctx)
+			if err != nil {
+				return err
+			} else {
+				plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
+					Name:        "群组关键词检测",
+					Description: "此功能可以检测群组中的每一条信息，当包含设定的关键词时，将会向用户发送提醒\n\n使用方法：\n首先将机器人添加至想要监听关键词的群组中，发送 /setkeyword 命令，等待机器人回应后点击下方的 “设定关键词” 按钮即可为自己添加要监听的群组\n\n设定关键词：您可以在对应的群组中直接发送 <code>/setkeyword 要设定的关键词</code> 来为该群组设定关键词\n或前往机器人聊天页面，发送 <code>/setkeyword</code> 命令后点击对应的群组或全局关键词按钮，根据提示来添加关键词",
+					ParseMode:   models.ParseModeHTML,
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+						{{
+							Text: "将此机器人添加到群组",
+							URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", consts.BotMe.Username),
+						}},
+						{
+							{
+								Text:         "返回",
+								CallbackData: "help",
+							},
+							{
+								Text:         "关闭",
+								CallbackData: "help-close",
+							},
+						},
+					}},
+				})
+			}
+			return nil
+		},
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "Detect Keyword",
@@ -52,14 +80,17 @@ func init() {
 		},
 	}...)
 	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
+		Name:           "detect keyword add chat to list",
 		Prefix:         "detectkw",
 		Argument:       "addgroup",
+		ForChatType:    []models.ChatType{models.ChatTypePrivate},
 		MessageHandler: startPrefixAddGroup,
 	})
-	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
-		Name:        "群组关键词检测",
-		Description: "此功能可以检测群组中的每一条信息，当包含设定的关键词时，将会向用户发送提醒\n\n使用方法：\n首先将机器人添加至想要监听关键词的群组中，发送 /setkeyword 命令，等待机器人回应后点击下方的 “设定关键词” 按钮即可为自己添加要监听的群组\n\n设定关键词：您可以在对应的群组中直接发送 <code>/setkeyword 要设定的关键词</code> 来为该群组设定关键词\n或前往机器人聊天页面，发送 <code>/setkeyword</code> 命令后点击对应的群组或全局关键词按钮，根据提示来添加关键词",
-		ParseMode:   models.ParseModeHTML,
+	plugin_utils.AddSlashStartCommandHandlers(plugin_utils.SlashStartHandler{
+		Name:           "detect keyword add bot to chat",
+		Argument:       "detectkw",
+		ForChatType:    []models.ChatType{models.ChatTypeGroup, models.ChatTypeSupergroup},
+		MessageHandler: startBotAddedToGroup,
 	})
 }
 
@@ -1570,6 +1601,66 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 				handlerErr.Addt(flaterr.SendMessage, "added group in user list", err)
 			}
 		}
+	}
+
+	return handlerErr.Flat()
+}
+
+func startBotAddedToGroup(opts *handler_params.Message) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "DetectKeyword").
+		Str("funcName", "addKeywordHandler").
+		Dict(utils.GetChatDict(&opts.Message.Chat)).
+		Dict(utils.GetUserDict(opts.Message.From)).
+		Logger()
+
+	var handlerErr flaterr.MultErr
+
+	chat := KeywordDataList.Chats[opts.Message.Chat.ID]
+
+	if chat.AddTime == "" {
+		// 初始化群组
+		chat = KeywordChatList{
+			ChatID:       opts.Message.Chat.ID,
+			ChatName:     opts.Message.Chat.Title,
+			ChatUsername: opts.Message.Chat.Username,
+			ChatType:     opts.Message.Chat.Type,
+			AddTime:      time.Now().Format(time.RFC3339),
+			InitByID:     opts.Message.From.ID,
+		}
+		KeywordDataList.Chats[opts.Message.Chat.ID] = chat
+		err := saveKeywordList(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&opts.Message.Chat)).
+				Msg("Failed to init chat and save keyword list")
+			return handlerErr.Addf("failed to init chat and save keyword list: %w", err).Flat()
+		}
+	}
+	// 只有一个 /setkeyword 命令
+	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID:          opts.Message.Chat.ID,
+		Text:            "已记录群组，点击下方左侧按钮来设定监听关键词\n若您是群组的管理员，您可以点击右侧的按钮来管理此功能",
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
+			{
+				Text: "设定关键词",
+				URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", consts.BotMe.Username, opts.Message.Chat.ID),
+			},
+			{
+				Text:         "管理此功能",
+				CallbackData: "detectkw_g",
+			},
+		}}},
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("content", "group record link button").
+			Msg(flaterr.SendMessage.Str())
+		handlerErr.Addt(flaterr.SendMessage, "group record link button", err)
 	}
 
 	return handlerErr.Flat()

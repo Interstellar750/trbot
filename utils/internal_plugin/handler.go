@@ -20,13 +20,13 @@ func startHandler(params *handler_params.Message) error {
 		Str("funcName", "startHandler").
 		Dict(utils.GetChatDict(&params.Message.Chat)).
 		Dict(utils.GetUserDict(params.Message.From)).
-		Str("text",    params.Message.Text).
+		Str("text", params.Message.Text).
 		Logger()
 
 	if len(params.Fields) > 1 {
 		// todo: move to RunSlashStartWithPrefixCommandHandlers
 		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.WithPrefixHandler {
-			if strings.HasPrefix(params.Fields[1], plugin.Prefix) {
+			if strings.HasPrefix(params.Fields[1], plugin.Prefix + "_") {
 				inlineArgument := strings.Split(params.Fields[1], "_")
 				if inlineArgument[1] == plugin.Argument {
 					slogger := logger.With().
@@ -74,17 +74,20 @@ func startHandler(params *handler_params.Message) error {
 		}
 	}
 
-	_, err := params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
-		ChatID:             params.Message.Chat.ID,
-		Text:               fmt.Sprintf("Hello, *%s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 PNG 或 GIF 图片\n\n您可以打开左下角的命令菜单或发送 /help 命令来查看更多帮助信息", utils.ShowUserName(params.Message.From)),
-		ParseMode:          models.ParseModeMarkdownV1,
-		ReplyParameters:    &models.ReplyParameters{ MessageID: params.Message.ID },
-	})
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("content", "bot welcome").
-			Msg(flaterr.SendMessage.Str())
+	var err error
+	if params.Message.Chat.Type == models.ChatTypePrivate {
+		_, err = params.Thebot.SendMessage(params.Ctx, &bot.SendMessageParams{
+			ChatID:             params.Message.Chat.ID,
+			Text:               fmt.Sprintf("Hello, *%s*\n\n您可以向此处发送一个贴纸，您会得到一张转换后的 PNG 或 GIF 图片\n\n您可以打开左下角的命令菜单或发送 /help 命令来查看更多帮助信息", utils.ShowUserName(params.Message.From)),
+			ParseMode:          models.ParseModeMarkdownV1,
+			ReplyParameters:    &models.ReplyParameters{ MessageID: params.Message.ID },
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "bot welcome").
+				Msg(flaterr.SendMessage.Str())
+		}
 	}
 
 	return err

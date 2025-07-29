@@ -33,7 +33,7 @@ func AddSuffixCommandHandlers(handlers ...SuffixCommand) int {
 // is already run or not, error message
 func RunSuffixCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.SuffixCommand {
-		if strings.HasSuffix(params.Fields[len(params.Fields)-1], plugin.SuffixCommand) && contain.ChatType(params.Message.Chat.Type, plugin.ForChatType...) {
+		if strings.HasSuffix(params.Fields[len(params.Fields)-1], plugin.SuffixCommand) && contain.AnyType(params.Message.Chat.Type, plugin.ForChatType...) {
 			logger := zerolog.Ctx(params.Ctx).With().
 				Str("funcName", "RunSuffixCommandHandlers").
 				Str("suffixCommand", plugin.SuffixCommand).

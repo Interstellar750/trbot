@@ -14,7 +14,7 @@ type SlashStartCommand struct {
 type SlashStartHandler struct {
 	Name           string
 	Argument       string
-	ForChatType    []models.ChatType // default for private
+	ForChatType    []models.ChatType // default for private, group, supergroup
 	MessageHandler func(*handler_params.Message) error
 }
 
@@ -25,7 +25,7 @@ func AddSlashStartCommandHandlers(handlers ...SlashStartHandler) int {
 	for _, handler := range handlers {
 		if handler.Argument == "" { continue }
 		if handler.ForChatType == nil {
-			handler.ForChatType = []models.ChatType{models.ChatTypePrivate}
+			handler.ForChatType = []models.ChatType{models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup}
 		}
 		AllPlugins.SlashStartCommand.Handler = append(AllPlugins.SlashStartCommand.Handler, handler)
 		handlerCount++
@@ -33,11 +33,12 @@ func AddSlashStartCommandHandlers(handlers ...SlashStartHandler) int {
 	return handlerCount
 }
 
+// The Prefix is separated from the Argument by `_` (underline) symbol
 type SlashStartWithPrefixHandler struct {
 	Name           string
 	Prefix         string
 	Argument       string
-	ForChatType    []models.ChatType // default for private
+	ForChatType    []models.ChatType // default for private, group, supergroup
 	MessageHandler func(*handler_params.Message) error
 }
 
@@ -48,7 +49,7 @@ func AddSlashStartWithPrefixCommandHandlers(handlers ...SlashStartWithPrefixHand
 	for _, handler := range handlers {
 		if handler.Argument == "" { continue }
 		if handler.ForChatType == nil {
-			handler.ForChatType = []models.ChatType{models.ChatTypePrivate}
+			handler.ForChatType = []models.ChatType{models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup}
 		}
 		AllPlugins.SlashStartCommand.WithPrefixHandler = append(AllPlugins.SlashStartCommand.WithPrefixHandler, handler)
 		handlerCount++

@@ -256,7 +256,7 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 
 	var deleteAction bool
 	var deleteHelp   string = "当前模式："
-	if contain.ChatType(opts.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
+	if contain.AnyType(opts.Message.Chat.Type, models.ChatTypeGroup, models.ChatTypeSupergroup) {
 		// 处理消息删除逻辑，只有当群组启用该功能时才处理
 		thisChat := LimitMessageList[opts.Message.Chat.ID]
 		if thisChat.IsEnable || thisChat.IsUnderTest {

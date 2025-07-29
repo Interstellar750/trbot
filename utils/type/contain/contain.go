@@ -2,9 +2,16 @@ package contain
 
 import (
 	"strings"
-
-	"github.com/go-telegram/bot/models"
 )
+
+func AnyType[T comparable](target T, candidates ...T) bool {
+	for _, candidate := range candidates {
+		if target == candidate {
+			return true
+		}
+	}
+	return false
+}
 
 func Int(target int, candidates ...int) bool {
 	for _, candidate := range candidates {
@@ -54,15 +61,6 @@ func SubString(target string, candidates ...string) bool {
 func SubStringCaseInsensitive(target string, candidates ...string) bool {
 	for _, candidate := range candidates {
 		if strings.Contains(strings.ToLower(candidate), strings.ToLower(target)) {
-			return true
-		}
-	}
-	return false
-}
-
-func ChatType(target models.ChatType, candidates ...models.ChatType) bool {
-	for _, candidate := range candidates {
-		if target == candidate {
 			return true
 		}
 	}

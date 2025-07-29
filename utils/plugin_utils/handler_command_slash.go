@@ -35,7 +35,7 @@ func AddSlashCommandHandlers(handlers ...SlashCommand) int {
 // is already run or not, error message
 func RunSlashCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.SlashCommand {
-		if utils.CommandMaybeWithSuffixUsername(params.Fields, "/" + plugin.SlashCommand) && contain.ChatType(params.Message.Chat.Type, plugin.ForChatType...) {
+		if utils.CommandMaybeWithSuffixUsername(params.Fields, "/" + plugin.SlashCommand) && contain.AnyType(params.Message.Chat.Type, plugin.ForChatType...) {
 			logger := zerolog.Ctx(params.Ctx).With().
 				Str("funcName", "RunSlashCommandHandler").
 				Str("slashCommand", plugin.SlashCommand).
