@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func RecordData(params *handler_params.Update, updateType update_utils.UpdateType) {
+func RecordData(params *handler_params.Update, updateType update_utils.Update) {
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "RecordData").

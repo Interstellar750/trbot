@@ -7,7 +7,7 @@ import (
 )
 
 // 更新类型
-type UpdateType struct {
+type Update struct {
 	Message                 bool `yaml:"Message,omitempty"`                 // *models.Message
 	EditedMessage           bool `yaml:"EditedMessage,omitempty"`           // *models.Message
 	ChannelPost             bool `yaml:"ChannelPost,omitempty"`             // *models.Message
@@ -33,133 +33,159 @@ type UpdateType struct {
 	RemovedChatBoost        bool `yaml:"RemovedChatBoost,omitempty"`        // *models.ChatBoostRemoved
 }
 
-// 将消息类型结构体转换为 UpdateTypeList(string) 类型
-func (ut UpdateType)AsValue() UpdateTypeList {
-	val := reflect.ValueOf(ut)
-	typ := reflect.TypeOf(ut)
+// 将消息类型结构体转换为对应的 type
+func (u Update)AsType() Type {
+	val := reflect.ValueOf(u)
+	typ := reflect.TypeOf(u)
 
 	for i := 0; i < val.NumField(); i++ {
 		if val.Field(i).Bool() {
-			return UpdateTypeList(typ.Field(i).Name)
+			return Type(typ.Field(i).Name)
 		}
 	}
 
 	return ""
 }
 
-func (ut UpdateType)Str() string {
-	val := reflect.ValueOf(ut)
-	typ := reflect.TypeOf(ut)
+// 将消息类型结构体转换为对应的 model
+func (u Update)AsModel() Model {
+	switch u.AsType() {
+	case Message:                 return ModelMessage
+	case EditedMessage:           return ModelMessage
+	case ChannelPost:             return ModelMessage
+	case EditedChannelPost:       return ModelMessage
+	case BusinessConnection:      return ModelBusinessConnection
+	case BusinessMessage:         return ModelMessage
+	case EditedBusinessMessage:   return ModelMessage
+	case DeletedBusinessMessages: return ModelBusinessMessagesDeleted
+	case MessageReaction:         return ModelMessageReactionUpdated
+	case MessageReactionCount:    return ModelMessageReactionCountUpdated
+	case InlineQuery:             return ModelInlineQuery
+	case ChosenInlineResult:      return ModelChosenInlineResult
+	case CallbackQuery:           return ModelCallbackQuery
+	case ShippingQuery:           return ModelShippingQuery
+	case PreCheckoutQuery:        return ModelPreCheckoutQuery
+	case PurchasedPaidMedia:      return ModelPaidMediaPurchased
+	case Poll:                    return ModelPoll
+	case PollAnswer:              return ModelPollAnswer
+	case MyChatMember:            return ModelChatMemberUpdated
+	case ChatMember:              return ModelChatMemberUpdated
+	case ChatJoinRequest:         return ModelChatJoinRequest
+	case ChatBoost:               return ModelChatBoostUpdated
+	case RemovedChatBoost:        return ModelChatBoostRemoved
+	default:
+		return ""
+	}
+}
+
+func (u Update)Str() string {
+	val := reflect.ValueOf(u)
+	typ := reflect.TypeOf(u)
 
 	for i := 0; i < val.NumField(); i++ {
 		if val.Field(i).Bool() {
-			return string(UpdateTypeList(typ.Field(i).Name))
+			return string(Type(typ.Field(i).Name))
 		}
 	}
 
 	return ""
 }
 
-type UpdateTypeList string
+type Type string
 
 const (
-	Message                 UpdateTypeList = "Message"
-	EditedMessage          	UpdateTypeList = "EditedMessage"
-	ChannelPost            	UpdateTypeList = "ChannelPost"
-	EditedChannelPost      	UpdateTypeList = "EditedChannelPost"
-	BusinessConnection     	UpdateTypeList = "BusinessConnection"
-	BusinessMessage        	UpdateTypeList = "BusinessMessage"
-	EditedBusinessMessage  	UpdateTypeList = "EditedBusinessMessage"
-	DeletedBusinessMessages	UpdateTypeList = "DeletedBusinessMessages"
-	MessageReaction        	UpdateTypeList = "MessageReaction"
-	MessageReactionCount   	UpdateTypeList = "MessageReactionCount"
-	InlineQuery            	UpdateTypeList = "InlineQuery"
-	ChosenInlineResult     	UpdateTypeList = "ChosenInlineResult"
-	CallbackQuery          	UpdateTypeList = "CallbackQuery"
-	ShippingQuery          	UpdateTypeList = "ShippingQuery"
-	PreCheckoutQuery       	UpdateTypeList = "PreCheckoutQuery"
-	PurchasedPaidMedia     	UpdateTypeList = "PurchasedPaidMedia"
-	Poll                   	UpdateTypeList = "Poll"
-	PollAnswer             	UpdateTypeList = "PollAnswer"
-	MyChatMember           	UpdateTypeList = "MyChatMember"
-	ChatMember             	UpdateTypeList = "ChatMember"
-	ChatJoinRequest        	UpdateTypeList = "ChatJoinRequest"
-	ChatBoost              	UpdateTypeList = "ChatBoost"
-	RemovedChatBoost       	UpdateTypeList = "RemovedChatBoost"
+	Message                 Type = "Message"
+	EditedMessage          	Type = "EditedMessage"
+	ChannelPost            	Type = "ChannelPost"
+	EditedChannelPost      	Type = "EditedChannelPost"
+	BusinessConnection     	Type = "BusinessConnection"
+	BusinessMessage        	Type = "BusinessMessage"
+	EditedBusinessMessage  	Type = "EditedBusinessMessage"
+	DeletedBusinessMessages	Type = "DeletedBusinessMessages"
+	MessageReaction        	Type = "MessageReaction"
+	MessageReactionCount   	Type = "MessageReactionCount"
+	InlineQuery            	Type = "InlineQuery"
+	ChosenInlineResult     	Type = "ChosenInlineResult"
+	CallbackQuery          	Type = "CallbackQuery"
+	ShippingQuery          	Type = "ShippingQuery"
+	PreCheckoutQuery       	Type = "PreCheckoutQuery"
+	PurchasedPaidMedia     	Type = "PurchasedPaidMedia"
+	Poll                   	Type = "Poll"
+	PollAnswer             	Type = "PollAnswer"
+	MyChatMember           	Type = "MyChatMember"
+	ChatMember             	Type = "ChatMember"
+	ChatJoinRequest        	Type = "ChatJoinRequest"
+	ChatBoost              	Type = "ChatBoost"
+	RemovedChatBoost       	Type = "RemovedChatBoost"
 )
 
-func (utl UpdateTypeList)Str() string  {
-	return string(utl)
+func (t Type)Str() string {
+	return string(t)
+}
+
+type Model string
+
+const (
+	ModelMessage                     Model = "Message"
+	ModelBusinessConnection          Model = "BusinessConnection"
+	ModelBusinessMessagesDeleted     Model = "BusinessMessagesDeleted"
+	ModelMessageReactionUpdated      Model = "MessageReactionUpdated"
+	ModelMessageReactionCountUpdated Model = "MessageReactionCountUpdated"
+	ModelInlineQuery                 Model = "InlineQuery"
+	ModelChosenInlineResult          Model = "ChosenInlineResult"
+	ModelCallbackQuery               Model = "CallbackQuery"
+	ModelShippingQuery               Model = "ShippingQuery"
+	ModelPreCheckoutQuery            Model = "PreCheckoutQuery"
+	ModelPaidMediaPurchased          Model = "PaidMediaPurchased"
+	ModelPoll                        Model = "Poll"
+	ModelPollAnswer                  Model = "PollAnswer"
+	ModelChatMemberUpdated           Model = "ChatMemberUpdated"
+	ModelChatJoinRequest             Model = "ChatJoinRequest"
+	ModelChatBoostUpdated            Model = "ChatBoostUpdated"
+	ModelChatBoostRemoved            Model = "ChatBoostRemoved"
+)
+
+func (m Model)Str() string {
+	return string(m)
+}
+
+func (m Model)Types() []Type {
+	switch m {
+	case ModelMessage:
+		return []Type{
+			Message,
+			ChannelPost,
+			BusinessMessage,
+		}
+	}
+	return []Type{}
 }
 
 // 判断更新的类型
-func GetUpdateType(update *models.Update) (updateType UpdateType) {
-	if update.Message != nil {
-		updateType.Message = true
+func GetUpdateType(update *models.Update) Update {
+	return Update{
+		Message:                 update.Message != nil,
+		EditedMessage:           update.EditedMessage != nil,
+		ChannelPost:             update.ChannelPost != nil,
+		EditedChannelPost:       update.EditedChannelPost != nil,
+		BusinessConnection:      update.BusinessConnection != nil,
+		BusinessMessage:         update.BusinessMessage != nil,
+		EditedBusinessMessage:   update.EditedBusinessMessage != nil,
+		DeletedBusinessMessages: update.DeletedBusinessMessages != nil,
+		MessageReaction:         update.MessageReaction != nil,
+		MessageReactionCount:    update.MessageReactionCount != nil,
+		InlineQuery:             update.InlineQuery != nil,
+		ChosenInlineResult:      update.ChosenInlineResult != nil,
+		CallbackQuery:           update.CallbackQuery != nil,
+		ShippingQuery:           update.ShippingQuery != nil,
+		PreCheckoutQuery:        update.PreCheckoutQuery != nil,
+		PurchasedPaidMedia:      update.PurchasedPaidMedia != nil,
+		Poll:                    update.Poll != nil,
+		PollAnswer:              update.PollAnswer != nil,
+		MyChatMember:            update.MyChatMember != nil,
+		ChatMember:              update.ChatMember != nil,
+		ChatJoinRequest:         update.ChatJoinRequest != nil,
+		ChatBoost:               update.ChatBoost != nil,
+		RemovedChatBoost:        update.RemovedChatBoost != nil,
 	}
-	if update.EditedMessage != nil {
-		updateType.EditedMessage = true
-	}
-	if update.ChannelPost != nil {
-		updateType.ChannelPost = true
-	}
-	if update.EditedChannelPost != nil {
-		updateType.EditedChannelPost = true
-	}
-	if update.BusinessConnection != nil {
-		updateType.BusinessConnection = true
-	}
-	if update.BusinessMessage != nil {
-		updateType.BusinessMessage = true
-	}
-	if update.EditedBusinessMessage != nil {
-		updateType.EditedBusinessMessage = true
-	}
-	if update.MessageReaction != nil {
-		updateType.MessageReaction = true
-	}
-	if update.MessageReactionCount != nil {
-		updateType.MessageReactionCount = true
-	}
-	if update.InlineQuery != nil {
-		updateType.InlineQuery = true
-	}
-	if update.ChosenInlineResult != nil {
-		updateType.ChosenInlineResult = true
-	}
-	if update.CallbackQuery != nil {
-		updateType.CallbackQuery = true
-	}
-	if update.ShippingQuery != nil {
-		updateType.ShippingQuery = true
-	}
-	if update.PreCheckoutQuery != nil {
-		updateType.PreCheckoutQuery = true
-	}
-	if update.PurchasedPaidMedia != nil {
-		updateType.PurchasedPaidMedia = true
-	}
-	if update.Poll != nil {
-		updateType.Poll = true
-	}
-	if update.PollAnswer != nil {
-		updateType.PollAnswer = true
-	}
-	if update.MyChatMember != nil {
-		updateType.MyChatMember = true
-	}
-	if update.ChatMember != nil {
-		updateType.ChatMember = true
-	}
-	if update.ChatJoinRequest != nil {
-		updateType.ChatJoinRequest = true
-	}
-	if update.ChatBoost != nil {
-		updateType.ChatBoost = true
-	}
-	if update.RemovedChatBoost != nil {
-		updateType.RemovedChatBoost = true
-	}
-
-	return
 }

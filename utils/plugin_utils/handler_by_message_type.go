@@ -14,9 +14,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type HandlerByMessageTypes map[models.ChatType]map[message_utils.MessageTypeList]map[int64]map[string]ByMessageTypeHandler
+type HandlerByMessageTypes map[models.ChatType]map[message_utils.Type]map[int64]map[string]ByMessageTypeHandler
 
-func (funcs HandlerByMessageTypes) BuildSelectKeyboard(chatType models.ChatType, msgType message_utils.MessageTypeList, chatID int64) ([][]models.InlineKeyboardButton, int) {
+func (funcs HandlerByMessageTypes) BuildSelectKeyboard(chatType models.ChatType, msgType message_utils.Type, chatID int64) ([][]models.InlineKeyboardButton, int) {
 	var msgTypeItems [][]models.InlineKeyboardButton
 	var handlerCount int
 
@@ -45,7 +45,7 @@ type ByMessageTypeHandler struct {
 	PluginName       string
 	ChatType         models.ChatType
 	ForChatID        int64           // 0 for all
-	MessageType      message_utils.MessageTypeList
+	MessageType      message_utils.Type
 	AllowAutoTrigger bool // Allow auto trigger when there is only one handler of the same type
 	/*
 		Only Message type handler can register, if there is more than
@@ -88,7 +88,7 @@ func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 				Msgf("Not enough parameters, skip this handler")
 			continue
 		}
-		if AllPlugins.HandlerByMessageType[handler.ChatType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType] = map[message_utils.MessageTypeList]map[int64]map[string]ByMessageTypeHandler{} }
+		if AllPlugins.HandlerByMessageType[handler.ChatType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType] = map[message_utils.Type]map[int64]map[string]ByMessageTypeHandler{} }
 		if AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType] == nil { AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType] = map[int64]map[string]ByMessageTypeHandler{} }
 		if AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID] == nil { AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID] = map[string]ByMessageTypeHandler{} }
 
@@ -110,18 +110,16 @@ func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 	return handlerCount
 }
 
-func RemoveHandlerByMessageTypeHandler(chatType models.ChatType, messageType message_utils.MessageTypeList, chatID int64, handlerName string) {
+func RemoveHandlerByMessageTypeHandler(chatType models.ChatType, messageType message_utils.Type, chatID int64, handlerName string) {
 	if AllPlugins.HandlerByMessageType == nil { return }
 	delete(AllPlugins.HandlerByMessageType[chatType][messageType][chatID], handlerName)
 }
 
-// is processed, message type, error
-func RunByMessageTypeHandlers(params *handler_params.Message) (bool, string, error) {
-	if AllPlugins.HandlerByMessageType == nil { return false, "", nil }
-	var isProcessed bool
+func RunByMessageTypeHandlers(params *handler_params.Message) error {
+	if AllPlugins.HandlerByMessageType == nil { return nil }
 	var handlerErr  flaterr.MultErr
 
-	msgType := message_utils.GetMessageType(params.Message).AsValue()
+	msgType := message_utils.GetMessageType(params.Message).AsType()
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "RunByChatIDHandlers").
@@ -162,7 +160,6 @@ func RunByMessageTypeHandlers(params *handler_params.Message) (bool, string, err
 									Msg("Error in by message type handler")
 								handlerErr.Addf("Error in by message type handler [%s]: %w", name, err)
 							}
-							isProcessed = true
 							needBuildSelectKeyboard = false
 						} else {
 							slogger.Warn().Msg("Hit by message type handler, but this handler function is nil, skip")
@@ -177,7 +174,6 @@ func RunByMessageTypeHandlers(params *handler_params.Message) (bool, string, err
 			if needBuildSelectKeyboard {
 				handlerKeyboard, count := AllPlugins.HandlerByMessageType.BuildSelectKeyboard(params.Message.Chat.Type, msgType, params.Message.Chat.ID)
 				if len(handlerKeyboard) > 0 {
-					isProcessed = true
 					slogger := logger.With().
 						Int("handlerCount", count).
 						Logger()
@@ -202,10 +198,10 @@ func RunByMessageTypeHandlers(params *handler_params.Message) (bool, string, err
 		}
 	}
 
-	return isProcessed, msgType.Str(), handlerErr.Flat()
+	return handlerErr.Flat()
 }
 
-func SelectByMessageTypeHandlerCallback(opts *handler_params.CallbackQuery) error {
+func SelectByMessageTypeHandlerCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("funcName", "SelectHandlerByMessageTypeHandlerCallback").
@@ -225,7 +221,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.CallbackQuery) erro
 				Msg("Failed to trigger by message type handler")
 			handlerErr.Addf("Failed to trigger by message type handler: %w", err)
 		} else {
-			messageType := message_utils.GetMessageType(opts.CallbackQuery.Message.Message.ReplyToMessage).AsValue()
+			messageType := message_utils.GetMessageType(opts.CallbackQuery.Message.Message.ReplyToMessage).AsType()
 			handler, isExist := AllPlugins.HandlerByMessageType[opts.CallbackQuery.Message.Message.Chat.Type][messageType][opts.CallbackQuery.Message.Message.Chat.ID][pluginName]
 			if isExist {
 				logger.Debug().
@@ -250,7 +246,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.CallbackQuery) erro
 						Err(err).
 						Dict("handler", zerolog.Dict().
 							Str("chatType", string(handler.ChatType)).
-							Str("messageType", string(handler.MessageType)).
+							Str("messageType", handler.MessageType.Str()).
 							Int64("forChatID", handler.ForChatID).
 							Bool("allowAutoTrigger", handler.AllowAutoTrigger).
 							Str("name", handler.PluginName),
@@ -308,7 +304,7 @@ func SelectByMessageTypeHandlerCallback(opts *handler_params.CallbackQuery) erro
 							Err(err).
 							Dict("handler", zerolog.Dict().
 								Str("chatType", string(handler.ChatType)).
-								Str("messageType", string(handler.MessageType)).
+								Str("messageType", handler.MessageType.Str()).
 								Int64("forChatID", handler.ForChatID).
 								Bool("allowAutoTrigger", handler.AllowAutoTrigger).
 								Str("name", handler.PluginName),

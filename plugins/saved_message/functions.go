@@ -534,7 +534,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Str("messageType", string(replyMsgType.AsValue())).
+							Str("messageType", string(replyMsgType.AsType())).
 							Msg("Failed to save savedmessage list after save a item")
 						handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
 
@@ -547,7 +547,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 						if err != nil {
 							logger.Error().
 								Err(err).
-								Str("messageType", string(replyMsgType.AsValue())).
+								Str("messageType", string(replyMsgType.AsType())).
 								Str("content", "failed to save savedmessage list notice").
 								Msg(flaterr.SendMessage.Str())
 							handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)

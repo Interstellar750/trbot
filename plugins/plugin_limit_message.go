@@ -35,9 +35,9 @@ type AllowMessages struct {
 	AddTime             string                         `yaml:"AddTime"`
 	IsLogicAnd          bool                           `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
 	IsWhiteForType      bool                           `yaml:"IsWhiteForType"`
-	MessageType         message_utils.MessageType      `yaml:"MessageType"`
+	MessageType         message_utils.Message      `yaml:"MessageType"`
 	IsWhiteForAttribute bool                           `yaml:"IsWhiteForAttribute"`
-	MessageAttribute    message_utils.MessageAttribute `yaml:"MessageAttribute"`
+	MessageAttribute    message_utils.Attribute `yaml:"MessageAttribute"`
 }
 
 func init() {
@@ -342,7 +342,7 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func CheckMessageType(this, target message_utils.MessageType, IsWhiteList bool) (bool, string) {
+func CheckMessageType(this, target message_utils.Message, IsWhiteList bool) (bool, string) {
 	var delete bool = IsWhiteList
 	var deleteHelp string
 
@@ -377,7 +377,7 @@ func CheckMessageType(this, target message_utils.MessageType, IsWhiteList bool) 
 	return delete, deleteHelp
 }
 
-func CheckMessageAttribute(this, target message_utils.MessageAttribute, IsWhiteList bool) (bool, string) {
+func CheckMessageAttribute(this, target message_utils.Attribute, IsWhiteList bool) (bool, string) {
 	var delete bool = IsWhiteList
 	var noAttribute bool = true // 如果没有命中任何消息属性，提示内容，根据黑白名单判断是否删除
 	var deleteHelp string
@@ -686,7 +686,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 						newStruct.Field(i).SetBool(!newStruct.Field(i).Bool())
 					}
 				}
-				thisChat.MessageType = newStruct.Interface().(message_utils.MessageType)
+				thisChat.MessageType = newStruct.Interface().(message_utils.Message)
 
 				_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 					ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
@@ -714,7 +714,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					}
 				}
 
-				thisChat.MessageAttribute = newStruct.Interface().(message_utils.MessageAttribute)
+				thisChat.MessageAttribute = newStruct.Interface().(message_utils.Attribute)
 
 				_, err := opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 					ChatID: opts.CallbackQuery.Message.Message.Chat.ID,

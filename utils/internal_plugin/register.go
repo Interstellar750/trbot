@@ -349,7 +349,7 @@ func Register(ctx context.Context) {
 		},
 		{
 			CallbackDataPrefix:   "HBMT", // Handler By Message Type
-			CallbackQueryHandler: plugin_utils.SelectByMessageTypeHandlerCallback,
+			CallbackQueryHandler: plugin_utils.SelectByMessageTypeHandlerCallbackHandler,
 		},
 		{
 			CallbackDataPrefix:   "delete_this_message",

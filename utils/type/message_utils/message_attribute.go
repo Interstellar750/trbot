@@ -3,7 +3,7 @@ package message_utils
 import "github.com/go-telegram/bot/models"
 
 // 消息属性
-type MessageAttribute struct {
+type Attribute struct {
 	IsFromAnonymous      bool `yaml:"IsFromAnonymous,omitempty"`      // anonymous admin or owner in group/supergroup
 	IsFromLinkedChannel  bool `yaml:"IsFromLinkedChannel,omitempty"`  // is automatic forward post from linked channel
 	IsUserAsChannel      bool `yaml:"IsUserAsChannel,omitempty"`      // user selected to send message as a channel
@@ -34,8 +34,8 @@ type MessageAttribute struct {
 }
 
 // 判断消息的属性
-func GetMessageAttribute(msg *models.Message) MessageAttribute {
-	var attribute MessageAttribute
+func GetMessageAttribute(msg *models.Message) Attribute {
+	var attribute Attribute
 	if msg.SenderChat != nil {
 		attribute.IsHasSenderChat = true
 		if msg.From != nil {

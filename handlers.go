@@ -386,27 +386,10 @@ func messageHandler(opts *handler_params.Message) {
 
 	// 按消息类型来触发的 handler
 	// handler by message type
-	isProcessed, msgType, err := plugin_utils.RunByMessageTypeHandlers(opts)
-	if !isProcessed && opts.Message.Chat.Type == models.ChatTypePrivate {
-		// 仅在 private 对话中显示无默认处理插件的消息
-		// 如果没有设定任何对于 private 对话按消息来触发的 handler，则代码不会运行到这里
-		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:    opts.Message.Chat.ID,
-			Text:      fmt.Sprintf("对于 [ %s ] 类型的消息没有默认处理插件", msgType),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		})
-		if err != nil {
-			messageLogger.Error().
-				Err(err).
-				Str("messageType", msgType).
-				Str("content", "no handler by message type plugin for this private chat").
-				Msg(flaterr.SendMessage.Str())
-		}
-	}
+	err = plugin_utils.RunByMessageTypeHandlers(opts)
 	if err != nil {
 		messageLogger.Error().
 			Err(err).
-			Bool("isProcessed", isProcessed).
 			Msg("Error when running by message type handler")
 	}
 

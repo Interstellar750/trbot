@@ -518,7 +518,7 @@ func buildFromInfoButton(o *OriginInfo) models.ReplyMarkup {
 }
 
 func buildSavedMessageByMessageHandlers() {
-	msgTypeList := []message_utils.MessageTypeList{
+	msgTypeList := []message_utils.Type{
 		message_utils.OnlyText,
 		message_utils.Audio,
 		message_utils.Animation,

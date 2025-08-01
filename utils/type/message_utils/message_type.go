@@ -7,7 +7,7 @@ import (
 )
 
 // 消息类型
-type MessageType struct {
+type Message struct {
 	// https://core.telegram.org/bots/api#message
 
 	Animation     bool `yaml:"Animation,omitempty"` // call gif, mpeg4 format, can save to GIFs, no caption
@@ -34,64 +34,64 @@ type MessageType struct {
 }
 
 // 将消息类型结构体转换为 MessageTypeList(string) 类型
-func (mt MessageType)AsValue() MessageTypeList {
-	val := reflect.ValueOf(mt)
-	typ := reflect.TypeOf(mt)
+func (m Message)AsType() Type {
+	val := reflect.ValueOf(m)
+	typ := reflect.TypeOf(m)
 
 	for i := 0; i < val.NumField(); i++ {
 		if val.Field(i).Bool() {
-			return MessageTypeList(typ.Field(i).Name)
+			return Type(typ.Field(i).Name)
 		}
 	}
 
 	return ""
 }
 
-func (mt MessageType)Str() string {
-	val := reflect.ValueOf(mt)
-	typ := reflect.TypeOf(mt)
+func (m Message)Str() string {
+	val := reflect.ValueOf(m)
+	typ := reflect.TypeOf(m)
 
 	for i := 0; i < val.NumField(); i++ {
 		if val.Field(i).Bool() {
-			return string(MessageTypeList(typ.Field(i).Name))
+			return string(Type(typ.Field(i).Name))
 		}
 	}
 
 	return ""
 }
 
-type MessageTypeList string
+type Type string
 
 const (
-	Animation     MessageTypeList = "Animation"
-	Audio         MessageTypeList = "Audio"
-	Document      MessageTypeList = "Document"
-	PaidMedia     MessageTypeList = "PaidMedia"
-	Photo         MessageTypeList = "Photo"
-	Sticker       MessageTypeList = "Sticker"
-	Story         MessageTypeList = "Story"
-	Video         MessageTypeList = "Video"
-	VideoNote     MessageTypeList = "VideoNote"
-	Voice         MessageTypeList = "Voice"
-	OnlyText      MessageTypeList = "OnlyText"
-	Checklist     MessageTypeList = "Checklist"
-	Contact       MessageTypeList = "Contact"
-	Dice          MessageTypeList = "Dice"
-	Game          MessageTypeList = "Game"
-	Poll          MessageTypeList = "Poll"
-	Venue         MessageTypeList = "Venue"
-	Location      MessageTypeList = "Location"
-	Invoice       MessageTypeList = "Invoice"
-	PinnedMessage MessageTypeList = "PinnedMessage"
-	Giveaway      MessageTypeList = "Giveaway"
+	Animation     Type = "Animation"
+	Audio         Type = "Audio"
+	Document      Type = "Document"
+	PaidMedia     Type = "PaidMedia"
+	Photo         Type = "Photo"
+	Sticker       Type = "Sticker"
+	Story         Type = "Story"
+	Video         Type = "Video"
+	VideoNote     Type = "VideoNote"
+	Voice         Type = "Voice"
+	OnlyText      Type = "OnlyText"
+	Checklist     Type = "Checklist"
+	Contact       Type = "Contact"
+	Dice          Type = "Dice"
+	Game          Type = "Game"
+	Poll          Type = "Poll"
+	Venue         Type = "Venue"
+	Location      Type = "Location"
+	Invoice       Type = "Invoice"
+	PinnedMessage Type = "PinnedMessage"
+	Giveaway      Type = "Giveaway"
 )
 
-func (mtl MessageTypeList)Str() string  {
-	return string(mtl)
+func (t Type)Str() string  {
+	return string(t)
 }
 
 // 判断消息的类型
-func GetMessageType(msg *models.Message) (msgType MessageType) {
+func GetMessageType(msg *models.Message) (msgType Message) {
 	if msg.Document != nil {
 		if msg.Animation != nil && msg.Animation.FileID == msg.Document.FileID && msg.Document.MimeType == "video/mp4" {
 			msgType.Animation = true

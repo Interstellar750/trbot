@@ -64,6 +64,7 @@ func RemoveHandlerByChatIDHandler(chatID int64, pluginName string) {
 }
 
 func RunByChatIDHandlers(params *handler_params.Message) (int, error) {
+	if AllPlugins.HandlerByChatID == nil { return 0, nil }
 	var handlerRunCount int
 	var handlerErr      flaterr.MultErr
 
