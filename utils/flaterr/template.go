@@ -18,6 +18,7 @@ const (
 	PinChatMessage         Msg = "Failed to pin chat message"
 	UnpinChatMessage       Msg = "Failed to unpin chat message"
 	GetStickerSet          Msg = "Failed to get sticker set info"
+	ForwardMessage         Msg = "Failed to forward message"
 )
 
 // return message as string
@@ -46,6 +47,7 @@ func (m Msg) Fmt() string {
 	case PinChatMessage:         return "failed to pin [%s] message: %w"
 	case UnpinChatMessage:       return "failed to unpin [%s] message: %w"
 	case GetStickerSet:          return "failed to get [%s] sticker set info: %w"
+	case ForwardMessage:         return "failed to forward [%s] message: %w"
 	default:
 		return "unknown err content [%s]: %w"
 	}

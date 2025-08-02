@@ -359,8 +359,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 // 处理所有信息请求的处理函数，触发条件为任何消息
 func messageHandler(opts *handler_params.Message) {
 	defer utils.PanicCatcher(opts.Ctx, "messageHandler")
-
-	messageLogger := zerolog.Ctx(opts.Ctx).
+	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
@@ -374,30 +373,25 @@ func messageHandler(opts *handler_params.Message) {
 	}
 
 	// 判断是否为命令
-	isProcessed, err := plugin_utils.RunCommandHandlers(opts)
-	if isProcessed {
+	if isProcessed, err := plugin_utils.RunCommandHandlers(opts); isProcessed {
 		if err != nil {
-			messageLogger.
+			logger.
 				Err(err).
 				Msg("Error when running command handler")
 		}
 		return
 	}
 
-	// 按消息类型来触发的 handler
 	// handler by message type
-	err = plugin_utils.RunByMessageTypeHandlers(opts)
-	if err != nil {
-		messageLogger.Error().
+	if err := plugin_utils.RunByMessageTypeHandlers(opts); err != nil {
+		logger.Error().
 			Err(err).
 			Msg("Error when running by message type handler")
 	}
 
-	// 最后才运行针对群组 ID 的 handler
 	// handler by chat ID
-	count, err := plugin_utils.RunByChatIDHandlers(opts)
-	if err != nil {
-		messageLogger.Error().
+	if count, err := plugin_utils.RunByChatIDHandlers(opts); err != nil {
+		logger.Error().
 			Err(err).
 			Int("handlerRunCount", count).
 			Msg("Error when running by chat ID handlers")
@@ -529,10 +523,14 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 
 		// 没有匹配的命令
 		if len(results) == 1 {
+			var pendingMessage string = "请检查命令是否正确"
+			if strings.HasSuffix(opts.Fields[0], configs.BotConfig.InlinePaginationSymbol) || strings.HasSuffix(opts.Fields[0], configs.BotConfig.InlineCategorySymbol) {
+				pendingMessage = "请检查命令是否正确，若要使用分页或分类符号，请确保命令与符号之间有空格"
+			}
 			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
-				ID:                  "noinlinecommand",
+				ID:                  "noInlineCommand",
 				Title:               fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
-				Description:         "请检查命令是否正确",
+				Description:         pendingMessage,
 				InputMessageContent: &models.InputTextMessageContent{ MessageText: "您在使用 inline 模式时没有输入正确的命令..." },
 			}}
 		}
