@@ -359,13 +359,17 @@ func showStatus(opts *handler_params.Message) error {
 		if isCanReInit {
 			if initTeamSpeak(opts.Ctx) {
 				isSuccessInit = true
-				if !isListening && !isLoginFailed {
+				if !isListening && !isLoginFailed && opts.Message.Chat.ID == tsData.GroupID {
 					go listenUserStatus(opts.Ctx)
 					logger.Debug().
 						Msg("Start listening user status")
 				}
-				resetListenTicker <- true
-				pendingMessage = "尝试重新初始化成功，现可正常运行"
+				if isListening {
+					resetListenTicker <- true
+					pendingMessage = "尝试重新初始化成功，现可正常运行"
+				} else {
+					pendingMessage = "当前用户列表不可用，正在等待对应群组中的消息..."
+				}
 			} else {
 				handlerErr.Addf("failed to reinit teamspeak plugin: %w", tsErr)
 				if isListening {
@@ -379,12 +383,12 @@ func showStatus(opts *handler_params.Message) error {
 		}
 	}
 
-	var buttons [][]models.InlineKeyboardButton
+	var buttons models.ReplyMarkup
 	if opts.Message.Chat.ID == tsData.GroupID && contain.Int64(opts.Message.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsData.GroupID)...) || contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
-		buttons = [][]models.InlineKeyboardButton{{{
+		buttons = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:         "管理此功能",
 			CallbackData: "teamspeak",
-		}}}
+		}}}}
 	}
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -392,7 +396,7 @@ func showStatus(opts *handler_params.Message) error {
 		Text:            pendingMessage,
 		ParseMode:       models.ParseModeHTML,
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: buttons },
+		ReplyMarkup:     buttons,
 	})
 	if err != nil {
 		logger.Error().
