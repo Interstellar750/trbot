@@ -13,6 +13,7 @@ import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/contain"
 	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
@@ -946,9 +947,9 @@ func keywordDetector(opts *handler_params.Message) error {
 	var text string
 
 	if opts.Message.Caption != "" {
-		text = strings.ToLower(opts.Message.Caption)
+		text = opts.Message.Caption
 	} else if opts.Message.Text != "" {
-		text = strings.ToLower(opts.Message.Text)
+		text = opts.Message.Text
 	} else {
 		// 没有文字和 caption 直接返回
 		return nil
@@ -967,7 +968,7 @@ func keywordDetector(opts *handler_params.Message) error {
 				// 判断是否是此群组
 				if userChatKeywordList.ChatID == opts.Message.Chat.ID {
 					for _, keyword := range userChatKeywordList.Keyword {
-						if strings.Contains(text, keyword) {
+						if contain.SubStringCaseInsensitive(keyword, text) {
 							return handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, keyword, text, false)).Flat()
 						}
 					}
@@ -975,7 +976,7 @@ func keywordDetector(opts *handler_params.Message) error {
 			}
 			// 用户全局设定的关键词
 			for _, userGlobalKeyword := range user.GlobalKeyword {
-				if strings.Contains(text, userGlobalKeyword) {
+				if contain.SubStringCaseInsensitive(userGlobalKeyword, text) {
 					return handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, userGlobalKeyword, text, true)).Flat()
 				}
 			}
@@ -989,11 +990,11 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
-		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
-			utils.RemoveIDPrefix(opts.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Message, models.ParseModeHTML),
-			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, text,
+		Text:   fmt.Sprintf("在 [%s](https://t.me/c/%s/) 中\n来自 %s 的消息\n触发了%s关键词 \\[ %s \\]\n%s",
+			chatname, utils.RemoveIDPrefix(opts.Message.Chat.ID), utils.GetMessageFromHyperLink(opts.Message, models.ParseModeMarkdown),
+			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, utils.TextBlockquoteMarkdown(text, true),
 		),
-		ParseMode:           models.ParseModeHTML,
+		ParseMode:           models.ParseModeMarkdown,
 		DisableNotification: user.IsSilentNotice,
 		ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "前往查看",

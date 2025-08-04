@@ -186,11 +186,11 @@ func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) st
 		}
 	default:
 		if attr.IsUserAsChannel {
-			senderLink = fmt.Sprintf("[%s][https://t.me/%s]", ShowChatName(msg.SenderChat), msg.SenderChat.Username)
+			senderLink = fmt.Sprintf("[%s](https://t.me/%s)", ShowChatName(msg.SenderChat), msg.SenderChat.Username)
 		} else if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsHasSenderChat {
-			senderLink = fmt.Sprintf("[%s][https://t.me/c/%s]", ShowChatName(msg.SenderChat), RemoveIDPrefix(msg.SenderChat.ID))
+			senderLink = fmt.Sprintf("[%s](https://t.me/c/%s)", ShowChatName(msg.SenderChat), RemoveIDPrefix(msg.SenderChat.ID))
 		} else if msg.From != nil {
-			senderLink = fmt.Sprintf("[%s][https://t.me/@id%d]", ShowUserName(msg.From), msg.From.ID)
+			senderLink = fmt.Sprintf("[%s](https://t.me/@id%d)", ShowUserName(msg.From), msg.From.ID)
 		}
 	}
 	return senderLink
@@ -314,4 +314,16 @@ func OutputVersionInfo() string {
 		"\n`Goroutine: `", runtime.NumGoroutine(),
 		"\n`Hostname:  `", hostname,
 	)
+}
+
+func TextBlockquoteMarkdown(text string, expandable bool) (out string) {
+	strs := strings.Split(text, "\n")
+	for i, str := range strs {
+		if expandable && i == len(strs)-1 {
+			out += fmt.Sprintf(">%s||\n", bot.EscapeMarkdown(str))
+		} else {
+			out += fmt.Sprintf(">%s\n", bot.EscapeMarkdown(str))
+		}
+	}
+	return
 }
