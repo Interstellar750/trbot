@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"html"
 	"log"
 	"os"
 	"runtime"
@@ -326,4 +327,13 @@ func TextBlockquoteMarkdown(text string, expandable bool) (out string) {
 		}
 	}
 	return
+}
+
+// not work for user
+func GetChatIDLink(chatID int64) string {
+	return fmt.Sprintf("https://t.me/c/%s/", RemoveIDPrefix(chatID))
+}
+
+func IgnoreHTMLTags(text string) string {
+	return html.EscapeString(text)
 }

@@ -990,11 +990,11 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
-		Text:   fmt.Sprintf("在 [%s](https://t.me/c/%s/) 中\n来自 %s 的消息\n触发了%s关键词 \\[ %s \\]\n%s",
-			chatname, utils.RemoveIDPrefix(opts.Message.Chat.ID), utils.GetMessageFromHyperLink(opts.Message, models.ParseModeMarkdown),
-			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, utils.TextBlockquoteMarkdown(text, true),
+		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
+			utils.RemoveIDPrefix(opts.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Message, models.ParseModeHTML),
+			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, utils.IgnoreHTMLTags(text),
 		),
-		ParseMode:           models.ParseModeMarkdown,
+		ParseMode:           models.ParseModeHTML,
 		DisableNotification: user.IsSilentNotice,
 		ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "前往查看",
@@ -1564,6 +1564,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 		Logger()
 
 	var handlerErr flaterr.MultErr
+	var needSave bool = true
 
 	user := KeywordDataList.Users[opts.Message.From.ID]
 	if user.AddTime == "" {
@@ -1576,6 +1577,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 	} else if user.IsNotInit {
 		// 用户之前仅在群组内发送命令添加了关键词，但并没有点击机器人来初始化
 		user.IsNotInit = false
+		needSave = true
 	}
 
 	if strings.HasPrefix(opts.Fields[1], "detectkw_addgroup_") {
@@ -1620,15 +1622,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 				user.ChatsForUser = append(user.ChatsForUser, ChatForUser{
 					ChatID: groupID_int64,
 				})
-				KeywordDataList.Users[opts.Message.From.ID] = user
-				buildListenList()
-				err := saveKeywordList(opts.Ctx)
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Msg("Failed to add group for user and save keyword list")
-					return handlerErr.Addf("failed to add group for user and save keyword list: %w", err).Flat()
-				}
+				needSave = true
 				pendingMessage = fmt.Sprintf("已添加 <a href=\"https://t.me/c/%s/\">%s</a> 群组\n%s", utils.RemoveIDPrefix(chat.ChatID), chat.ChatName, user.userStatus())
 			} else {
 				pendingMessage = user.userStatus()
@@ -1647,6 +1641,19 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addt(flaterr.SendMessage, "added group in user list", err)
 			}
+		}
+	}
+
+	if needSave {
+		KeywordDataList.Users[opts.Message.From.ID] = user
+		buildListenList()
+		err := saveKeywordList(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(opts.Message.From)).
+				Msg("Failed to save keyword list")
+			handlerErr.Addf("failed to save keyword list: %w", err)
 		}
 	}
 
