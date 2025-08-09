@@ -84,14 +84,11 @@ func main() {
 	} else /* getUpdate, aka Long Polling */ {
 		// remove Webhook URL befor using getUpdate https://core.telegram.org/bots/api#getupdates
 		if configs.CleanRemoteWebhookURL(ctx, thebot) {
-			logger.Info().
-				Msg("Working at Long Polling Mode")
-			logger.Debug().
-				Msgf("visit https://api.telegram.org/bot%s/getWebhookInfo to check infos", configs.BotConfig.BotToken)
+			logger.Info().Msg("Working at Long Polling Mode")
+			// logger.Debug().Msgf("visit https://api.telegram.org/bot%s/getWebhookInfo to check infos", configs.BotConfig.BotToken)
 			thebot.Start(ctx)
 		} else {
-			logger.Fatal().
-				Msg("Failed to remove Webhook URL")
+			logger.Fatal().Msg("Failed to remove Webhook URL")
 		}
 	}
 

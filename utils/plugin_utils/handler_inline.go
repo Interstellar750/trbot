@@ -29,7 +29,7 @@ type InlineHandler struct {
 	InlineHandler func(*handler_params.InlineQuery) []models.InlineQueryResult
 }
 
-func AddInlineHandlerHandlers(handlers ...InlineHandler) int {
+func AddInlineHandlers(handlers ...InlineHandler) int {
 	if AllPlugins.InlineHandler == nil { AllPlugins.InlineHandler = []InlineHandler{} }
 
 	var handlerCount int
@@ -50,7 +50,7 @@ type InlineManualHandler struct {
 	InlineHandler func(*handler_params.InlineQuery) error
 }
 
-func AddInlineManualHandlerHandlers(handlers ...InlineManualHandler) int {
+func AddInlineManualHandlers(handlers ...InlineManualHandler) int {
 	if AllPlugins.InlineManualHandler == nil { AllPlugins.InlineManualHandler = []InlineManualHandler{} }
 
 	var handlerCount int
@@ -71,7 +71,7 @@ type InlinePrefixHandler struct {
 	InlineHandler func(*handler_params.InlineQuery) error
 }
 
-func AddInlinePrefixHandlerPlugins(handlers ...InlinePrefixHandler) int {
+func AddInlinePrefixHandlers(handlers ...InlinePrefixHandler) int {
 	if AllPlugins.InlinePrefixHandler == nil { AllPlugins.InlinePrefixHandler = []InlinePrefixHandler{} }
 
 	var handlerCount int

@@ -189,3 +189,44 @@ func GetUpdateType(update *models.Update) Update {
 		RemovedChatBoost:        update.RemovedChatBoost != nil,
 	}
 }
+
+func GetUpdateFromID(update *models.Update) int64 {
+	if update.Message != nil {
+		if update.Message.From != nil {
+			return update.Message.From.ID
+		} else if update.Message.SenderChat != nil {
+			return update.Message.SenderChat.ID
+		}
+	}
+	if update.EditedMessage != nil {
+		if update.EditedMessage.From != nil {
+			return update.EditedMessage.From.ID
+		} else if update.EditedMessage.SenderChat != nil {
+			return update.EditedMessage.SenderChat.ID
+		}
+	}
+	if update.ChannelPost != nil {
+		if update.ChannelPost.From != nil {
+			return update.ChannelPost.From.ID
+		} else if update.ChannelPost.SenderChat != nil {
+			return update.ChannelPost.SenderChat.ID
+		}
+	}
+	if update.EditedChannelPost != nil {
+		if update.EditedChannelPost.From != nil {
+			return update.EditedChannelPost.From.ID
+		} else if update.EditedChannelPost.SenderChat != nil {
+			return update.EditedChannelPost.SenderChat.ID
+		}
+	}
+	if update.InlineQuery != nil {
+		return update.InlineQuery.From.ID
+	}
+	if update.ChosenInlineResult != nil {
+		return update.ChosenInlineResult.From.ID
+	}
+	if update.CallbackQuery != nil {
+		return update.CallbackQuery.From.ID
+	}
+	return 0
+}

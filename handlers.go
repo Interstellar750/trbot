@@ -390,11 +390,11 @@ func messageHandler(opts *handler_params.Message) {
 	}
 
 	// handler by chat ID
-	if count, err := plugin_utils.RunByChatIDHandlers(opts); err != nil {
+	if count, err := plugin_utils.RunByMessageChatIDHandlers(opts); err != nil {
 		logger.Error().
 			Err(err).
 			Int("handlerRunCount", count).
-			Msg("Error when running by chat ID handlers")
+			Msg("Error when running by message chat ID handlers")
 	}
 }
 

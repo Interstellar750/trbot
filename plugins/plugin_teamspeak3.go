@@ -73,7 +73,7 @@ func init() {
 			if initTeamSpeak(ctx) {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts
-				plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
+				plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
 					ForChatID:      tsData.GroupID,
 					PluginName:     "teamspeak_get_opts",
 					MessageHandler: getOptsHandler,

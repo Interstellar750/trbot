@@ -933,10 +933,10 @@ func buildListenList() {
 	// 遍历群组列表，判断用户 ID 列表数量不为 0 时，添加该群组的 by chat ID handler
 	for _, chat := range KeywordDataList.Chats {
 		if !chat.IsDisable && len(chat.UsersID) > 0 {
-			plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
+			plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
 				ForChatID:      chat.ChatID,
 				PluginName:     "detect_keyword",
-				MessageHandler:  keywordDetector,
+				MessageHandler: keywordDetector,
 			})
 		}
 	}
@@ -969,7 +969,7 @@ func keywordDetector(opts *handler_params.Message) error {
 				if userChatKeywordList.ChatID == opts.Message.Chat.ID {
 					for _, keyword := range userChatKeywordList.Keyword {
 						if contain.SubStringCaseInsensitive(keyword, text) {
-							return handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, keyword, text, false)).Flat()
+							return handlerErr.Add(notifyUser(opts.Ctx, opts.Thebot, opts.Message, &user, keyword, text, false)).Flat()
 						}
 					}
 				}
@@ -977,7 +977,7 @@ func keywordDetector(opts *handler_params.Message) error {
 			// 用户全局设定的关键词
 			for _, userGlobalKeyword := range user.GlobalKeyword {
 				if contain.SubStringCaseInsensitive(userGlobalKeyword, text) {
-					return handlerErr.Add(notifyUser(opts, user, opts.Message.Chat.Title, userGlobalKeyword, text, true)).Flat()
+					return handlerErr.Add(notifyUser(opts.Ctx, opts.Thebot, opts.Message, &user, userGlobalKeyword, text, true)).Flat()
 				}
 			}
 		}
@@ -985,28 +985,28 @@ func keywordDetector(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, keyword, text string, isGlobalKeyword bool) error {
+func notifyUser(ctx context.Context, thebot *bot.Bot, message *models.Message, user *KeywordUserList, keyword, text string, isGlobalKeyword bool) error {
 	var handlerErr flaterr.MultErr
 
-	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+	_, err := thebot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
 		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",
-			utils.RemoveIDPrefix(opts.Message.Chat.ID), chatname, utils.GetMessageFromHyperLink(opts.Message, models.ParseModeHTML),
+			utils.RemoveIDPrefix(message.Chat.ID), message.Chat.Title, utils.GetMessageFromHyperLink(message, models.ParseModeHTML),
 			utils.TextForTrueOrFalse(isGlobalKeyword, "全局", "群组"), keyword, utils.IgnoreHTMLTags(text),
 		),
 		ParseMode:           models.ParseModeHTML,
 		DisableNotification: user.IsSilentNotice,
 		ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "前往查看",
-			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Message.Chat.ID), opts.Message.ID),
+			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(message.Chat.ID), message.ID),
 		}}}},
 	})
 	if err != nil {
-		zerolog.Ctx(opts.Ctx).Error().
+		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Str("pluginName", "DetectKeyword").
 			Str("funcName", "notifyUser").
-			Dict(utils.GetChatDict(&opts.Message.Chat)).
+			Dict(utils.GetChatDict(&message.Chat)).
 			Int64("userID", user.UserID).
 			Str("keyword", keyword).
 			Str("content", "keyword detected notice to user").
@@ -1014,7 +1014,7 @@ func notifyUser(opts *handler_params.Message, user KeywordUserList, chatname, ke
 		handlerErr.Addt(flaterr.SendMessage, "keyword detected notice to user", err)
 	}
 	user.MentionCount++
-	KeywordDataList.Users[user.UserID] = user
+	KeywordDataList.Users[user.UserID] = *user
 
 	return handlerErr.Flat()
 }

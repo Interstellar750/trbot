@@ -1213,7 +1213,7 @@ func Init() {
 		SlashCommand:   "save",
 		MessageHandler: saveMessageHandler,
 	})
-	plugin_utils.AddInlineManualHandlerHandlers(plugin_utils.InlineManualHandler{
+	plugin_utils.AddInlineManualHandlers(plugin_utils.InlineManualHandler{
 		Command:       "saved",
 		InlineHandler: InlineShowSavedMessageHandler,
 		Description:   "显示自己保存的消息",

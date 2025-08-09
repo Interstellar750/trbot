@@ -779,15 +779,15 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 }
 
 func buildLimitGroupList() {
-	for id, n := range LimitMessageList {
+	for chatID, n := range LimitMessageList {
 		if n.IsEnable || n.IsUnderTest {
-			plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
-				ForChatID: id,
-				PluginName: "limit_message",
+			plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
+				ForChatID:      chatID,
+				PluginName:     "limit_message",
 				MessageHandler: DeleteNotAllowMessage,
 			})
 		} else {
-			plugin_utils.RemoveHandlerByChatIDHandler(id, "limit_message")
+			plugin_utils.RemoveHandlerByChatIDHandler(chatID, "limit_message")
 		}
 	}
 }

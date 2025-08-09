@@ -3,6 +3,7 @@ package plugin_utils
 import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
+	"trbot/utils/type/update_utils"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -21,7 +22,7 @@ type ByChatIDHandler struct {
 	ForChatID  int64 // 0 for all chats
 	PluginName string
 
-	MessageHandler func(*handler_params.Message) error
+	UpdateHandler func(*handler_params.Update) error
 }
 
 func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
@@ -29,7 +30,7 @@ func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
 
 	var handlerCount int
 	for _, handler := range handlers {
-		if handler.PluginName == "" || handler.MessageHandler == nil {
+		if handler.PluginName == "" || handler.UpdateHandler == nil {
 			log.Error().
 				Str("funcName", "AddHandlerByChatIDHandlers").
 				Str("pluginName", handler.PluginName).
@@ -63,27 +64,30 @@ func RemoveHandlerByChatIDHandler(chatID int64, pluginName string) {
 	}
 }
 
-func RunByChatIDHandlers(params *handler_params.Message) (int, error) {
+func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 	if AllPlugins.HandlerByChatID == nil { return 0, nil }
 	var handlerRunCount int
 	var handlerErr      flaterr.MultErr
 
+	updateType := update_utils.GetUpdateType(params.Update)
+	FromID := update_utils.GetUpdateFromID(params.Update)
+
 	logger := zerolog.Ctx(params.Ctx).
 		With().
 		Str("funcName", "RunByChatIDHandlers").
-		Str("chatType", string(params.Message.Chat.Type)).
+		Str("updateType", updateType.Str()).
 		Logger()
 
-	for name, handler := range AllPlugins.HandlerByChatID[params.Message.Chat.ID] {
+	for name, handler := range AllPlugins.HandlerByChatID[FromID] {
 		slogger := logger.With().
 			Str("handlerName", name).
 			Int64("forChatID", handler.ForChatID).
 			Logger()
 
-		if handler.MessageHandler != nil {
+		if handler.UpdateHandler != nil {
 			slogger.Info().Msg("Hit by chat ID handler")
 			handlerRunCount++
-			err := handler.MessageHandler(params)
+			err := handler.UpdateHandler(params)
 			if err != nil {
 				slogger.Error().
 					Err(err).
@@ -101,10 +105,10 @@ func RunByChatIDHandlers(params *handler_params.Message) (int, error) {
 			Int64("forChatID", handler.ForChatID).
 			Logger()
 
-		if handler.MessageHandler != nil {
+		if handler.UpdateHandler != nil {
 			slogger.Info().Msg("Hit by chat ID handler for any chat")
 			handlerRunCount++
-			err := handler.MessageHandler(params)
+			err := handler.UpdateHandler(params)
 			if err != nil {
 				slogger.Error().
 					Err(err).

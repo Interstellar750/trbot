@@ -804,7 +804,7 @@ func init() {
 				return err
 			} else {
 				if UdoneseData.GroupID != 0 {
-					plugin_utils.AddHandlerByChatIDHandlers(plugin_utils.ByChatIDHandler{
+					plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
 						ForChatID:      UdoneseData.GroupID,
 						PluginName:     "udoneseGroupHandler",
 						MessageHandler: udoneseGroupHandler,
@@ -821,7 +821,7 @@ func init() {
 		Saver:  SaveUdonese,
 		Loader: ReadUdonese,
 	})
-	plugin_utils.AddInlineHandlerHandlers(plugin_utils.InlineHandler{
+	plugin_utils.AddInlineHandlers(plugin_utils.InlineHandler{
 		Command:       "sms",
 		InlineHandler: udoneseInlineHandler,
 		Description:   "查询 Udonese 词典",

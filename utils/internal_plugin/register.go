@@ -376,7 +376,7 @@ func Register(ctx context.Context) {
 	}...)
 
 	// inline 模式自行处理输出的函数
-	plugin_utils.AddInlineManualHandlerHandlers([]plugin_utils.InlineManualHandler{
+	plugin_utils.AddInlineManualHandlers([]plugin_utils.InlineManualHandler{
 		{
 			Command: "uaav",
 			Attr: plugin_utils.InlineHandlerAttr{
@@ -551,7 +551,7 @@ func Register(ctx context.Context) {
 	}...)
 
 	// inline 模式中以前缀触发的命令，需要自行处理输出。
-	plugin_utils.AddInlinePrefixHandlerPlugins([]plugin_utils.InlinePrefixHandler{
+	plugin_utils.AddInlinePrefixHandlers([]plugin_utils.InlinePrefixHandler{
 		{
 			PrefixCommand: "panic",
 			Attr: plugin_utils.InlineHandlerAttr{

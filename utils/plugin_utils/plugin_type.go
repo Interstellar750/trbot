@@ -28,6 +28,10 @@ type Plugin_All struct {
 	// 根据聊天类型设定的默认处理函数
 	HandlerByMessageType HandlerByMessageTypes
 
-	// 以聊天 ID 设定的默认处理函数，第一个 map 为 ID，第二个为 handler 名称
+	// 以聊天 ID 设定的处理函数
+	HandlerByMessageChatID HandlerByMessageChatID
+
+	// 以更新来自的 chat ID 作为触发的函数
 	HandlerByChatID HandlerByChatID
+
 }
