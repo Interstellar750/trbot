@@ -1,0 +1,118 @@
+package meilisearch_utils
+
+import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"strconv"
+	"trbot/utils/type/message_utils"
+
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+	"github.com/meilisearch/meilisearch-go"
+)
+
+type MessageData struct {
+	MsgID     int                `json:"msg_id"`
+	MsgType   message_utils.Type `json:"msg_type"`
+	FileID    string             `json:"file_id"`
+	FileTitle string             `json:"file_title"`
+	FileName  string             `json:"file_name"`
+	Text      string             `json:"text"`
+	Desc      string             `json:"desc"`
+
+	Entities              []models.MessageEntity     `json:"entities"`
+	LinkPreviewOptions    *models.LinkPreviewOptions `json:"link_preview_options"`
+	ShowCaptionAboveMedia bool                       `json:"show_caption_above_media"`
+	// HasMediaSpoiler       bool                       `json:"has_media_spoiler,omitempty"`
+}
+
+func (md MessageData) MsgIDStr() string {
+	return strconv.Itoa(md.MsgID)
+}
+
+func MarshalMessageData(data any) (out *MessageData, err error) {
+	datase, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(datase, &out)
+	if err != nil {
+		return nil, err
+	}
+	return
+}
+
+func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message) MessageData {
+	var data = MessageData{
+		MsgID:                 msg.ID,
+		LinkPreviewOptions:    msg.LinkPreviewOptions,
+		ShowCaptionAboveMedia: msg.ShowCaptionAboveMedia,
+		// HasMediaSpoiler:       msg.HasMediaSpoiler,
+	}
+
+	if msg.Caption != "" {
+		data.Text = msg.Caption
+		data.Entities = msg.CaptionEntities
+	} else if msg.Text != "" {
+		data.Text = msg.Text
+		data.Entities = msg.Entities
+	}
+
+	msgType := message_utils.GetMessageType(msg)
+	data.MsgType = msgType.AsType()
+	switch {
+	case msgType.OnlyText:
+		// do nothing
+	case msgType.Animation:
+		data.FileID = msg.Animation.FileID
+		data.FileName = msg.Animation.FileName
+	case msgType.Audio:
+		data.FileID = msg.Audio.FileID
+		data.FileName = msg.Audio.FileName
+		data.FileTitle = msg.Audio.Title
+	case msgType.Document:
+		data.FileID = msg.Document.FileID
+		data.FileName = msg.Document.FileName
+	case msgType.Photo:
+		data.FileID = msg.Photo[len(msg.Photo)-1].FileID
+	case msgType.Sticker:
+		data.FileID = msg.Sticker.FileID
+		data.FileName = msg.Sticker.SetName
+
+		if msg.Sticker.SetName != "" {
+			stickerSet, _ := thebot.GetStickerSet(ctx, &bot.GetStickerSetParams{Name: msg.Sticker.SetName})
+			if stickerSet != nil {
+				data.FileTitle = stickerSet.Title
+			}
+		}
+	case msgType.Video:
+		data.FileID = msg.Video.FileID
+		data.FileName = msg.Video.FileName
+
+		if data.FileName == "" {
+			data.FileName = "video.mp4"
+		}
+	case msgType.VideoNote:
+		data.FileID   = msg.VideoNote.FileID
+		data.FileName = "video_note.mp4"
+	case msgType.Voice:
+		data.FileID    = msg.Voice.FileID
+		data.FileTitle = data.Text
+		if data.FileTitle == "" {
+			data.FileTitle = msg.Voice.MimeType
+		}
+	}
+	return data
+}
+
+func CreateChatIndex(client *meilisearch.ServiceManager, chatID string) {
+	fields := reflect.TypeOf(MessageData{})
+	for n := range fields.NumField() {
+		(*client).CreateIndex(&meilisearch.IndexConfig{ Uid: chatID, PrimaryKey: fields.Field(n).Tag.Get("json") })
+	}
+	// indexManager := meilisearchClient.Index(chatID)
+	// indexManager.UpdateSearchableAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
+	// indexManager.UpdateDisplayedAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
+	// indexManager.UpdateFilterableAttributes(&[]string{"msg_type"})
+}

@@ -8,23 +8,42 @@ import (
 	"strconv"
 	"trbot/utils"
 	"trbot/utils/consts"
+	"trbot/utils/meilisearch_utils"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/rs/zerolog"
 )
 
-var SavedMessageSet map[int64]SavedMessage
+var SavedMessageList SavedMessage
 var SavedMessageErr error
 var SavedMessagePath string = filepath.Join(consts.YAMLDataBaseDir, "savedmessage/", consts.YAMLFileName)
+
+var meilisearchURL    string = "http://localhost:7700"
+var meilisearchAPI    string
+var meilisearchClient meilisearch.ServiceManager
 
 var textExpandableLength int = 150
 
 type SavedMessage struct {
-	DiscussionID       int64 `yaml:"DiscussionID,omitempty"`
-	// IsChannelMode      bool  `yaml:"IsChannelMode,omitempty"`
+	Channel SavedMessageChannel `yaml:"Channel"`
+	User map[int64]SavedMessageUser `yaml:"User"`
+}
+
+type SavedMessageChannel struct {
+	ChatID   int64  `yaml:"ChatID"`
+	MeiliURL string `yaml:"MeiliSearchURL"`
+	Count    int    `yaml:"Count"`
+}
+
+func (smc *SavedMessageChannel) ChatIDStr() string {
+	return strconv.FormatInt(smc.ChatID, 10)
+}
+
+type SavedMessageUser struct {
 	ByUserID           int64 `yaml:"ByUserID,omitempty"`
 	Count              int   `yaml:"Count"`                // 当前存储的数量
 	SavedTimes         int   `yaml:"SavedTimes,omitempty"` // 一共存过多少个
@@ -41,7 +60,7 @@ func SaveSavedMessageList(ctx context.Context) error {
 		Str("funcName", "SaveSavedMessageList").
 		Logger()
 
-	err := yaml.SaveYAML(SavedMessagePath, &SavedMessageSet)
+	err := yaml.SaveYAML(SavedMessagePath, &SavedMessageList)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -62,7 +81,7 @@ func ReadSavedMessageList(ctx context.Context) error {
 		Str("funcName", "ReadSavedMessageList").
 		Logger()
 
-	err := yaml.LoadYAML(SavedMessagePath, &SavedMessageSet)
+	err := yaml.LoadYAML(SavedMessagePath, &SavedMessageList)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Warn().
@@ -70,7 +89,7 @@ func ReadSavedMessageList(ctx context.Context) error {
 				Str("path", SavedMessagePath).
 				Msg("Not found savedmessage list file. Created new one")
 			// 如果是找不到文件，新建一个
-			err = yaml.SaveYAML(SavedMessagePath, &SavedMessageSet)
+			err = yaml.SaveYAML(SavedMessagePath, &SavedMessageList)
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -89,8 +108,33 @@ func ReadSavedMessageList(ctx context.Context) error {
 		SavedMessageErr = nil
 	}
 
-	if SavedMessageSet == nil {
-		SavedMessageSet = map[int64]SavedMessage{}
+	if SavedMessageList.User == nil {
+		SavedMessageList.User = map[int64]SavedMessageUser{}
+	}
+	if SavedMessageList.Channel.ChatID != 0 {
+		if meilisearchClient == nil {
+			chatIDString := strconv.FormatInt(SavedMessageList.Channel.ChatID, 10)
+
+			meilisearchClient = meilisearch.New(meilisearchURL, meilisearch.WithAPIKey(meilisearchAPI))
+			// meilisearchClient.DeleteIndex(chatIDString)
+			_, err := meilisearchClient.GetIndex(chatIDString)
+			if err != nil {
+				if err.(*meilisearch.Error).MeilisearchApiError.Code == "index_not_found" {
+					meilisearch_utils.CreateChatIndex(&meilisearchClient, chatIDString)
+				} else {
+					logger.Error().
+						Err(err).
+						Str("content", "index not found").
+						Msg("Failed to get chat index")
+					SavedMessageErr = err
+				}
+			}
+		}
+		plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
+			ForChatID:      SavedMessageList.Channel.ChatID,
+			PluginName:     "savedmessage_channel",
+			MessageHandler: channelSaveMessageHandler,
+		})
 	}
 
 	buildSavedMessageByMessageHandlers()
@@ -530,7 +574,7 @@ func buildSavedMessageByMessageHandlers() {
 		message_utils.Voice,
 	}
 
-	for chatID := range SavedMessageSet {
+	for chatID := range SavedMessageList.User {
 		for _, msgType := range msgTypeList {
 			plugin_utils.RemoveHandlerByMessageTypeHandler(
 				models.ChatTypePrivate,
@@ -540,7 +584,7 @@ func buildSavedMessageByMessageHandlers() {
 			)
 		}
 	}
-	for chatID, user := range SavedMessageSet {
+	for chatID, user := range SavedMessageList.User {
 		if user.AgreePrivacyPolicy {
 			for _, msgType := range msgTypeList {
 				plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{

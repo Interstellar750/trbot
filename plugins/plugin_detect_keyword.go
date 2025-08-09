@@ -1134,7 +1134,7 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 		user.IsIncludeSelf = !user.IsIncludeSelf
 	case "detectkw_u_finish":             // 停止添加群组关键词
 		user.AddingChatID = 0
-		plugin_utils.RemoveStateHandler(user.UserID)
+		plugin_utils.RemoveMessageStateHandler(user.UserID)
 	case "detectkw_u_chatdisablebyadmin": // 目标群组的管理员为群组关闭了此功能
 		needEdit = false
 		needSave = false
@@ -1291,7 +1291,7 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 						Msg(flaterr.EditMessageText.Str())
 					handlerErr.Addt(flaterr.EditMessageText, "ready to add keyword notice", err)
 				} else {
-					plugin_utils.AddStateHandler(plugin_utils.StateHandler{
+					plugin_utils.AddMessageStateHandler(plugin_utils.MessageStateHandler{
 						ForChatID: opts.CallbackQuery.Message.Message.Chat.ID,
 						PluginName: "addKeywordState",
 						Remaining: -1,

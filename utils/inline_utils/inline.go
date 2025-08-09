@@ -18,6 +18,14 @@ type ParsedQuery struct {
 	LastChar   string
 }
 
+// group Keywords as a string
+func (pq ParsedQuery)KeywordQuery() (query string) {
+	for _, n := range pq.Keywords {
+		query += n + " "
+	}
+	return
+}
+
 func ParseInlineFields(fields []string) ParsedQuery {
 	result := ParsedQuery{}
 

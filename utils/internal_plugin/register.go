@@ -58,7 +58,7 @@ func Register(ctx context.Context) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-					Text:            fmt.Sprintf("类型: [<code>%v</code>]\nID: [<code>%v</code>]\n用户名:[<code>%v</code>]", opts.Message.Chat.Type, opts.Message.Chat.ID, opts.Message.Chat.Username),
+					Text:            fmt.Sprintf("ID: [<code>%d</code>]\nType: [<code>%s</code>]\nName: [<code>%s</code>]\nUsername: [<code>%s</code>]", opts.Message.Chat.ID, opts.Message.Chat.Type, utils.ShowChatName(&opts.Message.Chat), opts.Message.Chat.Username),
 					ParseMode:       models.ParseModeHTML,
 				})
 				if err != nil {

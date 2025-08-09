@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type StateHandler struct {
+type MessageStateHandler struct {
 	ForChatID   int64
 	PluginName  string
 	// StopTimeout time.Time
@@ -31,8 +31,8 @@ type StateHandler struct {
 	CancelHandler func(*handler_params.Message) error
 }
 
-func AddStateHandler(handler StateHandler) bool {
-	if AllPlugins.StateHandler == nil { AllPlugins.StateHandler = map[int64]StateHandler{} }
+func AddMessageStateHandler(handler MessageStateHandler) bool {
+	if AllPlugins.StateHandler == nil { AllPlugins.StateHandler = map[int64]MessageStateHandler{} }
 	if handler.ForChatID == 0 {
 		log.Error().
 			Str("funcName", "AddStateHandler").
@@ -64,13 +64,13 @@ func AddStateHandler(handler StateHandler) bool {
 	return true
 }
 
-func RemoveStateHandler(chatID int64) {
+func RemoveMessageStateHandler(chatID int64) {
 	if chatID == 0 { return }
 	delete(AllPlugins.StateHandler, chatID)
 }
 
 // this can't edit `remainingTime` to `0` or `stateFunc` to `nil`, if you need remove state handler, use `plugin_utils.RemoveStateHandler()`
-func EditStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_params.Message) error) (bool, error) {
+func EditMessageStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_params.Message) error) (bool, error) {
 	if chatID == 0 { return false, errors.New("chatID is required") }
 
 	targetHandler, isExist := AllPlugins.StateHandler[chatID]
@@ -91,7 +91,7 @@ func EditStateHandler(chatID int64, remainingTime int, stateFunc func(*handler_p
 	return true, nil
 }
 
-func RunStateHandler(opts *handler_params.Message) bool {
+func RunMessageStateHandler(opts *handler_params.Message) bool {
 	if AllPlugins.StateHandler == nil{ return false }
 	handler, isExist := AllPlugins.StateHandler[opts.Message.Chat.ID]
 	if isExist {

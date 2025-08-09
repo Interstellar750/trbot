@@ -6,7 +6,7 @@ type Plugin_All struct {
 	Initializer []Initializer
 	Databases   []DatabaseHandler
 
-	StateHandler map[int64]StateHandler
+	StateHandler map[int64]MessageStateHandler
 
 	HandlerHelp []HandlerHelp
 
@@ -33,5 +33,4 @@ type Plugin_All struct {
 
 	// 以更新来自的 chat ID 作为触发的函数
 	HandlerByChatID HandlerByChatID
-
 }

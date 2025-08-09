@@ -29,7 +29,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 	var needSave  bool = true
-	UserSavedMessage := SavedMessageSet[opts.Message.From.ID]
+	UserSavedMessage := SavedMessageList.User[opts.Message.From.ID]
 
 	messageParams := &bot.SendMessageParams{
 		ChatID:          opts.Message.Chat.ID,
@@ -112,25 +112,13 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					needChangeEntitites = false
 				}
 
-				if needChangeEntitites {
-					// 若字符长度大于设定的阈值，添加折叠样式引用再保存
-					if messageLength > textExpandableLength {
-						if len(pendingEntitites) == 1 && pendingEntitites[0].Type == models.MessageEntityTypeBlockquote && pendingEntitites[0].Offset == 0 && pendingEntitites[0].Length == messageLength {
-							// 如果消息仅为一个消息格式实体，且是不折叠形式的引用，则将格式实体改为可折叠格式引用后再保存
-							pendingEntitites = []models.MessageEntity{{
-								Type:   models.MessageEntityTypeExpandableBlockquote,
-								Offset: 0,
-								Length: messageLength,
-							}}
-						} else {
-							// 其他则仅在末尾加一个可折叠形式的引用
-							pendingEntitites = append(pendingEntitites, models.MessageEntity{
-								Type:   models.MessageEntityTypeExpandableBlockquote,
-								Offset: 0,
-								Length: messageLength,
-							})
-						}
-					}
+				// 若字符长度大于设定的阈值，添加折叠样式引用再保存
+				if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
+					pendingEntitites = []models.MessageEntity{{
+						Type:   models.MessageEntityTypeExpandableBlockquote,
+						Offset: 0,
+						Length: messageLength,
+					}}
 				}
 
 				replyMsgType := message_utils.GetMessageType(opts.Message.ReplyToMessage)
@@ -529,7 +517,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 				}
 
 				if needSave {
-					SavedMessageSet[opts.Message.From.ID] = UserSavedMessage
+					SavedMessageList.User[opts.Message.From.ID] = UserSavedMessage
 					err := SaveSavedMessageList(opts.Ctx)
 					if err != nil {
 						logger.Error().
@@ -573,38 +561,6 @@ func saveMessageHandler(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-// func channelSaveMessageHandler(opts *handler_structs.SubHandlerParams) {
-// 	ChannelSavedMessage := SavedMessageSet[opts.Update.ChannelPost.From.ID]
-
-// 	messageParams := &bot.SendMessageParams{
-// 		ReplyParameters: &models.ReplyParameters{MessageID: opts.Update.Message.ID},
-// 		ParseMode:       models.ParseModeHTML,
-// 	}
-
-// 	if !ChannelSavedMessage.AgreePrivacyPolicy {
-// 		messageParams.ChatID = opts.Update.ChannelPost.From.ID
-// 		messageParams.Text = "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息"
-// 		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-// 			Text: "点击查看",
-// 			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_channel_privacy_policy", consts.BotMe.Username),
-// 		}}}}
-// 		_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
-// 		if err != nil {
-// 			log.Printf("Error response /save command initial info: %v", err)
-// 		}
-// 		return
-// 	}
-
-// 	if ChannelSavedMessage.DiscussionID == 0 {
-// 		messageParams.Text = "您需要为此频道绑定一个讨论群组，用于接收收藏成功的确认信息与关键词更改"
-// 		_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
-// 		if err != nil {
-// 			log.Printf("Error response /save command initial info: %v", err)
-// 		}
-// 	}
-
-// }
-
 func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 	if opts.Message == nil { return nil }
 
@@ -629,7 +585,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	UserSavedMessage := SavedMessageSet[opts.ChatInfo.ID]
+	UserSavedMessage := SavedMessageList.User[opts.ChatInfo.ID]
 
 	var originInfo *OriginInfo
 	if targetMessage.ForwardOrigin != nil && targetMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
@@ -653,25 +609,14 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 		needChangeEntitites = false
 	}
 
-	if needChangeEntitites {
-		// 若字符长度大于设定的阈值，添加折叠样式引用再保存
-		if messageLength > textExpandableLength {
-			if len(pendingEntitites) == 1 && pendingEntitites[0].Type == models.MessageEntityTypeBlockquote && pendingEntitites[0].Offset == 0 && pendingEntitites[0].Length == messageLength {
-				// 如果消息仅为一个消息格式实体，且是不折叠形式的引用，则将格式实体改为可折叠格式引用后再保存
-				pendingEntitites = []models.MessageEntity{{
-					Type:   models.MessageEntityTypeExpandableBlockquote,
-					Offset: 0,
-					Length: messageLength,
-				}}
-			} else {
-				// 其他则仅在末尾加一个可折叠形式的引用
-				pendingEntitites = append(pendingEntitites, models.MessageEntity{
-					Type:   models.MessageEntityTypeExpandableBlockquote,
-					Offset: 0,
-					Length: messageLength,
-				})
-			}
-		}
+
+	// 若字符长度大于设定的阈值，添加折叠样式引用再保存
+	if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
+		pendingEntitites = []models.MessageEntity{{
+			Type:   models.MessageEntityTypeExpandableBlockquote,
+			Offset: 0,
+			Length: messageLength,
+		}}
 	}
 
 	replyMsgType := message_utils.GetMessageType(targetMessage)
@@ -923,7 +868,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 	}
 
 	if !isSaved {
-		SavedMessageSet[opts.ChatInfo.ID] = UserSavedMessage
+		SavedMessageList.User[opts.ChatInfo.ID] = UserSavedMessage
 		err := SaveSavedMessageList(opts.Ctx)
 		if err != nil {
 			logger.Error().
@@ -966,7 +911,7 @@ func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	var handlerErr flaterr.MultErr
 	var button     *models.InlineQueryResultsButton
 
-	SavedMessage  := SavedMessageSet[opts.ChatInfo.ID]
+	SavedMessage  := SavedMessageList.User[opts.ChatInfo.ID]
 	parsedQuery   := inline_utils.ParseInlineFields(opts.Fields)
 
 	var resultCount int
@@ -1151,9 +1096,9 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	var UserSavedMessage SavedMessage
+	var UserSavedMessage SavedMessageUser
 	UserSavedMessage.AgreePrivacyPolicy = true
-	SavedMessageSet[opts.ChatInfo.ID] = UserSavedMessage
+	SavedMessageList.User[opts.ChatInfo.ID] = UserSavedMessage
 
 	err := SaveSavedMessageList(opts.Ctx)
 	if err != nil {
@@ -1213,11 +1158,18 @@ func Init() {
 		SlashCommand:   "save",
 		MessageHandler: saveMessageHandler,
 	})
-	plugin_utils.AddInlineManualHandlers(plugin_utils.InlineManualHandler{
-		Command:       "saved",
-		InlineHandler: InlineShowSavedMessageHandler,
-		Description:   "显示自己保存的消息",
-	})
+	plugin_utils.AddInlineManualHandlers([]plugin_utils.InlineManualHandler{
+		{
+			Command:       "saved",
+			InlineHandler: InlineShowSavedMessageHandler,
+			Description:   "显示自己保存的消息",
+		},
+		{
+			Command:       "chan",
+			InlineHandler: InlineChannelHandler,
+			Description:   "频道中保存的消息",
+		},
+	}...)
 	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
 		{
 			Argument: "savedmessage_privacy_policy",

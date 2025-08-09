@@ -367,7 +367,7 @@ func messageHandler(opts *handler_params.Message) {
 		Str("caption", opts.Message.Caption).
 		Logger()
 
-	if plugin_utils.RunStateHandler(opts) {
+	if plugin_utils.RunMessageStateHandler(opts) {
 		// 如果状态处理函数返回 true，则表示已经处理了该消息，直接返回
 		return
 	}
@@ -389,7 +389,7 @@ func messageHandler(opts *handler_params.Message) {
 			Msg("Error when running by message type handler")
 	}
 
-	// handler by chat ID
+	// handler by message chat ID
 	if count, err := plugin_utils.RunByMessageChatIDHandlers(opts); err != nil {
 		logger.Error().
 			Err(err).
@@ -523,14 +523,10 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 
 		// 没有匹配的命令
 		if len(results) == 1 {
-			var pendingMessage string = "请检查命令是否正确"
-			if strings.HasSuffix(opts.Fields[0], configs.BotConfig.InlinePaginationSymbol) || strings.HasSuffix(opts.Fields[0], configs.BotConfig.InlineCategorySymbol) {
-				pendingMessage = "请检查命令是否正确，若要使用分页或分类符号，请确保命令与符号之间有空格"
-			}
 			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
 				ID:                  "noInlineCommand",
 				Title:               fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
-				Description:         pendingMessage,
+				Description:         "请检查命令是否正确，若要使用分页、分类符号或搜索关键词，请确保命令与符号或关键词之间以空格分开",
 				InputMessageContent: &models.InputTextMessageContent{ MessageText: "您在使用 inline 模式时没有输入正确的命令..." },
 			}}
 		}
