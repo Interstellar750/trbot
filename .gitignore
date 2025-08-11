@@ -26,11 +26,6 @@ log.txt
 trbot
 __debug_bin*
 /cache
-/db_yaml/metadata.yaml
-/db_yaml/udonese
-/db_yaml/savedmessage
-/db_yaml/limitmessage
-/db_yaml/detectkeyword
-/db_yaml/teamspeak
+/db_yaml
 config.yaml
 /ffmpeg
