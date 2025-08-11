@@ -45,14 +45,14 @@ func GetOriginInfo(msg *models.Message) *OriginInfo {
 		}
 	} else if msg.Chat.Type != models.ChatTypePrivate {
 		attr := message_utils.GetMessageAttribute(msg)
-		if attr.IsHasSenderChat {
+		if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsUserAsChannel {
 			return &OriginInfo{
 				FromName:  utils.ShowChatName(msg.SenderChat),
 				FromID:    msg.SenderChat.ID,
 				ChatID:    msg.Chat.ID,
 				MessageID: msg.ID,
 			}
-		} else {
+		} else if msg.From != nil {
 			return &OriginInfo{
 				FromName:  utils.ShowUserName(msg.From),
 				FromID:    msg.From.ID,
