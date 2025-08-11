@@ -519,7 +519,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						})
 					}
 				}
-				if user.IncludeChannel && SavedMessageList.ChannelID != 0 {
+				if user.IncludeChannel && targetChatID != SavedMessageList.ChannelIDStr() {
 					button = &models.InlineQueryResultsButton{
 						Text:           "当前包含了个人和公共收藏内容",
 						StartParameter: "via-inline_savedmessage-help",
