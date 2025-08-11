@@ -429,7 +429,7 @@ func listenUserStatus(ctx context.Context) {
 	if hasHandlerByChatID {
 		hasHandlerByChatID = false
 		// 获取到 privateOpts 后删掉 handler by chatID
-		plugin_utils.RemoveHandlerByChatIDHandler(tsData.GroupID, "teamspeak_get_opts")
+		plugin_utils.RemoveHandlerByMessageChatIDHandler(tsData.GroupID, "teamspeak_get_opts")
 	}
 
 	// 取消置顶上一次的置顶消息
