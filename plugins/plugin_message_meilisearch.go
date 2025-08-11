@@ -13,7 +13,6 @@ import (
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
 	"trbot/utils/meilisearch_utils"
-	"trbot/utils/plugin_utils"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
@@ -29,41 +28,41 @@ var meilisearchClient  meilisearch.ServiceManager
 var cacheMessageChatID int = -1002614205550
 var maxIndexHistory    int = 500
 
-func init() {
-	plugin_utils.AddInitializer(plugin_utils.Initializer{
-		Name: "message_meilisearch",
-		Func: func(ctx context.Context) error {
-			meilisearchClient = meilisearch.New(meilisearchURL, meilisearch.WithAPIKey(meilisearchAPI))
-			return nil
-		},
-	})
-	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
-		SlashCommand: "getmessage",
-		ForChatType: []models.ChatType{
-			models.ChatTypeChannel,
-			models.ChatTypeGroup,
-			models.ChatTypeSupergroup,
-		},
-		MessageHandler: indexChat,
-	})
-	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
-		SlashCommand: "searchmessage",
-		ForChatType: []models.ChatType{
-			models.ChatTypeGroup,
-			models.ChatTypeSupergroup,
-		},
-		MessageHandler: messageSearchHandeler,
-	})
-	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
-		CallbackDataPrefix: "msindex_task_",
-		CallbackQueryHandler: indexChatCallbackHandler,
-	})
-	plugin_utils.AddInlineHandlers(plugin_utils.InlineHandler{
-		Command: "meili",
-		Description: "Meilisearch 消息搜索",
-		InlineHandler: messageBrowserInlineHandler,
-	})
-}
+// func init() {
+// 	plugin_utils.AddInitializer(plugin_utils.Initializer{
+// 		Name: "message_meilisearch",
+// 		Func: func(ctx context.Context) error {
+// 			meilisearchClient = meilisearch.New(meilisearchURL, meilisearch.WithAPIKey(meilisearchAPI))
+// 			return nil
+// 		},
+// 	})
+// 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
+// 		SlashCommand: "getmessage",
+// 		ForChatType: []models.ChatType{
+// 			models.ChatTypeChannel,
+// 			models.ChatTypeGroup,
+// 			models.ChatTypeSupergroup,
+// 		},
+// 		MessageHandler: indexChat,
+// 	})
+// 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
+// 		SlashCommand: "searchmessage",
+// 		ForChatType: []models.ChatType{
+// 			models.ChatTypeGroup,
+// 			models.ChatTypeSupergroup,
+// 		},
+// 		MessageHandler: messageSearchHandler,
+// 	})
+// 	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
+// 		CallbackDataPrefix: "msindex_task_",
+// 		CallbackQueryHandler: indexChatCallbackHandler,
+// 	})
+// 	plugin_utils.AddInlineHandlers(plugin_utils.InlineHandler{
+// 		Command: "meili",
+// 		Description: "Meilisearch 消息搜索",
+// 		InlineHandler: messageBrowserInlineHandler,
+// 	})
+// }
 
 func indexChat(opts *handler_params.Message) error {
 	if opts.Message == nil { return nil }
@@ -426,7 +425,7 @@ func messageBrowserInlineHandler(opts *handler_params.InlineQuery) (result []mod
 	return
 }
 
-func messageSearchHandeler(opts *handler_params.Message) error {
+func messageSearchHandler(opts *handler_params.Message) error {
 	var chatIDstring string = strconv.FormatInt(opts.Message.Chat.ID, 10)
 	indexManager := meilisearchClient.Index(chatIDstring)
 	logger := zerolog.Ctx(opts.Ctx).

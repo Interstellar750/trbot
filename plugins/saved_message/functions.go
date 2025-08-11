@@ -1,20 +1,24 @@
 package saved_message
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"reflect"
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
+	"trbot/utils/meilisearch_utils"
+	"trbot/utils/origin_info"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"unicode/utf8"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/rs/zerolog"
 )
 
@@ -28,520 +32,132 @@ func saveMessageHandler(opts *handler_params.Message) error {
 		Logger()
 
 	var handlerErr flaterr.MultErr
-	var needSave  bool = true
-	UserSavedMessage := SavedMessageList.User[opts.Message.From.ID]
 
-	messageParams := &bot.SendMessageParams{
-		ChatID:          opts.Message.Chat.ID,
-		ParseMode:       models.ParseModeHTML,
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
-			{
-				Text:                         "点击浏览您的收藏",
-				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
-			},
-			{
-				Text:         "关闭",
-				CallbackData: "delete_this_message",
-			},
-		}}},
-	}
-
-	if !UserSavedMessage.AgreePrivacyPolicy {
-		messageParams.Text = "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息"
-		messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text: "点击查看",
-			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", consts.BotMe.Username),
-		}}}}
-		_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
+	if meilisearchClient == nil {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:          opts.Message.Chat.ID,
+			Text:            "此功能不可用，因为 Meilisearch 服务尚未初始化",
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Str("content", "need agree privacy policy").
+				Str("content", "meilisearch client uninitialized").
 				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "need agree privacy policy", err)
+			handlerErr.Addt(flaterr.SendMessage, "meilisearch client uninitialized", err)
 		}
 	} else {
-		if UserSavedMessage.Limit == 0 && UserSavedMessage.Count == 0 {
-			// 每个用户初次添加时，默认限制 100 条
-			UserSavedMessage.Limit = 100
-		}
-
-		// 若不是初次添加，为 0 就是不限制
-		if UserSavedMessage.Limit != 0 && UserSavedMessage.Count >= UserSavedMessage.Limit {
-			messageParams.Text = "已达到限制，无法保存更多内容"
-			_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
+		user := SavedMessageList.GetUser(opts.Message.From.ID)
+		if user == nil {
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:          opts.Message.Chat.ID,
+				Text:            "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息",
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "点击查看",
+					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", consts.BotMe.Username),
+				}}}},
+			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("content", "reach saved limit").
+					Str("content", "need agree privacy policy").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addt(flaterr.SendMessage, "reach saved limit", err)
+				handlerErr.Addt(flaterr.SendMessage, "need agree privacy policy", err)
 			}
 		} else {
-			// var pendingMessage string
+			messageParams := &bot.SendMessageParams{
+				ChatID:          opts.Message.Chat.ID,
+				ParseMode:       models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
+					{
+						Text:                         "点击浏览您的收藏",
+						SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+					},
+					{
+						Text:         "关闭",
+						CallbackData: "delete_this_message",
+					},
+				}}},
+			}
+
 			if opts.Message.ReplyToMessage == nil {
-				needSave = false
-				messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来添加"
+				messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来收藏消息"
+				if opts.Message.Chat.Type == models.ChatTypePrivate {
+					messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text:         "修改此功能偏好",
+						CallbackData: "savedmessage_switch",
+					}}}}
+				}
 			} else {
-				var DescriptionText string
-				// 获取使用命令保存时设定的描述
-				if len(opts.Message.Text) > len(opts.Fields[0])+1 {
-					DescriptionText = opts.Message.Text[len(opts.Fields[0])+1:]
+				if user.Limit == 0 && user.Count == 0 {
+					// 每个用户初次添加时，默认限制 100 条
+					user.Limit = 100
 				}
 
-				var originInfo *OriginInfo
-				if opts.Message.ReplyToMessage.ForwardOrigin != nil && opts.Message.ReplyToMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
-					originInfo = getMessageOriginData(opts.Message.ReplyToMessage.ForwardOrigin)
-				} else if opts.Message.Chat.Type != models.ChatTypePrivate {
-					originInfo = getMessageLink(opts.Message)
-				}
-
-				var isSaved bool
-				var messageLength int
-				var pendingEntitites []models.MessageEntity
-				var needChangeEntitites bool = true
-
-				if opts.Message.ReplyToMessage.Caption != "" {
-					messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Caption)
-					pendingEntitites = opts.Message.ReplyToMessage.CaptionEntities
-				} else if opts.Message.ReplyToMessage.Text != "" {
-					messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Text)
-					pendingEntitites = opts.Message.ReplyToMessage.Entities
+				// 若不是初次添加，为 0 就是不限制
+				if user.Limit != 0 && user.Count >= user.Limit {
+					messageParams.Text = "已达到限制，无法保存更多内容"
 				} else {
-					needChangeEntitites = false
-				}
+					var messageLength int
+					var pendingEntitites []models.MessageEntity
+					var needChangeEntitites bool = true
 
-				// 若字符长度大于设定的阈值，添加折叠样式引用再保存
-				if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
-					pendingEntitites = []models.MessageEntity{{
-						Type:   models.MessageEntityTypeExpandableBlockquote,
-						Offset: 0,
-						Length: messageLength,
-					}}
-				}
+					if opts.Message.ReplyToMessage.Caption != "" {
+						messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Caption)
+						pendingEntitites = opts.Message.ReplyToMessage.CaptionEntities
+					} else if opts.Message.ReplyToMessage.Text != "" {
+						messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Text)
+						pendingEntitites = opts.Message.ReplyToMessage.Entities
+					} else {
+						needChangeEntitites = false
+					}
 
-				replyMsgType := message_utils.GetMessageType(opts.Message.ReplyToMessage)
-				switch {
-					case replyMsgType.OnlyText:
-						for i, n := range UserSavedMessage.Item.OnlyText {
-							if n.TitleAndMessageText == opts.Message.ReplyToMessage.Text && reflect.DeepEqual(n.Entities, pendingEntitites) {
-								isSaved = true
-								messageParams.Text = "已保存过该文本\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此文本添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此文本的搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此文本的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.OnlyText[i] = n
-								}
-								break
-							}
-						}
+					data := meilisearch_utils.BuildMessageData(opts.Ctx, opts.Thebot, opts.Message.ReplyToMessage)
 
-						if !isSaved {
-							UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
-								ID:                  fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								TitleAndMessageText: opts.Message.ReplyToMessage.Text,
-								Description:         DescriptionText,
-								Entities:            pendingEntitites,
-								LinkPreviewOptions:  opts.Message.ReplyToMessage.LinkPreviewOptions,
-								OriginInfo:          originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存文本"
-						}
-					case replyMsgType.Audio:
-						for i, n := range UserSavedMessage.Item.Audio {
-							if n.FileID == opts.Message.ReplyToMessage.Audio.FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该音乐\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此音乐添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此音乐的搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此音乐的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.Audio[i] = n
-								}
-								break
-							}
-						}
-						if !isSaved {
-							UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
-								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Message.ReplyToMessage.Audio.FileID,
-								Title:           opts.Message.ReplyToMessage.Audio.Title,
-								FileName:        opts.Message.ReplyToMessage.Audio.FileName,
-								Description:     DescriptionText,
-								Caption:         opts.Message.ReplyToMessage.Caption,
-								CaptionEntities: pendingEntitites,
-								OriginInfo:      originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存音乐"
-						}
-					case replyMsgType.Animation:
-						for i, n := range UserSavedMessage.Item.Mpeg4gif {
-							if n.FileID == opts.Message.ReplyToMessage.Animation.FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该 GIF\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此 GIF 添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此 GIF 搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此 GIF 的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.Mpeg4gif[i] = n
-								}
-								break
-							}
-						}
-						if !isSaved {
-							UserSavedMessage.Item.Mpeg4gif = append(UserSavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
-								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Message.ReplyToMessage.Animation.FileID,
-								Title:           opts.Message.ReplyToMessage.Caption,
-								Description:     DescriptionText,
-								Caption:         opts.Message.ReplyToMessage.Caption,
-								CaptionEntities: pendingEntitites,
-								OriginInfo:      originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存 GIF"
-						}
-					case replyMsgType.Document:
-						if opts.Message.ReplyToMessage.Document.MimeType == "image/gif" {
-							for i, n := range UserSavedMessage.Item.Gif {
-								if n.FileID == opts.Message.ReplyToMessage.Document.FileID {
-									isSaved = true
-									messageParams.Text = "已保存过该 GIF (文件)\n"
-									if DescriptionText != "" {
-										if n.Description == "" {
-											messageParams.Text += fmt.Sprintf("已为此 GIF (文件) 添加搜索关键词 [ %s ]", DescriptionText)
-										} else if DescriptionText == n.Description {
-											messageParams.Text += fmt.Sprintf("此 GIF (文件) 搜索关键词未修改 [ %s ]", DescriptionText)
-											needSave = false
-											break
-										} else {
-											messageParams.Text += fmt.Sprintf("已将此 GIF (文件) 的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-										}
-										n.Description = DescriptionText
-										UserSavedMessage.Item.Gif[i] = n
-									}
-									break
-								}
-							}
-							if !isSaved {
-								UserSavedMessage.Item.Gif = append(UserSavedMessage.Item.Gif, SavedMessageTypeCachedGif{
-									ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-									FileID:          opts.Message.ReplyToMessage.Document.FileID,
-									Description:     DescriptionText,
-									Caption:         opts.Message.ReplyToMessage.Caption,
-									CaptionEntities: pendingEntitites,
-									OriginInfo:      originInfo,
-								})
-								UserSavedMessage.Count++
-								UserSavedMessage.SavedTimes++
-								messageParams.Text = "已保存 GIF (文件)"
-							}
-						} else {
-							for i, n := range UserSavedMessage.Item.Document {
-								if n.FileID == opts.Message.ReplyToMessage.Document.FileID {
-									isSaved = true
-									messageParams.Text = "已保存过该文件\n"
-									if DescriptionText != "" {
-										if n.Description == "" {
-											messageParams.Text += fmt.Sprintf("已为此文件添加搜索关键词 [ %s ]", DescriptionText)
-										} else if DescriptionText == n.Description {
-											messageParams.Text += fmt.Sprintf("此文件搜索关键词未修改 [ %s ]", DescriptionText)
-											needSave = false
-											break
-										} else {
-											messageParams.Text += fmt.Sprintf("已将此文件的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-										}
-										n.Description = DescriptionText
-										UserSavedMessage.Item.Document[i] = n
-									}
-									break
-								}
-							}
-							if !isSaved {
-								UserSavedMessage.Item.Document = append(UserSavedMessage.Item.Document, SavedMessageTypeCachedDocument{
-									ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-									FileID:          opts.Message.ReplyToMessage.Document.FileID,
-									Title:           opts.Message.ReplyToMessage.Document.FileName,
-									Description:     DescriptionText,
-									Caption:         opts.Message.ReplyToMessage.Caption,
-									CaptionEntities: pendingEntitites,
-									OriginInfo:      originInfo,
-								})
-								UserSavedMessage.Count++
-								UserSavedMessage.SavedTimes++
-								messageParams.Text = "已保存文件"
-							}
-						}
-					case replyMsgType.Photo:
-						for i, n := range UserSavedMessage.Item.Photo {
-							if n.FileID == opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该图片\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此图片添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此图片搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此图片的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.Photo[i] = n
-								}
-								break
-							}
-						}
-						if !isSaved {
-							UserSavedMessage.Item.Photo = append(UserSavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
-								ID:                fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:            opts.Message.ReplyToMessage.Photo[len(opts.Message.ReplyToMessage.Photo)-1].FileID,
-								// Title:             opts.Message.ReplyToMessage.Caption,
-								Description:       DescriptionText,
-								Caption:           opts.Message.ReplyToMessage.Caption,
-								CaptionEntities:   pendingEntitites,
-								CaptionAboveMedia: opts.Message.ReplyToMessage.ShowCaptionAboveMedia,
-								OriginInfo:        originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存图片"
-						}
-					case replyMsgType.Sticker:
-						for i, n := range UserSavedMessage.Item.Sticker {
-							if n.FileID == opts.Message.ReplyToMessage.Sticker.FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该贴纸\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此贴纸添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此贴纸搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此贴纸的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.Sticker[i] = n
-								}
-								break
-							}
-						}
+					data.MsgID = user.SavedTimes
 
-						if !isSaved {
-							if opts.Message.ReplyToMessage.Sticker.SetName != "" {
-								stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{Name: opts.Message.ReplyToMessage.Sticker.SetName})
-								if err != nil {
-									logger.Warn().
-										Err(err).
-										Str("setName", opts.Message.ReplyToMessage.Sticker.SetName).
-										Msg("Failed to get sticker set info, save it as a custom sticker")
-								}
-								if stickerSet != nil {
-									// 属于一个贴纸包中的贴纸
-									UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-										ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-										FileID:      opts.Message.ReplyToMessage.Sticker.FileID,
-										SetName:     stickerSet.Name,
-										SetTitle:    stickerSet.Title,
-										Description: DescriptionText,
-										Emoji:       opts.Message.ReplyToMessage.Sticker.Emoji,
-										OriginInfo:  originInfo,
-									})
-								} else {
-									// 有贴纸信息，但是对应的贴纸包已经删掉了
-									UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-										ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-										FileID:      opts.Message.ReplyToMessage.Sticker.FileID,
-										Description: DescriptionText,
-										Emoji:       opts.Message.ReplyToMessage.Sticker.Emoji,
-										OriginInfo:  originInfo,
-									})
-								}
-							} else {
-								UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-									ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-									FileID:      opts.Message.ReplyToMessage.Sticker.FileID,
-									Description: DescriptionText,
-									Emoji:       opts.Message.ReplyToMessage.Sticker.Emoji,
-									OriginInfo:  originInfo,
-								})
-							}
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存贴纸"
-						}
-					case replyMsgType.Video:
-						for i, n := range UserSavedMessage.Item.Video {
-							if n.FileID == opts.Message.ReplyToMessage.Video.FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该视频\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此视频添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此视频搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此视频的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.Video[i] = n
-								}
-								break
-							}
-						}
-						if !isSaved {
-							videoTitle := opts.Message.ReplyToMessage.Video.FileName
-							if videoTitle == "" {
-								videoTitle = "video.mp4"
-							}
-							UserSavedMessage.Item.Video = append(UserSavedMessage.Item.Video, SavedMessageTypeCachedVideo{
-								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Message.ReplyToMessage.Video.FileID,
-								Title:           videoTitle,
-								Description:     DescriptionText,
-								Caption:         opts.Message.ReplyToMessage.Caption,
-								CaptionEntities: pendingEntitites,
-								OriginInfo:      originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存视频"
-						}
-					case replyMsgType.VideoNote:
-						for i, n := range UserSavedMessage.Item.VideoNote {
-							if n.FileID == opts.Message.ReplyToMessage.VideoNote.FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该圆形视频\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此圆形视频添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此圆形视频搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此圆形视频的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.VideoNote[i] = n
-								}
-								break
-							}
-						}
-						if !isSaved {
-							UserSavedMessage.Item.VideoNote = append(UserSavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
-								ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:      opts.Message.ReplyToMessage.VideoNote.FileID,
-								Title:       opts.Message.ReplyToMessage.VideoNote.FileUniqueID,
-								Description: DescriptionText,
-								OriginInfo:  originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存圆形视频"
-						}
-					case replyMsgType.Voice:
-						for i, n := range UserSavedMessage.Item.Voice {
-							if n.FileID == opts.Message.ReplyToMessage.Voice.FileID {
-								isSaved = true
-								messageParams.Text = "已保存过该语音\n"
-								if DescriptionText != "" {
-									if n.Description == "" {
-										messageParams.Text += fmt.Sprintf("已为此语音添加搜索关键词 [ %s ]", DescriptionText)
-									} else if DescriptionText == n.Description {
-										messageParams.Text += fmt.Sprintf("此语音搜索关键词未修改 [ %s ]", DescriptionText)
-										needSave = false
-										break
-									} else {
-										messageParams.Text += fmt.Sprintf("已将此语音的搜索关键词从 [ %s ] 改为 [ %s ]", n.Description, DescriptionText)
-									}
-									n.Description = DescriptionText
-									UserSavedMessage.Item.Voice[i] = n
-								}
-								break
-							}
-						}
-						if !isSaved {
-							voiceTitle := DescriptionText
-							if voiceTitle == "" {
-								voiceTitle = opts.Message.ReplyToMessage.Voice.MimeType
-							}
-							UserSavedMessage.Item.Voice = append(UserSavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
-								ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-								FileID:          opts.Message.ReplyToMessage.Voice.FileID,
-								Title:           voiceTitle,
-								Description:     DescriptionText,
-								Caption:         opts.Message.ReplyToMessage.Caption,
-								CaptionEntities: pendingEntitites,
-								OriginInfo:      originInfo,
-							})
-							UserSavedMessage.Count++
-							UserSavedMessage.SavedTimes++
-							messageParams.Text = "已保存语音"
-						}
-					default:
-						messageParams.Text = "暂不支持的消息类型"
-				}
+					if !user.DropOriginInfo {
+						data.OriginInfo = origin_info.GetOriginInfo(opts.Message)
+					}
 
-				if needSave {
-					SavedMessageList.User[opts.Message.From.ID] = UserSavedMessage
-					err := SaveSavedMessageList(opts.Ctx)
+					// 若字符长度大于设定的阈值，添加折叠样式引用再保存
+					if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
+						data.Entities = []models.MessageEntity{{
+							Type:   models.MessageEntityTypeExpandableBlockquote,
+							Offset: 0,
+							Length: messageLength,
+						}}
+					}
+
+					// 获取使用命令保存时设定的描述
+					if len(opts.Message.Text) > len(opts.Fields[0])+1 {
+						data.Desc = opts.Message.Text[len(opts.Fields[0])+1:]
+					}
+
+					_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(data)
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Str("messageType", string(replyMsgType.AsType())).
-							Msg("Failed to save savedmessage list after save a item")
-						handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
-
-						_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-							ChatID:          opts.Message.Chat.ID,
-							Text:            fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
-							ParseMode:       models.ParseModeHTML,
-							ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-						})
+							Msg("Failed to send add documents task to meilisearch")
+						handlerErr.Addf("failed to send add documents task to meilisearch: %w", err)
+						messageParams.Text = "保存失败，可能是因为 Meilisearch 服务不可用或网络问题，请稍后再试"
+						messageParams.ReplyMarkup = nil
+					} else {
+						user.Count++
+						user.SavedTimes++
+						err = SaveSavedMessageList(opts.Ctx)
 						if err != nil {
 							logger.Error().
 								Err(err).
-								Str("messageType", string(replyMsgType.AsType())).
-								Str("content", "failed to save savedmessage list notice").
-								Msg(flaterr.SendMessage.Str())
-							handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
+								Msg("Failed to save savedmessage list after save a item")
+							handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
+							messageParams.Text = "消息已保存，但保存统计数据失败"
+							messageParams.ReplyMarkup = nil
+						} else {
+							messageParams.Text = "已保存内容"
 						}
-
-						return handlerErr.Flat()
 					}
 				}
 			}
@@ -571,471 +187,499 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
-	var targetMessage *models.Message = opts.Message
-
-	messageParams := &bot.SendMessageParams{
-		ChatID:          opts.ChatInfo.ID,
-		ParseMode:       models.ParseModeHTML,
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text:         "关闭",
-			CallbackData: "delete_this_message",
-		}}}},
-	}
-
 	var handlerErr flaterr.MultErr
 
-	UserSavedMessage := SavedMessageList.User[opts.ChatInfo.ID]
-
-	var originInfo *OriginInfo
-	if targetMessage.ForwardOrigin != nil && targetMessage.ForwardOrigin.MessageOriginHiddenUser == nil {
-		originInfo = getMessageOriginData(targetMessage.ForwardOrigin)
-	} else if targetMessage.Chat.Type != models.ChatTypePrivate {
-		originInfo = getMessageLink(targetMessage)
-	}
-
-	var isSaved             bool
-	var messageLength       int
-	var pendingEntitites    []models.MessageEntity
-	var needChangeEntitites bool = true
-
-	if targetMessage.Caption != "" {
-		messageLength = utf8.RuneCountInString(targetMessage.Caption)
-		pendingEntitites = targetMessage.CaptionEntities
-	} else if targetMessage.Text != "" {
-		messageLength = utf8.RuneCountInString(targetMessage.Text)
-		pendingEntitites = targetMessage.Entities
-	} else {
-		needChangeEntitites = false
-	}
-
-
-	// 若字符长度大于设定的阈值，添加折叠样式引用再保存
-	if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
-		pendingEntitites = []models.MessageEntity{{
-			Type:   models.MessageEntityTypeExpandableBlockquote,
-			Offset: 0,
-			Length: messageLength,
-		}}
-	}
-
-	replyMsgType := message_utils.GetMessageType(targetMessage)
-	switch {
-		case replyMsgType.OnlyText:
-			for _, n := range UserSavedMessage.Item.OnlyText {
-				if n.TitleAndMessageText == targetMessage.Text && reflect.DeepEqual(n.Entities, pendingEntitites) {
-					isSaved = true
-					messageParams.Text = "已保存过该文本\n"
-					break
-				}
-			}
-
-			if !isSaved {
-				UserSavedMessage.Item.OnlyText = append(UserSavedMessage.Item.OnlyText, SavedMessageTypeCachedOnlyText{
-					ID:                  fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					TitleAndMessageText: targetMessage.Text,
-					Entities:            pendingEntitites,
-					LinkPreviewOptions:  targetMessage.LinkPreviewOptions,
-					OriginInfo:          originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存文本"
-			}
-		case replyMsgType.Audio:
-			for _, n := range UserSavedMessage.Item.Audio {
-				if n.FileID == targetMessage.Audio.FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该音乐\n"
-					break
-				}
-			}
-			if !isSaved {
-				UserSavedMessage.Item.Audio = append(UserSavedMessage.Item.Audio, SavedMessageTypeCachedAudio{
-					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID:          targetMessage.Audio.FileID,
-					Title:           targetMessage.Audio.Title,
-					FileName:        targetMessage.Audio.FileName,
-					Caption:         targetMessage.Caption,
-					CaptionEntities: pendingEntitites,
-					OriginInfo:      originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存音乐"
-			}
-		case replyMsgType.Animation:
-			for _, n := range UserSavedMessage.Item.Mpeg4gif {
-				if n.FileID == targetMessage.Animation.FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该 GIF\n"
-					break
-				}
-			}
-			if !isSaved {
-				UserSavedMessage.Item.Mpeg4gif = append(UserSavedMessage.Item.Mpeg4gif, SavedMessageTypeCachedMpeg4Gif{
-					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID:          targetMessage.Animation.FileID,
-					Title:           targetMessage.Caption,
-					Caption:         targetMessage.Caption,
-					CaptionEntities: pendingEntitites,
-					OriginInfo:      originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存 GIF"
-			}
-		case replyMsgType.Document:
-			if targetMessage.Document.MimeType == "image/gif" {
-				for _, n := range UserSavedMessage.Item.Gif {
-					if n.FileID == targetMessage.Document.FileID {
-						isSaved = true
-						messageParams.Text = "已保存过该 GIF (文件)\n"
-						break
-					}
-				}
-				if !isSaved {
-					UserSavedMessage.Item.Gif = append(UserSavedMessage.Item.Gif, SavedMessageTypeCachedGif{
-						ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-						FileID:          targetMessage.Document.FileID,
-						Caption:         targetMessage.Caption,
-						CaptionEntities: pendingEntitites,
-						OriginInfo:      originInfo,
-					})
-					UserSavedMessage.Count++
-					UserSavedMessage.SavedTimes++
-					messageParams.Text = "已保存 GIF (文件)"
-				}
-			} else {
-				for _, n := range UserSavedMessage.Item.Document {
-					if n.FileID == targetMessage.Document.FileID {
-						isSaved = true
-						messageParams.Text = "已保存过该文件\n"
-						break
-					}
-				}
-				if !isSaved {
-					UserSavedMessage.Item.Document = append(UserSavedMessage.Item.Document, SavedMessageTypeCachedDocument{
-						ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-						FileID:          targetMessage.Document.FileID,
-						Title:           targetMessage.Document.FileName,
-						Caption:         targetMessage.Caption,
-						CaptionEntities: pendingEntitites,
-						OriginInfo:      originInfo,
-					})
-					UserSavedMessage.Count++
-					UserSavedMessage.SavedTimes++
-					messageParams.Text = "已保存文件"
-				}
-			}
-		case replyMsgType.Photo:
-			for _, n := range UserSavedMessage.Item.Photo {
-				if n.FileID == targetMessage.Photo[len(targetMessage.Photo)-1].FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该图片\n"
-					break
-				}
-			}
-			if !isSaved {
-				UserSavedMessage.Item.Photo = append(UserSavedMessage.Item.Photo, SavedMessageTypeCachedPhoto{
-					ID:                fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID:            targetMessage.Photo[len(targetMessage.Photo)-1].FileID,
-					Caption:           targetMessage.Caption,
-					CaptionEntities:   pendingEntitites,
-					CaptionAboveMedia: targetMessage.ShowCaptionAboveMedia,
-					OriginInfo:        originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存图片"
-			}
-		case replyMsgType.Sticker:
-			for _, n := range UserSavedMessage.Item.Sticker {
-				if n.FileID == targetMessage.Sticker.FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该贴纸\n"
-					break
-				}
-			}
-
-			if !isSaved {
-				if targetMessage.Sticker.SetName != "" {
-					stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{Name: targetMessage.Sticker.SetName})
-					if err != nil {
-						logger.Warn().
-							Err(err).
-							Str("setName", targetMessage.Sticker.SetName).
-							Msg("Failed to get sticker set info, save it as a custom sticker")
-					}
-					if stickerSet != nil {
-						// 属于一个贴纸包中的贴纸
-						UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-							ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-							FileID:      targetMessage.Sticker.FileID,
-							SetName:     stickerSet.Name,
-							SetTitle:    stickerSet.Title,
-							Emoji:       targetMessage.Sticker.Emoji,
-							OriginInfo:  originInfo,
-						})
-					} else {
-						// 有贴纸信息，但是对应的贴纸包已经删掉了
-						UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-							ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-							FileID:      targetMessage.Sticker.FileID,
-							Emoji:       targetMessage.Sticker.Emoji,
-							OriginInfo:  originInfo,
-						})
-					}
-				} else {
-					UserSavedMessage.Item.Sticker = append(UserSavedMessage.Item.Sticker, SavedMessageTypeCachedSticker{
-						ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-						FileID:      targetMessage.Sticker.FileID,
-						Emoji:       targetMessage.Sticker.Emoji,
-						OriginInfo:  originInfo,
-					})
-				}
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存贴纸"
-			}
-		case replyMsgType.Video:
-			for _, n := range UserSavedMessage.Item.Video {
-				if n.FileID == targetMessage.Video.FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该视频\n"
-					break
-				}
-			}
-			if !isSaved {
-				videoTitle := targetMessage.Video.FileName
-				if videoTitle == "" {
-					videoTitle = "video.mp4"
-				}
-				UserSavedMessage.Item.Video = append(UserSavedMessage.Item.Video, SavedMessageTypeCachedVideo{
-					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID:          targetMessage.Video.FileID,
-					Title:           videoTitle,
-					Caption:         targetMessage.Caption,
-					CaptionEntities: pendingEntitites,
-					OriginInfo:      originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存视频"
-			}
-		case replyMsgType.VideoNote:
-			for _, n := range UserSavedMessage.Item.VideoNote {
-				if n.FileID == targetMessage.VideoNote.FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该圆形视频\n"
-					break
-				}
-			}
-			if !isSaved {
-				UserSavedMessage.Item.VideoNote = append(UserSavedMessage.Item.VideoNote, SavedMessageTypeCachedVideoNote{
-					ID:          fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID:      targetMessage.VideoNote.FileID,
-					Title:       targetMessage.VideoNote.FileUniqueID,
-					OriginInfo:  originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存圆形视频"
-			}
-		case replyMsgType.Voice:
-			for _, n := range UserSavedMessage.Item.Voice {
-				if n.FileID == targetMessage.Voice.FileID {
-					isSaved = true
-					messageParams.Text = "已保存过该语音\n"
-					break
-				}
-			}
-			if !isSaved {
-				UserSavedMessage.Item.Voice = append(UserSavedMessage.Item.Voice, SavedMessageTypeCachedVoice{
-					ID:              fmt.Sprintf("%d", UserSavedMessage.SavedTimes),
-					FileID:          targetMessage.Voice.FileID,
-					Title:           targetMessage.Voice.MimeType,
-					Caption:         targetMessage.Caption,
-					CaptionEntities: pendingEntitites,
-					OriginInfo:      originInfo,
-				})
-				UserSavedMessage.Count++
-				UserSavedMessage.SavedTimes++
-				messageParams.Text = "已保存语音"
-			}
-		default:
-			messageParams.Text = "暂不支持的消息类型"
-	}
-
-	if !isSaved {
-		SavedMessageList.User[opts.ChatInfo.ID] = UserSavedMessage
-		err := SaveSavedMessageList(opts.Ctx)
+	if meilisearchClient == nil {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:          opts.Message.Chat.ID,
+			Text:            "此功能不可用，因为 Meilisearch 服务尚未初始化",
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Str("messageType", replyMsgType.Str()).
-				Msg("Failed to save savedmessage list after save a item")
-			handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
-
-			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.ChatInfo.ID,
-				ParseMode:       models.ParseModeHTML,
-				Text:            fmt.Sprintf("保存内容时保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
+				Str("content", "meilisearch client uninitialized").
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addt(flaterr.SendMessage, "meilisearch client uninitialized", err)
+		}
+	} else {
+		user := SavedMessageList.GetUser(opts.Message.From.ID)
+		if user == nil {
+			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:          opts.Message.Chat.ID,
+				Text:            "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息",
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "点击查看",
+					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", consts.BotMe.Username),
+				}}}},
 			})
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("messageType", replyMsgType.Str()).
-					Str("content", "failed to save savedmessage list notice").
+					Str("content", "need agree privacy policy").
 					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
+				handlerErr.Addt(flaterr.SendMessage, "need agree privacy policy", err)
 			}
-			return handlerErr.Flat()
+		} else {
+			messageParams := &bot.SendMessageParams{
+				ChatID:          opts.ChatInfo.ID,
+				ParseMode:       models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text:         "关闭",
+					CallbackData: "delete_this_message",
+				}}}},
+			}
+
+			if user.Limit == 0 && user.Count == 0 {
+				// 每个用户初次添加时，默认限制 100 条
+				user.Limit = 100
+			}
+
+			// 若不是初次添加，为 0 就是不限制
+			if user.Limit != 0 && user.Count >= user.Limit {
+				messageParams.Text = "已达到限制，无法保存更多内容"
+			} else {
+				var messageLength int
+				var pendingEntitites []models.MessageEntity
+				var needChangeEntitites bool = true
+
+				if opts.Message.Caption != "" {
+					messageLength = utf8.RuneCountInString(opts.Message.Caption)
+					pendingEntitites = opts.Message.CaptionEntities
+				} else if opts.Message.Text != "" {
+					messageLength = utf8.RuneCountInString(opts.Message.Text)
+					pendingEntitites = opts.Message.Entities
+				} else {
+					needChangeEntitites = false
+				}
+
+				// 若字符长度大于设定的阈值，添加折叠样式引用再保存
+				if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
+					pendingEntitites = []models.MessageEntity{{
+						Type:   models.MessageEntityTypeExpandableBlockquote,
+						Offset: 0,
+						Length: messageLength,
+					}}
+				}
+
+				data := meilisearch_utils.BuildMessageData(opts.Ctx, opts.Thebot, opts.Message)
+
+				data.MsgID      = user.SavedTimes
+				data.Entities   = pendingEntitites
+
+				if !user.DropOriginInfo {
+					data.OriginInfo = origin_info.GetOriginInfo(opts.Message)
+				}
+
+				_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(data)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Msg("Failed to send add documents task to meilisearch")
+					handlerErr.Addf("failed to send add documents task to meilisearch: %w", err)
+					messageParams.Text = "保存失败，可能是因为 Meilisearch 服务不可用或网络问题，请稍后再试"
+					messageParams.ReplyMarkup = nil
+				} else {
+					user.Count++
+					user.SavedTimes++
+					err = SaveSavedMessageList(opts.Ctx)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Msg("Failed to save savedmessage list after save a item")
+						handlerErr.Addf("failed to save savedmessage list after save a item: %w", err)
+						messageParams.Text = "消息已保存，但保存统计数据失败"
+						messageParams.ReplyMarkup = nil
+					} else {
+						messageParams.Text = "已保存内容"
+					}
+				}
+			}
+
+			_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(opts.Message.From)).
+					Str("content", "saved message response").
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addt(flaterr.SendMessage, "saved message response", err)
+			}
 		}
 	}
 
-	_, err := opts.Thebot.SendMessage(opts.Ctx, messageParams)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("messageType", replyMsgType.Str()).
-			Str("content", "message saved notice").
-			Msg(flaterr.SendMessage.Str())
-		handlerErr.Addt(flaterr.SendMessage, "message saved notice", err)
-	}
 	return handlerErr.Flat()
 }
 
-func InlineShowSavedMessageHandler(opts *handler_params.InlineQuery) error {
+func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "InlineShowSavedMessageHandler").
+		Dict(utils.GetUserDict(opts.InlineQuery.From)).
+		Str("query", opts.InlineQuery.Query).
+		Logger()
 	var handlerErr flaterr.MultErr
-	var button     *models.InlineQueryResultsButton
 
-	SavedMessage  := SavedMessageList.User[opts.ChatInfo.ID]
-	parsedQuery   := inline_utils.ParseInlineFields(opts.Fields)
-
-	var resultCount int
-
-	var (
-		onlyText  []models.InlineQueryResult
-		audio     []models.InlineQueryResult
-		document  []models.InlineQueryResult
-		gif       []models.InlineQueryResult
-		photo     []models.InlineQueryResult
-		sticker   []models.InlineQueryResult
-		video     []models.InlineQueryResult
-		videoNote []models.InlineQueryResult
-		voice     []models.InlineQueryResult
-	)
-
-	if len(parsedQuery.Keywords) == 0 {
-		// 没有搜索关键词，返回所有消息
-		for _, n := range SavedMessage.Item.All() {
-			if n.onlyText != nil {
-				onlyText = append(onlyText, n.onlyText)
-			} else if n.audio != nil {
-				audio = append(audio, n.audio)
-			} else if n.document != nil {
-				document = append(document, n.document)
-			} else if n.gif != nil {
-				gif = append(gif, n.gif)
-			} else if n.photo != nil {
-				photo = append(photo, n.photo)
-			} else if n.sticker != nil {
-				sticker = append(sticker, n.sticker)
-			} else if n.video != nil {
-				video = append(video, n.video)
-			} else if n.videoNote != nil {
-				videoNote = append(videoNote, n.videoNote)
-			} else if n.voice != nil {
-				voice = append(voice, n.voice)
-			} else if n.mpeg4gif != nil {
-				gif = append(gif, n.mpeg4gif)
-			}
-			resultCount++
+	if meilisearchClient == nil {
+		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+			InlineQueryID: opts.InlineQuery.ID,
+			Results: []models.InlineQueryResult{ &models.InlineQueryResultArticle{
+				ID:                  "error",
+				Title:               "此功能不可用",
+				Description:         "Meilisearch 服务尚未初始化",
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "Meilisearch 服务尚未初始化，无法使用收藏功能" },
+			}},
+			IsPersonal: true,
+			CacheTime:  0,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "meilisearch client uninitialized").
+				Msg(flaterr.AnswerInlineQuery.Str())
+			handlerErr.Addt(flaterr.AnswerInlineQuery, "meilisearch client uninitialized", err)
 		}
 	} else {
-		// 有搜索关键词，返回匹配的消息
-		for _, n := range SavedMessage.Item.All() {
-			if n.onlyText != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.onlyText.Description, n.onlyText.Title}) {
-				onlyText = append(onlyText, n.onlyText)
-			} else if n.audio != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.audio.Caption, n.sharedData.Description, n.sharedData.Title, n.sharedData.FileName}) {
-				audio = append(audio, n.audio)
-			} else if n.document != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.document.Title, n.document.Caption, n.document.Description}) {
-				document = append(document, n.document)
-			} else if n.gif != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.gif.Title, n.gif.Caption, n.sharedData.Description}) {
-				gif = append(gif, n.gif)
-			} else if n.mpeg4gif != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.mpeg4gif.Title, n.mpeg4gif.Caption, n.sharedData.Description}) {
-				gif = append(gif, n.mpeg4gif)
-			} else if n.photo != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.photo.Title, n.photo.Caption, n.photo.Description}) {
-				photo = append(photo, n.photo)
-			} else if n.sticker != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.sharedData.Title, n.sharedData.Name, n.sharedData.Description, n.sharedData.FileName}) {
-				sticker = append(sticker, n.sticker)
-			} else if n.video != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.video.Title, n.video.Caption, n.video.Description}) {
-				video = append(video, n.video)
-			} else if n.videoNote != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.videoNote.Title, n.videoNote.Caption, n.videoNote.Description}) {
-				videoNote = append(videoNote, n.videoNote)
-			} else if n.voice != nil && inline_utils.MatchMultKeyword(parsedQuery.Keywords, []string{n.voice.Title, n.voice.Caption, n.sharedData.Description}) {
-				voice = append(voice, n.voice)
+		var button *models.InlineQueryResultsButton
+		var targetChatID string
+
+		user := SavedMessageList.GetUser(opts.InlineQuery.From.ID)
+		if user == nil || user.Count == 0 {
+			targetChatID = SavedMessageList.ChannelIDStr()
+			button = &models.InlineQueryResultsButton{
+				Text:           "当前为公共收藏内容",
+				StartParameter: "via-inline_savedmessage-help",
+			}
+		} else {
+			targetChatID = user.IDStr()
+		}
+
+		parsedQuery := inline_utils.ParseInlineFields(opts.Fields)
+
+		var filter string
+		if parsedQuery.Category != "" {
+			filter = "msg_type=" + parsedQuery.Category
+		}
+		datas, err := meilisearchClient.Index(targetChatID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to get message")
+			handlerErr.Addf("failed to get message: %w", err)
+			_, err = opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:                  "error",
+					Title:               "获取消息发生错误",
+					Description:         "点击查看错误信息",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: fmt.Sprintf("获取消息时发生了错误：<blockquote expandable>%s</blockquote>", err.Error()),
+						ParseMode:   models.ParseModeHTML,
+					},
+				}},
+				IsPersonal: true,
+				CacheTime:  0,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "get message error").
+					Msg(flaterr.AnswerInlineQuery.Str())
+				handlerErr.Addt(flaterr.AnswerInlineQuery, "get message error", err)
+			}
+		} else {
+			var (
+				onlyText  []models.InlineQueryResult
+				audio     []models.InlineQueryResult
+				document  []models.InlineQueryResult
+				gif       []models.InlineQueryResult
+				photo     []models.InlineQueryResult
+				sticker   []models.InlineQueryResult
+				video     []models.InlineQueryResult
+				videoNote []models.InlineQueryResult
+				voice     []models.InlineQueryResult
+			)
+			var msgDatas []meilisearch_utils.MessageData
+			err = meilisearch_utils.UnMarshalMessageData(&datas.Hits, &msgDatas)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to unmarshal message data")
+				handlerErr.Addf("Failed to unmarshal message data: %w", err)
+				_, err = opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:                  "error",
+						Title:               "解析消息发生错误",
+						Description:         "点击查看错误信息",
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("解析消息时发生了错误：<blockquote expandable>%s</blockquote>", err.Error()),
+							ParseMode:   models.ParseModeHTML,
+						},
+					}},
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "unmarshal message error").
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "unmarshal message error", err)
+				}
+			} else {
+				for _, msgData := range msgDatas {
+					switch msgData.MsgType {
+					case message_utils.OnlyText:
+						onlyText = append(onlyText, &models.InlineQueryResultArticle{
+							ID:                  msgData.MsgIDStr(),
+							Title:               msgData.Text,
+							Description:         msgData.Desc,
+							ReplyMarkup:         msgData.OriginInfo.BuildButton(),
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText:        msgData.Text,
+								Entities:           msgData.Entities,
+								LinkPreviewOptions: msgData.LinkPreviewOptions,
+							},
+						})
+					case message_utils.Audio:
+						audio = append(audio, &models.InlineQueryResultCachedAudio{
+							ID:              msgData.MsgIDStr(),
+							AudioFileID:     msgData.FileID,
+							Caption:         msgData.Text,
+							CaptionEntities: msgData.Entities,
+							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.Document:
+						document = append(document, &models.InlineQueryResultCachedDocument{
+							ID:              msgData.MsgIDStr(),
+							DocumentFileID:  msgData.FileID,
+							Title:           msgData.FileName,
+							Caption:         msgData.Text,
+							CaptionEntities: msgData.Entities,
+							Description:     msgData.Desc,
+							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.Animation:
+						gif = append(gif, &models.InlineQueryResultCachedMpeg4Gif{
+							ID:              msgData.MsgIDStr(),
+							Mpeg4FileID:     msgData.FileID,
+							Title:           msgData.FileName,
+							Caption:         msgData.Text,
+							CaptionEntities: msgData.Entities,
+							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.Photo:
+						photo = append(photo, &models.InlineQueryResultCachedPhoto{
+							ID:                    msgData.MsgIDStr(),
+							PhotoFileID:           msgData.FileID,
+							Caption:               msgData.Text,
+							CaptionEntities:       msgData.Entities,
+							Description:           msgData.Desc,
+							ShowCaptionAboveMedia: msgData.ShowCaptionAboveMedia,
+							ReplyMarkup:           msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.Sticker:
+						sticker = append(sticker, &models.InlineQueryResultCachedSticker{
+							ID:            msgData.MsgIDStr(),
+							StickerFileID: msgData.FileID,
+							ReplyMarkup:   msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.Video:
+						video = append(video, &models.InlineQueryResultCachedVideo{
+							ID:              msgData.MsgIDStr(),
+							VideoFileID:     msgData.FileID,
+							Title:           msgData.FileName,
+							Description:     msgData.Desc,
+							Caption:         msgData.Text,
+							CaptionEntities: msgData.Entities,
+							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.VideoNote:
+						videoNote = append(videoNote, &models.InlineQueryResultCachedDocument{
+							ID:              msgData.MsgIDStr(),
+							DocumentFileID:  msgData.FileID,
+							Title:           msgData.FileName,
+							Description:     msgData.Desc,
+							Caption:         msgData.Text,
+							CaptionEntities: msgData.Entities,
+							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+						})
+					case message_utils.Voice:
+						voice = append(voice, &models.InlineQueryResultCachedVoice{
+							ID:              msgData.MsgIDStr(),
+							VoiceFileID:     msgData.FileID,
+							Title:           msgData.FileTitle,
+							Caption:         msgData.Text,
+							CaptionEntities: msgData.Entities,
+							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+						})
+					}
+				}
+				if user.IncludeChannel && SavedMessageList.ChannelID != 0 {
+					button = &models.InlineQueryResultsButton{
+						Text:           "当前包含了个人和公共收藏内容",
+						StartParameter: "via-inline_savedmessage-help",
+					}
+					datas, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Msg("Failed to get message from channel")
+						handlerErr.Addf("failed to get message from channel: %w", err)
+					} else {
+						var msgDatasChannel []meilisearch_utils.MessageData
+						err = meilisearch_utils.UnMarshalMessageData(&datas.Hits, &msgDatasChannel)
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Msg("Failed to unmarshal message data from channel")
+							handlerErr.Addf("Failed to unmarshal message data from channel: %w", err)
+						} else {
+							for _, msgData := range msgDatasChannel {
+								switch msgData.MsgType {
+								case message_utils.OnlyText:
+									onlyText = append(onlyText, &models.InlineQueryResultArticle{
+										ID:                  "channel" + msgData.MsgIDStr(),
+										Title:               msgData.Text,
+										Description:         msgData.Desc,
+										ReplyMarkup:         msgData.OriginInfo.BuildButton(),
+										InputMessageContent: &models.InputTextMessageContent{
+											MessageText:        msgData.Text,
+											Entities:           msgData.Entities,
+											LinkPreviewOptions: msgData.LinkPreviewOptions,
+										},
+									})
+								case message_utils.Audio:
+									audio = append(audio, &models.InlineQueryResultCachedAudio{
+										ID:              "channel" + msgData.MsgIDStr(),
+										AudioFileID:     msgData.FileID,
+										Caption:         msgData.Text,
+										CaptionEntities: msgData.Entities,
+										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.Document:
+									document = append(document, &models.InlineQueryResultCachedDocument{
+										ID:              "channel" + msgData.MsgIDStr(),
+										DocumentFileID:  msgData.FileID,
+										Title:           msgData.FileName,
+										Caption:         msgData.Text,
+										CaptionEntities: msgData.Entities,
+										Description:     msgData.Desc,
+										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.Animation:
+									gif = append(gif, &models.InlineQueryResultCachedMpeg4Gif{
+										ID:              "channel" + msgData.MsgIDStr(),
+										Mpeg4FileID:     msgData.FileID,
+										Title:           msgData.FileName,
+										Caption:         msgData.Text,
+										CaptionEntities: msgData.Entities,
+										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.Photo:
+									photo = append(photo, &models.InlineQueryResultCachedPhoto{
+										ID:                    "channel" + msgData.MsgIDStr(),
+										PhotoFileID:           msgData.FileID,
+										Caption:               msgData.Text,
+										CaptionEntities:       msgData.Entities,
+										Description:           msgData.Desc,
+										ShowCaptionAboveMedia: msgData.ShowCaptionAboveMedia,
+										ReplyMarkup:           msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.Sticker:
+									sticker = append(sticker, &models.InlineQueryResultCachedSticker{
+										ID:            "channel" + msgData.MsgIDStr(),
+										StickerFileID: msgData.FileID,
+										ReplyMarkup:   msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.Video:
+									video = append(video, &models.InlineQueryResultCachedVideo{
+										ID:              "channel" + msgData.MsgIDStr(),
+										VideoFileID:     msgData.FileID,
+										Title:           msgData.FileName,
+										Description:     msgData.Desc,
+										Caption:         msgData.Text,
+										CaptionEntities: msgData.Entities,
+										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.VideoNote:
+									videoNote = append(videoNote, &models.InlineQueryResultCachedDocument{
+										ID:              "channel" + msgData.MsgIDStr(),
+										DocumentFileID:  msgData.FileID,
+										Title:           msgData.FileName,
+										Description:     msgData.Desc,
+										Caption:         msgData.Text,
+										CaptionEntities: msgData.Entities,
+										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+									})
+								case message_utils.Voice:
+									voice = append(voice, &models.InlineQueryResultCachedVoice{
+										ID:              "channel" + msgData.MsgIDStr(),
+										VoiceFileID:     msgData.FileID,
+										Title:           msgData.FileTitle,
+										Caption:         msgData.Text,
+										CaptionEntities: msgData.Entities,
+										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+									})
+								}
+							}
+						}
+					}
+				}
+				if len(onlyText) + len(audio) + len(document) + len(gif) + len(photo) + len(sticker) + len(video) + len(videoNote) + len(voice) == 0 {
+					if len(parsedQuery.Keywords) > 0 {
+						onlyText = append(onlyText, &models.InlineQueryResultArticle{
+							ID:                  "none",
+							Title:               "没有符合关键词的内容",
+							InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+						})
+					} else if user != nil {
+						onlyText = append(onlyText, &models.InlineQueryResultArticle{
+							ID:          "empty",
+							Title:       "没有保存内容（点击查看详细教程）",
+							Description: "对一条信息回复 /save 来保存它",
+							InputMessageContent: &models.InputTextMessageContent{
+								MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", consts.BotMe.Username, consts.BotMe.Username),
+								ParseMode:   models.ParseModeHTML,
+							},
+						})
+						button = &models.InlineQueryResultsButton{
+							Text:           "点击此处快速跳转到机器人",
+							StartParameter: "via-inline_noreply",
+						}
+					}
+				}
+
+				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: inline_utils.ResultCategory(parsedQuery, map[string][]models.InlineQueryResult{
+						"onlytext":  onlyText,
+						"audio":     audio,
+						"document":  document,
+						"animation": gif,
+						"photo":     photo,
+						"sticker":   sticker,
+						"video":     video,
+						"videonote": videoNote,
+						"voice":     voice,
+					}),
+					Button: button,
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "saved message result").
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
+				}
 			}
 		}
-		resultCount = len(onlyText) + len(audio) + len(document) + len(gif) + len(photo) + len(sticker) + len(video) + len(videoNote) + len(voice)
-
-		// 如果没有匹配的内容，则返回一个提示信息
-		if resultCount == 0 {
-			onlyText = append(onlyText, &models.InlineQueryResultArticle{
-				ID:                  "none",
-				Title:               "没有符合关键词的内容",
-				Description:         fmt.Sprintf("没有找到包含 %s 的内容", parsedQuery.Keywords),
-				InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
-			})
-			resultCount++
-		}
-	}
-
-	if resultCount == 0 {
-		onlyText = append(onlyText, &models.InlineQueryResultArticle{
-			ID:          "empty",
-			Title:       "没有保存内容（点击查看详细教程）",
-			Description: "对一条信息回复 /save 来保存它",
-			InputMessageContent: &models.InputTextMessageContent{
-				MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", consts.BotMe.Username, consts.BotMe.Username),
-				ParseMode:   models.ParseModeHTML,
-			},
-		})
-		button = &models.InlineQueryResultsButton{
-			Text:           "点击此处快速跳转到机器人",
-			StartParameter: "via-inline_noreply",
-		}
-	}
-
-	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-		InlineQueryID: opts.InlineQuery.ID,
-		Results:       inline_utils.ResultCategory(parsedQuery, map[string][]models.InlineQueryResult{
-			"text":      onlyText,
-			"audio":     audio,
-			"document":  document,
-			"gif":       gif,
-			"photo":     photo,
-			"sticker":   sticker,
-			"video":     video,
-			"videoNote": videoNote,
-			"voice":     voice,
-		}),
-		IsPersonal:    true,
-		CacheTime:     0,
-		Button:        button,
-	})
-	if err != nil {
-		zerolog.Ctx(opts.Ctx).Error().
-			Err(err).
-			Str("pluginName", "Saved Message").
-			Str("funcName", "InlineShowSavedMessageHandler").
-			Dict(utils.GetUserDict(opts.InlineQuery.From)).
-			Str("query", opts.InlineQuery.Query).
-			Str("content", "saved message result").
-			Msg(flaterr.AnswerInlineQuery.Str())
-		handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
 	}
 
 	return handlerErr.Flat()
@@ -1096,9 +740,12 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	var UserSavedMessage SavedMessageUser
-	UserSavedMessage.AgreePrivacyPolicy = true
-	SavedMessageList.User[opts.ChatInfo.ID] = UserSavedMessage
+	if SavedMessageList.GetUser(opts.Message.From.ID) != nil { return nil }
+
+	var user SavedMessageUser
+	user.UserID = opts.Message.From.ID
+	SavedMessageList.User = append(SavedMessageList.User, user)
+	meilisearch_utils.CreateChatIndex(&meilisearchClient, user.IDStr())
 
 	err := SaveSavedMessageList(opts.Ctx)
 	if err != nil {
@@ -1143,12 +790,108 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
+func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
+	logger := zerolog.Ctx(opts.Ctx).
+		With().
+		Str("pluginName", "Saved Message").
+		Str("funcName", "configKeyboardCallbackHandler").
+		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+		Str("callbackData", opts.CallbackQuery.Data).
+		Logger()
+
+	var handlerErr flaterr.MultErr
+	var needSave bool = true
+
+	user := SavedMessageList.GetUser(opts.CallbackQuery.From.ID)
+
+	switch opts.CallbackQuery.Data {
+	case "savedmessage_switch_include_channel":
+		user.IncludeChannel = !user.IncludeChannel
+	case "savedmessage_switch_drop_origin_info":
+		user.DropOriginInfo = !user.DropOriginInfo
+	default:
+		needSave = false
+	}
+
+	if needSave {
+		err := SaveSavedMessageList(opts.Ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("failed to save savedmessage list after user config")
+			handlerErr.Addf("failed to save savedmessage list after user config: %w", err)
+			_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: opts.CallbackQuery.ID,
+				Text:            "保存配置失败，请稍后再试或联系机器人管理员",
+				ShowAlert:       true,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "failed to save user config notice").
+					Msg(flaterr.AnswerCallbackQuery.Str())
+				handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to save user config notice", err)
+			}
+			return handlerErr.Flat()
+		}
+	}
+
+	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+		ChatID:          opts.CallbackQuery.Message.Message.Chat.ID,
+		MessageID:       opts.CallbackQuery.Message.Message.ID,
+		Text:            "修改您的收藏偏好选项",
+		ParseMode:       models.ParseModeHTML,
+		ReplyMarkup: user.buildUserConfigButtons(),
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("content", "config keyboard").
+			Msg(flaterr.EditMessageText.Str())
+		handlerErr.Addt(flaterr.EditMessageText, "config keyboard", err)
+	}
+
+	return handlerErr.Flat()
+
+}
+
 func Init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Saved Message",
-		Func: ReadSavedMessageList,
+		Func: func(ctx context.Context) error{
+			err := ReadSavedMessageList(ctx)
+			if err != nil {
+				return err
+			}
+			// if SavedMessageList.User == nil { SavedMessageList.User = []SavedMessageUser{} }
+
+			if SavedMessageList.MeiliURL == "" {
+				return errors.New("saved message Meilisearch URL is not set")
+			} else {
+				meilisearchClient = meilisearch.New(SavedMessageList.MeiliURL, meilisearch.WithAPIKey(SavedMessageList.MeiliAPI))
+				if SavedMessageList.ChannelID == 0 {
+					return errors.New("saved message channel ID is not set")
+				} else {
+					chatIDString := SavedMessageList.ChannelIDStr()
+
+					_, err := meilisearchClient.GetIndex(chatIDString)
+					if err != nil {
+						if err.(*meilisearch.Error).MeilisearchApiError.Code == "index_not_found" {
+							meilisearch_utils.CreateChatIndex(&meilisearchClient, chatIDString)
+						} else {
+							return fmt.Errorf("failed to get index: %w", err)
+						}
+					}
+					plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
+						ForChatID:      SavedMessageList.ChannelID,
+						PluginName:     "savedmessage_channel",
+						MessageHandler: channelSaveMessageHandler,
+					})
+				}
+			}
+			return nil
+		},
 	})
-	// ReadSavedMessageList()
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "Saved Message",
 		Saver:  SaveSavedMessageList,
@@ -1158,18 +901,11 @@ func Init() {
 		SlashCommand:   "save",
 		MessageHandler: saveMessageHandler,
 	})
-	plugin_utils.AddInlineManualHandlers([]plugin_utils.InlineManualHandler{
-		{
-			Command:       "saved",
-			InlineHandler: InlineShowSavedMessageHandler,
-			Description:   "显示自己保存的消息",
-		},
-		{
-			Command:       "chan",
-			InlineHandler: InlineChannelHandler,
-			Description:   "频道中保存的消息",
-		},
-	}...)
+	plugin_utils.AddInlineManualHandlers(plugin_utils.InlineManualHandler{
+		Command:       "saved",
+		InlineHandler: InlineSavedMessageHandler,
+		Description:   "显示保存的消息",
+	})
 	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
 		{
 			Argument: "savedmessage_privacy_policy",
@@ -1179,19 +915,15 @@ func Init() {
 			Argument: "savedmessage_privacy_policy_agree",
 			MessageHandler:  AgreePrivacyPolicy,
 		},
-		// {
-		// 	Argument: "savedmessage_channel_privacy_policy",
-		// 	Handler:  SendPrivacyPolicy,
-		// },
-		// {
-		// 	Argument: "savedmessage_channel_privacy_policy_agree",
-		// 	Handler:  AgreePrivacyPolicy,
-		// },
 	}...)
 	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
 		Prefix:         "via-inline",
 		Argument:       "savedmessage-help",
 		MessageHandler: saveMessageHandler,
+	})
+	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
+		CallbackDataPrefix:   "savedmessage_switch",
+		CallbackQueryHandler: configKeyboardCallbackHandler,
 	})
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "收藏消息",

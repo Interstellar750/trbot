@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strconv"
+	"trbot/utils/origin_info"
 	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
@@ -25,25 +26,25 @@ type MessageData struct {
 	LinkPreviewOptions    *models.LinkPreviewOptions `json:"link_preview_options"`
 	ShowCaptionAboveMedia bool                       `json:"show_caption_above_media"`
 	// HasMediaSpoiler       bool                       `json:"has_media_spoiler,omitempty"`
+
+	OriginInfo *origin_info.OriginInfo `json:"origin_info"`
 }
 
 func (md MessageData) MsgIDStr() string {
 	return strconv.Itoa(md.MsgID)
 }
 
-func MarshalMessageData(data any) (out *MessageData, err error) {
-	datase, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(datase, &out)
-	if err != nil {
-		return nil, err
-	}
-	return
+// Please pass in the parameter as a pointer
+func UnMarshalMessageData(data, out any) error {
+	temp, err := json.Marshal(data)
+	if err != nil { return err }
+	err = json.Unmarshal(temp, out)
+	if err != nil { return err }
+	return nil
 }
 
 func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message) MessageData {
+	if msg == nil { return MessageData{} }
 	var data = MessageData{
 		MsgID:                 msg.ID,
 		LinkPreviewOptions:    msg.LinkPreviewOptions,
@@ -108,11 +109,11 @@ func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message)
 
 func CreateChatIndex(client *meilisearch.ServiceManager, chatID string) {
 	fields := reflect.TypeOf(MessageData{})
-	for n := range fields.NumField() {
+	for n := range reflect.TypeOf(MessageData{}).NumField() {
 		(*client).CreateIndex(&meilisearch.IndexConfig{ Uid: chatID, PrimaryKey: fields.Field(n).Tag.Get("json") })
 	}
-	// indexManager := meilisearchClient.Index(chatID)
+	indexManager := (*client).Index(chatID)
 	// indexManager.UpdateSearchableAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
 	// indexManager.UpdateDisplayedAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
-	// indexManager.UpdateFilterableAttributes(&[]string{"msg_type"})
+	indexManager.UpdateFilterableAttributes(&[]string{"msg_type"})
 }
