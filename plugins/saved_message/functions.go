@@ -119,7 +119,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					data.MsgID = user.SavedTimes
 
 					if !user.DropOriginInfo {
-						data.OriginInfo = origin_info.GetOriginInfo(opts.Message)
+						data.OriginInfo = origin_info.GetOriginInfo(opts.Message.ReplyToMessage)
 					}
 
 					// 若字符长度大于设定的阈值，添加折叠样式引用再保存
