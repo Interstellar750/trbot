@@ -30,11 +30,8 @@ import (
 	"golang.org/x/image/webp"
 )
 
-// var stickerCollect.ChannelID int64 = -1002506914682
-
 var stickerCollect CollectedSticker
 var stickerCollectPath string = filepath.Join(consts.YAMLDataBaseDir, "collectsticker/", consts.YAMLFileName)
-
 
 var StickerCache_path    string = filepath.Join(consts.CacheDirectory, "sticker/")
 var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_png/")
@@ -1163,15 +1160,15 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						AllowSendingWithoutReply: true, // 如果旧消息被删除了也允许发送
 					}
 				}
-				var pendingMessage string = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n", stickerData.StickerSetTitle, stickerData.StickerSetName)
-				if stickerData.WebP > 0 { pendingMessage += fmt.Sprintf("%d(静态) ", stickerData.WebP) }
-				if stickerData.WebM > 0 { pendingMessage += fmt.Sprintf("%d(动态) ", stickerData.WebM) }
-				if stickerData.tgs  > 0 { pendingMessage += fmt.Sprintf("%d(矢量) ", stickerData.tgs) }
+				var pendingMessage string
+				if stickerData.WebP > 0 { pendingMessage += fmt.Sprintf(" %d(静态)", stickerData.WebP) }
+				if stickerData.WebM > 0 { pendingMessage += fmt.Sprintf(" %d(动态)", stickerData.WebM) }
+				if stickerData.tgs  > 0 { pendingMessage += fmt.Sprintf(" %d(矢量)", stickerData.tgs) }
 				channelMessage, err := opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
 					ChatID:          stickerCollect.ChannelID,
 					ParseMode:       models.ParseModeMarkdownV1,
 					ReplyParameters: reply,
-					Caption:         fmt.Sprintf("%s 共 %d 个贴纸\n存档时间 %s", pendingMessage, stickerData.StickerCount, time.Now().Format(time.RFC3339)),
+					Caption:         fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n共 %d 个贴纸:%s\n存档时间 %s", stickerData.StickerSetTitle, stickerData.StickerSetName, stickerData.StickerCount, pendingMessage, time.Now().Format(time.RFC3339)),
 					Document:        &models.InputFileUpload{ Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data },
 					ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "查看贴纸包", URL: "https://t.me/addstickers/" + stickerData.StickerSetName },
@@ -1602,8 +1599,8 @@ func saveCollectStickerList(ctx context.Context) error {
 		logger.Error().
 			Err(err).
 			Str("path", stickerCollectPath).
-			Msg("Failed to save savedmessage list")
-		return fmt.Errorf("failed to save savedmessage list: %w", err)
+			Msg("Failed to save collect sticker list")
+		return fmt.Errorf("failed to save collect sticker list: %w", err)
 	}
 	return nil
 }
