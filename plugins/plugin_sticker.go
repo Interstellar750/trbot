@@ -22,6 +22,7 @@ import (
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
+	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -29,7 +30,11 @@ import (
 	"golang.org/x/image/webp"
 )
 
-var StickerCollectionChannelID int64 = -1002506914682
+// var stickerCollect.ChannelID int64 = -1002506914682
+
+var stickerCollect CollectedSticker
+var stickerCollectPath string = filepath.Join(consts.YAMLDataBaseDir, "collectsticker/", consts.YAMLFileName)
+
 
 var StickerCache_path    string = filepath.Join(consts.CacheDirectory, "sticker/")
 var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_png/")
@@ -40,6 +45,15 @@ var MP4Cache_path string = filepath.Join(consts.CacheDirectory, "mp4/")
 var GIFCache_path string = filepath.Join(consts.CacheDirectory, "mp4_GIF/")
 
 func init() {
+	plugin_utils.AddInitializer(plugin_utils.Initializer{
+		Name: "collectsitcker",
+		Func: readCollectStickerList,
+	})
+	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
+		Name:   "collectsitcker",
+		Saver:  saveCollectStickerList,
+		Loader: readCollectStickerList,
+	})
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
 			// 不转换格式，打包下载整个贴纸包
@@ -92,6 +106,27 @@ func init() {
 		AllowAutoTrigger: true,
 		MessageHandler:   convertMP4ToGifHandler,
 	})
+}
+
+type CollectedSticker struct {
+	ChannelID  int64        `yaml:"ChannelID"`
+	StickerSet []stickerSetInfo `yaml:"StickerSet"` // 已收藏的贴纸包列表
+}
+
+func (cs CollectedSticker) GetStickerSetByName(name string) *stickerSetInfo {
+	for i, set := range cs.StickerSet {
+		if set.Name == name {
+			return &cs.StickerSet[i]
+		}
+	}
+	return nil
+}
+
+type stickerSetInfo struct {
+	Title  string `yaml:"Title"`  // 贴纸包的名称
+	Name   string `yaml:"Name"`   // 贴纸包的 urlname
+	MsgID  int    `yaml:"MsgID"`  // 发送到频道的消息 ID
+	Count  int    `yaml:"Count"`  // 贴纸包中的贴纸数量
 }
 
 type stickerDatas struct {
@@ -179,19 +214,32 @@ func EchoStickerHandler(opts *handler_params.Message) error {
 			stickerFilePrefix = "sticker"
 		} else {
 			var button [][]models.InlineKeyboardButton = [][]models.InlineKeyboardButton{
-				{
-					{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.Message.Sticker.SetName) },
-				},
-				{
-					{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) },
-				},
+				{{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.Message.Sticker.SetName) }},
+				{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) }},
 			}
 
-			if StickerCollectionChannelID != 0 && contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
-				button = append(button, []models.InlineKeyboardButton{{
-					Text: "⭐️ 收藏至频道",
-					CallbackData: fmt.Sprintf("c_%s", stickerData.StickerSetName),
-				}})
+			if stickerCollect.ChannelID != 0 && contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
+				for _, set := range stickerCollect.StickerSet {
+					if set.Name == opts.Message.Sticker.SetName {
+						button = append(button, [][]models.InlineKeyboardButton{{
+							{
+								Text: fmt.Sprintf("🔁 更新? (%d)>(%d)", set.Count, stickerData.StickerCount),
+								CallbackData: fmt.Sprintf("c_%s", stickerData.StickerSetName),
+							},
+							{
+								Text: "✅ 已收藏至频道",
+								URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(stickerCollect.ChannelID), set.MsgID),
+							},
+						}}...)
+						break
+					}
+				}
+				if len(button) == 2 {
+					button = append(button, []models.InlineKeyboardButton{{
+						Text: "⭐️ 收藏至频道",
+						CallbackData: fmt.Sprintf("c_%s", stickerData.StickerSetName),
+					}})
+				}
 			}
 
 			stickerFilePrefix = fmt.Sprintf("%s_%d", stickerData.StickerSetName, stickerData.StickerIndex)
@@ -1018,7 +1066,7 @@ func showCachedStickers(opts *handler_params.Message) error {
 
 	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Message.Chat.ID,
-		Text: "请选择要查看的贴纸包",
+		Text:   "请选择要查看的贴纸包",
 		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: button,
 		},
@@ -1038,7 +1086,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 
 	var handlerErr flaterr.MultErr
 
-	if StickerCollectionChannelID == 0 {
+	if stickerCollect.ChannelID == 0 {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: opts.CallbackQuery.ID,
 			Text:            "未设置贴纸包收集频道",
@@ -1106,49 +1154,77 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
 				}
 			} else {
+				var reply *models.ReplyParameters
+				collected := stickerCollect.GetStickerSetByName(stickerSetName)
+				if collected != nil {
+					// 已经收藏过了，更新贴纸包信息
+					reply = &models.ReplyParameters{
+						MessageID: collected.MsgID,
+						AllowSendingWithoutReply: true, // 如果旧消息被删除了也允许发送
+					}
+				}
 				var pendingMessage string = fmt.Sprintf("[%s](https://t.me/addstickers/%s)\n", stickerData.StickerSetTitle, stickerData.StickerSetName)
-				if stickerData.WebP > 0 {
-					pendingMessage += fmt.Sprintf("%d(静态) ", stickerData.WebP)
-				}
-				if stickerData.WebM > 0 {
-					pendingMessage += fmt.Sprintf("%d(动态) ", stickerData.WebM)
-				}
-				if stickerData.tgs > 0 {
-					pendingMessage += fmt.Sprintf("%d(矢量) ", stickerData.tgs)
-				}
+				if stickerData.WebP > 0 { pendingMessage += fmt.Sprintf("%d(静态) ", stickerData.WebP) }
+				if stickerData.WebM > 0 { pendingMessage += fmt.Sprintf("%d(动态) ", stickerData.WebM) }
+				if stickerData.tgs  > 0 { pendingMessage += fmt.Sprintf("%d(矢量) ", stickerData.tgs) }
 				channelMessage, err := opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
-					ChatID:      StickerCollectionChannelID,
-					ParseMode:   models.ParseModeMarkdownV1,
-					Caption:     fmt.Sprintf("%s 共 %d 个贴纸\n存档时间 %s", pendingMessage, stickerData.StickerCount, time.Now().Format(time.RFC3339)),
-					Document:    &models.InputFileUpload{ Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data },
-					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					ChatID:          stickerCollect.ChannelID,
+					ParseMode:       models.ParseModeMarkdownV1,
+					ReplyParameters: reply,
+					Caption:         fmt.Sprintf("%s 共 %d 个贴纸\n存档时间 %s", pendingMessage, stickerData.StickerCount, time.Now().Format(time.RFC3339)),
+					Document:        &models.InputFileUpload{ Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data },
+					ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "查看贴纸包", URL: "https://t.me/addstickers/" + stickerData.StickerSetName },
 					}}},
 				})
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Int64("channelID", StickerCollectionChannelID).
+						Int64("channelID", stickerCollect.ChannelID).
 						Str("stickerSetName", stickerSetName).
 						Str("content", "collect sticker set file").
 						Msg(flaterr.SendDocument.Str())
 					handlerErr.Addt(flaterr.SendDocument, "collect sticker set", err)
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID: opts.CallbackQuery.From.ID,
-						Text: fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
+						ChatID:    opts.CallbackQuery.From.ID,
+						Text:      fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
 						ParseMode: models.ParseModeHTML,
-						DisableNotification: true,
 					})
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Int64("channelID", StickerCollectionChannelID).
+							Int64("channelID", stickerCollect.ChannelID).
 							Str("stickerSetName", stickerSetName).
 							Str("content", "collect sticker set failed notice").
 							Msg(flaterr.SendMessage.Str())
 						handlerErr.Addt(flaterr.SendMessage, "collect sticker set failed notice", err)
 					}
 				} else {
+					if collected == nil {
+						stickerCollect.StickerSet = append(stickerCollect.StickerSet, stickerSetInfo{
+							Title: stickerSet.Title,
+							Name:  stickerSet.Name,
+							MsgID: channelMessage.ID,
+							Count: stickerData.StickerCount,
+						})
+					} else {
+						// 更新已收藏的贴纸包信息
+						collected.Title = stickerSet.Title
+						collected.MsgID = channelMessage.ID
+					}
+
+					err = saveCollectStickerList(opts.Ctx)
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Dict("collectSticker", zerolog.Dict().
+								Str("title", collected.Title).
+								Str("name", collected.Name),
+							).
+							Msg("Failed to save collect sticker list")
+						handlerErr.Addf("failed to save collect sticker list: %w", err)
+					}
+
 					_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 						ChatID:    opts.CallbackQuery.From.ID,
 						MessageID: opts.CallbackQuery.Message.Message.ID,
@@ -1160,7 +1236,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					})
 					if err != nil {
 						logger.Err(err).
-							Int64("channelID", StickerCollectionChannelID).
+							Int64("channelID", stickerCollect.ChannelID).
 							Str("stickerSetName", stickerSetName).
 							Str("content", "collect sticker set success notice").
 							Msg(flaterr.EditMessageReplyMarkup.Str())
@@ -1175,6 +1251,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 	return handlerErr.Flat()
 }
 
+// full command "t.me/addstickers/" or "https://t.me/addstickers/"
 func getStickerPackInfo(opts *handler_params.Message) error {
 	if opts.Message == nil || opts.Message.Text == "" {
 		return nil
@@ -1264,7 +1341,6 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 }
 
 func convertMP4ToGifHandler(opts *handler_params.Message) error {
-
 	if opts.Message == nil || opts.Message.Animation == nil {
 		return nil
 	}
@@ -1478,3 +1554,56 @@ func convertMP4ToGif(MP4Path, GIFPath string) error {
 // 		webmPath,
 // 	).Run()
 // }
+
+func readCollectStickerList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "sticker").
+		Str("funcName", "readCollectStickerList").
+		Logger()
+
+	err := yaml.LoadYAML(stickerCollectPath, &stickerCollect)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Warn().
+				Err(err).
+				Str("path", stickerCollectPath).
+				Msg("Not found collect sticker list file. Created new one")
+			// 如果是找不到文件，新建一个
+			err = yaml.SaveYAML(stickerCollectPath, &stickerCollect)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("path", stickerCollectPath).
+					Msg("Failed to create empty collect sticker list file")
+				return fmt.Errorf("failed to create empty collect sticker list file: %w", err)
+			}
+		} else {
+			logger.Error().
+				Err(err).
+				Str("path", stickerCollectPath).
+				Msg("Failed to load collect sticker list file")
+			return fmt.Errorf("failed to load collect sticker list file: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func saveCollectStickerList(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "sticker").
+		Str("funcName", "saveCollectStickerList").
+		Logger()
+
+	err := yaml.SaveYAML(stickerCollectPath, &stickerCollect)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("path", stickerCollectPath).
+			Msg("Failed to save savedmessage list")
+		return fmt.Errorf("failed to save savedmessage list: %w", err)
+	}
+	return nil
+}

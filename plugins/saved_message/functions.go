@@ -519,7 +519,8 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						})
 					}
 				}
-				if user.IncludeChannel && targetChatID != SavedMessageList.ChannelIDStr() {
+				// 如果当前查询的 ID 与公共收藏夹 ID 不同，且用户存在并设定包含公共收藏内容，则添加公共收藏内容
+				if targetChatID != SavedMessageList.ChannelIDStr() && user != nil && user.IncludeChannel {
 					button = &models.InlineQueryResultsButton{
 						Text:           "当前包含了个人和公共收藏内容",
 						StartParameter: "via-inline_savedmessage-help",
