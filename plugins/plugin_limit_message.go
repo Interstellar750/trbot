@@ -30,13 +30,13 @@ var LimitMessageDir string = filepath.Join(consts.YAMLDataBaseDir, "limitmessage
 var LimitMessagePath string = filepath.Join(LimitMessageDir, consts.YAMLFileName)
 
 type AllowMessages struct {
-	IsEnable            bool                           `yaml:"IsEnable"`
-	IsUnderTest         bool                           `yaml:"IsUnderTest"`
-	AddTime             string                         `yaml:"AddTime"`
-	IsLogicAnd          bool                           `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
-	IsWhiteForType      bool                           `yaml:"IsWhiteForType"`
-	MessageType         message_utils.Message      `yaml:"MessageType"`
-	IsWhiteForAttribute bool                           `yaml:"IsWhiteForAttribute"`
+	IsEnable            bool                    `yaml:"IsEnable"`
+	IsUnderTest         bool                    `yaml:"IsUnderTest"`
+	AddTime             string                  `yaml:"AddTime"`
+	IsLogicAnd          bool                    `yaml:"IsLogicAnd"` // true: `&&``, false: `||`
+	IsWhiteForType      bool                    `yaml:"IsWhiteForType"`
+	MessageType         message_utils.Message   `yaml:"MessageType"`
+	IsWhiteForAttribute bool                    `yaml:"IsWhiteForAttribute"`
 	MessageAttribute    message_utils.Attribute `yaml:"MessageAttribute"`
 }
 

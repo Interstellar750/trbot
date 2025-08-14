@@ -20,7 +20,7 @@ type Message struct {
 	Video         bool `yaml:"Video,omitempty"`
 	VideoNote     bool `yaml:"VideoNote,omitempty"` // A circular video shot in Telegram
 	Voice         bool `yaml:"Voice,omitempty"`     // can have caption
-	Text          bool `yaml:"OnlyText,omitempty"`  // just text message
+	Text          bool `yaml:"Text,omitempty"`      // just text message
 	Checklist     bool `yaml:"Checklist,omitempty"`
 	Contact       bool `yaml:"Contact,omitempty"`
 	Dice          bool `yaml:"Dice,omitempty"`
