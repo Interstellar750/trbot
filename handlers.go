@@ -498,7 +498,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 		var results []models.InlineQueryResult = []models.InlineQueryResult{ &models.InlineQueryResultArticle{
 			ID:                  "keepInput",
 			Title:               "请不要点击列表中的命令",
-			Description:         "由于限制，您需要手动输入完整的命令",
+			Description:         fmt.Sprintf("由于限制，您需要继续输入完整的命令才能使用，例如 %ssaved （带 %s 号前缀）", configs.BotConfig.InlineSubCommandSymbol, configs.BotConfig.InlineSubCommandSymbol),
 			InputMessageContent: &models.InputTextMessageContent{ MessageText: "请不要点击选单中的命令..." },
 		}}
 
@@ -522,12 +522,19 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 		}
 
 		// 没有匹配的命令
-		if len(results) == 1 {
+		if len(results) == 1 && opts.Fields[0] != configs.BotConfig.InlineSubCommandSymbol {
 			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
-				ID:                  "noInlineCommand",
+				ID:                  "noThisInlineCommand",
 				Title:               fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
 				Description:         "请检查命令是否正确，若要使用分页、分类符号或搜索关键词，请确保命令与符号或关键词之间以空格分开",
 				InputMessageContent: &models.InputTextMessageContent{ MessageText: "您在使用 inline 模式时没有输入正确的命令..." },
+			}}
+		} else {
+			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
+				ID:                  "noInlineCommand",
+				Title:               "没有可用的命令",
+				Description:         "此机器人当前并没有配置任何 inline 模式的插件或命令",
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "这个机器人当前并没有配置任何 inline 模式的插件或命令..." },
 			}}
 		}
 

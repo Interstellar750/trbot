@@ -87,7 +87,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 				if opts.Message.Chat.Type == models.ChatTypePrivate {
 					messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text:         "修改此功能偏好",
-						CallbackData: "savedmessage_switch",
+						CallbackData: "savedmsg_switch",
 					}}}}
 				}
 			} else {
@@ -100,43 +100,39 @@ func saveMessageHandler(opts *handler_params.Message) error {
 				if user.Limit != 0 && user.Count >= user.Limit {
 					messageParams.Text = "已达到限制，无法保存更多内容"
 				} else {
+					msgData := meilisearch_utils.BuildMessageData(opts.Ctx, opts.Thebot, opts.Message.ReplyToMessage)
+
 					var messageLength int
-					var pendingEntitites []models.MessageEntity
-					var needChangeEntitites bool = true
 
 					if opts.Message.ReplyToMessage.Caption != "" {
 						messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Caption)
-						pendingEntitites = opts.Message.ReplyToMessage.CaptionEntities
+						msgData.Entities = opts.Message.ReplyToMessage.CaptionEntities
 					} else if opts.Message.ReplyToMessage.Text != "" {
 						messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Text)
-						pendingEntitites = opts.Message.ReplyToMessage.Entities
-					} else {
-						needChangeEntitites = false
+						msgData.Entities = opts.Message.ReplyToMessage.Entities
 					}
 
-					data := meilisearch_utils.BuildMessageData(opts.Ctx, opts.Thebot, opts.Message.ReplyToMessage)
-
-					data.MsgID = user.SavedTimes
-
-					if !user.DropOriginInfo {
-						data.OriginInfo = origin_info.GetOriginInfo(opts.Message.ReplyToMessage)
-					}
-
-					// 若字符长度大于设定的阈值，添加折叠样式引用再保存
-					if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
-						data.Entities = []models.MessageEntity{{
+					// 若字符长度大于设定的阈值，添加折叠样式引用再保存，如果是全文引用但不折叠，改成折叠样式
+					if messageLength > textExpandableLength && (len(msgData.Entities) == 0 || msgData.Entities[0].Type == models.MessageEntityTypeBlockquote && msgData.Entities[0].Length == messageLength) {
+						msgData.Entities = []models.MessageEntity{{
 							Type:   models.MessageEntityTypeExpandableBlockquote,
 							Offset: 0,
 							Length: messageLength,
 						}}
 					}
 
-					// 获取使用命令保存时设定的描述
-					if len(opts.Message.Text) > len(opts.Fields[0])+1 {
-						data.Desc = opts.Message.Text[len(opts.Fields[0])+1:]
+					msgData.MsgID = user.SavedTimes
+
+					if !user.DropOriginInfo {
+						msgData.OriginInfo = origin_info.GetOriginInfo(opts.Message.ReplyToMessage)
 					}
 
-					_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(data)
+					// 获取使用命令保存时设定的描述
+					if len(opts.Message.Text) > len(opts.Fields[0])+1 {
+						msgData.Desc = opts.Message.Text[len(opts.Fields[0])+1:]
+					}
+
+					_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(msgData)
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -241,39 +237,34 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 			if user.Limit != 0 && user.Count >= user.Limit {
 				messageParams.Text = "已达到限制，无法保存更多内容"
 			} else {
+				msgData := meilisearch_utils.BuildMessageData(opts.Ctx, opts.Thebot, opts.Message)
+
 				var messageLength int
-				var pendingEntitites []models.MessageEntity
-				var needChangeEntitites bool = true
 
 				if opts.Message.Caption != "" {
 					messageLength = utf8.RuneCountInString(opts.Message.Caption)
-					pendingEntitites = opts.Message.CaptionEntities
+					msgData.Entities = opts.Message.CaptionEntities
 				} else if opts.Message.Text != "" {
 					messageLength = utf8.RuneCountInString(opts.Message.Text)
-					pendingEntitites = opts.Message.Entities
-				} else {
-					needChangeEntitites = false
+					msgData.Entities = opts.Message.Entities
 				}
 
-				// 若字符长度大于设定的阈值，添加折叠样式引用再保存
-				if needChangeEntitites && messageLength > textExpandableLength && len(pendingEntitites) == 0 {
-					pendingEntitites = []models.MessageEntity{{
+				// 若字符长度大于设定的阈值，添加折叠样式引用再保存，如果是全文引用但不折叠，改成折叠样式
+				if messageLength > textExpandableLength && (len(msgData.Entities) == 0 || msgData.Entities[0].Type == models.MessageEntityTypeBlockquote && msgData.Entities[0].Length == messageLength) {
+					msgData.Entities = []models.MessageEntity{{
 						Type:   models.MessageEntityTypeExpandableBlockquote,
 						Offset: 0,
 						Length: messageLength,
 					}}
 				}
 
-				data := meilisearch_utils.BuildMessageData(opts.Ctx, opts.Thebot, opts.Message)
-
-				data.MsgID      = user.SavedTimes
-				data.Entities   = pendingEntitites
+				msgData.MsgID = user.SavedTimes
 
 				if !user.DropOriginInfo {
-					data.OriginInfo = origin_info.GetOriginInfo(opts.Message)
+					msgData.OriginInfo = origin_info.GetOriginInfo(opts.Message)
 				}
 
-				_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(data)
+				_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(msgData)
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -346,9 +337,11 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		var button *models.InlineQueryResultsButton
 		var targetChatID string
 
+		channelID := SavedMessageList.ChannelIDStr()
+
 		user := SavedMessageList.GetUser(opts.InlineQuery.From.ID)
 		if user == nil || user.Count == 0 {
-			targetChatID = SavedMessageList.ChannelIDStr()
+			targetChatID = channelID
 			button = &models.InlineQueryResultsButton{
 				Text:           "当前为公共收藏内容",
 				StartParameter: "via-inline_savedmessage-help",
@@ -520,12 +513,12 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 					}
 				}
 				// 如果当前查询的 ID 与公共收藏夹 ID 不同，且用户存在并设定包含公共收藏内容，则添加公共收藏内容
-				if targetChatID != SavedMessageList.ChannelIDStr() && user != nil && user.IncludeChannel {
+				if targetChatID != channelID && user != nil && user.IncludeChannel {
 					button = &models.InlineQueryResultsButton{
 						Text:           "当前包含了个人和公共收藏内容",
 						StartParameter: "via-inline_savedmessage-help",
 					}
-					datas, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
+					datas, err := meilisearchClient.Index(channelID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -635,7 +628,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 					if len(parsedQuery.Keywords) > 0 {
 						onlyText = append(onlyText, &models.InlineQueryResultArticle{
 							ID:                  "none",
-							Title:               "没有符合关键词的内容",
+							Title:               fmt.Sprintf("没有符合 %s 关键词的内容", parsedQuery.Keywords),
 							InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
 						})
 					} else if user != nil {
@@ -806,9 +799,9 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 	user := SavedMessageList.GetUser(opts.CallbackQuery.From.ID)
 
 	switch opts.CallbackQuery.Data {
-	case "savedmessage_switch_include_channel":
+	case "savedmsg_switch_include_channel":
 		user.IncludeChannel = !user.IncludeChannel
-	case "savedmessage_switch_drop_origin_info":
+	case "savedmsg_switch_drop_origin_info":
 		user.DropOriginInfo = !user.DropOriginInfo
 	default:
 		needSave = false
@@ -875,6 +868,33 @@ func Init() {
 				} else {
 					chatIDString := SavedMessageList.ChannelIDStr()
 
+					plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
+						ForChatID:      SavedMessageList.ChannelID,
+						PluginName:     "savedmessage_channel",
+						MessageHandler: channelSaveMessageHandler,
+					})
+
+					channelPubliclink  = "https://t.me/"   + SavedMessageList.ChannelIDStr()
+					channelPrivateLink = "https://t.me/c/" + utils.RemoveIDPrefix(SavedMessageList.ChannelID)
+
+					plugin_utils.AddFullCommandHandlers([]plugin_utils.FullCommand{
+						{
+							FullCommand:    channelPubliclink,
+							ForChatType:    []models.ChatType{models.ChatTypePrivate},
+							MessageHandler: channelMetadataHandler,
+						},
+						{
+							FullCommand:    channelPrivateLink,
+							ForChatType:    []models.ChatType{models.ChatTypePrivate},
+							MessageHandler: channelMetadataHandler,
+						},
+						{
+							FullCommand:    "editm",
+							ForChatType:    []models.ChatType{models.ChatTypePrivate},
+							MessageHandler: channelMetadataHandler,
+						},
+					}...)
+
 					_, err := meilisearchClient.GetIndex(chatIDString)
 					if err != nil {
 						if err.(*meilisearch.Error).MeilisearchApiError.Code == "index_not_found" {
@@ -883,11 +903,6 @@ func Init() {
 							return fmt.Errorf("failed to get index: %w", err)
 						}
 					}
-					plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
-						ForChatID:      SavedMessageList.ChannelID,
-						PluginName:     "savedmessage_channel",
-						MessageHandler: channelSaveMessageHandler,
-					})
 				}
 			}
 			return nil
@@ -922,10 +937,16 @@ func Init() {
 		Argument:       "savedmessage-help",
 		MessageHandler: saveMessageHandler,
 	})
-	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
-		CallbackDataPrefix:   "savedmessage_switch",
-		CallbackQueryHandler: configKeyboardCallbackHandler,
-	})
+	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
+		{
+			CallbackDataPrefix:   "savedmsg_switch",
+			CallbackQueryHandler: configKeyboardCallbackHandler,
+		},
+		{
+			CallbackDataPrefix:   "savedmsg_channel",
+			CallbackQueryHandler: channelCallbackHandler,
+		},
+	}...)
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "收藏消息",
 		Description: "此功能可以收藏用户指定的消息，之后使用 inline 模式查看并发送保存的内容\n\n保存消息：\n向机器人发送要保存的消息，然后使用 <code>/save 关键词</code> 命令回复要保存的消息，关键词可以忽略。若机器人在群组中，也可以直接使用 <code>/save 关键词</code> 命令回复要保存的消息。\n\n发送保存的消息：\n点击下方的按钮来使用 inline 模式，当您多次在 inline 模式下使用此 bot 时，在输入框中输入 <code>@</code> 即可看到 bot 会出现在列表中",

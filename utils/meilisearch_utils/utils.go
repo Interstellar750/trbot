@@ -3,7 +3,6 @@ package meilisearch_utils
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"strconv"
 	"trbot/utils/origin_info"
 	"trbot/utils/type/message_utils"
@@ -15,19 +14,19 @@ import (
 
 type MessageData struct {
 	MsgID     int                `json:"msg_id"`
-	MsgType   message_utils.Type `json:"msg_type"`
-	FileID    string             `json:"file_id"`
-	FileTitle string             `json:"file_title"`
-	FileName  string             `json:"file_name"`
-	Text      string             `json:"text"`
-	Desc      string             `json:"desc"`
+	MsgType   message_utils.Type `json:"msg_type,omitempty"`
+	FileID    string             `json:"file_id,omitempty"`
+	FileTitle string             `json:"file_title,omitempty"`
+	FileName  string             `json:"file_name,omitempty"`
+	Text      string             `json:"text,omitempty"`
+	Desc      string             `json:"desc,omitempty"`
 
-	Entities              []models.MessageEntity     `json:"entities"`
-	LinkPreviewOptions    *models.LinkPreviewOptions `json:"link_preview_options"`
-	ShowCaptionAboveMedia bool                       `json:"show_caption_above_media"`
+	Entities              []models.MessageEntity     `json:"entities,omitempty"`
+	LinkPreviewOptions    *models.LinkPreviewOptions `json:"link_preview_options,omitempty"`
+	ShowCaptionAboveMedia bool                       `json:"show_caption_above_media,omitempty"`
 	// HasMediaSpoiler       bool                       `json:"has_media_spoiler,omitempty"`
 
-	OriginInfo *origin_info.OriginInfo `json:"origin_info"`
+	OriginInfo *origin_info.OriginInfo `json:"origin_info,omitempty"`
 }
 
 func (md MessageData) MsgIDStr() string {
@@ -108,10 +107,7 @@ func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message)
 }
 
 func CreateChatIndex(client *meilisearch.ServiceManager, chatID string) {
-	fields := reflect.TypeOf(MessageData{})
-	for n := range reflect.TypeOf(MessageData{}).NumField() {
-		(*client).CreateIndex(&meilisearch.IndexConfig{ Uid: chatID, PrimaryKey: fields.Field(n).Tag.Get("json") })
-	}
+	(*client).CreateIndex(&meilisearch.IndexConfig{ Uid: chatID, PrimaryKey: "msg_id" })
 	indexManager := (*client).Index(chatID)
 	// indexManager.UpdateSearchableAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
 	// indexManager.UpdateDisplayedAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})

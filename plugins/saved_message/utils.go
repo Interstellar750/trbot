@@ -25,6 +25,8 @@ var meilisearchClient meilisearch.ServiceManager
 
 var textExpandableLength int = 150
 
+var editingMessageID int // 用于编辑消息时的消息ID
+
 type SavedMessage struct {
 	MeiliURL        string       `yaml:"MeiliURL"`
 	MeiliAPI        string       `yaml:"MeiliAPI"`
@@ -68,7 +70,7 @@ func (u *SavedMessageUser) buildUserConfigButtons() models.ReplyMarkup {
 		buttons = append(buttons, []models.InlineKeyboardButton{
 			{
 				Text: utils.TextForTrueOrFalse(u.IncludeChannel, "✅ 包含公共频道内容", "❌ 不包含公共频道内容"),
-				CallbackData: "savedmessage_switch_include_channel",
+				CallbackData: "savedmsg_switch_include_channel",
 			},
 			{
 				Text: "查看公共频道",
@@ -80,7 +82,7 @@ func (u *SavedMessageUser) buildUserConfigButtons() models.ReplyMarkup {
 	buttons = append(buttons, []models.InlineKeyboardButton{
 		{
 			Text: utils.TextForTrueOrFalse(u.DropOriginInfo, "❌ 不保留消息来源", "✅ 保留消息来源"),
-			CallbackData: "savedmessage_switch_drop_origin_info",
+			CallbackData: "savedmsg_switch_drop_origin_info",
 		},
 	})
 
