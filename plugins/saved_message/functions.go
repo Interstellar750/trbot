@@ -916,7 +916,7 @@ func Init() {
 						MessageHandler: channelSaveMessageHandler,
 					})
 
-					channelPubliclink  = "https://t.me/"   + SavedMessageList.ChannelIDStr()
+					channelPubliclink  = "https://t.me/"   + SavedMessageList.ChannelUsername
 					channelPrivateLink = "https://t.me/c/" + utils.RemoveIDPrefix(SavedMessageList.ChannelID)
 
 					plugin_utils.AddFullCommandHandlers([]plugin_utils.FullCommand{
