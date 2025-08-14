@@ -13,6 +13,7 @@ import (
 	"trbot/utils/meilisearch_utils"
 	"trbot/utils/origin_info"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 	"unicode/utf8"
 
@@ -335,7 +336,21 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		}
 	} else {
 		var button *models.InlineQueryResultsButton
+		var resultList []models.InlineQueryResult
 		var targetChatID string
+		var filter string
+
+		var resultCategorys = []string{
+			"text",
+			"audio",
+			"document",
+			"gif",
+			"photo",
+			"sticker",
+			"video",
+			"videonote",
+			"voice",
+		}
 
 		channelID := SavedMessageList.ChannelIDStr()
 
@@ -352,8 +367,50 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 		parsedQuery := inline_utils.ParseInlineFields(opts.Fields)
 
-		var filter string
+		if parsedQuery.LastChar == configs.BotConfig.InlineCategorySymbol {
+			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:          "keepInputCategory",
+					Title:       "请继续输入分类名称",
+					Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys),
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
+				}},
+				IsPersonal: true,
+				CacheTime:  0,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "need a category name").
+					Msg(flaterr.AnswerInlineQuery.Str())
+				handlerErr.Addt(flaterr.AnswerInlineQuery, "need a category name", err)
+			}
+			return handlerErr.Flat()
+		}
+
 		if parsedQuery.Category != "" {
+			if !contain.SubStringCaseInsensitive(parsedQuery.Category, resultCategorys...) {
+				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:          "noThisCategory",
+						Title:       fmt.Sprintf("无效的 [ %s ] 分类", parsedQuery.Category),
+						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys),
+						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试访问不存在的分类时点击了提示信息..." },
+					}},
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "invalid category name").
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "invalid category name", err)
+				}
+				return handlerErr.Flat()
+			}
 			filter = "msg_type=" + parsedQuery.Category
 		}
 		datas, err := meilisearchClient.Index(targetChatID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
@@ -384,17 +441,6 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				handlerErr.Addt(flaterr.AnswerInlineQuery, "get message error", err)
 			}
 		} else {
-			var (
-				onlyText  []models.InlineQueryResult
-				audio     []models.InlineQueryResult
-				document  []models.InlineQueryResult
-				gif       []models.InlineQueryResult
-				photo     []models.InlineQueryResult
-				sticker   []models.InlineQueryResult
-				video     []models.InlineQueryResult
-				videoNote []models.InlineQueryResult
-				voice     []models.InlineQueryResult
-			)
 			var msgDatas []meilisearch_utils.MessageData
 			err = meilisearch_utils.UnMarshalMessageData(&datas.Hits, &msgDatas)
 			if err != nil {
@@ -426,8 +472,8 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			} else {
 				for _, msgData := range msgDatas {
 					switch msgData.MsgType {
-					case message_utils.OnlyText:
-						onlyText = append(onlyText, &models.InlineQueryResultArticle{
+					case message_utils.Text:
+						resultList = append(resultList, &models.InlineQueryResultArticle{
 							ID:                  msgData.MsgIDStr(),
 							Title:               msgData.Text,
 							Description:         msgData.Desc,
@@ -439,7 +485,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							},
 						})
 					case message_utils.Audio:
-						audio = append(audio, &models.InlineQueryResultCachedAudio{
+						resultList = append(resultList, &models.InlineQueryResultCachedAudio{
 							ID:              msgData.MsgIDStr(),
 							AudioFileID:     msgData.FileID,
 							Caption:         msgData.Text,
@@ -447,7 +493,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Document:
-						document = append(document, &models.InlineQueryResultCachedDocument{
+						resultList = append(resultList, &models.InlineQueryResultCachedDocument{
 							ID:              msgData.MsgIDStr(),
 							DocumentFileID:  msgData.FileID,
 							Title:           msgData.FileName,
@@ -457,7 +503,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Animation:
-						gif = append(gif, &models.InlineQueryResultCachedMpeg4Gif{
+						resultList = append(resultList, &models.InlineQueryResultCachedMpeg4Gif{
 							ID:              msgData.MsgIDStr(),
 							Mpeg4FileID:     msgData.FileID,
 							Title:           msgData.FileName,
@@ -466,7 +512,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Photo:
-						photo = append(photo, &models.InlineQueryResultCachedPhoto{
+						resultList = append(resultList, &models.InlineQueryResultCachedPhoto{
 							ID:                    msgData.MsgIDStr(),
 							PhotoFileID:           msgData.FileID,
 							Caption:               msgData.Text,
@@ -476,13 +522,13 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							ReplyMarkup:           msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Sticker:
-						sticker = append(sticker, &models.InlineQueryResultCachedSticker{
+						resultList = append(resultList, &models.InlineQueryResultCachedSticker{
 							ID:            msgData.MsgIDStr(),
 							StickerFileID: msgData.FileID,
 							ReplyMarkup:   msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Video:
-						video = append(video, &models.InlineQueryResultCachedVideo{
+						resultList = append(resultList, &models.InlineQueryResultCachedVideo{
 							ID:              msgData.MsgIDStr(),
 							VideoFileID:     msgData.FileID,
 							Title:           msgData.FileName,
@@ -492,7 +538,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.VideoNote:
-						videoNote = append(videoNote, &models.InlineQueryResultCachedDocument{
+						resultList = append(resultList, &models.InlineQueryResultCachedDocument{
 							ID:              msgData.MsgIDStr(),
 							DocumentFileID:  msgData.FileID,
 							Title:           msgData.FileName,
@@ -502,7 +548,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Voice:
-						voice = append(voice, &models.InlineQueryResultCachedVoice{
+						resultList = append(resultList, &models.InlineQueryResultCachedVoice{
 							ID:              msgData.MsgIDStr(),
 							VoiceFileID:     msgData.FileID,
 							Title:           msgData.FileTitle,
@@ -535,8 +581,8 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						} else {
 							for _, msgData := range msgDatasChannel {
 								switch msgData.MsgType {
-								case message_utils.OnlyText:
-									onlyText = append(onlyText, &models.InlineQueryResultArticle{
+								case message_utils.Text:
+									resultList = append(resultList, &models.InlineQueryResultArticle{
 										ID:                  "channel" + msgData.MsgIDStr(),
 										Title:               msgData.Text,
 										Description:         msgData.Desc,
@@ -548,7 +594,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										},
 									})
 								case message_utils.Audio:
-									audio = append(audio, &models.InlineQueryResultCachedAudio{
+									resultList = append(resultList, &models.InlineQueryResultCachedAudio{
 										ID:              "channel" + msgData.MsgIDStr(),
 										AudioFileID:     msgData.FileID,
 										Caption:         msgData.Text,
@@ -556,7 +602,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.Document:
-									document = append(document, &models.InlineQueryResultCachedDocument{
+									resultList = append(resultList, &models.InlineQueryResultCachedDocument{
 										ID:              "channel" + msgData.MsgIDStr(),
 										DocumentFileID:  msgData.FileID,
 										Title:           msgData.FileName,
@@ -566,7 +612,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.Animation:
-									gif = append(gif, &models.InlineQueryResultCachedMpeg4Gif{
+									resultList = append(resultList, &models.InlineQueryResultCachedMpeg4Gif{
 										ID:              "channel" + msgData.MsgIDStr(),
 										Mpeg4FileID:     msgData.FileID,
 										Title:           msgData.FileName,
@@ -575,7 +621,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.Photo:
-									photo = append(photo, &models.InlineQueryResultCachedPhoto{
+									resultList = append(resultList, &models.InlineQueryResultCachedPhoto{
 										ID:                    "channel" + msgData.MsgIDStr(),
 										PhotoFileID:           msgData.FileID,
 										Caption:               msgData.Text,
@@ -585,13 +631,13 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										ReplyMarkup:           msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.Sticker:
-									sticker = append(sticker, &models.InlineQueryResultCachedSticker{
+									resultList = append(resultList, &models.InlineQueryResultCachedSticker{
 										ID:            "channel" + msgData.MsgIDStr(),
 										StickerFileID: msgData.FileID,
 										ReplyMarkup:   msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.Video:
-									video = append(video, &models.InlineQueryResultCachedVideo{
+									  resultList = append(resultList, &models.InlineQueryResultCachedVideo{
 										ID:              "channel" + msgData.MsgIDStr(),
 										VideoFileID:     msgData.FileID,
 										Title:           msgData.FileName,
@@ -601,7 +647,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.VideoNote:
-									videoNote = append(videoNote, &models.InlineQueryResultCachedDocument{
+									resultList = append(resultList, &models.InlineQueryResultCachedDocument{
 										ID:              "channel" + msgData.MsgIDStr(),
 										DocumentFileID:  msgData.FileID,
 										Title:           msgData.FileName,
@@ -611,7 +657,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 									})
 								case message_utils.Voice:
-									voice = append(voice, &models.InlineQueryResultCachedVoice{
+									resultList = append(resultList, &models.InlineQueryResultCachedVoice{
 										ID:              "channel" + msgData.MsgIDStr(),
 										VoiceFileID:     msgData.FileID,
 										Title:           msgData.FileTitle,
@@ -624,15 +670,15 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						}
 					}
 				}
-				if len(onlyText) + len(audio) + len(document) + len(gif) + len(photo) + len(sticker) + len(video) + len(videoNote) + len(voice) == 0 {
+				if len(resultList) == 0 {
 					if len(parsedQuery.Keywords) > 0 {
-						onlyText = append(onlyText, &models.InlineQueryResultArticle{
+						resultList = append(resultList, &models.InlineQueryResultArticle{
 							ID:                  "none",
 							Title:               fmt.Sprintf("没有符合 %s 关键词的内容", parsedQuery.Keywords),
 							InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
 						})
 					} else if user != nil {
-						onlyText = append(onlyText, &models.InlineQueryResultArticle{
+						resultList = append(resultList, &models.InlineQueryResultArticle{
 							ID:          "empty",
 							Title:       "没有保存内容（点击查看详细教程）",
 							Description: "对一条信息回复 /save 来保存它",
@@ -645,22 +691,18 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							Text:           "点击此处快速跳转到机器人",
 							StartParameter: "via-inline_noreply",
 						}
+					} else {
+						resultList = append(resultList, &models.InlineQueryResultArticle{
+							ID:                  "none",
+							Title:               "什么都没有",
+							InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+						})
 					}
 				}
 
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
-					Results: inline_utils.ResultCategory(parsedQuery, map[string][]models.InlineQueryResult{
-						"onlytext":  onlyText,
-						"audio":     audio,
-						"document":  document,
-						"animation": gif,
-						"photo":     photo,
-						"sticker":   sticker,
-						"video":     video,
-						"videonote": videoNote,
-						"voice":     voice,
-					}),
+					Results: inline_utils.ResultPagination(parsedQuery, resultList),
 					Button: button,
 					IsPersonal: true,
 					CacheTime:  0,

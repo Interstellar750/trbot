@@ -156,7 +156,7 @@ func ReadSavedMessageList(ctx context.Context) error {
 
 func buildSavedMessageByMessageHandlers() {
 	msgTypeList := []message_utils.Type{
-		message_utils.OnlyText,
+		message_utils.Text,
 		message_utils.Audio,
 		message_utils.Animation,
 		message_utils.Document,

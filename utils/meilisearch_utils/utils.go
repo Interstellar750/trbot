@@ -62,7 +62,7 @@ func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message)
 	msgType := message_utils.GetMessageType(msg)
 	data.MsgType = msgType.AsType()
 	switch {
-	case msgType.OnlyText:
+	case msgType.Text:
 		// do nothing
 	case msgType.Animation:
 		data.FileID = msg.Animation.FileID
