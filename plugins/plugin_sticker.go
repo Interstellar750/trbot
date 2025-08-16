@@ -1225,11 +1225,9 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 					_, err = opts.Thebot.EditMessageReplyMarkup(opts.Ctx, &bot.EditMessageReplyMarkupParams{
 						ChatID:    opts.CallbackQuery.From.ID,
 						MessageID: opts.CallbackQuery.Message.Message.ID,
-						ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{
-							{{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", opts.CallbackQuery.Message.Message.ReplyToMessage.Sticker.SetName) }},
-							{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.CallbackQuery.Message.Message.ReplyToMessage.Sticker.SetName) }},
-							{{ Text: "✅ 已收藏至频道", URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(channelMessage.Chat.ID), channelMessage.ID) }},
-						}},
+						ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
+							Text: "✅ 已收藏至频道", URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(channelMessage.Chat.ID), channelMessage.ID),
+						}}}},
 					})
 					if err != nil {
 						logger.Err(err).
@@ -1294,20 +1292,43 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 				handlerErr.Addt(flaterr.SendMessage, "get sticker set info error", err)
 			}
 		} else {
+			var button [][]models.InlineKeyboardButton
+
+			button = append(button, [][]models.InlineKeyboardButton{
+				{{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", stickerSet.Name) }},
+				{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) }},
+			}...)
+
+			if stickerCollect.ChannelID != 0 && contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
+				for _, set := range stickerCollect.StickerSet {
+					if set.Name == stickerSet.Name {
+						button = append(button, [][]models.InlineKeyboardButton{{
+							{
+								Text: fmt.Sprintf("🔁 更新? (%d)>(%d)", set.Count, len(stickerSet.Stickers)),
+								CallbackData: fmt.Sprintf("c_%s", stickerSet.Name),
+							},
+							{
+								Text: "✅ 已收藏至频道",
+								URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(stickerCollect.ChannelID), set.MsgID),
+							},
+						}}...)
+						break
+					}
+				}
+				if len(button) == 2 {
+					button = append(button, []models.InlineKeyboardButton{{
+						Text: "⭐️ 收藏至频道",
+						CallbackData: fmt.Sprintf("c_%s", stickerSet.Name),
+					}})
+				}
+			}
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:              opts.Message.From.ID,
 				Text:                fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerSet.Name, stickerSet.Title, len(stickerSet.Stickers)),
 				ParseMode:           models.ParseModeHTML,
 				DisableNotification: true,
 				ReplyParameters:     &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
-					{
-						{ Text: "下载贴纸包中的静态贴纸", CallbackData: fmt.Sprintf("S_%s", stickerSet.Name) },
-					},
-					{
-						{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) },
-					},
-				}},
+				ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: button},
 			})
 			if err != nil {
 				logger.Error().

@@ -66,7 +66,7 @@ func channelSaveMessageHandler(opts *handler_params.Message) error {
 			logger.Error().
 				Err(err).
 				Int("messageID", opts.Message.ID).
-				Msg("failed to send add message request to Meilisearchx")
+				Msg("failed to send add message request to Meilisearch")
 			return fmt.Errorf("failed to send add message request to Meilisearch: %w", err)
 		}
 		task, err := meilisearch_utils.WaitForTask(opts.Ctx, &meilisearchClient, taskinfo.TaskUID, time.Second * 1)

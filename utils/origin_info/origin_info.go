@@ -9,12 +9,12 @@ import (
 )
 
 type OriginInfo struct {
-	FromName string `yaml:"FromName,omitempty"`
-	FromID   int64  `yaml:"FromID,omitempty"`
+	FromName string `yaml:"FromName,omitempty" json:"from_name,omitempty"`
+	FromID   int64  `yaml:"FromID,omitempty" json:"from_id,omitempty"`
 
 	// 用于查看消息来源
-	ChatID    int64 `yaml:"ChatID,omitempty"`
-	MessageID int   `yaml:"MessageID,omitempty"`
+	ChatID    int64 `yaml:"ChatID,omitempty" json:"chat_id,omitempty"`
+	MessageID int   `yaml:"MessageID,omitempty" json:"message_id,omitempty"`
 }
 
 func GetOriginInfo(msg *models.Message) *OriginInfo {
