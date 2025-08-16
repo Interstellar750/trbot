@@ -3,7 +3,9 @@ package meilisearch_utils
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"time"
 	"trbot/utils/origin_info"
 	"trbot/utils/type/message_utils"
 
@@ -13,13 +15,13 @@ import (
 )
 
 type MessageData struct {
-	MsgID     int                `json:"msg_id"`
-	MsgType   message_utils.Type `json:"msg_type,omitempty"`
-	FileID    string             `json:"file_id,omitempty"`
-	FileTitle string             `json:"file_title,omitempty"`
-	FileName  string             `json:"file_name,omitempty"`
-	Text      string             `json:"text,omitempty"`
-	Desc      string             `json:"desc,omitempty"`
+	ID     int                `json:"id"`
+	Type   message_utils.Type `json:"type,omitempty"`
+	FileID    string          `json:"file_id,omitempty"`
+	FileTitle string          `json:"file_title,omitempty"`
+	FileName  string          `json:"file_name,omitempty"`
+	Text      string          `json:"text,omitempty"`
+	Desc      string          `json:"desc,omitempty"`
 
 	Entities              []models.MessageEntity     `json:"entities,omitempty"`
 	LinkPreviewOptions    *models.LinkPreviewOptions `json:"link_preview_options,omitempty"`
@@ -30,22 +32,22 @@ type MessageData struct {
 }
 
 func (md MessageData) MsgIDStr() string {
-	return strconv.Itoa(md.MsgID)
+	return strconv.Itoa(md.ID)
 }
 
 // Please pass in the parameter as a pointer
-func UnMarshalMessageData(data, out any) error {
+func UnmarshalMessageData(data, out any) error {
 	temp, err := json.Marshal(data)
-	if err != nil { return err }
-	err = json.Unmarshal(temp, out)
-	if err != nil { return err }
-	return nil
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(temp, out)
 }
 
 func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message) MessageData {
 	if msg == nil { return MessageData{} }
 	var data = MessageData{
-		MsgID:                 msg.ID,
+		ID:                 msg.ID,
 		LinkPreviewOptions:    msg.LinkPreviewOptions,
 		ShowCaptionAboveMedia: msg.ShowCaptionAboveMedia,
 		// HasMediaSpoiler:       msg.HasMediaSpoiler,
@@ -60,7 +62,7 @@ func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message)
 	}
 
 	msgType := message_utils.GetMessageType(msg)
-	data.MsgType = msgType.AsType()
+	data.Type = msgType.AsType()
 	switch {
 	case msgType.Text:
 		// do nothing
@@ -106,10 +108,33 @@ func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message)
 	return data
 }
 
-func CreateChatIndex(client *meilisearch.ServiceManager, chatID string) {
-	(*client).CreateIndex(&meilisearch.IndexConfig{ Uid: chatID, PrimaryKey: "msg_id" })
-	indexManager := (*client).Index(chatID)
-	// indexManager.UpdateSearchableAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
-	// indexManager.UpdateDisplayedAttributes(&[]string{"msg_id", "msg_type", "file_title", "file_name", "text", "desc"})
-	indexManager.UpdateFilterableAttributes(&[]string{"msg_type"})
+func CreateChatIndex(ctx context.Context, client *meilisearch.ServiceManager, chatID string) error {
+	taskinfo, err := (*client).CreateIndexWithContext(ctx, &meilisearch.IndexConfig{ Uid: chatID, PrimaryKey: "id" })
+	if err != nil {
+		return fmt.Errorf("failed to send create chat index request: %w", err)
+	}
+	task, err := WaitForTask(ctx, client, taskinfo.TaskUID, time.Second * 1)
+	if err != nil {
+		return fmt.Errorf("wait for create chat index task failed: %w", err)
+	}
+	if task.Status != meilisearch.TaskStatusSucceeded {
+		return fmt.Errorf("create chat index failed: %s", task.Error.Message)
+	}
+
+	taskinfo, err = (*client).Index(chatID).UpdateFilterableAttributesWithContext(ctx, &[]string{"type"})
+	if err != nil {
+		return fmt.Errorf("failed to send update filterable attributes: %w", err)
+	}
+	task, err = WaitForTask(ctx, client, taskinfo.TaskUID, time.Second * 1)
+	if err != nil {
+		return fmt.Errorf("wait for update filterable attributes task failed: %w", err)
+	}
+	if task.Status != meilisearch.TaskStatusSucceeded {
+		return fmt.Errorf("update filterable attributes failed: %s", task.Error.Message)
+	}
+	return nil
+}
+
+func WaitForTask(ctx context.Context, client *meilisearch.ServiceManager, taskUID int64, interval time.Duration) (*meilisearch.Task, error) {
+	return (*client).WaitForTaskWithContext(ctx, taskUID, interval )
 }

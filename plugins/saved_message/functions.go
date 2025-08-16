@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"trbot/plugins/saved_message/message_meilisearch"
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/consts"
@@ -13,7 +14,6 @@ import (
 	"trbot/utils/meilisearch_utils"
 	"trbot/utils/origin_info"
 	"trbot/utils/plugin_utils"
-	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 	"unicode/utf8"
 
@@ -122,7 +122,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 						}}
 					}
 
-					msgData.MsgID = user.SavedTimes
+					msgData.ID = user.SavedTimes
 
 					if !user.DropOriginInfo {
 						msgData.OriginInfo = origin_info.GetOriginInfo(opts.Message.ReplyToMessage)
@@ -259,7 +259,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 					}}
 				}
 
-				msgData.MsgID = user.SavedTimes
+				msgData.ID = user.SavedTimes
 
 				if !user.DropOriginInfo {
 					msgData.OriginInfo = origin_info.GetOriginInfo(opts.Message)
@@ -340,18 +340,6 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		var targetChatID string
 		var filter string
 
-		var resultCategorys = []string{
-			"text",
-			"audio",
-			"document",
-			"gif",
-			"photo",
-			"sticker",
-			"video",
-			"videonote",
-			"voice",
-		}
-
 		channelID := SavedMessageList.ChannelIDStr()
 
 		user := SavedMessageList.GetUser(opts.InlineQuery.From.ID)
@@ -373,7 +361,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 					ID:          "keepInputCategory",
 					Title:       "请继续输入分类名称",
-					Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys),
+					Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
 					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
 				}},
 				IsPersonal: true,
@@ -390,13 +378,14 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		}
 
 		if parsedQuery.Category != "" {
-			if !contain.SubStringCaseInsensitive(parsedQuery.Category, resultCategorys...) {
+			category, isExist := resultCategorys.GetCategory(parsedQuery.Category)
+			if !isExist {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
 					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 						ID:          "noThisCategory",
 						Title:       fmt.Sprintf("无效的 [ %s ] 分类", parsedQuery.Category),
-						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys),
+						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
 						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试访问不存在的分类时点击了提示信息..." },
 					}},
 					IsPersonal: true,
@@ -411,7 +400,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				}
 				return handlerErr.Flat()
 			}
-			filter = "msg_type=" + parsedQuery.Category
+			filter = "type=" + category.Str()
 		}
 		datas, err := meilisearchClient.Index(targetChatID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
 		if err != nil {
@@ -442,7 +431,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			}
 		} else {
 			var msgDatas []meilisearch_utils.MessageData
-			err = meilisearch_utils.UnMarshalMessageData(&datas.Hits, &msgDatas)
+			err = meilisearch_utils.UnmarshalMessageData(&datas.Hits, &msgDatas)
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -471,7 +460,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				}
 			} else {
 				for _, msgData := range msgDatas {
-					switch msgData.MsgType {
+					switch msgData.Type {
 					case message_utils.Text:
 						resultList = append(resultList, &models.InlineQueryResultArticle{
 							ID:                  msgData.MsgIDStr(),
@@ -572,7 +561,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						handlerErr.Addf("failed to get message from channel: %w", err)
 					} else {
 						var msgDatasChannel []meilisearch_utils.MessageData
-						err = meilisearch_utils.UnMarshalMessageData(&datas.Hits, &msgDatasChannel)
+						err = meilisearch_utils.UnmarshalMessageData(&datas.Hits, &msgDatasChannel)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -580,7 +569,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							handlerErr.Addf("Failed to unmarshal message data from channel: %w", err)
 						} else {
 							for _, msgData := range msgDatasChannel {
-								switch msgData.MsgType {
+								switch msgData.Type {
 								case message_utils.Text:
 									resultList = append(resultList, &models.InlineQueryResultArticle{
 										ID:                  "channel" + msgData.MsgIDStr(),
@@ -781,9 +770,28 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 	var user SavedMessageUser
 	user.UserID = opts.Message.From.ID
 	SavedMessageList.User = append(SavedMessageList.User, user)
-	meilisearch_utils.CreateChatIndex(&meilisearchClient, user.IDStr())
+	err := meilisearch_utils.CreateChatIndex(opts.Ctx, &meilisearchClient, user.IDStr())
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("failed to create chat index for saved message user")
+		handlerErr.Addf("failed to create chat index for saved message user: %w", err)
+		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:    opts.Message.Chat.ID,
+			Text:      fmt.Sprintf("创建收藏信息索引失败，请稍后再试或联系机器人管理员:\n<blockquote expandable>%s<expandable>", err.Error()),
+			ParseMode: models.ParseModeHTML,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "failed to create chat index notice").
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addt(flaterr.SendMessage, "failed to create chat index notice", err)
+		}
+		return handlerErr.Flat()
+	}
 
-	err := SaveSavedMessageList(opts.Ctx)
+	err = SaveSavedMessageList(opts.Ctx)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -802,25 +810,26 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addt(flaterr.SendMessage, "failed to save savedmessage list notice", err)
 		}
+		return handlerErr.Flat()
+	}
+
+	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID:          opts.Message.Chat.ID,
+		Text:            "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text:                         "点击浏览您的收藏",
+			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+		}}}},
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("content", "saved message function enabled").
+			Msg(flaterr.SendMessage.Str())
+		handlerErr.Addt(flaterr.SendMessage, "saved message function enabled", err)
 	} else {
-		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Message.Chat.ID,
-			Text:            "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-			ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-				Text:                         "点击浏览您的收藏",
-				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
-			}}}},
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "saved message function enabled").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "saved message function enabled", err)
-		} else {
-			buildSavedMessageByMessageHandlers()
-		}
+		buildSavedMessageByMessageHandlers()
 	}
 
 	return handlerErr.Flat()
@@ -930,22 +939,22 @@ func Init() {
 							ForChatType:    []models.ChatType{models.ChatTypePrivate},
 							MessageHandler: channelMetadataHandler,
 						},
-						{
-							FullCommand:    "editm",
-							ForChatType:    []models.ChatType{models.ChatTypePrivate},
-							MessageHandler: channelMetadataHandler,
-						},
 					}...)
 
 					_, err := meilisearchClient.GetIndex(chatIDString)
 					if err != nil {
 						if err.(*meilisearch.Error).MeilisearchApiError.Code == "index_not_found" {
-							meilisearch_utils.CreateChatIndex(&meilisearchClient, chatIDString)
+							err := meilisearch_utils.CreateChatIndex(ctx, &meilisearchClient, chatIDString)
+							if err != nil {
+								return fmt.Errorf("failed to create index: %w", err)
+							}
 						} else {
 							return fmt.Errorf("failed to get index: %w", err)
 						}
 					}
 				}
+
+				message_meilisearch.Init(&meilisearchClient)
 			}
 			return nil
 		},

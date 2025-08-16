@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/flaterr"
@@ -60,14 +61,20 @@ func channelSaveMessageHandler(opts *handler_params.Message) error {
 
 		msgData.OriginInfo = origin_info.GetOriginInfo(opts.Message)
 
-		_, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).AddDocuments(msgData)
+		taskinfo, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).AddDocuments(msgData)
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Int("messageID", opts.Message.ID).
-				Str("content", "add message to index failed").
-				Msg("failed to add message to index")
-			return fmt.Errorf("failed to add message to index: %w", err)
+				Msg("failed to send add message request to Meilisearchx")
+			return fmt.Errorf("failed to send add message request to Meilisearch: %w", err)
+		}
+		task, err := meilisearch_utils.WaitForTask(opts.Ctx, &meilisearchClient, taskinfo.TaskUID, time.Second * 1)
+		if err != nil {
+			return fmt.Errorf("wait for add mesage task failed: %w", err)
+		}
+		if task.Status != meilisearch.TaskStatusSucceeded {
+			return fmt.Errorf("failed to add mesage: %s", task.Error.Message)
 		}
 	}
 
@@ -75,8 +82,6 @@ func channelSaveMessageHandler(opts *handler_params.Message) error {
 }
 
 func channelMetadataHandler(opts *handler_params.Message) error {
-	var handlerErr flaterr.MultErr
-
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
@@ -85,13 +90,13 @@ func channelMetadataHandler(opts *handler_params.Message) error {
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
 
-	var isAdmin bool = contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...)
+	var handlerErr flaterr.MultErr
 
 	var msgIDString string
 	var msgData meilisearch_utils.MessageData
 	indexManager := meilisearchClient.Index(SavedMessageList.ChannelIDStr())
 
-	if !isAdmin {
+	if !contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Message.Chat.ID,
 			Text:   "??",
@@ -157,8 +162,8 @@ func channelMetadataHandler(opts *handler_params.Message) error {
 				}
 			} else {
 				var pendingMessage string
-				pendingMessage += fmt.Sprintf("ID: %d\n", msgData.MsgID)
-				pendingMessage += fmt.Sprintf("类型: %s\n", msgData.MsgType)
+				pendingMessage += fmt.Sprintf("ID: %d\n", msgData.ID)
+				pendingMessage += fmt.Sprintf("类型: %s\n", msgData.Type)
 				if msgData.FileID != "" {
 					pendingMessage += fmt.Sprintf("文件 ID: %s\n", msgData.FileID)
 				}
@@ -205,11 +210,11 @@ func buildMessageDataKeyboard(msgData meilisearch_utils.MessageData) models.Repl
 	button = append(button, []models.InlineKeyboardButton{
 		{
 			Text:         "修改描述",
-			CallbackData: fmt.Sprintf("savedmsg_channel_add_desc_%d", msgData.MsgID),
+			CallbackData: fmt.Sprintf("savedmsg_channel_add_desc_%d", msgData.ID),
 		},
 		{
 			Text: "查看消息",
-			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(SavedMessageList.ChannelID), msgData.MsgID),
+			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(SavedMessageList.ChannelID), msgData.ID),
 		},
 		// {
 		// 	Text:         "移除来源信息",
@@ -283,11 +288,11 @@ func editDescriptionHandler(opts *handler_params.Message) error {
 
 	_, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).UpdateDocuments(
 		&meilisearch_utils.MessageData{
-			MsgID: editingMessageID,
+			ID: editingMessageID,
 			Desc:  opts.Message.Text,
 		},
 		// map[string]any{
-		// 	"msg_id": editingMessageID,
+		// 	"id": editingMessageID,
 		// 	"desc":  opts.Message.Text,
 		// },
 	)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"trbot/utils"
 	"trbot/utils/consts"
 	"trbot/utils/plugin_utils"
@@ -188,4 +189,30 @@ func buildSavedMessageByMessageHandlers() {
 			})
 		}
 	}
+}
+
+var resultCategorys = InlineCategorys{
+	"gif":       message_utils.Animation,
+	"text":      message_utils.Text,
+	"audio":     message_utils.Audio,
+	"document":  message_utils.Document,
+	"photo":     message_utils.Photo,
+	"sticker":   message_utils.Sticker,
+	"video":     message_utils.Video,
+	"videonote": message_utils.VideoNote,
+	"voice":     message_utils.Voice,
+}
+
+type InlineCategorys map[string]message_utils.Type
+
+func (ic InlineCategorys) StrList() (list []string) {
+	for key := range ic {
+		list = append(list, key)
+	}
+	return list
+}
+
+func (ic InlineCategorys) GetCategory(str string) (result message_utils.Type, isExist bool) {
+	result, isExist = resultCategorys[strings.ToLower(str)]
+	return
 }
