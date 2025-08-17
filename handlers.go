@@ -413,94 +413,107 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 	if strings.HasPrefix(opts.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol) {
 		// 用户输入了分页符号和一些字符，判断接着的命令是否正确，正确则交给对应的插件处理，否则显示命令菜单
 
-		// 插件处理完后返回全部列表，由设定好的函数进行分页输出
-		for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
-			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-			if opts.Fields[0][1:] == plugin.Command {
-				slogger := inlineLogger.With().
-					Str("handlerCommand", plugin.Command).
-					Str("handlerType", "returnResult").
-					Logger()
+		if opts.Fields[0] != configs.BotConfig.InlineSubCommandSymbol {
+			// 插件处理完后返回全部列表，由设定好的函数进行分页输出
+			for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
+				if opts.Fields[0][1:] == plugin.Command {
+					slogger := inlineLogger.With().
+						Str("handlerCommand", plugin.Command).
+						Str("handlerType", "returnResult").
+						Logger()
 
-				if plugin.InlineHandler != nil {
-					slogger.Info().Msg("Hit inline handler")
-					ResultList := plugin.InlineHandler(opts)
-					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.InlineQuery.ID,
-						Results:       inline_utils.ResultPagination(parsedQuery, ResultList),
-						IsPersonal:    true,
-						CacheTime:     0,
-					})
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Str("content", "sub inline handler").
-							Msg(flaterr.AnswerInlineQuery.Str())
-						// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
+					if plugin.InlineHandler != nil {
+						slogger.Info().Msg("Hit inline handler")
+						ResultList := plugin.InlineHandler(opts)
+						_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+							InlineQueryID: opts.InlineQuery.ID,
+							Results:       inline_utils.ResultPagination(parsedQuery, ResultList),
+							IsPersonal:    true,
+							CacheTime:     0,
+						})
+						if err != nil {
+							slogger.Error().
+								Err(err).
+								Str("content", "sub inline handler").
+								Msg(flaterr.AnswerInlineQuery.Str())
+							// 本来想写一个发生错误后再给用户回答一个错误信息，让用户可以点击发送，结果同一个 ID 的 inlineQuery 只能回答一次
+						}
+						return
+					} else {
+						slogger.Warn().Msg("Hit inline handler, but this handler function is nil, skip")
 					}
-					return
-				} else {
-					slogger.Warn().Msg("Hit inline handler, but this handler function is nil, skip")
 				}
 			}
-		}
-		// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
-		for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
-			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-			if opts.Fields[0][1:] == plugin.Command {
-				slogger := inlineLogger.With().
-					Str("handlerCommand", plugin.Command).
-					Str("handlerType", "manuallyAnswerResult").
-					Logger()
+			// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
+			for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
+				if opts.Fields[0][1:] == plugin.Command {
+					slogger := inlineLogger.With().
+						Str("handlerCommand", plugin.Command).
+						Str("handlerType", "manuallyAnswerResult").
+						Logger()
 
-				if plugin.InlineHandler != nil {
-					slogger.Info().Msg("Hit inline manual answer handler")
-					err := plugin.InlineHandler(opts)
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Msg("Error in inline manual answer handler")
+					if plugin.InlineHandler != nil {
+						slogger.Info().Msg("Hit inline manual answer handler")
+						err := plugin.InlineHandler(opts)
+						if err != nil {
+							slogger.Error().
+								Err(err).
+								Msg("Error in inline manual answer handler")
+						}
+						return
+					} else {
+						slogger.Warn().Msg("Hit inline manual answer handler, but this handler function is nil, skip")
 					}
-					return
-				} else {
-					slogger.Warn().Msg("Hit inline manual answer handler, but this handler function is nil, skip")
 				}
 			}
-		}
-		// 符合命令前缀，完全由插件自行控制输出
-		for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
-			if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-			if strings.HasPrefix(opts.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol + plugin.PrefixCommand) {
-				slogger := inlineLogger.With().
-					Str("handlerPrefixCommand", plugin.PrefixCommand).
-					Str("handlerType", "manuallyAnswerResult_PrefixCommand").
-					Logger()
+			// 符合命令前缀，完全由插件自行控制输出
+			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
+				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
+				if strings.HasPrefix(opts.InlineQuery.Query, configs.BotConfig.InlineSubCommandSymbol + plugin.PrefixCommand) {
+					slogger := inlineLogger.With().
+						Str("handlerPrefixCommand", plugin.PrefixCommand).
+						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
+						Logger()
 
-				if plugin.InlineHandler != nil {
-					slogger.Info().Msg("Hit inline prefix manual answer handler")
-					err := plugin.InlineHandler(opts)
-					if err != nil {
-						slogger.Error().
-							Err(err).
-							Msg("Error in inline prefix manual answer handler")
+					if plugin.InlineHandler != nil {
+						slogger.Info().Msg("Hit inline prefix manual answer handler")
+						err := plugin.InlineHandler(opts)
+						if err != nil {
+							slogger.Error().
+								Err(err).
+								Msg("Error in inline prefix manual answer handler")
+						}
+						return
+					} else {
+						slogger.Warn().Msg("Hit inline prefix manual answer handler, but this handler function is nil, skip")
 					}
-					return
-				} else {
-					slogger.Warn().Msg("Hit inline prefix manual answer handler, but this handler function is nil, skip")
 				}
 			}
-		}
 
-		// 没有触发任何 handler
-		inlineLogger.Debug().Msg("No any handler is hit")
+			// 没有触发任何 handler
+			inlineLogger.Debug().Msg("No any handler is hit")
+		}
 
 		// 创建变量存放提示和命令菜单
-		var results []models.InlineQueryResult = []models.InlineQueryResult{ &models.InlineQueryResultArticle{
-			ID:                  "keepInput",
-			Title:               "请不要点击列表中的命令",
-			Description:         fmt.Sprintf("由于限制，您需要继续输入完整的命令才能使用，例如 %ssaved （带 %s 号前缀）", configs.BotConfig.InlineSubCommandSymbol, configs.BotConfig.InlineSubCommandSymbol),
-			InputMessageContent: &models.InputTextMessageContent{ MessageText: "请不要点击选单中的命令..." },
-		}}
+		var results []models.InlineQueryResult
+
+		if opts.Fields[0] == configs.BotConfig.InlineSubCommandSymbol {
+			results = append(results, &models.InlineQueryResultArticle{
+				ID:                  "needCommand",
+				Title:               "请不要点击列表中的命令",
+				Description:         fmt.Sprintf("由于限制，您需要继续输入完整的命令才能使用，例如 %ssaved (带 %s 号前缀)", configs.BotConfig.InlineSubCommandSymbol, configs.BotConfig.InlineSubCommandSymbol),
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "请不要点击选单中的命令..." },
+			})
+		} else {
+			results = append(results, &models.InlineQueryResultArticle{
+				ID:                  "keepInput",
+				Title:               "请继续输入下方您想使用的命令",
+				Description:         "若您想在命令中使用关键词搜索，请在命令和关键词之间使用空格分开",
+				InputMessageContent: &models.InputTextMessageContent{ MessageText: "请不要点击选单中的命令..." },
+			})
+		}
 
 		// 添加匹配输入的命令列表
 		for _, plugin := range plugin_utils.AllPlugins.InlineCommandList {
@@ -511,38 +524,38 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 				if plugin.Attr.IsHideInCommandList { description += "隐藏 | "   }
 
 				results = append(results, &models.InlineQueryResultArticle{
-					ID:          "inlineMenu_" + plugin.Command,
-					Title:       plugin.Command,
-					Description: description + plugin.Description,
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: "请不要点击选单中的命令...",
-					},
+					ID:                  "inlineMenu_" + plugin.Command,
+					Title:               plugin.Command,
+					Description:         description + plugin.Description,
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "请不要点击选单中的命令..." },
 				})
 			}
 		}
 
 		// 没有匹配的命令
-		if len(results) == 1 && opts.Fields[0] != configs.BotConfig.InlineSubCommandSymbol {
-			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
-				ID:                  "noThisInlineCommand",
-				Title:               fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
-				Description:         "请检查命令是否正确，若要使用分页、分类符号或搜索关键词，请确保命令与符号或关键词之间以空格分开",
-				InputMessageContent: &models.InputTextMessageContent{ MessageText: "您在使用 inline 模式时没有输入正确的命令..." },
-			}}
-		} else {
-			results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
-				ID:                  "noInlineCommand",
-				Title:               "没有可用的命令",
-				Description:         "此机器人当前并没有配置任何 inline 模式的插件或命令",
-				InputMessageContent: &models.InputTextMessageContent{ MessageText: "这个机器人当前并没有配置任何 inline 模式的插件或命令..." },
-			}}
+		if len(results) == 1 {
+			if opts.Fields[0] != configs.BotConfig.InlineSubCommandSymbol {
+				results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:                  "noThisInlineCommand",
+					Title:               fmt.Sprintf("不存在的命令 [%s]", opts.Fields[0]),
+					Description:         "请检查命令是否正确。若要使用分页、分类符号或搜索关键词，请使用空格将它们分开",
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "您在使用 inline 模式时没有输入正确的命令..." },
+				}}
+			} else {
+				results = []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:                  "noInlineCommand",
+					Title:               "没有可用的命令",
+					Description:         "此机器人当前并没有配置任何 inline 模式的插件或命令",
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "这个机器人当前并没有配置任何 inline 模式的插件或命令..." },
+				}}
+			}
 		}
 
 		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 			InlineQueryID: opts.InlineQuery.ID,
 			Results:       results,
 			IsPersonal:    true,
-			CacheTime:     0,
+			CacheTime:     1,
 			Button:        &models.InlineQueryResultsButton{
 				Text:           "点击此处修改默认命令",
 				StartParameter: "via-inline_change-inline-command",
