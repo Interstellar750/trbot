@@ -82,7 +82,7 @@ func (o *OriginInfo) BuildButton() models.ReplyMarkup {
 		} else {
 			buttons = append(buttons, models.InlineKeyboardButton{
 				Text: "来自用户 " + o.FromName,
-				URL:  fmt.Sprintf("https://t.me/@id%d", o.FromID),
+				URL:  fmt.Sprintf("tg://user?id=%d", o.FromID),
 			})
 		}
 	}
@@ -91,13 +91,13 @@ func (o *OriginInfo) BuildButton() models.ReplyMarkup {
 			// 保存来源是频道
 			buttons = append(buttons, models.InlineKeyboardButton{
 				Text: "查看消息",
-				URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(o.FromID), o.MessageID),
+				URL: utils.MsgLinkPrivate(o.FromID, o.MessageID),
 			})
 		} else {
 			// 从群组中保存的消息
 			buttons = append(buttons, models.InlineKeyboardButton{
 				Text: "查看消息",
-				URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(o.ChatID), o.MessageID),
+				URL: utils.MsgLinkPrivate(o.ChatID, o.MessageID),
 			})
 		}
 	}

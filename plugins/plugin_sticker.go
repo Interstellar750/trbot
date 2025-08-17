@@ -225,7 +225,7 @@ func EchoStickerHandler(opts *handler_params.Message) error {
 							},
 							{
 								Text: "✅ 已收藏至频道",
-								URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(stickerCollect.ChannelID), set.MsgID),
+								URL: utils.MsgLinkPrivate(stickerCollect.ChannelID, set.MsgID),
 							},
 						}}...)
 						break
@@ -1226,7 +1226,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 						ChatID:    opts.CallbackQuery.From.ID,
 						MessageID: opts.CallbackQuery.Message.Message.ID,
 						ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
-							Text: "✅ 已收藏至频道", URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(channelMessage.Chat.ID), channelMessage.ID),
+							Text: "✅ 已收藏至频道", URL: utils.MsgLinkPrivate(channelMessage.Chat.ID, channelMessage.ID),
 						}}}},
 					})
 					if err != nil {
@@ -1309,7 +1309,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 							},
 							{
 								Text: "✅ 已收藏至频道",
-								URL: fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(stickerCollect.ChannelID), set.MsgID),
+								URL: utils.MsgLinkPrivate(stickerCollect.ChannelID, set.MsgID),
 							},
 						}}...)
 						break

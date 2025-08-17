@@ -66,15 +66,52 @@ func channelSaveMessageHandler(opts *handler_params.Message) error {
 			logger.Error().
 				Err(err).
 				Int("messageID", opts.Message.ID).
-				Msg("failed to send add message request to Meilisearch")
-			return fmt.Errorf("failed to send add message request to Meilisearch: %w", err)
+				Msg("failed to send add document request to Meilisearch")
+			return fmt.Errorf("failed to send add document request to Meilisearch: %w", err)
+		} else {
+			task, err := meilisearch_utils.WaitForTask(opts.Ctx, &meilisearchClient, taskinfo.TaskUID, time.Second * 1)
+			if err != nil {
+				return fmt.Errorf("wait for add document task failed: %w", err)
+			} else if task.Status != meilisearch.TaskStatusSucceeded {
+				return fmt.Errorf("failed to add document: %s", task.Error.Message)
+			}
 		}
-		task, err := meilisearch_utils.WaitForTask(opts.Ctx, &meilisearchClient, taskinfo.TaskUID, time.Second * 1)
-		if err != nil {
-			return fmt.Errorf("wait for add mesage task failed: %w", err)
-		}
-		if task.Status != meilisearch.TaskStatusSucceeded {
-			return fmt.Errorf("failed to add mesage: %s", task.Error.Message)
+
+
+		if SavedMessageList.NoticeChatID != 0 {
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:              SavedMessageList.NoticeChatID,
+				Text:                "已经在频道中保存了一个新消息，要为它添加关键词吗？",
+				DisableNotification: true,
+				ReplyParameters:     &models.ReplyParameters{
+					MessageID: opts.Message.ID,
+					ChatID:    SavedMessageList.ChannelID,
+				},
+				ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+					{
+						{
+							Text: "添加描述",
+							CallbackData: fmt.Sprintf("savedmsg_channel_add_desc_%d", opts.Message.ID),
+						},
+						{
+							Text: "查看消息",
+							URL: utils.MsgLinkPrivate(SavedMessageList.ChannelID, opts.Message.ID),
+						},
+					},
+					{{
+						Text:         "忽略",
+						CallbackData: "delete_this_message",
+					}},
+				}},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int("messageID", opts.Message.ID).
+					Str("content", "channel message saved").
+					Msg(flaterr.SendMessage.Str())
+				return fmt.Errorf(flaterr.SendMessage.Fmt(), "channel message saved", err)
+			}
 		}
 	}
 
@@ -94,6 +131,7 @@ func channelMetadataHandler(opts *handler_params.Message) error {
 
 	var msgIDString string
 	var msgData meilisearch_utils.MessageData
+
 	indexManager := meilisearchClient.Index(SavedMessageList.ChannelIDStr())
 
 	if !contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
@@ -214,7 +252,7 @@ func buildMessageDataKeyboard(msgData meilisearch_utils.MessageData) models.Repl
 		},
 		{
 			Text: "查看消息",
-			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(SavedMessageList.ChannelID), msgData.ID),
+			URL:  utils.MsgLinkPrivate(SavedMessageList.ChannelID, msgData.ID),
 		},
 		// {
 		// 	Text:         "移除来源信息",
@@ -242,27 +280,21 @@ func channelCallbackHandler(opts *handler_params.CallbackQuery) error {
 
 	if strings.HasPrefix(opts.CallbackQuery.Data, "savedmsg_channel_add_desc_") {
 		msgIDString := strings.TrimPrefix(opts.CallbackQuery.Data, "savedmsg_channel_add_desc_")
-		msgID, err := strconv.Atoi(msgIDString)
+		msgID, err  := strconv.Atoi(msgIDString)
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Msg("Failed to parse message ID from callback data")
 			return fmt.Errorf("failed to parse message ID: %w", err)
 		}
-		editingMessageID = msgID
-		plugin_utils.AddMessageStateHandler(plugin_utils.MessageStateHandler{
-			ForChatID: opts.CallbackQuery.Message.Message.Chat.ID,
-			PluginName: "edit_description_state",
-			Remaining: 1,
-			MessageHandler: editDescriptionHandler,
-		})
-		_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+
+		msg, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 			ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
 			MessageID: opts.CallbackQuery.Message.Message.ID,
 			Text:   "请输入新的描述信息，或发送 /cancel 取消编辑。",
 			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 				Text: "查看消息",
-				URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(SavedMessageList.ChannelID), editingMessageID),
+				URL:  utils.MsgLinkPrivate(SavedMessageList.ChannelID, editingMessageID),
 			}}}},
 		})
 		if err != nil {
@@ -272,6 +304,39 @@ func channelCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Str("content", "send text to edit description").
 				Msg(flaterr.EditMessageText.Str())
 			return fmt.Errorf(flaterr.EditMessageText.Fmt(), "send text to edit description", err)
+		} else {
+			stateMessageID   = msg.ID
+			editingMessageID = msgID
+			plugin_utils.AddMessageStateHandler(plugin_utils.MessageStateHandler{
+				ForChatID: opts.CallbackQuery.Message.Message.Chat.ID,
+				PluginName: "edit_description_state",
+				Remaining: 1,
+				MessageHandler: editDescriptionHandler,
+				CancelHandler: func(opts *handler_params.Message) error {
+					_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+						ChatID:      opts.Message.Chat.ID,
+						MessageID:   stateMessageID,
+						Text:        "已取消编辑",
+						ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+							Text: "查看消息",
+							URL:  utils.MsgLinkPrivate(SavedMessageList.ChannelID, editingMessageID),
+						}}}},
+					})
+					stateMessageID   = 0
+					editingMessageID = 0
+					if err != nil {
+						return fmt.Errorf(flaterr.EditMessageText.Fmt(), "cancel edit description notice", err)
+					}
+					_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+						ChatID:    opts.Message.Chat.ID,
+						MessageID: opts.Message.ID,
+					})
+					if err != nil {
+						return fmt.Errorf(flaterr.DeleteMessage.Fmt(), "cancel edit description command", err)
+					}
+					return nil
+				},
+			})
 		}
 	}
 	return nil
@@ -286,32 +351,33 @@ func editDescriptionHandler(opts *handler_params.Message) error {
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
 
-	_, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).UpdateDocuments(
-		&meilisearch_utils.MessageData{
-			ID: editingMessageID,
-			Desc:  opts.Message.Text,
-		},
-		// map[string]any{
-		// 	"id": editingMessageID,
-		// 	"desc":  opts.Message.Text,
-		// },
-	)
+	taskinfo, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).UpdateDocuments(&meilisearch_utils.MessageData{
+		ID:   editingMessageID,
+		Desc: opts.Message.Text,
+	})
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Msg("Failed to send update document description request to Meilisearch")
 		return fmt.Errorf("failed to send update document description request to Meilisearch: %w", err)
 	} else {
-		editingMessageID = 0 // Reset the editing message ID after successful update
-		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Message.Chat.ID,
-			Text:   fmt.Sprintf("描述已更新为：[ %s ]", opts.Message.Text),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		task, err := meilisearch_utils.WaitForTask(opts.Ctx, &meilisearchClient, taskinfo.TaskUID, time.Second * 1)
+		if err != nil {
+			return fmt.Errorf("wait for update document description failed: %w", err)
+		} else if task.Status != meilisearch.TaskStatusSucceeded {
+			return fmt.Errorf("failed to update document description: %s", task.Error.Message)
+		}
+
+		_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+			ChatID:      opts.Message.Chat.ID,
+			MessageID:   stateMessageID,
+			Text:        fmt.Sprintf("消息描述已更新为：[ %s ]", opts.Message.Text),
 			ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 				Text: "查看消息",
-				URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(SavedMessageList.ChannelID), editingMessageID),
+				URL:  utils.MsgLinkPrivate(SavedMessageList.ChannelID, editingMessageID),
 			}}}},
 		})
+		editingMessageID = 0 // Reset the editing message ID after successful update
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -319,6 +385,19 @@ func editDescriptionHandler(opts *handler_params.Message) error {
 				Str("content", "description updated notice").
 				Msg(flaterr.SendMessage.Str())
 			return fmt.Errorf(flaterr.SendMessage.Fmt(), "description updated notice", err)
+		}
+
+		_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
+			ChatID:    opts.Message.Chat.ID,
+			MessageID: opts.Message.ID,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Int("messageID", opts.Message.ID).
+				Str("content", "update description text message").
+				Msg(flaterr.DeleteMessage.Str())
+			return fmt.Errorf(flaterr.DeleteMessage.Fmt(), "update description text message", err)
 		}
 	}
 	return nil

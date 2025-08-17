@@ -998,7 +998,7 @@ func notifyUser(ctx context.Context, thebot *bot.Bot, message *models.Message, u
 		DisableNotification: user.IsSilentNotice,
 		ReplyMarkup:         &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "前往查看",
-			URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(message.Chat.ID), message.ID),
+			URL: utils.MsgLinkPrivate(message.Chat.ID, message.ID),
 		}}}},
 	})
 	if err != nil {

@@ -335,7 +335,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			handlerErr.Addt(flaterr.AnswerInlineQuery, "meilisearch client uninitialized", err)
 		}
 	} else {
-		var button *models.InlineQueryResultsButton
+		var button models.InlineQueryResultsButton
 		var resultList []models.InlineQueryResult
 		var targetChatID string
 		var filter string
@@ -345,7 +345,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		user := SavedMessageList.GetUser(opts.InlineQuery.From.ID)
 		if user == nil || user.Count == 0 {
 			targetChatID = channelID
-			button = &models.InlineQueryResultsButton{
+			button = models.InlineQueryResultsButton{
 				Text:           "当前为公共收藏内容",
 				StartParameter: "via-inline_savedmessage-help",
 			}
@@ -549,7 +549,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				}
 				// 如果当前查询的 ID 与公共收藏夹 ID 不同，且用户存在并设定包含公共收藏内容，则添加公共收藏内容
 				if targetChatID != channelID && user != nil && user.IncludeChannel {
-					button = &models.InlineQueryResultsButton{
+					button = models.InlineQueryResultsButton{
 						Text:           "当前包含了个人和公共收藏内容",
 						StartParameter: "via-inline_savedmessage-help",
 					}
@@ -676,7 +676,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 								ParseMode:   models.ParseModeHTML,
 							},
 						})
-						button = &models.InlineQueryResultsButton{
+						button = models.InlineQueryResultsButton{
 							Text:           "点击此处快速跳转到机器人",
 							StartParameter: "via-inline_noreply",
 						}
@@ -692,7 +692,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
 					Results: inline_utils.ResultPagination(parsedQuery, resultList),
-					Button: button,
+					Button: &button,
 					IsPersonal: true,
 					CacheTime:  0,
 				})

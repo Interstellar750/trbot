@@ -503,7 +503,7 @@ func messageSearchHandler(opts *handler_params.Message) error {
 				buttons = append(buttons, []models.InlineKeyboardButton{
 					{
 						Text: data.Text,
-						URL:  fmt.Sprintf("https://t.me/c/%s/%d", utils.RemoveIDPrefix(opts.Message.Chat.ID), data.ID),
+						URL: utils.MsgLinkPrivate(opts.Message.Chat.ID, data.ID),
 					},
 				})
 			}

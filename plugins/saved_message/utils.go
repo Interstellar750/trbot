@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/consts"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
@@ -26,6 +27,7 @@ var meilisearchClient meilisearch.ServiceManager
 
 var textExpandableLength int = 150
 
+var stateMessageID   int
 var editingMessageID int // 用于编辑消息时的消息ID
 
 type SavedMessage struct {
@@ -33,6 +35,7 @@ type SavedMessage struct {
 	MeiliAPI        string       `yaml:"MeiliAPI"`
 	ChannelID       int64        `yaml:"ChannelID"`
 	ChannelUsername string       `yaml:"ChannelUsername"`
+	NoticeChatID    int64        `yaml:"NoticeChatID"`
 
 	User []SavedMessageUser `yaml:"User"`
 }
@@ -149,6 +152,10 @@ func ReadSavedMessageList(ctx context.Context) error {
 		}
 	} else {
 		SavedMessageErr = nil
+	}
+
+	if SavedMessageList.NoticeChatID == 0 && len(configs.BotConfig.AdminIDs) > 0 {
+		SavedMessageList.NoticeChatID = configs.BotConfig.AdminIDs[0]
 	}
 
 	buildSavedMessageByMessageHandlers()

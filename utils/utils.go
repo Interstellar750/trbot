@@ -337,3 +337,11 @@ func GetChatIDLink(chatID int64) string {
 func IgnoreHTMLTags(text string) string {
 	return html.EscapeString(text)
 }
+
+func MsgLink(username string, msgID int) string {
+	return fmt.Sprintf("https://t.me/%s/%d", username, msgID)
+}
+
+func MsgLinkPrivate(chatID int64, msgID int) string {
+	return fmt.Sprintf("https://t.me/c/%s/%d", RemoveIDPrefix(chatID), msgID)
+}
