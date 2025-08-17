@@ -730,7 +730,7 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 	var pendingMessage string = fmt.Sprintf("%s | ", time.Now().Format("15:04"))
 
 	if len(online) > 0 {
-		pendingMessage += fmt.Sprintf("有 %d 位用户在线:\n<blockquote expandable>", len(online))
+		pendingMessage += fmt.Sprintf("有 %d 位用户在线:\n<blockquote>", len(online))
 		for _, client := range online {
 			pendingMessage += fmt.Sprintf("[ %s ] 已在线 %.1f 分钟\n", client.Username, time.Since(client.JoinTime).Minutes())
 		}

@@ -335,7 +335,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			handlerErr.Addt(flaterr.AnswerInlineQuery, "meilisearch client uninitialized", err)
 		}
 	} else {
-		var button models.InlineQueryResultsButton
+		var button *models.InlineQueryResultsButton
 		var resultList []models.InlineQueryResult
 		var targetChatID string
 		var filter string
@@ -345,7 +345,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		user := SavedMessageList.GetUser(opts.InlineQuery.From.ID)
 		if user == nil || user.Count == 0 {
 			targetChatID = channelID
-			button = models.InlineQueryResultsButton{
+			button = &models.InlineQueryResultsButton{
 				Text:           "当前为公共收藏内容",
 				StartParameter: "via-inline_savedmessage-help",
 			}
@@ -355,25 +355,56 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 		parsedQuery := inline_utils.ParseInlineFields(opts.Fields)
 
-		if parsedQuery.LastChar == configs.BotConfig.InlineCategorySymbol {
-			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.InlineQuery.ID,
-				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:          "keepInputCategory",
-					Title:       "请继续输入分类名称",
-					Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
-					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
-				}},
-				IsPersonal: true,
-				CacheTime:  0,
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "need a category name").
-					Msg(flaterr.AnswerInlineQuery.Str())
-				handlerErr.Addt(flaterr.AnswerInlineQuery, "need a category name", err)
+		if parsedQuery.LastChar != "" {
+			switch parsedQuery.LastChar {
+			case configs.BotConfig.InlineCategorySymbol:
+				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:          "keepInputCategory",
+						Title:       "请继续输入分类名称",
+						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
+						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
+					}},
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "need a category name").
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "need a category name", err)
+				}
+				return handlerErr.Flat()
+			case configs.BotConfig.InlinePaginationSymbol:
+				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:          "noPagination",
+						Title:       "分页功能不可用",
+						Description: "由于更换了存储消息的数据库，现在仅可通过输入搜索关键词来查找内容，您可以点击此处来查看公开收藏内容",
+						InputMessageContent: &models.InputTextMessageContent{
+							MessageText: fmt.Sprintf("点击访问公共收藏频道：\nhttps://t.me/%s/\n<blockquote>链接为空？那可能是机器人管理员没有设定公开收藏频道，或未收藏频道设为公开频道</blockquote>", SavedMessageList.ChannelUsername),
+							ParseMode:   models.ParseModeHTML,
+						},
+					}},
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "need a category name").
+						Msg(flaterr.AnswerInlineQuery.Str())
+					handlerErr.Addt(flaterr.AnswerInlineQuery, "need a category name", err)
+				}
+				return handlerErr.Flat()
 			}
+		}
+
+		if parsedQuery.LastChar == configs.BotConfig.InlineCategorySymbol {
+
 			return handlerErr.Flat()
 		}
 
@@ -402,7 +433,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			}
 			filter = "type=" + category.Str()
 		}
-		datas, err := meilisearchClient.Index(targetChatID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
+		datas, err := meilisearchClient.Index(targetChatID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: int64(configs.BotConfig.InlineResultsPerPage), Filter: filter })
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -548,12 +579,12 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 					}
 				}
 				// 如果当前查询的 ID 与公共收藏夹 ID 不同，且用户存在并设定包含公共收藏内容，则添加公共收藏内容
-				if targetChatID != channelID && user != nil && user.IncludeChannel {
-					button = models.InlineQueryResultsButton{
+				if len(resultList) < configs.BotConfig.InlineResultsPerPage && targetChatID != channelID && user != nil && user.IncludeChannel {
+					button = &models.InlineQueryResultsButton{
 						Text:           "当前包含了个人和公共收藏内容",
 						StartParameter: "via-inline_savedmessage-help",
 					}
-					datas, err := meilisearchClient.Index(channelID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: 50, Filter: filter })
+					datas, err := meilisearchClient.Index(channelID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: int64(configs.BotConfig.InlineResultsPerPage - len(resultList)), Filter: filter })
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -676,7 +707,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 								ParseMode:   models.ParseModeHTML,
 							},
 						})
-						button = models.InlineQueryResultsButton{
+						button = &models.InlineQueryResultsButton{
 							Text:           "点击此处快速跳转到机器人",
 							StartParameter: "via-inline_noreply",
 						}
@@ -691,10 +722,10 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
-					Results: inline_utils.ResultPagination(parsedQuery, resultList),
-					Button: &button,
-					IsPersonal: true,
-					CacheTime:  0,
+					Results:       resultList,
+					Button:        button,
+					IsPersonal:    true,
+					CacheTime:     0,
 				})
 				if err != nil {
 					logger.Error().
@@ -778,7 +809,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 		handlerErr.Addf("failed to create chat index for saved message user: %w", err)
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Message.Chat.ID,
-			Text:      fmt.Sprintf("创建收藏信息索引失败，请稍后再试或联系机器人管理员:\n<blockquote expandable>%s<expandable>", err.Error()),
+			Text:      fmt.Sprintf("创建收藏信息索引失败，请稍后再试或联系机器人管理员:\n<blockquote expandable>%s</blockquote>", err.Error()),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
@@ -800,7 +831,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Message.Chat.ID,
-			Text:      fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s<expandable>", err.Error()),
+			Text:      fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s</blockquote>", err.Error()),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
