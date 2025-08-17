@@ -48,7 +48,7 @@ func SaveDatabase(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("database", "yaml").
-		Str("funcName", "SaveDatabase").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	Database.UpdateTimestamp = time.Now().Unix()
@@ -68,7 +68,7 @@ func ReadDatabase(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("database", "yaml").
-		Str("funcName", "ReadDatabase").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(YAMLDatabasePath, &Database)
@@ -103,7 +103,7 @@ func ReadYamlDB(ctx context.Context, pathToFile string) (*DataBaseYaml, error) {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("database", "yaml").
-		Str("funcName", "ReadYamlDB").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var tempDatabase *DataBaseYaml
@@ -140,7 +140,7 @@ func SaveYamlDB(ctx context.Context, path, name string, tempDatabase interface{}
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("database", "yaml").
-		Str("funcName", "SaveDatabase").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.SaveYAML(filepath.Join(path, name), &tempDatabase)
@@ -159,7 +159,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("database", "yaml").
-		Str("funcName", "AutoSaveDatabaseHandler").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	// 先读取一下数据库文件

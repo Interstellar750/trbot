@@ -2,6 +2,7 @@ package plugin_utils
 
 import (
 	"context"
+	"trbot/utils"
 
 	"github.com/rs/zerolog"
 )
@@ -27,7 +28,7 @@ func AddDataBaseHandler(InlineHandlerPlugins ...DatabaseHandler) int {
 func ReloadPluginsDatabase(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
-		Str("funcName", "ReloadPluginsDatabase").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	dbCount := len(AllPlugins.Databases)
@@ -56,7 +57,7 @@ func ReloadPluginsDatabase(ctx context.Context) {
 func SavePluginsDatabase(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
-		Str("funcName", "SavePluginsDatabase").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	dbCount := len(AllPlugins.Databases)

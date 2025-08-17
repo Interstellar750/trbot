@@ -289,7 +289,7 @@ func readKeywordList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "ReadKeywordList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(KeywordDataPath, &KeywordDataList)
@@ -327,7 +327,7 @@ func saveKeywordList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "SaveKeywordList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.SaveYAML(KeywordDataPath, &KeywordDataList)
@@ -348,7 +348,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "addKeywordHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
@@ -755,7 +755,7 @@ func addKeywordStateHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "addKeywordStateHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
@@ -1005,7 +1005,7 @@ func notifyUser(ctx context.Context, thebot *bot.Bot, message *models.Message, u
 		zerolog.Ctx(ctx).Error().
 			Err(err).
 			Str("pluginName", "DetectKeyword").
-			Str("funcName", "notifyUser").
+			Str(utils.GetCurrentFuncName()).
 			Dict(utils.GetChatDict(&message.Chat)).
 			Int64("userID", user.UserID).
 			Str("keyword", keyword).
@@ -1023,7 +1023,7 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "groupManageCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Logger()
@@ -1113,7 +1113,7 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "userManageCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
@@ -1558,7 +1558,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "startPrefixAddGroup").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Str("messageText", opts.Message.Text).
 		Logger()
@@ -1664,7 +1664,7 @@ func startBotAddedToGroup(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "DetectKeyword").
-		Str("funcName", "addKeywordHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()

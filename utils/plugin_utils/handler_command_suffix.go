@@ -2,6 +2,7 @@ package plugin_utils
 
 import (
 	"strings"
+	"trbot/utils"
 	"trbot/utils/handler_params"
 	"trbot/utils/type/contain"
 
@@ -35,7 +36,7 @@ func RunSuffixCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.SuffixCommand {
 		if strings.HasSuffix(params.Fields[len(params.Fields)-1], plugin.SuffixCommand) && contain.AnyType(params.Message.Chat.Type, plugin.ForChatType...) {
 			logger := zerolog.Ctx(params.Ctx).With().
-				Str("funcName", "RunSuffixCommandHandlers").
+				Str(utils.GetCurrentFuncName()).
 				Str("suffixCommand", plugin.SuffixCommand).
 				Logger()
 

@@ -110,7 +110,7 @@ func initTeamSpeak(ctx context.Context) bool {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "initTeamSpeak").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	// 读取配置文件
@@ -230,7 +230,7 @@ func readTeamspeakData(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "ReadTeamspeakData").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(tsDataPath, &tsData)
@@ -270,7 +270,7 @@ func saveTeamspeakData(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "SaveTeamspeakData").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.SaveYAML(tsDataPath, &tsData)
@@ -290,7 +290,7 @@ func getOptsHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "getOptsHandler").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	if !isListening && isCanReInit && opts.Message.Chat.ID == tsData.GroupID {
@@ -309,7 +309,7 @@ func showStatus(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "showStatus").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -414,7 +414,7 @@ func listenUserStatus(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "listenUserStatus").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	isListening = true
@@ -524,7 +524,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "checkOnlineClientChange").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	onlineClient, err := tsClient.Server.ClientList()
@@ -677,7 +677,7 @@ func notifyClientChange(add, remove []string) {
 	logger := zerolog.Ctx(privateOpts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "notifyClientChange").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	if len(add) > 0 {
@@ -714,7 +714,7 @@ func changePinnedMessage(online []OnlineClient, add, remove []string) {
 	logger := zerolog.Ctx(privateOpts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "changePinnedMessage").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	// var checkcount int static
@@ -777,7 +777,7 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "teamspeak3").
-		Str("funcName", "teamspeakCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 
@@ -919,7 +919,7 @@ func deleteOldMessage(msgID int) {
 		zerolog.Ctx(privateOpts.Ctx).Error().
 			Err(err).
 			Str("pluginName", "teamspeak3").
-			Str("funcName", "deleteOldMessage").
+			Str(utils.GetCurrentFuncName()).
 			Int("messageID", msgID).
 			Int("deleteMessageMinute", tsData.DeleteTimeoutInMinute).
 			Str("content", "teamspeak user change notify").

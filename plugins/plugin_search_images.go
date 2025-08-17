@@ -92,7 +92,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "search_images").
-		Str("funcName", "sendSearchLinks").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
@@ -163,7 +163,7 @@ func searchImageHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "search_images").
-		Str("funcName", "searchImageHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
@@ -217,7 +217,7 @@ func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (s
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "search_images").
-		Str("funcName", "downloadPhoto").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var photoFileName string = fmt.Sprintf("%d-%s.jpg", msg.From.ID, msg.Photo[len(msg.Photo)-1].FileID)

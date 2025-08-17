@@ -1,6 +1,7 @@
 package plugin_utils
 
 import (
+	"trbot/utils"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/type/update_utils"
@@ -32,7 +33,7 @@ func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
 	for _, handler := range handlers {
 		if handler.PluginName == "" || handler.UpdateHandler == nil {
 			log.Error().
-				Str("funcName", "AddHandlerByChatIDHandlers").
+				Str(utils.GetCurrentFuncName()).
 				Str("pluginName", handler.PluginName).
 				Int64("forChatID", handler.ForChatID).
 				Msgf("Not enough parameters, skip this handler")
@@ -43,7 +44,7 @@ func AddHandlerByChatIDHandlers(handlers ...ByChatIDHandler) int {
 		_, isExist := AllPlugins.HandlerByChatID[handler.ForChatID][handler.PluginName]
 		if isExist {
 			log.Error().
-				Str("funcName", "AddHandlerByChatIDPlugins").
+				Str(utils.GetCurrentFuncName()).
 				Int64("forChatID", handler.ForChatID).
 				Str("name", handler.PluginName).
 				Msg("Duplicate plugin exists, registration skipped")
@@ -74,7 +75,7 @@ func RunByChatIDHandlers(params *handler_params.Update) (int, error) {
 
 	logger := zerolog.Ctx(params.Ctx).
 		With().
-		Str("funcName", "RunByChatIDHandlers").
+		Str(utils.GetCurrentFuncName()).
 		Str("updateType", updateType.Str()).
 		Logger()
 

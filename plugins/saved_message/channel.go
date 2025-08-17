@@ -28,7 +28,7 @@ func channelSaveMessageHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "channelSaveMessageHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
@@ -122,7 +122,7 @@ func channelMetadataHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "channelMetadataHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
@@ -273,7 +273,7 @@ func channelCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "channelCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Str("callbackData", opts.CallbackQuery.Data).
 		Logger()
@@ -346,7 +346,7 @@ func editDescriptionHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "editDescriptionHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()

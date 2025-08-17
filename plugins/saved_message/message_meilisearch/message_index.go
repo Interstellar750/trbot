@@ -58,7 +58,7 @@ func indexChat(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "indexChat").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
@@ -223,7 +223,7 @@ func indexChatCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "indexChatCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Logger()
 
@@ -352,7 +352,7 @@ func indexMessage(ctx context.Context, thebot *bot.Bot, indexManager meilisearch
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "indexMessage").
+		Str(utils.GetCurrentFuncName()).
 		Str("chatID", fromChatID).
 		Logger()
 

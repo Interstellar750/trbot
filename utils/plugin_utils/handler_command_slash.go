@@ -37,7 +37,7 @@ func RunSlashCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.SlashCommand {
 		if utils.CommandMaybeWithSuffixUsername(params.Fields, "/" + plugin.SlashCommand) && contain.AnyType(params.Message.Chat.Type, plugin.ForChatType...) {
 			logger := zerolog.Ctx(params.Ctx).With().
-				Str("funcName", "RunSlashCommandHandler").
+				Str(utils.GetCurrentFuncName()).
 				Str("slashCommand", plugin.SlashCommand).
 				Logger()
 

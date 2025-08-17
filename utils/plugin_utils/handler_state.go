@@ -3,6 +3,7 @@ package plugin_utils
 import (
 	"errors"
 	"fmt"
+	"trbot/utils"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 
@@ -35,7 +36,7 @@ func AddMessageStateHandler(handler MessageStateHandler) bool {
 	if AllPlugins.StateHandler == nil { AllPlugins.StateHandler = map[int64]MessageStateHandler{} }
 	if handler.ForChatID == 0 {
 		log.Error().
-			Str("funcName", "AddStateHandler").
+			Str(utils.GetCurrentFuncName()).
 			Int64("forChatID", handler.ForChatID).
 			Str("name", handler.PluginName).
 			Int("Remaining", handler.Remaining).
@@ -44,7 +45,7 @@ func AddMessageStateHandler(handler MessageStateHandler) bool {
 	}
 	if handler.Remaining == 0 {
 		log.Error().
-			Str("funcName", "AddStateHandler").
+			Str(utils.GetCurrentFuncName()).
 			Int64("forChatID", handler.ForChatID).
 			Str("name", handler.PluginName).
 			Int("Remaining", handler.Remaining).
@@ -53,7 +54,7 @@ func AddMessageStateHandler(handler MessageStateHandler) bool {
 	}
 	if handler.MessageHandler == nil {
 		log.Error().
-			Str("funcName", "AddStateHandler").
+			Str(utils.GetCurrentFuncName()).
 			Int64("forChatID", handler.ForChatID).
 			Str("name", handler.PluginName).
 			Int("Remaining", handler.Remaining).
@@ -76,7 +77,7 @@ func EditMessageStateHandler(chatID int64, remainingTime int, stateFunc func(*ha
 	targetHandler, isExist := AllPlugins.StateHandler[chatID]
 	if !isExist {
 		log.Warn().
-			Str("funcName", "EditStateHandler").
+			Str(utils.GetCurrentFuncName()).
 			Int64("forChatID", chatID).
 			Msg("No state handler exists, edit stopped")
 		return false, fmt.Errorf("no state handler for %d chatID", chatID)
@@ -97,7 +98,7 @@ func RunMessageStateHandler(opts *handler_params.Message) bool {
 	if isExist {
 		logger := zerolog.Ctx(opts.Ctx).
 			With().
-			Str("funcName", "RunStateHandler").
+			Str(utils.GetCurrentFuncName()).
 			Int64("forChatID", handler.ForChatID).
 			Str("pluginName", handler.PluginName).
 			Logger()

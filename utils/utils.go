@@ -345,3 +345,11 @@ func MsgLink(username string, msgID int) string {
 func MsgLinkPrivate(chatID int64, msgID int) string {
 	return fmt.Sprintf("https://t.me/c/%s/%d", RemoveIDPrefix(chatID), msgID)
 }
+
+func GetCurrentFuncName() (string, string) {
+	pc, _, _, ok := runtime.Caller(1)
+	if !ok {
+		return "funcName", "failed"
+	}
+	return "funcName", runtime.FuncForPC(pc).Name()
+}

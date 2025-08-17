@@ -17,7 +17,7 @@ func startHandler(params *handler_params.Message) error {
 	defer utils.PanicCatcher(params.Ctx, "startHandler")
 	logger := zerolog.Ctx(params.Ctx).
 		With().
-		Str("funcName", "startHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&params.Message.Chat)).
 		Dict(utils.GetUserDict(params.Message.From)).
 		Str("text", params.Message.Text).
@@ -105,7 +105,7 @@ func helpHandler(params *handler_params.Message) error {
 	if err != nil {
 		zerolog.Ctx(params.Ctx).Error().
 			Err(err).
-			Str("funcName", "helpHandler").
+			Str(utils.GetCurrentFuncName()).
 			Dict(utils.GetChatDict(&params.Message.Chat)).
 			Dict(utils.GetUserDict(params.Message.From)).
 			Str("content", "bot help keyboard").
@@ -117,7 +117,7 @@ func helpHandler(params *handler_params.Message) error {
 func helpCallbackHandler(params *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(params.Ctx).
 		With().
-		Str("funcName", "helpCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&params.CallbackQuery.From)).
 		Dict(utils.GetChatDict(&params.CallbackQuery.Message.Message.Chat)).
 		Logger()

@@ -27,7 +27,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "saveMessageHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
@@ -180,7 +180,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "saveMessageFromCallBackQuery").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
@@ -309,7 +309,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "InlineShowSavedMessageHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.InlineQuery.From)).
 		Str("query", opts.InlineQuery.Query).
 		Logger()
@@ -776,7 +776,7 @@ func SendPrivacyPolicy(opts *handler_params.Message) error {
 		zerolog.Ctx(opts.Ctx).Error().
 			Err(err).
 			Str("pluginName", "Saved Message").
-			Str("funcName", "SendPrivacyPolicy").
+			Str(utils.GetCurrentFuncName()).
 			Dict(utils.GetUserDict(opts.Message.From)).
 			Str("content", "saved message privacy policy").
 			Msg(flaterr.SendMessage.Str())
@@ -790,7 +790,7 @@ func AgreePrivacyPolicy(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "AgreePrivacyPolicy").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
@@ -870,7 +870,7 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "configKeyboardCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Str("callbackData", opts.CallbackQuery.Data).
 		Logger()

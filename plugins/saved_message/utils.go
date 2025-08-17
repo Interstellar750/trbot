@@ -103,7 +103,7 @@ func SaveSavedMessageList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "SaveSavedMessageList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.SaveYAML(SavedMessagePath, &SavedMessageList)
@@ -124,7 +124,7 @@ func ReadSavedMessageList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "Saved Message").
-		Str("funcName", "ReadSavedMessageList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(SavedMessagePath, &SavedMessageList)

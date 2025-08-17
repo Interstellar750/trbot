@@ -143,7 +143,7 @@ func ReadUdonese(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "Udonese").
-		Str("funcName", "ReadUdonese").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(UdonesePath, &UdoneseData)
@@ -180,7 +180,7 @@ func SaveUdonese(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "Udonese").
-		Str("funcName", "SaveUdonese").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	UdoneseData.Count = len(UdoneseData.List)
@@ -203,7 +203,7 @@ func addUdonese(ctx context.Context, params *UdoneseWord) *UdoneseWord {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "Udonese").
-		Str("funcName", "SaveUdonese").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	for wordIndex, savedList := range UdoneseData.List {
@@ -250,7 +250,7 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Udonese").
-		Str("funcName", "addUdoneseHandler").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -650,7 +650,7 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Udonese").
-		Str("funcName", "udoneseGroupHandler").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -840,7 +840,7 @@ func udoneseCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Udonese").
-		Str("funcName", "udoneseCallbackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 

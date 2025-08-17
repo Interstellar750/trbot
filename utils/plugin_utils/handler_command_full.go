@@ -2,6 +2,7 @@ package plugin_utils
 
 import (
 	"strings"
+	"trbot/utils"
 	"trbot/utils/handler_params"
 	"trbot/utils/type/contain"
 
@@ -35,7 +36,7 @@ func RunFullCommandHandlers(params *handler_params.Message) (bool, error) {
 	for _, plugin := range AllPlugins.FullCommand {
 		if strings.HasPrefix(params.Message.Text, plugin.FullCommand) && contain.AnyType(params.Message.Chat.Type, plugin.ForChatType...) {
 			logger := zerolog.Ctx(params.Ctx).With().
-				Str("funcName", "RunFullCommandHandlers").
+				Str(utils.GetCurrentFuncName()).
 				Str("FullCommand", plugin.FullCommand).
 				Logger()
 

@@ -12,7 +12,7 @@ import (
 func RecordData(params *handler_params.Update, updateType update_utils.Update) {
 	logger := zerolog.Ctx(params.Ctx).
 		With().
-		Str("funcName", "RecordData").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	switch {

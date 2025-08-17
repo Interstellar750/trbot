@@ -144,7 +144,7 @@ func EchoStickerHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "EchoStickerHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
@@ -265,7 +265,7 @@ func EchoSticker(opts *handler_params.Message) (*stickerDatas, error) {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "EchoSticker").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var data stickerDatas
@@ -534,7 +534,7 @@ func DownloadStickerPackCallbackHandler(opts *handler_params.CallbackQuery) erro
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "DownloadStickerPackCallBackHandler").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -673,7 +673,7 @@ func getStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "getStickerPack").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var data stickerDatas = stickerDatas{
@@ -1076,7 +1076,7 @@ func collectStickerSet(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "collectStickerSet").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
@@ -1255,7 +1255,7 @@ func getStickerPackInfo(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "getStickerPackInfo").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -1366,7 +1366,7 @@ func convertMP4ToGifHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "convertWebMToGifHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
@@ -1420,7 +1420,7 @@ func downloadGifHandler(opts *handler_params.Message) (io.Reader, error) {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").
-		Str("funcName", "downloadGifHandler").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	var originFullPath string = filepath.Join(MP4Cache_path, opts.Message.Animation.FileID + ".MP4")
@@ -1577,7 +1577,7 @@ func readCollectStickerList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "sticker").
-		Str("funcName", "readCollectStickerList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(stickerCollectPath, &stickerCollect)
@@ -1612,7 +1612,7 @@ func saveCollectStickerList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "sticker").
-		Str("funcName", "saveCollectStickerList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.SaveYAML(stickerCollectPath, &stickerCollect)

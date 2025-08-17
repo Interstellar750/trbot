@@ -80,7 +80,7 @@ func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 	for _, handler := range handlers {
 		if handler.PluginName == "" || handler.ChatType == "" || handler.MessageType == "" || handler.MessageHandler == nil {
 			log.Error().
-				Str("funcName", "AddHandlerByMessageTypePlugins").
+				Str(utils.GetCurrentFuncName()).
 				Str("pluginName", handler.PluginName).
 				Str("chatType", string(handler.ChatType)).
 				Str("messageType", string(handler.MessageType)).
@@ -95,7 +95,7 @@ func AddHandlerByMessageTypeHandlers(handlers ...ByMessageTypeHandler) int {
 		_, isExist := AllPlugins.HandlerByMessageType[handler.ChatType][handler.MessageType][handler.ForChatID][handler.PluginName]
 		if isExist {
 			log.Error().
-				Str("funcName", "AddHandlerByMessageTypePlugins").
+				Str(utils.GetCurrentFuncName()).
 				Str("chatType", string(handler.ChatType)).
 				Str("messageType", string(handler.MessageType)).
 				Int64("forChatID", handler.ForChatID).
@@ -122,7 +122,7 @@ func RunByMessageTypeHandlers(params *handler_params.Message) error {
 	msgType := message_utils.GetMessageType(params.Message).AsType()
 	logger := zerolog.Ctx(params.Ctx).
 		With().
-		Str("funcName", "RunByChatIDHandlers").
+		Str(utils.GetCurrentFuncName()).
 		Str("messageType", msgType.Str()).
 		Str("chatType", string(params.Message.Chat.Type)).
 		Int64("chatID", params.Message.Chat.ID).
@@ -204,7 +204,7 @@ func RunByMessageTypeHandlers(params *handler_params.Message) error {
 func SelectByMessageTypeHandlerCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
-		Str("funcName", "SelectHandlerByMessageTypeHandlerCallback").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 		Str("callbackQueryData", opts.CallbackQuery.Data).

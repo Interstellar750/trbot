@@ -69,7 +69,7 @@ func ReadLimitMessageList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "LimitMessage").
-		Str("funcName", "ReadLimitMessageList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 
 	err := yaml.LoadYAML(LimitMessagePath, &LimitMessageList)
@@ -112,7 +112,7 @@ func SaveLimitMessageList(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "LimitMessage").
-		Str("funcName", "SaveLimitMessageList").
+		Str(utils.GetCurrentFuncName()).
 		Logger()
 	err := yaml.SaveYAML(LimitMessagePath, &LimitMessageList)
 	if err != nil {
@@ -131,7 +131,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
-		Str("funcName", "SomeMessageOnlyHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
@@ -246,7 +246,7 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
-		Str("funcName", "SomeMessageOnlyHandler").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Int("messageID", opts.Message.ID).
@@ -566,7 +566,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "LimitMessage").
-		Str("funcName", "LimitMessageCallback").
+		Str(utils.GetCurrentFuncName()).
 		Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Str("callbackQueryData", opts.CallbackQuery.Data).
