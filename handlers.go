@@ -520,6 +520,9 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			if !IsAdmin && plugin.Attr.IsHideInCommandList { continue }
 			if strings.HasPrefix(plugin.Command, parsedQuery.SubCommand) {
 				var description string
+				if plugin.Command == opts.ChatInfo.DefaultInlinePlugin      { description += "您的默认命令 | " }
+				if plugin.Command == configs.BotConfig.InlineDefaultHandler { description += "机器人默认命令 | " }
+
 				if plugin.Attr.IsOnlyAllowAdmin    { description += "管理员 | " }
 				if plugin.Attr.IsHideInCommandList { description += "隐藏 | "   }
 

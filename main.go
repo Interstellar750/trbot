@@ -32,7 +32,9 @@ func main() {
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to read bot configs") }
 
 	// writer log to a file or only display on console
-	if configs.IsUseMultiLogWriter(&logger) { ctx = logger.WithContext(ctx) } // re-attach logger into ctx
+	if configs.IsUseMultiLogWriter(&logger) {
+		ctx = logger.WithContext(ctx) // re-attach logger into ctx
+	}
 	configs.CheckConfig(ctx) // check and auto fill some config
 	configs.ShowConst(ctx)   // show build info
 
@@ -64,7 +66,7 @@ func main() {
 	// Select mode by Webhook config
 	if configs.IsUsingWebhook(ctx) /* Webhook */ {
 		if configs.SetUpWebhook(ctx, thebot, &bot.SetWebhookParams{
-			URL: configs.BotConfig.WebhookURL,
+			URL:            configs.BotConfig.WebhookURL,
 			AllowedUpdates: configs.BotConfig.AllowedUpdates,
 		}) {
 			logger.Info().
@@ -83,7 +85,7 @@ func main() {
 				Msg("Failed to setup Webhook")
 		}
 	} else /* getUpdate, aka Long Polling */ {
-		// remove Webhook URL befor using getUpdate https://core.telegram.org/bots/api#getupdates
+		// remove Webhook URL before using getUpdate https://core.telegram.org/bots/api#getupdates
 		if configs.CleanRemoteWebhookURL(ctx, thebot) {
 			logger.Info().Msg("Working at Long Polling Mode")
 			// logger.Debug().Msgf("visit https://api.telegram.org/bot%s/getWebhookInfo to check infos", configs.BotConfig.BotToken)
