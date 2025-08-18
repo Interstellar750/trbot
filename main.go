@@ -39,6 +39,7 @@ func main() {
 	thebot, err := bot.New(configs.BotConfig.BotToken, []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),
 		bot.WithAllowedUpdates(configs.BotConfig.AllowedUpdates),
+		bot.WithErrorsHandler(func(err error){ logger.Error().Err(err).Msg("go-telegram/bot") }),
 	}...)
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to initialize bot") }
 
