@@ -9,7 +9,6 @@ import (
 	"strings"
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
@@ -21,7 +20,7 @@ import (
 
 var SavedMessageList SavedMessage
 var SavedMessageErr  error
-var SavedMessagePath string = filepath.Join(consts.YAMLDataBaseDir, "savedmessage/", consts.YAMLFileName)
+var SavedMessagePath string = filepath.Join(configs.YAMLDatabaseDir, "savedmessage/", configs.YAMLFileName)
 
 var meilisearchClient meilisearch.ServiceManager
 

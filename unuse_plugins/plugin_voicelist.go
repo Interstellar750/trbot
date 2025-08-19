@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
 	"trbot/utils/plugin_utils"
@@ -18,7 +18,7 @@ import (
 
 var VoiceLists   []VoicePack
 var VoiceListErr error
-var VoiceListDir string = filepath.Join(consts.YAMLDataBaseDir, "voices/")
+var VoiceListDir string = filepath.Join(configs.YAMLDatabaseDir, "voices/")
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{

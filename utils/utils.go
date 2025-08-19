@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
@@ -124,7 +124,7 @@ func UserHavePermissionDeleteMessage(ctx context.Context, thebot *bot.Bot, chatI
 // 允许响应带有机器人用户名后缀的命令，例如 /help@examplebot
 func CommandMaybeWithSuffixUsername(commandFields []string, command string) bool {
 	if len(commandFields) == 0 { return false }
-	atBotUsername := "@" + consts.BotMe.Username
+	atBotUsername := "@" + configs.BotMe.Username
 	if commandFields[0] == command || commandFields[0] == command + atBotUsername {
 		return true
 	}
@@ -202,7 +202,7 @@ func PanicCatcher(ctx context.Context, funcName string) {
 	if panic != nil {
 		zerolog.Ctx(ctx).Error().
 			Stack().
-			Str("commit", consts.Commit).
+			Str("commit", configs.Commit).
 			Err(errors.WithStack(fmt.Errorf("%v", panic))).
 			Str("catchFunc", funcName).
 			Msg("Panic recovered")
@@ -274,7 +274,7 @@ func GetUserOrSenderChatDict(msg *models.Message) (string, *zerolog.Event) {
 // 从 log.txt 读取文件
 func ReadLog() ([]string, error) {
 	// 打开日志文件
-	file, err := os.Open(consts.LogFilePath)
+	file, err := os.Open(configs.BotConfig.LogFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -298,12 +298,12 @@ func OutputVersionInfo() string {
 	hostname, _ := os.Hostname()
 	var gitURL string = "https://gitea.trle5.xyz/trle5/trbot/commit/"
 	var info   string
-	if consts.BuildAt != "" {
-		info += fmt.Sprintf("`Version:   `%s\n", consts.Version)
-		info += fmt.Sprintf("`Branch:    `%s\n", consts.Branch)
-		info += fmt.Sprintf("`Commit:    `[%s](%s%s) (%s)\n", consts.Commit[:10], gitURL, consts.Commit, consts.Changes)
-		info += fmt.Sprintf("`BuildAt:   `[%s](%s%s)\n", consts.BuildAt, "https://timestamp.online/timestamp/", consts.BuildAt)
-		info += fmt.Sprintf("`BuildOn:   `%s\n", consts.BuildOn)
+	if configs.BuildAt != "" {
+		info += fmt.Sprintf("`Version:   `%s\n", configs.Version)
+		info += fmt.Sprintf("`Branch:    `%s\n", configs.Branch)
+		info += fmt.Sprintf("`Commit:    `[%s](%s%s) (%s)\n", configs.Commit[:10], gitURL, configs.Commit, configs.Changes)
+		info += fmt.Sprintf("`BuildAt:   `[%s](%s%s)\n", configs.BuildAt, "https://timestamp.online/timestamp/", configs.BuildAt)
+		info += fmt.Sprintf("`BuildOn:   `%s\n", configs.BuildOn)
 		info += fmt.Sprintf("`Runtime:   `%s\n", runtime.Version())
 		info += fmt.Sprintf("`Goroutine: `%d\n", runtime.NumGoroutine())
 		info += fmt.Sprintf("`Hostname:  `%s\n", hostname)

@@ -16,7 +16,6 @@ import (
 	"trbot/database/db_struct"
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
@@ -31,15 +30,15 @@ import (
 )
 
 var stickerCollect CollectedSticker
-var stickerCollectPath string = filepath.Join(consts.YAMLDataBaseDir, "collectsticker/", consts.YAMLFileName)
+var stickerCollectPath string = filepath.Join(configs.YAMLDatabaseDir, "collectsticker/", configs.YAMLFileName)
 
-var StickerCache_path    string = filepath.Join(consts.CacheDirectory, "sticker/")
-var StickerCachePNG_path string = filepath.Join(consts.CacheDirectory, "sticker_png/")
-var StickerCacheGIF_path string = filepath.Join(consts.CacheDirectory, "sticker_gif/")
-var StickerCacheZip_path string = filepath.Join(consts.CacheDirectory, "sticker_zip/")
+var StickerCache_path    string = filepath.Join(configs.BotConfig.CacheDir, "sticker/")
+var StickerCachePNG_path string = filepath.Join(configs.BotConfig.CacheDir, "sticker_png/")
+var StickerCacheGIF_path string = filepath.Join(configs.BotConfig.CacheDir, "sticker_gif/")
+var StickerCacheZip_path string = filepath.Join(configs.BotConfig.CacheDir, "sticker_zip/")
 
-var MP4Cache_path string = filepath.Join(consts.CacheDirectory, "mp4/")
-var GIFCache_path string = filepath.Join(consts.CacheDirectory, "mp4_GIF/")
+var MP4Cache_path string = filepath.Join(configs.BotConfig.CacheDir, "mp4/")
+var GIFCache_path string = filepath.Join(configs.BotConfig.CacheDir, "mp4_GIF/")
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{

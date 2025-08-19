@@ -2,6 +2,7 @@ package configs
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -9,22 +10,29 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var YAMLDatabaseDir  string = "./db_yaml/"
+var YAMLFileName     string = "metadata.yaml"
+
 // default "./config.yaml", can be changed by env
 var ConfigPath string = "./config.yaml"
 var BotConfig  config
 
 type config struct {
 	// bot config
-	BotToken   string `yaml:"BotToken"`
-	WebhookURL string `yaml:"WebhookURL"`
+	BotToken             string `yaml:"BotToken"`
+	WebhookURL           string `yaml:"WebhookURL"`
+	WebhookListenAddress string `yaml:"WebhookListenAddress"`
 
 	// log
 	LogLevel     string `yaml:"LogLevel"` // `trace` `debug` `info` `warn` `error` `fatal` `panic`, default "info"
 	LogFileLevel string `yaml:"LogFileLevel"`
+	LogFilePath  string `yaml:"LogFilePath"`
 	LogChatID    int64  `yaml:"LogChatID"`
 
 	// admin
 	AdminIDs []int64 `yaml:"AdminIDs"`
+
+	CacheDir string `yaml:"CacheDir"`
 
 	// redis database
 	RedisURL        string `yaml:"RedisURL"`
@@ -77,11 +85,16 @@ func (c config)LevelForZeroLog(forLogFile bool) zerolog.Level {
 	}
 }
 
-func CreateDefaultConfig() config {
+func createDefaultConfig() config {
 	return config{
 		BotToken: "REPLACE_THIS_USE_YOUR_BOT_TOKEN",
+		WebhookListenAddress: "localhost:2847",
+
 		LogLevel: "info",
 		LogFileLevel: "warn",
+		LogFilePath: YAMLDatabaseDir + "log.txt",
+
+		CacheDir: "./cache/",
 
 		InlineSubCommandSymbol: "+",
 		InlinePaginationSymbol: "-",

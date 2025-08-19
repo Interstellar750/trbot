@@ -10,7 +10,6 @@ import (
 	"trbot/database"
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/internal_plugin"
 	"trbot/utils/signals"
 
@@ -45,11 +44,11 @@ func main() {
 	}...)
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to initialize bot") }
 
-	consts.BotMe, err = thebot.GetMe(ctx)
+	configs.BotMe, err = thebot.GetMe(ctx)
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to get bot info") }
 
 	logger.Info().
-		Dict(utils.GetUserDict(consts.BotMe)).
+		Dict(utils.GetUserDict(configs.BotMe)).
 		Msg("Bot initialized")
 
 	database.InitAndListDatabases(ctx)
@@ -70,10 +69,10 @@ func main() {
 			AllowedUpdates: configs.BotConfig.AllowedUpdates,
 		}) {
 			logger.Info().
-				Str("listenAddress", consts.WebhookListenPort).
+				Str("listenAddress", configs.BotConfig.WebhookListenAddress).
 				Msg("Working at Webhook Mode")
 			go thebot.StartWebhook(ctx)
-			err := http.ListenAndServe(consts.WebhookListenPort, thebot.WebhookHandler())
+			err := http.ListenAndServe(configs.BotConfig.WebhookListenAddress, thebot.WebhookHandler())
 			if err != nil {
 				logger.Fatal().
 					Err(err).

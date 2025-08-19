@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 	"trbot/utils"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 
@@ -52,7 +52,7 @@ func RunCommandHandlers(params *handler_params.Message) (bool, error) {
 					Msg(flaterr.SendMessage.Str())
 			}
 			return true, nil
-		} else if strings.HasSuffix(params.Fields[0], "@" + consts.BotMe.Username) {
+		} else if strings.HasSuffix(params.Fields[0], "@" + configs.BotMe.Username) {
 			// 当使用一个不存在的命令，但是命令末尾指定为此 bot 处理
 			// 为防止与其他 bot 的命令冲突，默认不会响应不在命令列表中的命令
 			// 如果消息以 /xxx@examplebot 的形式指定此 bot 回应，且 /xxx 不在预设的命令中时，才发送该命令不可用的提示

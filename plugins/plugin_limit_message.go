@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"trbot/utils"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
@@ -26,8 +26,8 @@ import (
 var LimitMessageList map[int64]AllowMessages
 var LimitMessageErr  error
 
-var LimitMessageDir string = filepath.Join(consts.YAMLDataBaseDir, "limitmessage/")
-var LimitMessagePath string = filepath.Join(LimitMessageDir, consts.YAMLFileName)
+var LimitMessageDir string = filepath.Join(configs.YAMLDatabaseDir, "limitmessage/")
+var LimitMessagePath string = filepath.Join(LimitMessageDir, configs.YAMLFileName)
 
 type AllowMessages struct {
 	IsEnable            bool                    `yaml:"IsEnable"`
@@ -162,7 +162,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 				thisChat.AddTime = time.Now().Format(time.RFC3339)
 			}
 
-			if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, consts.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, consts.BotMe.ID) {
+			if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, configs.BotMe.ID) && utils.UserHavePermissionDeleteMessage(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, configs.BotMe.ID) {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Message.Chat.ID,
 					Text:   "Limit Message 菜单",

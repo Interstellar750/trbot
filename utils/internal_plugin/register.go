@@ -10,7 +10,6 @@ import (
 	"trbot/plugins"
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
@@ -458,7 +457,7 @@ func Register(ctx context.Context) {
 						Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 							ID:          "error",
 							Title:       "参数过多，请注意空格",
-							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", consts.BotMe.Username, configs.BotConfig.InlineSubCommandSymbol),
+							Description: fmt.Sprintf("使用方法：@%s %suaav <单个音频链接>", configs.BotMe.Username, configs.BotConfig.InlineSubCommandSymbol),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText: "由于在使用 inline 模式时没有正确填写参数，无法完成消息",
 								ParseMode:   models.ParseModeMarkdownV1,

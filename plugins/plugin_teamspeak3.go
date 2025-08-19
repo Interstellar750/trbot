@@ -8,7 +8,6 @@ import (
 	"time"
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
@@ -25,7 +24,7 @@ import (
 var tsClient *ts3.Client
 var tsErr     error
 
-var tsDataPath  string = filepath.Join(consts.YAMLDataBaseDir, "teamspeak/", consts.YAMLFileName)
+var tsDataPath  string = filepath.Join(configs.YAMLDatabaseDir, "teamspeak/", configs.YAMLFileName)
 var botNickName string = "trbot_teamspeak_plugin"
 
 var isCanReInit    bool = true

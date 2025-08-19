@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 	"trbot/utils"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
@@ -21,12 +21,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var KeywordDataList KeywordData = KeywordData{
+var KeywordDataList = KeywordData{
 	Chats: map[int64]KeywordChatList{},
 	Users: map[int64]KeywordUserList{},
 }
 var KeywordDataErr  error
-var KeywordDataPath string = filepath.Join(consts.YAMLDataBaseDir, "detectkeyword/", consts.YAMLFileName)
+var KeywordDataPath string = filepath.Join(configs.YAMLDatabaseDir, "detectkeyword/", configs.YAMLFileName)
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
@@ -43,7 +43,7 @@ func init() {
 					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 						{{
 							Text: "将此机器人添加到群组或频道",
-							URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", consts.BotMe.Username),
+							URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", configs.BotMe.Username),
 						}},
 						{
 							{
@@ -607,7 +607,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 					ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 						{
 							Text: "设定关键词",
-							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", consts.BotMe.Username, opts.Message.Chat.ID),
+							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, opts.Message.Chat.ID),
 						},
 						{
 							Text:         "管理此功能",
@@ -733,7 +733,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 						ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 							Text: "管理关键词",
-							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", consts.BotMe.Username, chat.ChatID),
+							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, chat.ChatID),
 						}}}},
 					})
 					if err != nil {
@@ -1081,7 +1081,7 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				buttons = [][]models.InlineKeyboardButton{
 					{{
 						Text: "设定关键词",
-						URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", consts.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
+						URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
 					}},
 					{{
 						Text:         "🔄 当前状态: 已启用 ✅",
@@ -1597,7 +1597,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "将此机器人添加到群组或频道",
-					URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", consts.BotMe.Username),
+					URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", configs.BotMe.Username),
 				}}}},
 			})
 			if err != nil {
@@ -1701,7 +1701,7 @@ func startBotAddedToGroup(opts *handler_params.Message) error {
 		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 			{
 				Text: "设定关键词",
-				URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", consts.BotMe.Username, opts.Message.Chat.ID),
+				URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, opts.Message.Chat.ID),
 			},
 			{
 				Text:         "管理此功能",

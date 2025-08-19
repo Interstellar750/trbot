@@ -12,7 +12,6 @@ import (
 
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
@@ -28,7 +27,7 @@ import (
 
 var UdoneseData Udonese
 var UdoneseErr  error
-var UdonesePath string = filepath.Join(consts.YAMLDataBaseDir, "udonese/", consts.YAMLFileName)
+var UdonesePath string = filepath.Join(configs.YAMLDatabaseDir, "udonese/", configs.YAMLFileName)
 
 type Udonese struct {
 	GroupID    int64         `yaml:"GroupID"`

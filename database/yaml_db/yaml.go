@@ -9,7 +9,7 @@ import (
 	"time"
 	"trbot/database/db_struct"
 	"trbot/utils"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot/models"
@@ -18,7 +18,7 @@ import (
 
 var Database DataBaseYaml
 
-var YAMLDatabasePath = filepath.Join(consts.YAMLDataBaseDir, consts.YAMLFileName)
+var YAMLDatabasePath = filepath.Join(configs.YAMLDatabaseDir, configs.YAMLFileName)
 
 // 需要重构，错误信息不足
 
@@ -33,7 +33,7 @@ type DataBaseYaml struct {
 }
 
 func InitializeDB(ctx context.Context) error {
-	if consts.YAMLDataBaseDir != "" {
+	if configs.YAMLDatabaseDir != "" {
 		err := ReadDatabase(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to read yaml database: %s", err)
@@ -175,7 +175,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 			logger.Warn().
 				Str("path", YAMLDatabasePath).
 				Msg("The database file is empty, recover database file using current data")
-			err = SaveYamlDB(ctx, consts.YAMLDataBaseDir, consts.YAMLFileName, Database)
+			err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -197,10 +197,10 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 					Str("path", YAMLDatabasePath).
 					Msg("Detected `FORCEOVERWRITE: true` in database file, save current database to another file first")
 
-				oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", time.Now().Unix(), consts.YAMLFileName)
-				oldFilePath := filepath.Join(consts.YAMLDataBaseDir, oldFileName)
+				oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", time.Now().Unix(), configs.YAMLFileName)
+				oldFilePath := filepath.Join(configs.YAMLDatabaseDir, oldFileName)
 
-				err := SaveYamlDB(ctx, consts.YAMLDataBaseDir, oldFileName, savedDatabase)
+				err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, oldFileName, savedDatabase)
 				if err != nil {
 					logger.Warn().
 						Err(err).
@@ -214,7 +214,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 				}
 				Database = *savedDatabase
 				Database.ForceOverwrite = false // 移除强制覆盖标记
-				err = SaveYamlDB(ctx, consts.YAMLDataBaseDir, consts.YAMLFileName, Database)
+				err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -235,7 +235,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 						logger.Warn().
 							Msg("But current data and database is the same, updating UpdateTimestamp in the database only")
 						Database.UpdateTimestamp = time.Now().Unix()
-						err := SaveYamlDB(ctx, consts.YAMLDataBaseDir, consts.YAMLFileName, Database)
+						err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -248,10 +248,10 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 							Msg("The database file is different from the current database, saving modified file and recovering database file using current data in the program")
 
 						// 将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
-						editedFileName := fmt.Sprintf("edited_%d_%s", time.Now().Unix(), consts.YAMLFileName)
-						editedFilePath := filepath.Join(consts.YAMLDataBaseDir, editedFileName)
+						editedFileName := fmt.Sprintf("edited_%d_%s", time.Now().Unix(), configs.YAMLFileName)
+						editedFilePath := filepath.Join(configs.YAMLDatabaseDir, editedFileName)
 
-						err := SaveYamlDB(ctx, consts.YAMLDataBaseDir, editedFileName, savedDatabase)
+						err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, editedFileName, savedDatabase)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -262,7 +262,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 								Str("editedPath", editedFilePath).
 								Msg("The modified database is saved to another file")
 						}
-						err = SaveYamlDB(ctx, consts.YAMLDataBaseDir, consts.YAMLFileName, Database)
+						err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -278,7 +278,7 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 					// 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
 					// 无论如何都尽量不要手动修改数据库文件，如果必要也请在开头添加专用的 `FORCEOVERWRITE: true` 覆写标记，或停止程序后再修改
 					Database.UpdateTimestamp = time.Now().Unix()
-					err := SaveYamlDB(ctx, consts.YAMLDataBaseDir, consts.YAMLFileName, Database)
+					err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
 					if err != nil {
 						logger.Error().
 							Err(err).

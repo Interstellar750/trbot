@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"trbot/utils"
-	"trbot/utils/consts"
+	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
@@ -19,7 +19,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var photoCachedDir string = filepath.Join(consts.CacheDirectory, "photo/")
+var photoCachedDir string = filepath.Join(configs.BotConfig.CacheDir, "photo/")
 var imageBaseURL   string = "https://alist.trle5.xyz/d/cache/photo/"
 
 func init() {

@@ -7,7 +7,6 @@ import (
 	"trbot/plugins/saved_message/message_meilisearch"
 	"trbot/utils"
 	"trbot/utils/configs"
-	"trbot/utils/consts"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
@@ -56,7 +55,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击查看",
-					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", consts.BotMe.Username),
+					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", configs.BotMe.Username),
 				}}}},
 			})
 			if err != nil {
@@ -208,7 +207,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击查看",
-					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", consts.BotMe.Username),
+					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", configs.BotMe.Username),
 				}}}},
 			})
 			if err != nil {
@@ -703,7 +702,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 							Title:       "没有保存内容（点击查看详细教程）",
 							Description: "对一条信息回复 /save 来保存它",
 							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", consts.BotMe.Username, consts.BotMe.Username),
+								MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", configs.BotMe.Username, configs.BotMe.Username),
 								ParseMode:   models.ParseModeHTML,
 							},
 						})
@@ -768,7 +767,7 @@ func SendPrivacyPolicy(opts *handler_params.Message) error {
 		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "点击同意以上内容",
-			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy_agree", consts.BotMe.Username),
+			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy_agree", configs.BotMe.Username),
 		}}}},
 		ParseMode: models.ParseModeHTML,
 	})

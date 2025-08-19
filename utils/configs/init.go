@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"trbot/utils/consts"
 	"trbot/utils/yaml"
 	"unicode"
 
@@ -45,7 +44,7 @@ func readConfig(ctx context.Context) error {
 				logger.Warn().
 					Str("configPathToFile", configPathToFile).
 					Msg("The config file does not exist. creating...")
-				err = yaml.SaveYAML(configPathToFile, CreateDefaultConfig())
+				err = yaml.SaveYAML(configPathToFile, createDefaultConfig())
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -134,7 +133,7 @@ func readConfig(ctx context.Context) error {
 				logger.Warn().
 					Str("defaultConfigPath", ConfigPath).
 					Msg("The default config file does not exist. creating...")
-				err = yaml.SaveYAML(ConfigPath, CreateDefaultConfig())
+				err = yaml.SaveYAML(ConfigPath, createDefaultConfig())
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -240,7 +239,7 @@ func showBotID() string {
 }
 
 func IsUseMultiLogWriter(logger *zerolog.Logger) bool {
-	file, err := os.OpenFile(consts.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(BotConfig.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err == nil {
 		multLogger := zerolog.New(zerolog.MultiLevelWriter(
 			zerolog.ConsoleWriter{Out: os.Stdout},
@@ -253,14 +252,14 @@ func IsUseMultiLogWriter(logger *zerolog.Logger) bool {
 		*logger = multLogger
 
 		logger.Info().
-			Str("logFilePath", consts.LogFilePath).
+			Str("logFilePath", BotConfig.LogFilePath).
 			Str("logFileLevel", BotConfig.LogFileLevel).
 			Msg("Use mult log writer")
 		return true
 	} else {
 		logger.Error().
 			Err(err).
-			Str("logFilePath", consts.LogFilePath).
+			Str("logFilePath", BotConfig.LogFilePath).
 			Msg("Failed to open log file, use console log writer only")
 		return false
 	}
@@ -342,12 +341,12 @@ func CheckConfig(ctx context.Context) {
 		Str("CategorySymbol",   BotConfig.InlineCategorySymbol).
 		Str("PaginationSymbol", BotConfig.InlinePaginationSymbol).
 		Int("ResultsPerPage",   BotConfig.InlineResultsPerPage).
-		Msg("Inline mode config has been read")
+		Msg("Inline mode configs")
 }
 
 func ShowConst(ctx context.Context) {
 	logger := zerolog.Ctx(ctx)
-	if consts.BuildAt == "" {
+	if BuildAt == "" {
 		logger.Warn().
 			Str("runtime", runtime.Version()).
 			Str("logLevel", BotConfig.LogLevel).
@@ -355,12 +354,12 @@ func ShowConst(ctx context.Context) {
 			Msg("trbot")
 	} else {
 		logger.Info().
-			Str("commit",   consts.Commit).
-			Str("branch",   consts.Branch).
-			Str("version",  consts.Version).
-			Str("buildAt",  consts.BuildAt).
-			Str("buildOn",  consts.BuildOn).
-			Str("changes",  consts.Changes).
+			Str("commit",   Commit).
+			Str("branch",   Branch).
+			Str("version",  Version).
+			Str("buildAt",  BuildAt).
+			Str("buildOn",  BuildOn).
+			Str("changes",  Changes).
 			Str("runtime",  runtime.Version()).
 			Str("logLevel", BotConfig.LogLevel).
 			Msg("trbot")
