@@ -1,8 +1,13 @@
 COMMIT   := $(shell git rev-parse HEAD)
 BRANCH   := $(shell git rev-parse --abbrev-ref HEAD)
 VERSION  := $(shell git describe --tags --always)
-CHANGES  := $(shell git status -s | wc -l)
-TIME     := $(shell date +%s)
+ifeq ($(OS),Windows_NT)
+    TIME    := $(shell powershell -Command "Get-Date -UFormat %s")
+    CHANGES := $(shell powershell -NoProfile -Command "(git status -s | Measure-Object).Count")
+else
+    TIME    := $(shell date +%s)
+    CHANGES := $(shell git status -s | wc -l)
+endif
 HOSTNAME := $(shell hostname)
 LDFLAGS  := -X 'trbot/utils/consts.Commit=$(COMMIT)' \
             -X 'trbot/utils/consts.Branch=$(BRANCH)' \

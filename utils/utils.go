@@ -307,6 +307,7 @@ func OutputVersionInfo() string {
 		info += fmt.Sprintf("`Runtime:   `%s\n", runtime.Version())
 		info += fmt.Sprintf("`Goroutine: `%d\n", runtime.NumGoroutine())
 		info += fmt.Sprintf("`Hostname:  `%s\n", hostname)
+		info += fmt.Sprintf("`Platform:  `%s/%s\n", runtime.GOOS, runtime.GOARCH)
 		return info
 	}
 	return fmt.Sprintln(

@@ -31,11 +31,11 @@ var stateMessageID   int
 var editingMessageID int // 用于编辑消息时的消息ID
 
 type SavedMessage struct {
-	MeiliURL        string       `yaml:"MeiliURL"`
-	MeiliAPI        string       `yaml:"MeiliAPI"`
-	ChannelID       int64        `yaml:"ChannelID"`
-	ChannelUsername string       `yaml:"ChannelUsername"`
-	NoticeChatID    int64        `yaml:"NoticeChatID"`
+	MeiliURL        string `yaml:"MeiliURL"`
+	MeiliAPI        string `yaml:"MeiliAPI"`
+	ChannelID       int64  `yaml:"ChannelID"`
+	ChannelUsername string `yaml:"ChannelUsername"`
+	NoticeChatID    int64  `yaml:"NoticeChatID"`
 
 	User []SavedMessageUser `yaml:"User"`
 }
