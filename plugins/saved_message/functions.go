@@ -14,7 +14,6 @@ import (
 	"trbot/utils/origin_info"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
-	"unicode/utf8"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -105,10 +104,10 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					var messageLength int
 
 					if opts.Message.ReplyToMessage.Caption != "" {
-						messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Caption)
+						messageLength = utf16Length(opts.Message.ReplyToMessage.Caption)
 						msgData.Entities = opts.Message.ReplyToMessage.CaptionEntities
 					} else if opts.Message.ReplyToMessage.Text != "" {
-						messageLength = utf8.RuneCountInString(opts.Message.ReplyToMessage.Text)
+						messageLength = utf16Length(opts.Message.ReplyToMessage.Text)
 						msgData.Entities = opts.Message.ReplyToMessage.Entities
 					}
 
@@ -242,10 +241,10 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 				var messageLength int
 
 				if opts.Message.Caption != "" {
-					messageLength = utf8.RuneCountInString(opts.Message.Caption)
+					messageLength = utf16Length(opts.Message.Caption)
 					msgData.Entities = opts.Message.CaptionEntities
 				} else if opts.Message.Text != "" {
-					messageLength = utf8.RuneCountInString(opts.Message.Text)
+					messageLength = utf16Length(opts.Message.Text)
 					msgData.Entities = opts.Message.Entities
 				}
 

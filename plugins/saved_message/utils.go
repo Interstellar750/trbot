@@ -12,6 +12,7 @@ import (
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
+	"unicode/utf16"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/meilisearch/meilisearch-go"
@@ -221,4 +222,13 @@ func (ic InlineCategorys) StrList() (list []string) {
 func (ic InlineCategorys) GetCategory(str string) (result message_utils.Type, isExist bool) {
 	result, isExist = resultCategorys[strings.ToLower(str)]
 	return
+}
+
+func utf16Length(s string) int {
+	// 将字符串转为 rune 切片
+	runes := []rune(s)
+	// 转为 UTF-16 单元序列
+	encoded := utf16.Encode(runes)
+	// 返回长度
+	return len(encoded)
 }
