@@ -356,7 +356,9 @@ func showStatus(opts *handler_params.Message) error {
 	} else {
 		pendingMessage = fmt.Sprintf("初始化 teamspeak 插件时发生了一些错误:\n<blockquote expandable>%s</blockquote>\n\n", tsErr)
 		if isCanReInit {
-			if initTeamSpeak(opts.Ctx) {
+			initCtx, cancel := context.WithTimeout(opts.Ctx, time.Second * 10)
+			defer cancel()
+			if initTeamSpeak(initCtx) {
 				isSuccessInit = true
 				if !isListening && !isLoginFailed && opts.Message.Chat.ID == tsData.GroupID {
 					go listenUserStatus(opts.Ctx)
@@ -446,6 +448,7 @@ func listenUserStatus(ctx context.Context) {
 				Msg(flaterr.UnpinChatMessage.Str())
 		}
 		tsData.PinnedMessageID = 0
+		saveTeamspeakData(ctx)
 	}
 
 	var retryCount int
@@ -463,11 +466,14 @@ func listenUserStatus(ctx context.Context) {
 			if isSuccessInit && isCanListening {
 				beforeOnlineClient = checkOnlineClientChange(ctx, &checkFailedCount, beforeOnlineClient)
 			} else {
-				logger.Info().Msg("try reconnect...")
+				logger.Info().
+					Int("retryCount", retryCount).
+					Msg("try reconnect...")
 				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
 				if retryCount < 15 { retryCount++ }
 				listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
-				if initTeamSpeak(ctx) {
+				initCtx, cancel := context.WithTimeout(ctx, time.Second * 10)
+				if initTeamSpeak(initCtx) {
 					isSuccessInit  = true
 					isCanListening = true
 					// 重新初始化成功则恢复 ticker 速度
@@ -493,7 +499,7 @@ func listenUserStatus(ctx context.Context) {
 							reconnectMessageID = 0
 						}
 						_, err = privateOpts.Thebot.DeleteMessages(privateOpts.Ctx, &bot.DeleteMessagesParams{
-							ChatID:    tsData.GroupID,
+							ChatID:     tsData.GroupID,
 							MessageIDs: deleteMessageIDs,
 						})
 						if err != nil {
@@ -513,6 +519,7 @@ func listenUserStatus(ctx context.Context) {
 						Int("nextRetry", (retryCount) * 20).
 						Msg("connect failed")
 				}
+				cancel()
 			}
 		}
 	}
@@ -557,6 +564,7 @@ func checkOnlineClientChange(ctx context.Context, count *int, before []OnlineCli
 		}
 		return before
 	} else {
+		*count = 0
 		for _, client := range onlineClient {
 			if client.Nickname == botNickName { continue }
 			var isExist bool

@@ -19,7 +19,7 @@ func InitBot() (context.Context, context.CancelFunc, zerolog.Logger) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack // set stack trace func
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
+	logger := zerolog.New(zerolog.ConsoleWriter{ Out: os.Stdout, TimeFormat: "15:04:05"}).With().Timestamp().Logger()
 
 	godotenv.Load()
 
@@ -222,7 +222,10 @@ func InitBot() (context.Context, context.CancelFunc, zerolog.Logger) {
 					Msg("Failed to open log file, use console log writer only")
 			} else {
 				logger = zerolog.New(zerolog.MultiLevelWriter(
-					&zerolog.ConsoleWriter{Out: os.Stdout},
+					&zerolog.ConsoleWriter{
+						Out:        os.Stdout,
+						TimeFormat: "15:04:05",
+					},
 					&zerolog.FilteredLevelWriter{
 						Writer: zerolog.MultiLevelWriter(file),
 						Level:  BotConfig.LevelForZeroLog(true),
