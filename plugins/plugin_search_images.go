@@ -19,7 +19,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var photoCachedDir string = filepath.Join(configs.BotConfig.CacheDir, "photo/")
+var photoCachedDir string = filepath.Join(configs.CacheDir, "photo/")
 var imageBaseURL   string = "https://alist.trle5.xyz/d/cache/photo/"
 
 func init() {

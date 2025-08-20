@@ -2,36 +2,10 @@ package configs
 
 import (
 	"context"
-	"os"
 
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
 )
-
-// 通过是否设定环境变量和配置文件中的 Webhook URL 来决定是否使用 Webhook 模式
-func IsUsingWebhook(ctx context.Context) bool {
-	logger := zerolog.Ctx(ctx)
-	webhookURL := os.Getenv("WEBHOOK_URL")
-	if webhookURL != "" {
-		BotConfig.WebhookURL = webhookURL
-		logger.Info().
-			Str("WebhookURL", BotConfig.WebhookURL).
-			Msg("Get Webhook URL from environment")
-		return true
-	}
-
-	// 从 yaml 配置文件中读取
-	if BotConfig.WebhookURL != "" {
-		logger.Info().
-			Str("WebhookURL", BotConfig.WebhookURL).
-			Msg("Get Webhook URL from config file")
-		return true
-	}
-
-	logger.Info().
-		Msg("No Webhook URL in environment and .env file, using getUpdate mode")
-	return false
-}
 
 func SetUpWebhook(ctx context.Context, thebot *bot.Bot, params *bot.SetWebhookParams) bool {
 	logger := zerolog.Ctx(ctx)

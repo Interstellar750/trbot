@@ -941,11 +941,11 @@ func Init() {
 			// if SavedMessageList.User == nil { SavedMessageList.User = []SavedMessageUser{} }
 
 			if SavedMessageList.MeiliURL == "" {
-				return errors.New("saved message Meilisearch URL is not set")
+				return errors.New("Meilisearch URL is not set")
 			} else {
 				meilisearchClient = meilisearch.New(SavedMessageList.MeiliURL, meilisearch.WithAPIKey(SavedMessageList.MeiliAPI))
 				if SavedMessageList.ChannelID == 0 {
-					return errors.New("saved message channel ID is not set")
+					return errors.New("channel ID is not set")
 				} else {
 					chatIDString := SavedMessageList.ChannelIDStr()
 

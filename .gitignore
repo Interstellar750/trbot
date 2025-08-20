@@ -23,9 +23,10 @@ go.work
 # Private environment variables
 .env
 log.txt
+log.jsonl
 trbot
 __debug_bin*
 /cache
-/db_yaml
+/data
 config.yaml
 /ffmpeg

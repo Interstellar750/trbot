@@ -6,16 +6,27 @@ import (
 	"strings"
 
 	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
 )
 
-var YAMLDatabaseDir  string = "./db_yaml/"
-var YAMLFileName     string = "metadata.yaml"
+var YAMLDatabaseDir string = "data/"
+var YAMLFileName    string = "metadata.yaml"
+var CacheDir        string = "cache/"
 
-// default "./config.yaml", can be changed by env
-var ConfigPath string = "./config.yaml"
-var BotConfig  config
+var ConfigPath string = "./config.yaml" // can be changed by env
+
+var BotConfig = config{
+	WebhookListenAddress: "localhost:2847",
+
+	LogLevel:     "info",
+	LogFileLevel: "info",
+	LogFilePath:  "log.txt",
+
+	InlineSubCommandSymbol: "+",
+	InlinePaginationSymbol: "-",
+	InlineCategorySymbol:   "=",
+	InlineResultsPerPage:   50,
+}
 
 type config struct {
 	// bot config
@@ -24,15 +35,13 @@ type config struct {
 	WebhookListenAddress string `yaml:"WebhookListenAddress"`
 
 	// log
-	LogLevel     string `yaml:"LogLevel"` // `trace` `debug` `info` `warn` `error` `fatal` `panic`, default "info"
+	LogLevel     string `yaml:"LogLevel"`     // `trace` `debug` `info` `warn` `error` `fatal` `panic`, default "info"
 	LogFileLevel string `yaml:"LogFileLevel"`
 	LogFilePath  string `yaml:"LogFilePath"`
 	LogChatID    int64  `yaml:"LogChatID"`
 
 	// admin
 	AdminIDs []int64 `yaml:"AdminIDs"`
-
-	CacheDir string `yaml:"CacheDir"`
 
 	// redis database
 	RedisURL        string `yaml:"RedisURL"`
@@ -76,38 +85,14 @@ func (c config)LevelForZeroLog(forLogFile bool) zerolog.Level {
 		return zerolog.PanicLevel
 	default:
 		if forLogFile {
-			fmt.Printf("Unknown log level [ %s ], using warn level for log file", c.LogLevel)
-			return zerolog.WarnLevel
+			fmt.Printf("Unknown log level [ %s ], using info level for log file", c.LogLevel)
 		} else {
 			fmt.Printf("Unknown log level [ %s ], using info level for console", c.LogLevel)
-			return zerolog.InfoLevel
 		}
+		return zerolog.InfoLevel
 	}
 }
 
-func createDefaultConfig() config {
-	return config{
-		BotToken: "REPLACE_THIS_USE_YOUR_BOT_TOKEN",
-		WebhookListenAddress: "localhost:2847",
-
-		LogLevel: "info",
-		LogFileLevel: "warn",
-		LogFilePath: YAMLDatabaseDir + "log.txt",
-
-		CacheDir: "./cache/",
-
-		InlineSubCommandSymbol: "+",
-		InlinePaginationSymbol: "-",
-		InlineCategorySymbol:   "=",
-		InlineResultsPerPage:   50,
-		AllowedUpdates: bot.AllowedUpdates{
-			models.AllowedUpdateMessage,
-			models.AllowedUpdateEditedMessage,
-			models.AllowedUpdateChannelPost,
-			models.AllowedUpdateEditedChannelPost,
-			models.AllowedUpdateInlineQuery,
-			models.AllowedUpdateChosenInlineResult,
-			models.AllowedUpdateCallbackQuery,
-		},
-	}
+func GetPluginDir(pluginName string) string {
+	return filepath.Join(YAMLDatabaseDir, pluginName)
 }

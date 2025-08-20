@@ -350,7 +350,7 @@ func MsgLinkPrivate(chatID int64, msgID int) string {
 func GetCurrentFuncName() (string, string) {
 	pc, _, _, ok := runtime.Caller(1)
 	if !ok {
-		return "funcName", "failed"
+		return "func", "failed to get function name"
 	}
-	return "funcName", runtime.FuncForPC(pc).Name()
+	return "func", runtime.FuncForPC(pc).Name()
 }

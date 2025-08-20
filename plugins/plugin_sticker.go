@@ -32,13 +32,13 @@ import (
 var stickerCollect CollectedSticker
 var stickerCollectPath string = filepath.Join(configs.YAMLDatabaseDir, "collectsticker/", configs.YAMLFileName)
 
-var StickerCache_path    string = filepath.Join(configs.BotConfig.CacheDir, "sticker/")
-var StickerCachePNG_path string = filepath.Join(configs.BotConfig.CacheDir, "sticker_png/")
-var StickerCacheGIF_path string = filepath.Join(configs.BotConfig.CacheDir, "sticker_gif/")
-var StickerCacheZip_path string = filepath.Join(configs.BotConfig.CacheDir, "sticker_zip/")
+var StickerCache_path    string = filepath.Join(configs.CacheDir, "sticker/")
+var StickerCachePNG_path string = filepath.Join(configs.CacheDir, "sticker_png/")
+var StickerCacheGIF_path string = filepath.Join(configs.CacheDir, "sticker_gif/")
+var StickerCacheZip_path string = filepath.Join(configs.CacheDir, "sticker_zip/")
 
-var MP4Cache_path string = filepath.Join(configs.BotConfig.CacheDir, "mp4/")
-var GIFCache_path string = filepath.Join(configs.BotConfig.CacheDir, "mp4_GIF/")
+var MP4Cache_path string = filepath.Join(configs.CacheDir, "mp4/")
+var GIFCache_path string = filepath.Join(configs.CacheDir, "mp4_GIF/")
 
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{

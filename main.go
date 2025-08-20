@@ -1,10 +1,7 @@
 package main
 
 import (
-	"context"
 	"net/http"
-	"os"
-	"os/signal"
 	"time"
 
 	"trbot/database"
@@ -15,34 +12,19 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/pkgerrors"
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel, logger := configs.InitBot()
 	defer cancel()
-
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack // set stack trace func
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
-	ctx     = logger.WithContext(ctx) // attach logger into ctx
-
-	// read bot configs
-	err := configs.InitBot(ctx)
-	if err != nil { logger.Fatal().Err(err).Msg("Failed to read bot configs") }
-
-	// writer log to a file or only display on console
-	if configs.IsUseMultiLogWriter(&logger) {
-		ctx = logger.WithContext(ctx) // re-attach logger into ctx
-	}
-	configs.CheckConfig(ctx) // check and auto fill some config
-	configs.ShowConst(ctx)   // show build info
 
 	thebot, err := bot.New(configs.BotConfig.BotToken, []bot.Option{
 		bot.WithDefaultHandler(defaultHandler),
 		bot.WithAllowedUpdates(configs.BotConfig.AllowedUpdates),
 		bot.WithErrorsHandler(func(err error){ logger.Error().Err(err).Msg("go-telegram/bot") }),
+		bot.WithSkipGetMe(),
 	}...)
-	if err != nil { logger.Fatal().Err(err).Msg("Failed to initialize bot") }
+	if err != nil { logger.Fatal().Err(err).Msg("Failed to create bot instance") }
 
 	configs.BotMe, err = thebot.GetMe(ctx)
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to get bot info") }
@@ -63,7 +45,7 @@ func main() {
 	internal_plugin.Register(ctx)
 
 	// Select mode by Webhook config
-	if configs.IsUsingWebhook(ctx) /* Webhook */ {
+	if configs.BotConfig.WebhookURL != "" /* Webhook */ {
 		if configs.SetUpWebhook(ctx, thebot, &bot.SetWebhookParams{
 			URL:            configs.BotConfig.WebhookURL,
 			AllowedUpdates: configs.BotConfig.AllowedUpdates,
