@@ -313,46 +313,19 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		Logger()
 	var handlerErr flaterr.MultErr
 
+	var resultList []models.InlineQueryResult
+
 	if meilisearchClient == nil {
-		_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-			InlineQueryID: opts.InlineQuery.ID,
-			Results: []models.InlineQueryResult{ &models.InlineQueryResultArticle{
-				ID:                  "error",
-				Title:               "此功能不可用",
-				Description:         "Meilisearch 服务尚未初始化",
-				InputMessageContent: &models.InputTextMessageContent{ MessageText: "Meilisearch 服务尚未初始化，无法使用收藏功能" },
-			}},
-			IsPersonal: true,
-			CacheTime:  0,
+		resultList = append(resultList, &models.InlineQueryResultArticle{
+			ID:                  "error",
+			Title:               "此功能不可用",
+			Description:         "Meilisearch 服务尚未初始化",
+			InputMessageContent: &models.InputTextMessageContent{ MessageText: "Meilisearch 服务尚未初始化，无法使用收藏功能" },
 		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "meilisearch client uninitialized").
-				Msg(flaterr.AnswerInlineQuery.Str())
-			handlerErr.Addt(flaterr.AnswerInlineQuery, "meilisearch client uninitialized", err)
-		}
 	} else {
-		var button *models.InlineQueryResultsButton
-		var resultList []models.InlineQueryResult
-		var targetChatID string
-		var filter string
-
-		channelID := SavedMessageList.ChannelIDStr()
-
-		user := SavedMessageList.GetUser(opts.InlineQuery.From.ID)
-		if user == nil || user.Count == 0 {
-			targetChatID = channelID
-			button = &models.InlineQueryResultsButton{
-				Text:           "当前为公共收藏内容",
-				StartParameter: "via-inline_savedmessage-help",
-			}
-		} else {
-			targetChatID = user.IDStr()
-		}
-
 		parsedQuery := inline_utils.ParseInlineFields(opts.Fields)
 
+		// 单字符显示提示信息
 		if parsedQuery.LastChar != "" {
 			switch parsedQuery.LastChar {
 			case configs.BotConfig.InlineCategorySymbol:
@@ -364,8 +337,6 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
 						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
 					}},
-					IsPersonal: true,
-					CacheTime:  0,
 				})
 				if err != nil {
 					logger.Error().
@@ -379,16 +350,11 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
 					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-						ID:          "noPagination",
-						Title:       "分页功能不可用",
-						Description: "由于更换了存储消息的数据库，现在仅可通过输入搜索关键词来查找内容，您可以点击此处来查看公开收藏内容",
-						InputMessageContent: &models.InputTextMessageContent{
-							MessageText: fmt.Sprintf("点击访问公共收藏频道：\nhttps://t.me/%s/\n<blockquote>链接为空？那可能是机器人管理员没有设定公开收藏频道，或未收藏频道设为公开频道</blockquote>", SavedMessageList.ChannelUsername),
-							ParseMode:   models.ParseModeHTML,
-						},
+						ID:          "keepInputNumber",
+						Title:       "请继续输入页码",
+						Description: "请手动输入页码来尝试可用的页面",
+						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试输入页码时点击了提示信息..." },
 					}},
-					IsPersonal: true,
-					CacheTime:  0,
 				})
 				if err != nil {
 					logger.Error().
@@ -397,15 +363,32 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						Msg(flaterr.AnswerInlineQuery.Str())
 					handlerErr.Addt(flaterr.AnswerInlineQuery, "need a category name", err)
 				}
+
 				return handlerErr.Flat()
 			}
 		}
 
-		if parsedQuery.LastChar == configs.BotConfig.InlineCategorySymbol {
-
+		if parsedQuery.Page < 1 {
+			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:          "wrongPageNumber",
+					Title:       "错误的页码",
+					Description: fmt.Sprintf("您输入的页码 %d 为负数", parsedQuery.Page),
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在浏览不存在的页面时点击了错误页码提示..." },
+				}},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "invalid page number").
+					Msg(flaterr.AnswerInlineQuery.Str())
+				handlerErr.Addt(flaterr.AnswerInlineQuery, "invalid page number", err)
+			}
 			return handlerErr.Flat()
 		}
 
+		var filter string
 		if parsedQuery.Category != "" {
 			category, isExist := resultCategorys.GetCategory(parsedQuery.Category)
 			if !isExist {
@@ -431,32 +414,47 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			}
 			filter = "type=" + category.Str()
 		}
-		datas, err := meilisearchClient.Index(targetChatID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: int64(configs.BotConfig.InlineResultsPerPage), Filter: filter })
+
+		datas, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{
+			HitsPerPage: int64(configs.BotConfig.InlineResultsPerPage - 1),
+			Page:        int64(parsedQuery.Page),
+			Filter:      filter,
+		})
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Msg("Failed to get message")
-			handlerErr.Addf("failed to get message: %w", err)
-			_, err = opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-				InlineQueryID: opts.InlineQuery.ID,
-				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-					ID:                  "error",
-					Title:               "获取消息发生错误",
-					Description:         "点击查看错误信息",
-					InputMessageContent: &models.InputTextMessageContent{
-						MessageText: fmt.Sprintf("获取消息时发生了错误：<blockquote expandable>%s</blockquote>", err.Error()),
-						ParseMode:   models.ParseModeHTML,
-					},
-				}},
-				IsPersonal: true,
-				CacheTime:  0,
+				Msg("Failed to get channel saved message")
+			handlerErr.Addf("failed to get channel saved message: %w", err)
+			resultList = append(resultList, &models.InlineQueryResultArticle{
+				ID:                  "error",
+				Title:               "获取消息发生错误",
+				Description:         "点击查看错误信息",
+				InputMessageContent: &models.InputTextMessageContent{
+					MessageText: fmt.Sprintf("获取消息时发生了错误：<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
+					ParseMode:   models.ParseModeHTML,
+				},
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "get message error").
-					Msg(flaterr.AnswerInlineQuery.Str())
-				handlerErr.Addt(flaterr.AnswerInlineQuery, "get message error", err)
+		} else if int64(parsedQuery.Page) > datas.TotalPages {
+			if len(parsedQuery.Keywords) > 0 {
+				resultList = append(resultList, &models.InlineQueryResultArticle{
+					ID:                  "noMatchItem",
+					Title:               fmt.Sprintf("没有符合 %s 关键词的内容", parsedQuery.Keywords),
+					Description:         "试试其他关键词？",
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+				})
+			} else if parsedQuery.Page > 1 {
+				resultList = append(resultList, &models.InlineQueryResultArticle{
+					ID:                  "noMorePage",
+					Title:               "没有更多消息了",
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+				})
+			} else {
+				resultList = append(resultList, &models.InlineQueryResultArticle{
+					ID:                  "noItemInChannel",
+					Title:               "什么都没有",
+					Description:         "公共频道中没有保存任何内容",
+					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
+				})
 			}
 		} else {
 			var msgDatas []meilisearch_utils.MessageData
@@ -464,29 +462,17 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Msg("Failed to unmarshal message data")
-				handlerErr.Addf("Failed to unmarshal message data: %w", err)
-				_, err = opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.InlineQuery.ID,
-					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-						ID:                  "error",
-						Title:               "解析消息发生错误",
-						Description:         "点击查看错误信息",
-						InputMessageContent: &models.InputTextMessageContent{
-							MessageText: fmt.Sprintf("解析消息时发生了错误：<blockquote expandable>%s</blockquote>", err.Error()),
-							ParseMode:   models.ParseModeHTML,
-						},
-					}},
-					IsPersonal: true,
-					CacheTime:  0,
+					Msg("Failed to unmarshal channel saved message data")
+				handlerErr.Addf("Failed to unmarshal channel saved message data: %w", err)
+				resultList = append(resultList, &models.InlineQueryResultArticle{
+					ID:                  "error",
+					Title:               "解析消息发生错误",
+					Description:         "点击查看错误信息",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: fmt.Sprintf("解析消息时发生了错误：<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
+						ParseMode:   models.ParseModeHTML,
+					},
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "unmarshal message error").
-						Msg(flaterr.AnswerInlineQuery.Str())
-					handlerErr.Addt(flaterr.AnswerInlineQuery, "unmarshal message error", err)
-				}
 			} else {
 				for _, msgData := range msgDatas {
 					switch msgData.Type {
@@ -576,164 +562,34 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 						})
 					}
 				}
-				// 如果当前查询的 ID 与公共收藏夹 ID 不同，且用户存在并设定包含公共收藏内容，则添加公共收藏内容
-				if len(resultList) < configs.BotConfig.InlineResultsPerPage && targetChatID != channelID && user != nil && user.IncludeChannel {
-					button = &models.InlineQueryResultsButton{
-						Text:           "当前包含了个人和公共收藏内容",
-						StartParameter: "via-inline_savedmessage-help",
-					}
-					datas, err := meilisearchClient.Index(channelID).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{ Limit: int64(configs.BotConfig.InlineResultsPerPage - len(resultList)), Filter: filter })
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Msg("Failed to get message from channel")
-						handlerErr.Addf("failed to get message from channel: %w", err)
-					} else {
-						var msgDatasChannel []meilisearch_utils.MessageData
-						err = meilisearch_utils.UnmarshalMessageData(&datas.Hits, &msgDatasChannel)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Msg("Failed to unmarshal message data from channel")
-							handlerErr.Addf("Failed to unmarshal message data from channel: %w", err)
-						} else {
-							for _, msgData := range msgDatasChannel {
-								switch msgData.Type {
-								case message_utils.Text:
-									resultList = append(resultList, &models.InlineQueryResultArticle{
-										ID:                  "channel" + msgData.MsgIDStr(),
-										Title:               msgData.Text,
-										Description:         msgData.Desc,
-										ReplyMarkup:         msgData.OriginInfo.BuildButton(),
-										InputMessageContent: &models.InputTextMessageContent{
-											MessageText:        msgData.Text,
-											Entities:           msgData.Entities,
-											LinkPreviewOptions: msgData.LinkPreviewOptions,
-										},
-									})
-								case message_utils.Audio:
-									resultList = append(resultList, &models.InlineQueryResultCachedAudio{
-										ID:              "channel" + msgData.MsgIDStr(),
-										AudioFileID:     msgData.FileID,
-										Caption:         msgData.Text,
-										CaptionEntities: msgData.Entities,
-										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.Document:
-									resultList = append(resultList, &models.InlineQueryResultCachedDocument{
-										ID:              "channel" + msgData.MsgIDStr(),
-										DocumentFileID:  msgData.FileID,
-										Title:           msgData.FileName,
-										Caption:         msgData.Text,
-										CaptionEntities: msgData.Entities,
-										Description:     msgData.Desc,
-										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.Animation:
-									resultList = append(resultList, &models.InlineQueryResultCachedMpeg4Gif{
-										ID:              "channel" + msgData.MsgIDStr(),
-										Mpeg4FileID:     msgData.FileID,
-										Title:           msgData.FileName,
-										Caption:         msgData.Text,
-										CaptionEntities: msgData.Entities,
-										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.Photo:
-									resultList = append(resultList, &models.InlineQueryResultCachedPhoto{
-										ID:                    "channel" + msgData.MsgIDStr(),
-										PhotoFileID:           msgData.FileID,
-										Caption:               msgData.Text,
-										CaptionEntities:       msgData.Entities,
-										Description:           msgData.Desc,
-										ShowCaptionAboveMedia: msgData.ShowCaptionAboveMedia,
-										ReplyMarkup:           msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.Sticker:
-									resultList = append(resultList, &models.InlineQueryResultCachedSticker{
-										ID:            "channel" + msgData.MsgIDStr(),
-										StickerFileID: msgData.FileID,
-										ReplyMarkup:   msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.Video:
-									  resultList = append(resultList, &models.InlineQueryResultCachedVideo{
-										ID:              "channel" + msgData.MsgIDStr(),
-										VideoFileID:     msgData.FileID,
-										Title:           msgData.FileName,
-										Description:     msgData.Desc,
-										Caption:         msgData.Text,
-										CaptionEntities: msgData.Entities,
-										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.VideoNote:
-									resultList = append(resultList, &models.InlineQueryResultCachedDocument{
-										ID:              "channel" + msgData.MsgIDStr(),
-										DocumentFileID:  msgData.FileID,
-										Title:           msgData.FileName,
-										Description:     msgData.Desc,
-										Caption:         msgData.Text,
-										CaptionEntities: msgData.Entities,
-										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
-									})
-								case message_utils.Voice:
-									resultList = append(resultList, &models.InlineQueryResultCachedVoice{
-										ID:              "channel" + msgData.MsgIDStr(),
-										VoiceFileID:     msgData.FileID,
-										Title:           msgData.FileTitle,
-										Caption:         msgData.Text,
-										CaptionEntities: msgData.Entities,
-										ReplyMarkup:     msgData.OriginInfo.BuildButton(),
-									})
-								}
-							}
-						}
-					}
-				}
-				if len(resultList) == 0 {
-					if len(parsedQuery.Keywords) > 0 {
-						resultList = append(resultList, &models.InlineQueryResultArticle{
-							ID:                  "none",
-							Title:               fmt.Sprintf("没有符合 %s 关键词的内容", parsedQuery.Keywords),
-							InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
-						})
-					} else if user != nil {
-						resultList = append(resultList, &models.InlineQueryResultArticle{
-							ID:          "empty",
-							Title:       "没有保存内容（点击查看详细教程）",
-							Description: "对一条信息回复 /save 来保存它",
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +saved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", configs.BotMe.Username, configs.BotMe.Username),
-								ParseMode:   models.ParseModeHTML,
-							},
-						})
-						button = &models.InlineQueryResultsButton{
-							Text:           "点击此处快速跳转到机器人",
-							StartParameter: "via-inline_noreply",
-						}
-					} else {
-						resultList = append(resultList, &models.InlineQueryResultArticle{
-							ID:                  "none",
-							Title:               "什么都没有",
-							InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
-						})
-					}
-				}
-
-				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-					InlineQueryID: opts.InlineQuery.ID,
-					Results:       resultList,
-					Button:        button,
-					IsPersonal:    true,
-					CacheTime:     0,
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "saved message result").
-						Msg(flaterr.AnswerInlineQuery.Str())
-					handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
+				if datas.TotalPages != int64(parsedQuery.Page) && datas.TotalHits > int64(configs.BotConfig.InlineResultsPerPage - 1) {
+					resultList = append(resultList, &models.InlineQueryResultArticle{
+						ID:          "paginationPage",
+						Title:       fmt.Sprintf("当前您在第 %d 页", parsedQuery.Page),
+						Description: fmt.Sprintf("后面还有 %d 页内容，输入 %s%d 查看下一页", datas.TotalPages - int64(parsedQuery.Page), configs.BotConfig.InlinePaginationSymbol, parsedQuery.Page + 1),
+						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在挑选内容时点击了分页提示..." },
+					})
 				}
 			}
 		}
+	}
+
+	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+		InlineQueryID: opts.InlineQuery.ID,
+		Results:       resultList,
+		Button:        &models.InlineQueryResultsButton{
+			Text:           "当前为公共收藏内容",
+			StartParameter: "via-inline_viewchannel",
+		},
+		IsPersonal:    true,
+		CacheTime:     0,
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("content", "saved message result").
+			Msg(flaterr.AnswerInlineQuery.Str())
+		handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
 	}
 
 	return handlerErr.Flat()
@@ -940,7 +796,7 @@ func Init() {
 			// if SavedMessageList.User == nil { SavedMessageList.User = []SavedMessageUser{} }
 
 			if SavedMessageList.MeiliURL == "" {
-				return errors.New("Meilisearch URL is not set")
+				return errors.New("the Meilisearch URL is not set")
 			} else {
 				meilisearchClient = meilisearch.New(SavedMessageList.MeiliURL, meilisearch.WithAPIKey(SavedMessageList.MeiliAPI))
 				if SavedMessageList.ChannelID == 0 {
