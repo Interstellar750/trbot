@@ -579,7 +579,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		Results:       resultList,
 		Button:        &models.InlineQueryResultsButton{
 			Text:           "当前为公共收藏内容",
-			StartParameter: "via-inline_viewchannel",
+			StartParameter: "savedmessage_viewchannel",
 		},
 		IsPersonal:    true,
 		CacheTime:     0,
@@ -590,6 +590,33 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			Str("content", "saved message result").
 			Msg(flaterr.AnswerInlineQuery.Str())
 		handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
+	}
+
+	return handlerErr.Flat()
+}
+
+func showChannelLink(opts *handler_params.Message) error {
+	var handlerErr flaterr.MultErr
+
+	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID: opts.Message.Chat.ID,
+		Text:   fmt.Sprintf("当前频道链接: https://t.me/%s", SavedMessageList.ChannelUsername),
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+			Text: "查看频道",
+			URL:  "https://t.me/" + SavedMessageList.ChannelUsername,
+		}}}},
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		zerolog.Ctx(opts.Ctx).Error().
+			Err(err).
+			Str("pluginName", "Saved Message").
+			Str(utils.GetCurrentFuncName()).
+			Dict(utils.GetUserDict(opts.Message.From)).
+			Str("content", "saved message channel link").
+			Msg(flaterr.SendMessage.Str())
+		handlerErr.Addt(flaterr.SendMessage, "saved message channel link", err)
 	}
 
 	return handlerErr.Flat()
@@ -866,6 +893,10 @@ func Init() {
 		{
 			Argument: "savedmessage_privacy_policy_agree",
 			MessageHandler:  AgreePrivacyPolicy,
+		},
+		{
+			Argument: "savedmessage_viewchannel",
+			MessageHandler:  showChannelLink,
 		},
 	}...)
 	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
