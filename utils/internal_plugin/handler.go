@@ -26,27 +26,23 @@ func startHandler(params *handler_params.Message) error {
 	if len(params.Fields) > 1 {
 		// todo: move to RunSlashStartWithPrefixCommandHandlers
 		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.WithPrefixHandler {
-			if strings.HasPrefix(params.Fields[1], plugin.Prefix + "_") {
-				inlineArgument := strings.Split(params.Fields[1], "_")
-				if inlineArgument[1] == plugin.Argument {
-					slogger := logger.With().
-						Str("handlerPrefix", plugin.Prefix).
-						Str("handlerArgument", plugin.Argument).
-						Str("handlerName", plugin.Name).
-						Logger()
+			if strings.HasPrefix(params.Fields[1], plugin.PrefixArgument + "_") {
+				slogger := logger.With().
+					Str("handlerPrefixArgument", plugin.PrefixArgument).
+					Str("handlerName", plugin.Name).
+					Logger()
 
-					if plugin.MessageHandler != nil {
-						slogger.Info().Msg("Hit by prefix /start command handler")
-						err := plugin.MessageHandler(params)
-						if err != nil {
-							slogger.Error().
-								Err(err).
-								Msg("Error in by prefix /start command handler")
-						}
-						return err
-					} else {
-						slogger.Warn().Msg("Hit by prefix /start command handler, but this handler function is nil, skip")
+				if plugin.MessageHandler != nil {
+					slogger.Info().Msg("Hit by prefix /start command handler")
+					err := plugin.MessageHandler(params)
+					if err != nil {
+						slogger.Error().
+							Err(err).
+							Msg("Error in by prefix /start command handler")
 					}
+					return err
+				} else {
+					slogger.Warn().Msg("Hit by prefix /start command handler, but this handler function is nil, skip")
 				}
 			}
 		}

@@ -190,16 +190,9 @@ func Register(ctx context.Context) {
 	}...)
 
 	// 触发：'/start <Prefix>_<Argument>'，如果是通过消息按钮发送的，用户只会看到自己发送了一个 `/start`
-	plugin_utils.AddSlashStartWithPrefixCommandHandlers([]plugin_utils.SlashStartWithPrefixHandler{
-		{
-			Name:           "no reply",
-			Prefix:         "via-inline",
-			Argument:       "noreply",
-			MessageHandler: nil, // 不回复
-		},
+	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
 		{
 			Name:           "change default inline command",
-			Prefix:         "via-inline",
 			Argument:       "change-inline-command",
 			MessageHandler: func(opts *handler_params.Message) error {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{

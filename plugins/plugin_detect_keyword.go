@@ -86,10 +86,9 @@ func init() {
 			CallbackQueryHandler: userManageCallbackHandler,
 		},
 	}...)
-	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
-		Name:           "detect keyword add chat to list",
-		Prefix:         "detectkw",
-		Argument:       "addgroup",
+	plugin_utils.AddSlashStartPrefixCommandHandlers(plugin_utils.SlashStartPrefixHandler{
+		Name:           "detect keyword add chat to user list",
+		PrefixArgument: "detectkw-addgroup",
 		ForChatType:    []models.ChatType{models.ChatTypePrivate},
 		MessageHandler: startPrefixAddGroup,
 	})
@@ -607,7 +606,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 					ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 						{
 							Text: "设定关键词",
-							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, opts.Message.Chat.ID),
+							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw-addgroup_%d", configs.BotMe.Username, opts.Message.Chat.ID),
 						},
 						{
 							Text:         "管理此功能",
@@ -733,7 +732,7 @@ func addKeywordHandler(opts *handler_params.Message) error {
 						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 						ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 							Text: "管理关键词",
-							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, chat.ChatID),
+							URL:  fmt.Sprintf("https://t.me/%s?start=detectkw-addgroup_%d", configs.BotMe.Username, chat.ChatID),
 						}}}},
 					})
 					if err != nil {
@@ -1081,7 +1080,7 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				buttons = [][]models.InlineKeyboardButton{
 					{{
 						Text: "设定关键词",
-						URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
+						URL:  fmt.Sprintf("https://t.me/%s?start=detectkw-addgroup_%d", configs.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
 					}},
 					{{
 						Text:         "🔄 当前状态: 已启用 ✅",
@@ -1564,7 +1563,7 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 		Logger()
 
 	var handlerErr flaterr.MultErr
-	var needSave bool = true
+	var needSave bool
 
 	user := KeywordDataList.Users[opts.Message.From.ID]
 	if user.AddTime == "" {
@@ -1580,34 +1579,21 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 		needSave = true
 	}
 
-	if strings.HasPrefix(opts.Fields[1], "detectkw_addgroup_") {
-		groupID_int64, err := strconv.ParseInt(strings.TrimPrefix(opts.Fields[1], "detectkw_addgroup_"), 10, 64)
+	if strings.HasPrefix(opts.Fields[1], "detectkw-addgroup_") {
+		var chat    KeywordChatList
+		var isExist bool
+
+		groupID_int64, err := strconv.ParseInt(strings.TrimPrefix(opts.Fields[1], "detectkw-addgroup_"), 10, 64)
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Msg("Failed to parse chat ID when user add a group by /start command")
 			handlerErr.Addf("failed to parse chat ID when user add a group by /start command: %w", err)
+		} else {
+			chat, isExist = KeywordDataList.Chats[groupID_int64]
 		}
 
-		chat, isExist := KeywordDataList.Chats[groupID_int64]
-		if !isExist {
-			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-				ChatID:          opts.Message.Chat.ID,
-				Text:            "无法添加群组，请尝试在对应群组中发送 /setkeyword 命令后再尝试点击 [ 设定关键词 ] 按钮",
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-					Text: "将此机器人添加到群组或频道",
-					URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", configs.BotMe.Username),
-				}}}},
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "invalid chat ID in /start message").
-					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addt(flaterr.SendMessage, "invalid chat ID in /start message", err)
-			}
-		} else {
+		if isExist {
 			var IsAdded bool = false
 			var pendingMessage string
 			for _, keyword := range user.ChatsForUser {
@@ -1640,6 +1626,23 @@ func startPrefixAddGroup(opts *handler_params.Message) error {
 					Str("content", "added group in user list").
 					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addt(flaterr.SendMessage, "added group in user list", err)
+			}
+		} else {
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:          opts.Message.Chat.ID,
+				Text:            "无法添加群组，请尝试在对应群组中发送 /setkeyword 命令后再尝试点击 [ 设定关键词 ] 按钮",
+				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+				ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "将此机器人添加到群组或频道",
+					URL:  fmt.Sprintf("https://t.me/%s?startgroup=detectkw", configs.BotMe.Username),
+				}}}},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "invalid chat ID in /start message").
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addt(flaterr.SendMessage, "invalid chat ID in /start message", err)
 			}
 		}
 	}
@@ -1701,7 +1704,7 @@ func startBotAddedToGroup(opts *handler_params.Message) error {
 		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
 			{
 				Text: "设定关键词",
-				URL:  fmt.Sprintf("https://t.me/%s?start=detectkw_addgroup_%d", configs.BotMe.Username, opts.Message.Chat.ID),
+				URL:  fmt.Sprintf("https://t.me/%s?start=detectkw-addgroup_%d", configs.BotMe.Username, opts.Message.Chat.ID),
 			},
 			{
 				Text:         "管理此功能",

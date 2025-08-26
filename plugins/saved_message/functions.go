@@ -899,11 +899,6 @@ func Init() {
 			MessageHandler:  showChannelLink,
 		},
 	}...)
-	plugin_utils.AddSlashStartWithPrefixCommandHandlers(plugin_utils.SlashStartWithPrefixHandler{
-		Prefix:         "via-inline",
-		Argument:       "savedmessage-help",
-		MessageHandler: saveMessageHandler,
-	})
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
 			CallbackDataPrefix:   "savedmsg_switch",

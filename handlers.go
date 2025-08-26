@@ -561,7 +561,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			CacheTime:     1,
 			Button:        &models.InlineQueryResultsButton{
 				Text:           "点击此处修改默认命令",
-				StartParameter: "via-inline_change-inline-command",
+				StartParameter: "change-inline-command",
 			},
 		})
 		if err != nil {
@@ -664,7 +664,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 				}},
 				Button: &models.InlineQueryResultsButton{
 					Text:           "点击此处修改默认命令",
-					StartParameter: "via-inline_change-inline-command",
+					StartParameter: "change-inline-command",
 				},
 			})
 			if err != nil {
@@ -698,7 +698,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 							CacheTime:     0,
 							Button: &models.InlineQueryResultsButton{
 								Text:           fmt.Sprintf("输入 %s 号显示菜单，或点击此处修改默认命令", configs.BotConfig.InlineSubCommandSymbol),
-								StartParameter: "via-inline_change-inline-command",
+								StartParameter: "change-inline-command",
 							},
 						})
 						if err != nil {
@@ -778,7 +778,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 				}},
 				Button: &models.InlineQueryResultsButton{
 					Text:           "您可以点击此处设定一个默认命令",
-					StartParameter: "via-inline_change-inline-command",
+					StartParameter: "change-inline-command",
 				},
 			})
 			if err != nil {
@@ -815,7 +815,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			}},
 			Button: &models.InlineQueryResultsButton{
 				Text:           "您可以点击此处设定一个默认命令",
-				StartParameter: "via-inline_change-inline-command",
+				StartParameter: "change-inline-command",
 			},
 		})
 		if err != nil {
