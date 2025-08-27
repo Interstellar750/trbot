@@ -12,6 +12,7 @@ import (
 	"trbot/utils/plugin_utils"
 	"trbot/utils/yaml"
 
+	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog"
 )
@@ -23,7 +24,9 @@ var VoiceListDir string = filepath.Join(configs.YAMLDatabaseDir, "voices/")
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "VoiceList",
-		Func: ReadVoicePackFromPath,
+		Func: func(ctx context.Context, thebot *bot.Bot) error{
+			return ReadVoicePackFromPath(ctx)
+		},
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "Voice List",

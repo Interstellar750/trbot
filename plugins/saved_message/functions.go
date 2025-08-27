@@ -815,7 +815,7 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 func Init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Saved Message",
-		Func: func(ctx context.Context) error{
+		Func: func(ctx context.Context, thebot *bot.Bot) error {
 			err := ReadSavedMessageList(ctx)
 			if err != nil {
 				return err

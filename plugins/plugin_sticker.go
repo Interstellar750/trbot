@@ -43,7 +43,9 @@ var GIFCache_path string = filepath.Join(configs.CacheDir, "mp4_GIF/")
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "collectsitcker",
-		Func: readCollectStickerList,
+		Func: func(ctx context.Context, thebot *bot.Bot) error{
+			return readCollectStickerList(ctx)
+		},
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name:   "collectsitcker",

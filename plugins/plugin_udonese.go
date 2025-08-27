@@ -797,7 +797,7 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Udonese",
-		Func: func(ctx context.Context) error {
+		Func: func(ctx context.Context, thebot *bot.Bot) error {
 			err := ReadUdonese(ctx)
 			if err != nil {
 				return err

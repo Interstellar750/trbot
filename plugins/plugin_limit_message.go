@@ -43,7 +43,9 @@ type AllowMessages struct {
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Limit Message",
-		Func: ReadLimitMessageList,
+		Func: func(ctx context.Context, thebot *bot.Bot) error{
+			return ReadLimitMessageList(ctx)
+		},
 	})
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
 		Name: "Limit Message",

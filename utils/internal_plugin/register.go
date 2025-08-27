@@ -23,11 +23,11 @@ import (
 )
 
 // this function run only once in main
-func Register(ctx context.Context) {
+func Register(ctx context.Context, thebot *bot.Bot) {
 	// 初始化 plugins/ 中的插件
 	plugins.InitPlugins()
 
-	plugin_utils.RunPluginInitializers(ctx)
+	plugin_utils.RunPluginInitializers(ctx, thebot)
 
 	// 以 `/` 符号开头的命令
 	plugin_utils.AddSlashCommandHandlers([]plugin_utils.SlashCommand{

@@ -68,7 +68,7 @@ type OnlineClient struct {
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "teamspeak",
-		Func: func(ctx context.Context) error{
+		Func: func(ctx context.Context, thebot *bot.Bot) error{
 			if initTeamSpeak(ctx) {
 				isSuccessInit = true
 				// 需要以群组 ID 来触发 handler 来获取 opts

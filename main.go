@@ -41,8 +41,8 @@ func main() {
 	// start handler custom signals
 	go signals.SignalsHandler(ctx)
 
-	// register plugin (plugin use `init()` first, then plugin use `InitPlugins` second, and internal is the last)
-	internal_plugin.Register(ctx)
+	// register plugin (plugin use `init()` first, internal is the last)
+	internal_plugin.Register(ctx, thebot)
 
 	// Select mode by Webhook config
 	if configs.BotConfig.WebhookURL != "" /* Webhook */ {

@@ -3,12 +3,13 @@ package plugin_utils
 import (
 	"context"
 
+	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
 )
 
 type Initializer struct {
 	Name string
-	Func func(ctx context.Context) error
+	Func func(ctx context.Context, thebot *bot.Bot) error
 }
 
 func AddInitializer(initializers ...Initializer) int {
@@ -23,7 +24,7 @@ func AddInitializer(initializers ...Initializer) int {
 	return pluginCount
 }
 
-func RunPluginInitializers(ctx context.Context) {
+func RunPluginInitializers(ctx context.Context, thebot *bot.Bot) {
 	logger := zerolog.Ctx(ctx)
 
 	count := len(AllPlugins.Initializer)
@@ -36,7 +37,7 @@ func RunPluginInitializers(ctx context.Context) {
 				Msg("Plugin has no initialize function, skipping")
 			continue
 		}
-		err := initializer.Func(ctx)
+		err := initializer.Func(ctx, thebot)
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -49,8 +50,8 @@ func RunPluginInitializers(ctx context.Context) {
 				Msg("Plugin initialize success")
 			successCount++
 		}
-		
+
 	}
-	
+
 	logger.Info().Msgf("Run (%d/%d) initializer success", successCount, count)
 }

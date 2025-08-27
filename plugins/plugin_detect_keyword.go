@@ -31,7 +31,7 @@ var KeywordDataPath string = filepath.Join(configs.YAMLDatabaseDir, "detectkeywo
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "Detect Keyword",
-		Func: func(ctx context.Context) error{
+		Func: func(ctx context.Context, thebot *bot.Bot) error{
 			err := readKeywordList(ctx)
 			if err != nil {
 				return err

@@ -1,27 +1,19 @@
 package plugin_utils
 
 import (
-	"strings"
 	"trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot/models"
-	"github.com/rs/zerolog/log"
 )
-
-/*
-	If your plugin needs to obtain parameters from the /start command string, register
-	it as `SlashStartWithPrefixHandler`. It will use the prefix to determine whether to trigger the command
-
-	For example, with `/start command-name_argument1_argument2`, the handler will check if the `command-name` portion matches the registered plugin
-
-	`SlashStartCommand` simply checks whether the `Argument` string is equal
-*/
 
 type SlashStartCommand struct {
 	Handler           []SlashStartHandler           // 例如 /start subcommand
 	WithPrefixHandler []SlashStartPrefixHandler // 例如 /start subcommand_augument
 }
 
+// SlashStartHandler needs to match `argument_sometext` exactly in `/start argument_sometext` string
+//
+// If you need to match by prefix, register it as `SlashStartPrefixHandler` to get some parameters
 type SlashStartHandler struct {
 	Name           string
 	Argument       string
@@ -44,7 +36,9 @@ func AddSlashStartCommandHandlers(handlers ...SlashStartHandler) int {
 	return handlerCount
 }
 
-// The Prefix is separated from the Argument by `_` (underline) symbol
+// SlashStartPrefixHandler uses the prefix to match the `argument` in the `/start argument_sometext` string
+//
+// If you need to match the `argument_sometext` in the string exactly, register it as `SlashStartHandler`
 type SlashStartPrefixHandler struct {
 	Name           string
 	PrefixArgument string
@@ -58,13 +52,6 @@ func AddSlashStartPrefixCommandHandlers(handlers ...SlashStartPrefixHandler) int
 	var handlerCount int
 	for _, handler := range handlers {
 		if handler.PrefixArgument == "" { continue }
-		if strings.Contains(handler.PrefixArgument, "_") {
-			log.Warn().
-				Str("HandlerName", handler.Name).
-				Str("PrefixArgument", handler.PrefixArgument).
-				Msg("Ignore this handler, `PrefixArgument` should not contain the underscore character `_`, it is used by the user to separate subsequent parameters in the program")
-			continue
-		}
 		if handler.ForChatType == nil {
 			handler.ForChatType = []models.ChatType{models.ChatTypePrivate, models.ChatTypeGroup, models.ChatTypeSupergroup}
 		}

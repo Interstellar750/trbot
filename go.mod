@@ -7,15 +7,20 @@ toolchain go1.23.5
 require (
 	github.com/go-telegram/bot v1.17.0
 	github.com/joho/godotenv v1.5.1
-	github.com/meilisearch/meilisearch-go v0.32.0
-	github.com/multiplay/go-ts3 v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.7.1
 	github.com/rs/zerolog v1.34.0
-	golang.org/x/image v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+// plugin packages
+require (
+	github.com/meilisearch/meilisearch-go v0.32.0
+	github.com/multiplay/go-ts3 v1.2.0
+	golang.org/x/image v0.23.0
+)
+
+// indirect packages
 require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

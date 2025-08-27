@@ -26,7 +26,7 @@ func startHandler(params *handler_params.Message) error {
 	if len(params.Fields) > 1 {
 		// todo: move to RunSlashStartWithPrefixCommandHandlers
 		for _, plugin := range plugin_utils.AllPlugins.SlashStartCommand.WithPrefixHandler {
-			if strings.HasPrefix(params.Fields[1], plugin.PrefixArgument + "_") {
+			if strings.HasPrefix(params.Fields[1], plugin.PrefixArgument) {
 				slogger := logger.With().
 					Str("handlerPrefixArgument", plugin.PrefixArgument).
 					Str("handlerName", plugin.Name).
