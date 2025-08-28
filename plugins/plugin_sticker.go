@@ -83,8 +83,7 @@ func init() {
 	}...)
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "贴纸下载",
-		Description: "直接向机器人发送任意贴纸来下载转换后的 PNG 格式图片\n\n<blockquote expandable>仅限静态贴纸会被转换，动画和视频贴纸将会以原文件形式发送\n若您发送的贴纸为一个贴纸包中的贴纸，您可以点击消息中的按钮来下载整个贴纸包</blockquote>",
-		ParseMode:   models.ParseModeHTML,
+		Description: "向机器人发送任意贴纸或视频 GIF 来下载它\n向机器人发送贴纸包链接来下载整个贴纸包\n\n注意：\n静态贴纸会被转换为 PNG 格式\n视频贴纸和视频 GIF 会被转换为 GIF 格式\n动画贴纸（.tgs 格式）不会被转换，将会添加 .file 后缀以文件形式发回",
 	})
 	plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
 		PluginName:       "下载贴纸",

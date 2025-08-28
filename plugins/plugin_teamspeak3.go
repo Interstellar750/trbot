@@ -41,16 +41,17 @@ var reconnectMessageID int
 
 type TSServerQuery struct {
 	// get `Name` And `Password` in `TeamSpeak 3 Client` -> `Tools` -> `ServerQuery Login`
-	URL                   string `yaml:"URL"`
-	Name                  string `yaml:"Name"`
-	Password              string `yaml:"Password"`
-	GroupID               int64  `yaml:"GroupID"`
-	PollingInterval       int    `yaml:"PollingInterval"`
-	SendMessageMode       bool   `yaml:"SendMessageMode"`
-	AutoDeleteMessage     bool   `yaml:"AutoDeleteMessage"`
-	DeleteTimeoutInMinute int    `yaml:"DeleteTimeoutInMinute"`
-	PinMessageMode        bool   `yaml:"PinMessageMode"`
-	PinnedMessageID       int    `yaml:"PinnedMessageID"`
+	URL                    string `yaml:"URL"`
+	Name                   string `yaml:"Name"`
+	Password               string `yaml:"Password"`
+	GroupID                int64  `yaml:"GroupID"`
+	PollingInterval        int    `yaml:"PollingInterval"`
+	SendMessageMode        bool   `yaml:"SendMessageMode"`
+	AutoDeleteMessage      bool   `yaml:"AutoDeleteMessage"`
+	DeleteTimeoutInMinute  int    `yaml:"DeleteTimeoutInMinute"`
+	PinMessageMode         bool   `yaml:"PinMessageMode"`
+	DeleteOldPinnedMessage bool   `yaml:"DeleteOldPinnedMessage"`
+	PinnedMessageID        int    `yaml:"PinnedMessageID"`
 }
 
 type OnlineClient struct {
@@ -77,8 +78,8 @@ func init() {
 	})
 
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
-		Name:        "TeamSpeak 检测用户变动",
-		Description: "注意：使用此功能需要先在配置文件中手动填写配置文件\n\n使用 /ts3 命令随时查看服务器在线用户和监听状态，监听轮询时间为每 5 秒检测一次，若无法与服务器取得连接，将会自动尝试重新连接",
+		Name:        "TeamSpeak",
+		Description: "注意：使用此功能需要先在配置文件中手动填写配置文件\n\n此功能可以按照设定好的轮询时间来检查 TeamSpeak 服务器中的用户列表，并可以在用户列表发送变动时在群组中发送提醒\n\n使用 /ts3 命令来随时查看服务器在线用户和监听状态\n支持设定多种提醒方式（更新置顶消息、发送消息）\n自定义配置轮询间隔（单位 秒）\n自定义删除旧通知消息超时（单位 分钟）\n服务器掉线自动重连（若 bot 首次启动未能连接成功，则需要手动发送 /ts3 命令后才可自动重连）",
 	})
 
 	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
@@ -273,17 +274,17 @@ func showStatus(opts *handler_params.Message) error {
 
 	// 正常运行就输出用户列表，否则发送错误信息
 	if isSuccessInit && isCanListening {
-		onlineClient, err := tsClient.Server.ClientList()
+		onlineClients, err := tsClient.Server.ClientList()
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Msg("Failed to get online client")
 			handlerErr.Addf("failed to get online client: %w", err)
-			pendingMessage = fmt.Sprintf("连接到 teamspeak 服务器发生错误:\n<blockquote expandable>%s</blockquote>", err)
+			pendingMessage = fmt.Sprintf("获取服务器用户列表时发生了一些错误:\n<blockquote expandable>%s</blockquote>", err)
 		} else {
 			pendingMessage += fmt.Sprintln("在线客户端:")
 			var userCount int
-			for _, client := range onlineClient {
+			for _, client := range onlineClients {
 				if client.Nickname == botNickName {
 					// 统计用户数量时跳过此机器人
 					continue
@@ -372,22 +373,38 @@ func listenUserStatus(ctx context.Context) {
 	if tsData.DeleteTimeoutInMinute == 0 { tsData.DeleteTimeoutInMinute = 10 }
 	// 取消置顶上一次的置顶消息
 	if tsData.PinnedMessageID != 0 {
-		_, err := botInstance.UnpinChatMessage(ctx, &bot.UnpinChatMessageParams{
-			ChatID:    tsData.GroupID,
-			MessageID: tsData.PinnedMessageID,
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("chatID", tsData.GroupID).
-				Int("messageID", tsData.PinnedMessageID).
-				Str("content", "latest pinned online client status").
-				Msg(flaterr.UnpinChatMessage.Str())
+		if tsData.DeleteOldPinnedMessage {
+			_, err := botInstance.DeleteMessage(ctx, &bot.DeleteMessageParams{
+				ChatID:    tsData.GroupID,
+				MessageID: tsData.PinnedMessageID,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", tsData.GroupID).
+					Int("messageID", tsData.PinnedMessageID).
+					Str("content", "latest pinned online client status").
+					Msg(flaterr.DeleteMessage.Str())
+			}
+		} else {
+			_, err := botInstance.UnpinChatMessage(ctx, &bot.UnpinChatMessageParams{
+				ChatID:    tsData.GroupID,
+				MessageID: tsData.PinnedMessageID,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int64("chatID", tsData.GroupID).
+					Int("messageID", tsData.PinnedMessageID).
+					Str("content", "latest pinned online client status").
+					Msg(flaterr.UnpinChatMessage.Str())
+			}
 		}
+
 		tsData.PinnedMessageID = 0
-		err = saveTeamspeakData(ctx)
+		err := saveTeamspeakData(ctx)
 		if err != nil {
-			logger.Error().Err(err).Msg("Failed to save teamspeak data after unpinning message")
+			logger.Error().Err(err).Msg("Failed to save teamspeak data after delete or unpin message")
 		}
 	}
 
@@ -472,7 +489,7 @@ func checkOnlineClientChange(ctx context.Context, checkCount, errCount *int, bef
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	onlineClient, err := tsClient.Server.ClientList()
+	onlineClients, err := tsClient.Server.ClientList()
 	if err != nil {
 		*errCount++
 		logger.Error().
@@ -508,7 +525,7 @@ func checkOnlineClientChange(ctx context.Context, checkCount, errCount *int, bef
 	} else {
 		var nowOnlineClient []OnlineClient
 		*errCount = 0 // 重置失败计数
-		for _, client := range onlineClient {
+		for _, client := range onlineClients {
 			if client.Nickname == botNickName { continue }
 			var isExist bool
 			for _, user := range before {
@@ -755,6 +772,9 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 				tsData.PinMessageMode = !tsData.PinMessageMode
 				needSave = true
 			}
+		case "teamspeak_pinmessage_deletepinedmessage":
+			tsData.DeleteOldPinnedMessage = !tsData.DeleteOldPinnedMessage
+			needSave = true
 		case "teamspeak_sendmessage":
 			if tsData.SendMessageMode && !tsData.PinMessageMode {
 				needEdit = false
@@ -843,10 +863,23 @@ func buildTeamspeakConfigKeyboard() models.ReplyMarkup {
 		}})
 	}
 
-	buttons = append(buttons, []models.InlineKeyboardButton{{
-		Text: utils.TextForTrueOrFalse(tsData.PinMessageMode, "✅", "") + "显示在置顶消息",
-		CallbackData: "teamspeak_pinmessage",
-	}})
+	if tsData.PinMessageMode {
+		buttons = append(buttons, []models.InlineKeyboardButton{
+			{
+				Text: utils.TextForTrueOrFalse(tsData.PinMessageMode, "✅ ", "") + "显示在置顶消息",
+				CallbackData: "teamspeak_pinmessage",
+			},
+			{
+				Text: utils.TextForTrueOrFalse(tsData.DeleteOldPinnedMessage, "✅ ", "") + "删除旧的置顶消息",
+				CallbackData: "teamspeak_pinmessage_deletepinedmessage",
+			},
+		})
+	} else {
+		buttons = append(buttons, []models.InlineKeyboardButton{{
+			Text: utils.TextForTrueOrFalse(tsData.PinMessageMode, "✅ ", "") + "显示在置顶消息",
+			CallbackData: "teamspeak_pinmessage",
+		}})
+	}
 	buttons = append(buttons, []models.InlineKeyboardButton{{
 		Text: "关闭菜单",
 		CallbackData: "delete_this_message",

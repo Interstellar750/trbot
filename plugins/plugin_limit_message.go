@@ -26,7 +26,7 @@ import (
 var LimitMessageList map[int64]AllowMessages
 var LimitMessageErr  error
 
-var LimitMessageDir string = filepath.Join(configs.YAMLDatabaseDir, "limitmessage/")
+var LimitMessageDir  string = filepath.Join(configs.YAMLDatabaseDir, "limitmessage/")
 var LimitMessagePath string = filepath.Join(LimitMessageDir, configs.YAMLFileName)
 
 type AllowMessages struct {
@@ -62,7 +62,7 @@ func init() {
 	})
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "限制群组消息",
-		Description: "此功能需要 bot 为群组管理员并拥有删除消息的权限\n可以按照消息类型和消息属性来自动删除不允许的消息，支持自定逻辑和黑白名单，作为管理员在群组中使用 /limitmessage 命令来查看菜单",
+		Description: "注意：此功能需要将 bot 设为群组管理员并给予删除消息的权限\n\n此功能可以设定一个消息类型和消息属性的组合，由机器人自动删除不允许的消息，支持自定逻辑和黑白名单\n\n由于此功能配置较为复杂，请先在启用前先使用测试模式调整后再正式启用\n\n前往 @onlyforwardmessage 群组试试效果？",
 		ParseMode:   models.ParseModeHTML,
 	})
 }
