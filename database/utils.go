@@ -31,13 +31,24 @@ func RecordData(params *handler_params.Update, updateType update_utils.Update) {
 				Dict(utils.GetChatDict(&params.Update.Message.Chat)).
 				Msg("Failed to incremental `message` usage count")
 		}
-		err = RecordLatestData(params.Ctx, params.Update.Message.Chat.ID, db_struct.LatestMessage, params.Update.Message.Text)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Dict(utils.GetChatDict(&params.Update.Message.Chat)).
-				Msg("Failed to record latest `message text` data")
+		if params.Update.Message.Caption != "" {
+			err = RecordLatestData(params.Ctx, params.Update.Message.Chat.ID, db_struct.LatestMessage, params.Update.Message.Caption)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+					Msg("Failed to record latest `caption` data")
+			}
+		} else if params.Update.Message.Text != "" {
+			err = RecordLatestData(params.Ctx, params.Update.Message.Chat.ID, db_struct.LatestMessage, params.Update.Message.Text)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&params.Update.Message.Chat)).
+					Msg("Failed to record latest `message text` data")
+			}
 		}
+
 		params.ChatInfo, err = GetChatInfo(params.Ctx, params.Update.Message.Chat.ID)
 		if err != nil {
 			logger.Error().
@@ -47,6 +58,45 @@ func RecordData(params *handler_params.Update, updateType update_utils.Update) {
 		}
 	case updateType.EditedMessage:
 		// no ?
+	case updateType.ChannelPost:
+		err := InitChat(params.Ctx, &params.Update.ChannelPost.Chat)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.ChannelPost.Chat)).
+				Msg("Failed to init channel")
+		}
+		err = IncrementalUsageCount(params.Ctx, params.Update.ChannelPost.Chat.ID, db_struct.MessageNormal)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.ChannelPost.Chat)).
+				Msg("Failed to incremental `message` usage count")
+		}
+		if params.Update.ChannelPost.Caption != "" {
+			err = RecordLatestData(params.Ctx, params.Update.ChannelPost.Chat.ID, db_struct.LatestMessage, params.Update.ChannelPost.Caption)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&params.Update.ChannelPost.Chat)).
+					Msg("Fail to record latest `caption` data")
+			}
+		} else if params.Update.ChannelPost.Text != "" {
+			err = RecordLatestData(params.Ctx, params.Update.ChannelPost.Chat.ID, db_struct.LatestMessage, params.Update.ChannelPost.Text)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetChatDict(&params.Update.ChannelPost.Chat)).
+					Msg("Failed to record latest `message text` data")
+			}
+		}
+		params.ChatInfo, err = GetChatInfo(params.Ctx, params.Update.ChannelPost.Chat.ID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetChatDict(&params.Update.ChannelPost.Chat)).
+				Msg("Failed to get channel info")
+		}
 	case updateType.InlineQuery:
 		err := InitUser(params.Ctx, params.Update.InlineQuery.From)
 		if err != nil {
