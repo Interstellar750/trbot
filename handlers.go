@@ -102,7 +102,7 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 					Dict(utils.GetUserOrSenderChatDict(update.Message)).
 					Dict(utils.GetChatDict(&update.Message.Chat)).
 					Int("messageID", update.Message.ID).
-					Msg("pinMessage")
+					Msg("pinnedMessage")
 			} else if update.Message.NewChatMembers != nil {
 				for _, chatMember := range update.Message.NewChatMembers {
 					logger.Info().
@@ -271,21 +271,72 @@ func defaultHandler(ctx context.Context, thebot *bot.Bot, update *models.Update)
 				Msg("emoji reaction count updated")
 		case updateType.ChannelPost:
 			// 频道信息
-			logger.Info().
-				Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
-				Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-				Str("text", update.ChannelPost.Text).
-				Int("messageID", update.ChannelPost.ID).
-				Msg("channel post")
-			if update.ChannelPost.ViaBot != nil {
-				// 在频道中由 bot 发送
-				_, viaBot := utils.GetUserDict(update.ChannelPost.ViaBot)
+			if update.ChannelPost.Photo != nil {
 				logger.Info().
-					Dict("viaBot", viaBot).
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
 					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
-					Str("text", update.ChannelPost.Text).
 					Int("messageID", update.ChannelPost.ID).
-					Msg("channel post send via bot")
+					Str("caption", update.ChannelPost.Caption).
+					Str("photoID", update.ChannelPost.Photo[len(update.ChannelPost.Photo)-1].FileID).
+					Msg("channelPhoto")
+			} else if update.ChannelPost.Sticker != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Int("messageID", update.ChannelPost.ID).
+					Dict("sticker", zerolog.Dict().
+						Str("emoji", update.ChannelPost.Sticker.Emoji).
+						Str("setname", update.ChannelPost.Sticker.SetName).
+						Str("fileID", update.ChannelPost.Sticker.FileID),
+					).
+					Msg("channelSticker")
+			} else if update.ChannelPost.Video != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Int("messageID", update.ChannelPost.ID).
+					Str("caption", update.ChannelPost.Caption).
+					Dict("video", zerolog.Dict().
+						Str("type", update.ChannelPost.Video.MimeType).
+						Int("duration", update.ChannelPost.Video.Duration).
+						Str("fileID", update.ChannelPost.Video.FileID),
+					).
+					Msg("channelVideo")
+			} else if update.ChannelPost.Animation != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Int("messageID", update.ChannelPost.ID).
+					Dict("animation", zerolog.Dict().
+						Int("duration", update.ChannelPost.Animation.Duration).
+						Str("fileID", update.ChannelPost.Animation.FileID),
+					).
+					Msg("channelGIF")
+			} else if update.ChannelPost.Document != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Int("messageID", update.ChannelPost.ID).
+					Str("caption", update.ChannelPost.Caption).
+					Dict("document", zerolog.Dict().
+						Str("fileName", update.ChannelPost.Document.FileName).
+						Str("fileID", update.ChannelPost.Document.FileID),
+					).
+					Msg("channelDocument")
+			} else if update.ChannelPost.PinnedMessage != nil {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Int("messageID", update.ChannelPost.ID).
+					Msg("channelPinnedMessage")
+			} else {
+				logger.Info().
+					Dict(utils.GetUserOrSenderChatDict(update.ChannelPost)).
+					Dict(utils.GetChatDict(&update.ChannelPost.Chat)).
+					Int("messageID", update.ChannelPost.ID).
+					Str("text", update.ChannelPost.Text).
+					Str("type", message_utils.GetMessageType(update.ChannelPost).Str()).
+					Msg("channelPost")
 			}
 		case updateType.EditedChannelPost:
 			// 频道中编辑过的消息
@@ -840,24 +891,8 @@ func callbackQueryHandler(params *handler_params.CallbackQuery) {
 		Str("callbackQueryData", params.CallbackQuery.Data).
 		Logger()
 
-	// 如果有一个正在处理的请求，且用户再次发送相同的请求，则提示用户等待
-	if params.ChatInfo.HasPendingCallbackQuery && params.CallbackQuery.Data == params.ChatInfo.LatestCallbackQueryData {
-		callbackQueryLogger.Info().Msg("this callback request is processing, ignore")
-
-		_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: params.CallbackQuery.ID,
-			Text:            "当前请求正在处理中，请等待处理完成",
-			ShowAlert:       true,
-		})
-		if err != nil {
-			callbackQueryLogger.Error().
-				Err(err).
-				Str("content", "this callback request is processing").
-				Msg(flaterr.AnswerCallbackQuery.Str())
-		}
-		return
-	} else if params.ChatInfo.HasPendingCallbackQuery {
-		// 如果有一个正在处理的请求，用户发送了不同的请求，则提示用户等待
+	// 如果有一个正在处理的请求则提示用户等待
+	if params.ChatInfo.HasPendingCallbackQuery {
 		callbackQueryLogger.Info().
 			Str("pendingQueryData", params.ChatInfo.LatestCallbackQueryData).
 			Msg("another callback request is processing, ignore")
