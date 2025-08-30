@@ -435,8 +435,9 @@ func listenUserStatus(ctx context.Context) {
 				timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 10)
 				if initTeamSpeak(timeoutCtx) {
 					// 重新初始化成功则恢复 ticker 速度
-					retryCount = 1
 					listenTicker.Reset(time.Second * time.Duration(tsData.PollingInterval))
+					isCanListening = true
+					retryCount = 0
 					logger.Info().Msg("reconnect success")
 					botMessage, err := botInstance.SendMessage(timeoutCtx, &bot.SendMessageParams{
 						ChatID: tsData.GroupID,
