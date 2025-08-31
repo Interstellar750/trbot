@@ -622,7 +622,7 @@ func showChannelLink(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func SendPrivacyPolicy(opts *handler_params.Message) error {
+func sendPrivacyPolicy(opts *handler_params.Message) error {
 	var handlerErr flaterr.MultErr
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -667,7 +667,7 @@ func SendPrivacyPolicy(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func AgreePrivacyPolicy(opts *handler_params.Message) error {
+func agreePrivacyPolicy(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
@@ -876,34 +876,34 @@ func Init() {
 		Saver:  SaveSavedMessageList,
 		Loader: ReadSavedMessageList,
 	})
-	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
-		SlashCommand:   "save",
-		MessageHandler: saveMessageHandler,
-	})
+	// plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
+	// 	SlashCommand:   "save",
+	// 	MessageHandler: saveMessageHandler,
+	// })
 	plugin_utils.AddInlineManualHandlers(plugin_utils.InlineManualHandler{
 		Command:       "saved",
 		InlineHandler: InlineSavedMessageHandler,
 		Description:   "显示保存的消息",
 	})
 	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
-		{
-			Argument: "savedmessage_privacy_policy",
-			MessageHandler:  SendPrivacyPolicy,
-		},
-		{
-			Argument: "savedmessage_privacy_policy_agree",
-			MessageHandler:  AgreePrivacyPolicy,
-		},
+		// {
+		// 	Argument: "savedmessage_privacy_policy",
+		// 	MessageHandler:  sendPrivacyPolicy,
+		// },
+		// {
+		// 	Argument: "savedmessage_privacy_policy_agree",
+		// 	MessageHandler:  agreePrivacyPolicy,
+		// },
 		{
 			Argument: "savedmessage_viewchannel",
 			MessageHandler:  showChannelLink,
 		},
 	}...)
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
-		{
-			CallbackDataPrefix:   "savedmsg_switch",
-			CallbackQueryHandler: configKeyboardCallbackHandler,
-		},
+		// {
+		// 	CallbackDataPrefix:   "savedmsg_switch",
+		// 	CallbackQueryHandler: configKeyboardCallbackHandler,
+		// },
 		{
 			CallbackDataPrefix:   "savedmsg_channel",
 			CallbackQueryHandler: channelCallbackHandler,
@@ -911,11 +911,11 @@ func Init() {
 	}...)
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
 		Name:        "收藏消息",
-		Description: "此功能可以收藏用户指定的消息，之后使用 inline 模式查看并发送保存的内容\n\n保存消息：\n向机器人发送要保存的消息，然后使用 <code>/save 关键词</code> 命令回复要保存的消息，关键词可以忽略。若机器人在群组中，也可以直接使用 <code>/save 关键词</code> 命令回复要保存的消息。\n\n发送保存的消息：\n点击下方的按钮来使用 inline 模式，当您多次在 inline 模式下使用此 bot 时，在输入框中输入 <code>@</code> 即可看到 bot 会出现在列表中",
+		Description: "此功能会实时记录一个频道中的消息并保存它，在之后可以使用 inline 模式查看并发送保存的内容\n\n使用方法：\n点击下方的按钮来使用 inline 模式，当您多次在 inline 模式下使用此 bot 时，在输入框中输入 <code>@</code> 即可看到 bot 会出现在列表中",
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{
-				Text:                         "点击浏览您的收藏",
+				Text:                         "点击浏览频道收藏",
 				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
 			}},
 			{{

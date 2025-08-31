@@ -158,7 +158,7 @@ func ReadSavedMessageList(ctx context.Context) error {
 		SavedMessageList.NoticeChatID = configs.BotConfig.AdminIDs[0]
 	}
 
-	buildSavedMessageByMessageHandlers()
+	// buildSavedMessageByMessageHandlers()
 	return SavedMessageErr
 }
 
