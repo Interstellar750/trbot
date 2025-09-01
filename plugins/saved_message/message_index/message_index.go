@@ -1,4 +1,4 @@
-package message_meilisearch
+package message_index
 
 import (
 	"context"

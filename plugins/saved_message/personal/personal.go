@@ -1,10 +1,9 @@
-package saved_message
+package personal
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"trbot/plugins/saved_message/message_meilisearch"
+	"trbot/plugins/saved_message/common"
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/flaterr"
@@ -21,6 +20,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+
 func saveMessageHandler(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -32,11 +32,11 @@ func saveMessageHandler(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	if meilisearchClient == nil {
+	if common.MeilisearchClient == nil {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.Message.Chat.ID,
 			Text:            "此功能不可用，因为 Meilisearch 服务尚未初始化",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+			ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 		})
 		if err != nil {
 			logger.Error().
@@ -46,13 +46,13 @@ func saveMessageHandler(opts *handler_params.Message) error {
 			handlerErr.Addt(flaterr.SendMessage, "meilisearch client uninitialized", err)
 		}
 	} else {
-		user := SavedMessageList.GetUser(opts.Message.From.ID)
+		user := common.SavedMessageList.GetUser(opts.Message.From.ID)
 		if user == nil {
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:          opts.Message.Chat.ID,
 				Text:            "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息",
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击查看",
 					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", configs.BotMe.Username),
 				}}}},
@@ -68,11 +68,11 @@ func saveMessageHandler(opts *handler_params.Message) error {
 			messageParams := &bot.SendMessageParams{
 				ChatID:          opts.Message.Chat.ID,
 				ParseMode:       models.ParseModeHTML,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{
+				ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
 					{
 						Text:                         "点击浏览您的收藏",
-						SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+						SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "usersaved ",
 					},
 					{
 						Text:         "关闭",
@@ -84,7 +84,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 			if opts.Message.ReplyToMessage == nil {
 				messageParams.Text = "在回复一条消息的同时发送 <code>/save</code> 来收藏消息"
 				if opts.Message.Chat.Type == models.ChatTypePrivate {
-					messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					messageParams.ReplyMarkup = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text:         "修改此功能偏好",
 						CallbackData: "savedmsg_switch",
 					}}}}
@@ -104,15 +104,15 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					var messageLength int
 
 					if opts.Message.ReplyToMessage.Caption != "" {
-						messageLength = utf16Length(opts.Message.ReplyToMessage.Caption)
+						messageLength = common.UTF16Length(opts.Message.ReplyToMessage.Caption)
 						msgData.Entities = opts.Message.ReplyToMessage.CaptionEntities
 					} else if opts.Message.ReplyToMessage.Text != "" {
-						messageLength = utf16Length(opts.Message.ReplyToMessage.Text)
+						messageLength = common.UTF16Length(opts.Message.ReplyToMessage.Text)
 						msgData.Entities = opts.Message.ReplyToMessage.Entities
 					}
 
 					// 若字符长度大于设定的阈值，添加折叠样式引用再保存，如果是全文引用但不折叠，改成折叠样式
-					if messageLength > textExpandableLength && (len(msgData.Entities) == 0 || msgData.Entities[0].Type == models.MessageEntityTypeBlockquote && msgData.Entities[0].Length == messageLength) {
+					if messageLength > common.TextExpandableLength && (len(msgData.Entities) == 0 || msgData.Entities[0].Type == models.MessageEntityTypeBlockquote && msgData.Entities[0].Length == messageLength) {
 						msgData.Entities = []models.MessageEntity{{
 							Type:   models.MessageEntityTypeExpandableBlockquote,
 							Offset: 0,
@@ -131,7 +131,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 						msgData.Desc = opts.Message.Text[len(opts.Fields[0])+1:]
 					}
 
-					_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(msgData)
+					_, err := common.MeilisearchClient.Index(user.IDStr()).AddDocuments(msgData)
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -142,7 +142,7 @@ func saveMessageHandler(opts *handler_params.Message) error {
 					} else {
 						user.Count++
 						user.SavedTimes++
-						err = SaveSavedMessageList(opts.Ctx)
+						err = common.SaveSavedMessageList(opts.Ctx)
 						if err != nil {
 							logger.Error().
 								Err(err).
@@ -173,7 +173,9 @@ func saveMessageHandler(opts *handler_params.Message) error {
 }
 
 func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
-	if opts.Message == nil { return nil }
+	if opts.Message == nil {
+		return nil
+	}
 
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -184,11 +186,11 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	if meilisearchClient == nil {
+	if common.MeilisearchClient == nil {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.Message.Chat.ID,
 			Text:            "此功能不可用，因为 Meilisearch 服务尚未初始化",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+			ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 		})
 		if err != nil {
 			logger.Error().
@@ -198,13 +200,13 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 			handlerErr.Addt(flaterr.SendMessage, "meilisearch client uninitialized", err)
 		}
 	} else {
-		user := SavedMessageList.GetUser(opts.Message.From.ID)
+		user := common.SavedMessageList.GetUser(opts.Message.From.ID)
 		if user == nil {
 			_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:          opts.Message.Chat.ID,
 				Text:            "此功能需要保存一些信息才能正常工作，在使用这个功能前，请先阅读一下我们会保存哪些信息",
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text: "点击查看",
 					URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy", configs.BotMe.Username),
 				}}}},
@@ -220,8 +222,8 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 			messageParams := &bot.SendMessageParams{
 				ChatID:          opts.ChatInfo.ID,
 				ParseMode:       models.ParseModeHTML,
-				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-				ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+				ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+				ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 					Text:         "关闭",
 					CallbackData: "delete_this_message",
 				}}}},
@@ -241,15 +243,15 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 				var messageLength int
 
 				if opts.Message.Caption != "" {
-					messageLength = utf16Length(opts.Message.Caption)
+					messageLength = common.UTF16Length(opts.Message.Caption)
 					msgData.Entities = opts.Message.CaptionEntities
 				} else if opts.Message.Text != "" {
-					messageLength = utf16Length(opts.Message.Text)
+					messageLength = common.UTF16Length(opts.Message.Text)
 					msgData.Entities = opts.Message.Entities
 				}
 
 				// 若字符长度大于设定的阈值，添加折叠样式引用再保存，如果是全文引用但不折叠，改成折叠样式
-				if messageLength > textExpandableLength && (len(msgData.Entities) == 0 || msgData.Entities[0].Type == models.MessageEntityTypeBlockquote && msgData.Entities[0].Length == messageLength) {
+				if messageLength > common.TextExpandableLength && (len(msgData.Entities) == 0 || msgData.Entities[0].Type == models.MessageEntityTypeBlockquote && msgData.Entities[0].Length == messageLength) {
 					msgData.Entities = []models.MessageEntity{{
 						Type:   models.MessageEntityTypeExpandableBlockquote,
 						Offset: 0,
@@ -263,7 +265,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 					msgData.OriginInfo = origin_info.GetOriginInfo(opts.Message)
 				}
 
-				_, err := meilisearchClient.Index(user.IDStr()).AddDocuments(msgData)
+				_, err := common.MeilisearchClient.Index(user.IDStr()).AddDocuments(msgData)
 				if err != nil {
 					logger.Error().
 						Err(err).
@@ -274,7 +276,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 				} else {
 					user.Count++
 					user.SavedTimes++
-					err = SaveSavedMessageList(opts.Ctx)
+					err = common.SaveSavedMessageList(opts.Ctx)
 					if err != nil {
 						logger.Error().
 							Err(err).
@@ -303,7 +305,7 @@ func saveMessageFromCallbackQueryHandler(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
-func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
+func userInlineHandler(opts *handler_params.InlineQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "Saved Message").
@@ -315,7 +317,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 	var resultList []models.InlineQueryResult
 
-	if meilisearchClient == nil {
+	if common.MeilisearchClient == nil {
 		resultList = append(resultList, &models.InlineQueryResultArticle{
 			ID:                  "error",
 			Title:               "此功能不可用",
@@ -334,7 +336,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 						ID:          "keepInputCategory",
 						Title:       "请继续输入分类名称",
-						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
+						Description: fmt.Sprintf("当前列表有 %s 分类", common.ResultCategorys.StrList()),
 						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试选择分类时点击了提示信息..." },
 					}},
 				})
@@ -390,14 +392,14 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 
 		var filter string
 		if parsedQuery.Category != "" {
-			category, isExist := resultCategorys.GetCategory(parsedQuery.Category)
+			category, isExist := common.ResultCategorys.GetCategory(parsedQuery.Category)
 			if !isExist {
 				_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 					InlineQueryID: opts.InlineQuery.ID,
 					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 						ID:          "noThisCategory",
 						Title:       fmt.Sprintf("无效的 [ %s ] 分类", parsedQuery.Category),
-						Description: fmt.Sprintf("当前列表有 %s 分类", resultCategorys.StrList()),
+						Description: fmt.Sprintf("当前列表有 %s 分类", common.ResultCategorys.StrList()),
 						InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在尝试访问不存在的分类时点击了提示信息..." },
 					}},
 					IsPersonal: true,
@@ -415,7 +417,35 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			filter = "type=" + category.Str()
 		}
 
-		datas, err := meilisearchClient.Index(SavedMessageList.ChannelIDStr()).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{
+		user := common.SavedMessageList.GetUser(opts.InlineQuery.From.ID)
+		if user == nil {
+			_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+				InlineQueryID: opts.InlineQuery.ID,
+				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+					ID:          "noInitYet",
+					Title:       "您尚未初始化此功能",
+					Description: "对一条信息回复 /save 来保存它",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: fmt.Sprintf("您可以在任何聊天的输入栏中输入 <code>@%s +usersaved </code>来查看您的收藏\n若要添加，您需要确保机器人可以读取到您的指令，例如在群组中需要添加机器人，或点击 @%s 进入与机器人的聊天窗口，找到想要收藏的信息，然后对着那条信息回复 /save 即可\n若收藏成功，机器人会回复您并提示收藏成功，您也可以手动发送一条想要收藏的息，再使用 /save 命令回复它", configs.BotMe.Username, configs.BotMe.Username),
+						ParseMode:   models.ParseModeHTML,
+					},
+				}},
+				Button: &models.InlineQueryResultsButton{
+					Text:           "点击此处快速跳转到机器人",
+					StartParameter: "via-inline_noreply",
+				},
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "user not init yet").
+					Msg(flaterr.AnswerInlineQuery.Str())
+				handlerErr.Addt(flaterr.AnswerInlineQuery, "user not init yet", err)
+			}
+			return handlerErr.Flat()
+		}
+
+		datas, err := common.MeilisearchClient.Index(user.IDStr()).Search(parsedQuery.KeywordQuery(), &meilisearch.SearchRequest{
 			HitsPerPage: int64(configs.BotConfig.InlineResultsPerPage - 1),
 			Page:        int64(parsedQuery.Page),
 			Filter:      filter,
@@ -423,8 +453,8 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Msg("Failed to get channel saved message")
-			handlerErr.Addf("failed to get channel saved message: %w", err)
+				Msg("Failed to get user saved message")
+			handlerErr.Addf("failed to get user saved message: %w", err)
 			resultList = append(resultList, &models.InlineQueryResultArticle{
 				ID:                  "error",
 				Title:               "获取消息发生错误",
@@ -452,7 +482,7 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 				resultList = append(resultList, &models.InlineQueryResultArticle{
 					ID:                  "noItemInChannel",
 					Title:               "什么都没有",
-					Description:         "公共频道中没有保存任何内容",
+					Description:         "您还没有保存任何内容",
 					InputMessageContent: &models.InputTextMessageContent{ MessageText: "用户在找不到想看的东西时无奈点击了提示信息..." },
 				})
 			}
@@ -462,8 +492,8 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Msg("Failed to unmarshal channel saved message data")
-				handlerErr.Addf("Failed to unmarshal channel saved message data: %w", err)
+					Msg("Failed to unmarshal user saved message data")
+				handlerErr.Addf("Failed to unmarshal user saved message data: %w", err)
 				resultList = append(resultList, &models.InlineQueryResultArticle{
 					ID:                  "error",
 					Title:               "解析消息发生错误",
@@ -577,46 +607,19 @@ func InlineSavedMessageHandler(opts *handler_params.InlineQuery) error {
 	_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
 		InlineQueryID: opts.InlineQuery.ID,
 		Results:       resultList,
-		Button:        &models.InlineQueryResultsButton{
-			Text:           "当前为公共收藏内容",
-			StartParameter: "savedmessage_viewchannel",
-		},
+		// Button:        &models.InlineQueryResultsButton{
+		// 	Text:           "当前为个人收藏内容",
+		// 	StartParameter: "savedmessage_viewchannel",
+		// },
 		IsPersonal:    true,
 		CacheTime:     0,
 	})
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Str("content", "saved message result").
+			Str("content", "user saved message result").
 			Msg(flaterr.AnswerInlineQuery.Str())
-		handlerErr.Addt(flaterr.AnswerInlineQuery, "saved message result", err)
-	}
-
-	return handlerErr.Flat()
-}
-
-func showChannelLink(opts *handler_params.Message) error {
-	var handlerErr flaterr.MultErr
-
-	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-		ChatID: opts.Message.Chat.ID,
-		Text:   fmt.Sprintf("当前频道链接: https://t.me/%s", SavedMessageList.ChannelUsername),
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text: "查看频道",
-			URL:  "https://t.me/" + SavedMessageList.ChannelUsername,
-		}}}},
-		ParseMode: models.ParseModeHTML,
-	})
-	if err != nil {
-		zerolog.Ctx(opts.Ctx).Error().
-			Err(err).
-			Str("pluginName", "Saved Message").
-			Str(utils.GetCurrentFuncName()).
-			Dict(utils.GetUserDict(opts.Message.From)).
-			Str("content", "saved message channel link").
-			Msg(flaterr.SendMessage.Str())
-		handlerErr.Addt(flaterr.SendMessage, "saved message channel link", err)
+		handlerErr.Addt(flaterr.AnswerInlineQuery, "user saved message result", err)
 	}
 
 	return handlerErr.Flat()
@@ -627,7 +630,7 @@ func sendPrivacyPolicy(opts *handler_params.Message) error {
 
 	_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID: opts.Message.Chat.ID,
-		Text:   "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
+		Text: "目前此机器人仍在开发阶段中，此信息可能会有更改\n" +
 			"<blockquote expandable>本机器人提供收藏信息功能，您可以在回复一条信息时输入 /save 来收藏它，之后在 inline 模式下随时浏览您的收藏内容并发送\n\n" +
 
 			"我们会记录哪些数据？\n" +
@@ -646,8 +649,8 @@ func sendPrivacyPolicy(opts *handler_params.Message) error {
 
 			"\n\n" +
 			"内容待补充...",
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+		ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text: "点击同意以上内容",
 			URL:  fmt.Sprintf("https://t.me/%s?start=savedmessage_privacy_policy_agree", configs.BotMe.Username),
 		}}}},
@@ -677,12 +680,14 @@ func agreePrivacyPolicy(opts *handler_params.Message) error {
 
 	var handlerErr flaterr.MultErr
 
-	if SavedMessageList.GetUser(opts.Message.From.ID) != nil { return nil }
+	if common.SavedMessageList.GetUser(opts.Message.From.ID) != nil {
+		return nil
+	}
 
-	var user SavedMessageUser
+	var user common.SavedMessageUser
 	user.UserID = opts.Message.From.ID
-	SavedMessageList.User = append(SavedMessageList.User, user)
-	err := meilisearch_utils.CreateChatIndex(opts.Ctx, &meilisearchClient, user.IDStr())
+	common.SavedMessageList.User = append(common.SavedMessageList.User, user)
+	err := meilisearch_utils.CreateChatIndex(opts.Ctx, &common.MeilisearchClient, user.IDStr())
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -703,7 +708,7 @@ func agreePrivacyPolicy(opts *handler_params.Message) error {
 		return handlerErr.Flat()
 	}
 
-	err = SaveSavedMessageList(opts.Ctx)
+	err = common.SaveSavedMessageList(opts.Ctx)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -725,13 +730,15 @@ func agreePrivacyPolicy(opts *handler_params.Message) error {
 		return handlerErr.Flat()
 	}
 
+	buildSavedMessageByMessageHandlers()
+
 	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 		ChatID:          opts.Message.Chat.ID,
 		Text:            "您已成功开启收藏信息功能，回复一条信息的时候发送 /save 来使用收藏功能吧！\n由于服务器性能原因，每个人的收藏数量上限默认为 100 个，您也可以从机器人的个人信息中寻找管理员来申请更高的上限\n点击下方按钮来浏览您的收藏内容",
-		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+		ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:                         "点击浏览您的收藏",
-			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+			SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "usersaved ",
 		}}}},
 	})
 	if err != nil {
@@ -759,11 +766,12 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 	var handlerErr flaterr.MultErr
 	var needSave bool = true
 
-	user := SavedMessageList.GetUser(opts.CallbackQuery.From.ID)
+	user := common.SavedMessageList.GetUser(opts.CallbackQuery.From.ID)
 
 	switch opts.CallbackQuery.Data {
-	case "savedmsg_switch_include_channel":
-		user.IncludeChannel = !user.IncludeChannel
+	case "savedmsg_switch_use_quick_save":
+		user.UseQuickSave = !user.UseQuickSave
+		buildSavedMessageByMessageHandlers()
 	case "savedmsg_switch_drop_origin_info":
 		user.DropOriginInfo = !user.DropOriginInfo
 	default:
@@ -771,7 +779,7 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 	}
 
 	if needSave {
-		err := SaveSavedMessageList(opts.Ctx)
+		err := common.SaveSavedMessageList(opts.Ctx)
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -794,11 +802,10 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 	}
 
 	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-		ChatID:          opts.CallbackQuery.Message.Message.Chat.ID,
-		MessageID:       opts.CallbackQuery.Message.Message.ID,
-		Text:            "修改您的收藏偏好选项",
-		ParseMode:       models.ParseModeHTML,
-		ReplyMarkup: user.buildUserConfigButtons(),
+		ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+		MessageID:   opts.CallbackQuery.Message.Message.ID,
+		Text:        "修改您的收藏偏好选项",
+		ReplyMarkup: user.ConfigButtons(),
 	})
 	if err != nil {
 		logger.Error().
@@ -812,115 +819,81 @@ func configKeyboardCallbackHandler(opts *handler_params.CallbackQuery) error {
 
 }
 
-func Init() {
-	plugin_utils.AddInitializer(plugin_utils.Initializer{
-		Name: "Saved Message",
-		Func: func(ctx context.Context, thebot *bot.Bot) error {
-			err := ReadSavedMessageList(ctx)
-			if err != nil {
-				return err
+func buildSavedMessageByMessageHandlers() {
+	msgTypeList := []message_utils.Type{
+		message_utils.Text,
+		message_utils.Audio,
+		message_utils.Animation,
+		message_utils.Document,
+		message_utils.Photo,
+		message_utils.Sticker,
+		message_utils.Video,
+		message_utils.VideoNote,
+		message_utils.Voice,
+	}
+
+	for _, user := range common.SavedMessageList.User {
+		for _, msgType := range msgTypeList {
+			plugin_utils.RemoveHandlerByMessageTypeHandler(
+				models.ChatTypePrivate,
+				msgType,
+				user.UserID,
+				"保存消息到收藏夹",
+			)
+		}
+	}
+	for _, user := range common.SavedMessageList.User {
+		if user.UseQuickSave {
+			for _, msgType := range msgTypeList {
+				plugin_utils.AddHandlerByMessageTypeHandlers(plugin_utils.ByMessageTypeHandler{
+					PluginName:     "保存消息到收藏夹",
+					ChatType:       models.ChatTypePrivate,
+					ForChatID:      user.UserID,
+					MessageType:    msgType,
+					MessageHandler: saveMessageFromCallbackQueryHandler,
+				})
 			}
-			// if SavedMessageList.User == nil { SavedMessageList.User = []SavedMessageUser{} }
+		}
+	}
+}
 
-			if SavedMessageList.MeiliURL == "" {
-				return errors.New("the Meilisearch URL is not set")
-			} else {
-				meilisearchClient = meilisearch.New(SavedMessageList.MeiliURL, meilisearch.WithAPIKey(SavedMessageList.MeiliAPI))
-				if SavedMessageList.ChannelID == 0 {
-					return errors.New("channel ID is not set")
-				} else {
-					chatIDString := SavedMessageList.ChannelIDStr()
-
-					plugin_utils.AddHandlerByMessageChatIDHandlers(plugin_utils.ByMessageChatIDHandler{
-						ForChatID:      SavedMessageList.ChannelID,
-						PluginName:     "savedmessage_channel",
-						MessageHandler: channelSaveMessageHandler,
-					})
-
-					channelPubliclink  = "https://t.me/"   + SavedMessageList.ChannelUsername
-					channelPrivateLink = "https://t.me/c/" + utils.RemoveIDPrefix(SavedMessageList.ChannelID)
-
-					plugin_utils.AddFullCommandHandlers([]plugin_utils.FullCommand{
-						{
-							FullCommand:    channelPubliclink,
-							ForChatType:    []models.ChatType{models.ChatTypePrivate},
-							MessageHandler: channelMetadataHandler,
-						},
-						{
-							FullCommand:    channelPrivateLink,
-							ForChatType:    []models.ChatType{models.ChatTypePrivate},
-							MessageHandler: channelMetadataHandler,
-						},
-					}...)
-
-					_, err := meilisearchClient.GetIndex(chatIDString)
-					if err != nil {
-						if err.(*meilisearch.Error).MeilisearchApiError.Code == "index_not_found" {
-							err := meilisearch_utils.CreateChatIndex(ctx, &meilisearchClient, chatIDString)
-							if err != nil {
-								return fmt.Errorf("failed to create index: %w", err)
-							}
-						} else {
-							return fmt.Errorf("failed to get index: %w", err)
-						}
-					}
-				}
-
-				message_meilisearch.Init(&meilisearchClient)
-			}
-			return nil
-		},
+func InitUserPart(ctx context.Context) error {
+	plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
+		SlashCommand:   "save",
+		MessageHandler: saveMessageHandler,
 	})
-	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
-		Name:   "Saved Message",
-		Saver:  SaveSavedMessageList,
-		Loader: ReadSavedMessageList,
-	})
-	// plugin_utils.AddSlashCommandHandlers(plugin_utils.SlashCommand{
-	// 	SlashCommand:   "save",
-	// 	MessageHandler: saveMessageHandler,
-	// })
 	plugin_utils.AddInlineManualHandlers(plugin_utils.InlineManualHandler{
-		Command:       "saved",
-		InlineHandler: InlineSavedMessageHandler,
-		Description:   "显示保存的消息",
+		Command:       "usersaved",
+		InlineHandler: userInlineHandler,
+		Description:   "显示自己保存的内容",
 	})
 	plugin_utils.AddSlashStartCommandHandlers([]plugin_utils.SlashStartHandler{
-		// {
-		// 	Argument: "savedmessage_privacy_policy",
-		// 	MessageHandler:  sendPrivacyPolicy,
-		// },
-		// {
-		// 	Argument: "savedmessage_privacy_policy_agree",
-		// 	MessageHandler:  agreePrivacyPolicy,
-		// },
 		{
-			Argument: "savedmessage_viewchannel",
-			MessageHandler:  showChannelLink,
+			Argument:       "savedmessage_privacy_policy",
+			MessageHandler: sendPrivacyPolicy,
+		},
+		{
+			Argument:       "savedmessage_privacy_policy_agree",
+			MessageHandler: agreePrivacyPolicy,
 		},
 	}...)
-	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
-		// {
-		// 	CallbackDataPrefix:   "savedmsg_switch",
-		// 	CallbackQueryHandler: configKeyboardCallbackHandler,
-		// },
-		{
-			CallbackDataPrefix:   "savedmsg_channel",
-			CallbackQueryHandler: channelCallbackHandler,
-		},
-	}...)
+	plugin_utils.AddCallbackQueryHandlers(plugin_utils.CallbackQuery{
+		CallbackDataPrefix:   "savedmsg_switch",
+		CallbackQueryHandler: configKeyboardCallbackHandler,
+	})
+
 	plugin_utils.AddHandlerHelpInfo(plugin_utils.HandlerHelp{
-		Name:        "收藏消息",
-		Description: "此功能会实时记录一个频道中的消息并保存它，在之后可以使用 inline 模式查看并发送保存的内容\n\n使用方法：\n点击下方的按钮来使用 inline 模式，当您多次在 inline 模式下使用此 bot 时，在输入框中输入 <code>@</code> 即可看到 bot 会出现在列表中",
+		Name:        "收藏消息-个人",
+		Description: "此功能可以收藏用户指定的消息，之后使用 inline 模式查看并发送保存的内容\n\n保存消息：\n向机器人发送要保存的消息，然后使用 <code>/save 关键词</code> 命令回复要保存的消息，关键词可以忽略。若机器人在群组中，也可以直接使用 <code>/save 关键词</code> 命令回复要保存的消息。\n\n发送保存的消息：\n点击下方的按钮来使用 inline 模式，当您多次在 inline 模式下使用此 bot 时，在输入框中输入 <code>@</code> 即可看到 bot 会出现在列表中",
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{
-				Text:                         "点击浏览频道收藏",
-				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "saved ",
+				Text:                         "点击浏览您的收藏",
+				SwitchInlineQueryCurrentChat: configs.BotConfig.InlineSubCommandSymbol + "usersaved ",
 			}},
 			{{
 				Text:         "将此功能设定为您的默认 inline 命令",
-				CallbackData: "inline_default_noedit_saved",
+				CallbackData: "inline_default_noedit_usersaved",
 			}},
 			{
 				{
@@ -934,4 +907,7 @@ func Init() {
 			},
 		}},
 	})
+
+	buildSavedMessageByMessageHandlers()
+	return nil
 }

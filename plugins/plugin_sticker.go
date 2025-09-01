@@ -55,17 +55,17 @@ func init() {
 	plugin_utils.AddCallbackQueryHandlers([]plugin_utils.CallbackQuery{
 		{
 			// 不转换格式，打包下载整个贴纸包
-			CallbackDataPrefix: "s",
+			CallbackDataPrefix: "s_",
 			CallbackQueryHandler: DownloadStickerPackCallbackHandler,
 		},
 		{
 			// 将贴纸包中的静态贴纸全部转换为 PNG 格式并打包
-			CallbackDataPrefix: "S",
+			CallbackDataPrefix: "S_",
 			CallbackQueryHandler: DownloadStickerPackCallbackHandler,
 		},
 		{
 			// 下载贴纸包中的所有贴纸并打包发送到收藏频道
-			CallbackDataPrefix: "c",
+			CallbackDataPrefix: "c_",
 			CallbackQueryHandler: collectStickerSet,
 		},
 	}...)
