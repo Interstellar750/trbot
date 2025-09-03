@@ -913,7 +913,7 @@ func buildListenList() {
 	for index, chat := range KeywordDataList.Chats {
 		chat.UsersID = []int64{}
 		KeywordDataList.Chats[index] = chat
-		plugin_utils.RemoveHandlerByChatIDHandler(chat.ChatID, "detect_keyword")
+		plugin_utils.RemoveHandlerByMessageChatIDHandler(chat.ChatID, "detect_keyword")
 	}
 
 	// 遍历用户列表，若用户启用了该群组，则将用户 ID 添加到群组的用户 ID 列表
@@ -1125,6 +1125,8 @@ func userManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 	user := KeywordDataList.Users[opts.CallbackQuery.From.ID]
 
 	switch opts.CallbackQuery.Data {
+	case "detectkw_u":                    // 用户管理关键词主菜单
+		needSave = false
 	case "detectkw_u_globalswitch":       // 功能全局开关
 		user.IsDisable = !user.IsDisable
 	case "detectkw_u_noticeswitch":       // 是否静默通知

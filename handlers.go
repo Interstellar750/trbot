@@ -12,6 +12,7 @@ import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/inline_utils"
+	"trbot/utils/limiter"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
@@ -880,10 +881,6 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 
 func callbackQueryHandler(params *handler_params.CallbackQuery) {
 	defer utils.PanicCatcher(params.Ctx, "callbackQueryHandler")
-	var isProcessing bool
-	defer func() {
-		if isProcessing { database.UpdateOperationStatus(params.Ctx, params.ChatInfo.ID, db_struct.HasPendingCallbackQuery, false) }
-	}()
 
 	callbackQueryLogger := zerolog.Ctx(params.Ctx).
 		With().
@@ -891,8 +888,7 @@ func callbackQueryHandler(params *handler_params.CallbackQuery) {
 		Str("callbackQueryData", params.CallbackQuery.Data).
 		Logger()
 
-	// 如果有一个正在处理的请求则提示用户等待
-	if params.ChatInfo.HasPendingCallbackQuery {
+	if !limiter.CallbackQuery.Try(params.CallbackQuery.From.ID) {
 		callbackQueryLogger.Info().
 			Str("pendingQueryData", params.ChatInfo.LatestCallbackQueryData).
 			Msg("another callback request is processing, ignore")
@@ -908,19 +904,11 @@ func callbackQueryHandler(params *handler_params.CallbackQuery) {
 				Msg(flaterr.AnswerCallbackQuery.Str())
 		}
 		return
-	} else {
-		// 如果没有正在处理的请求，则接受新的请求
-		callbackQueryLogger.Debug().Msg("accept callback query")
-
-		isProcessing = true
-		database.UpdateOperationStatus(params.Ctx, params.ChatInfo.ID, db_struct.HasPendingCallbackQuery, true)
-		params.ChatInfo.LatestCallbackQueryData = params.CallbackQuery.Data
-		// params.Thebot.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-		// 	CallbackQueryID: params.CallbackQuery.ID,
-		// 	Text:            "已接受请求",
-		// 	ShowAlert:       false,
-		// })
 	}
+	defer limiter.CallbackQuery.Release(params.CallbackQuery.From.ID)
+	// 如果没有正在处理的请求，则接受新的请求
+	callbackQueryLogger.Debug().Msg("accept callback query")
+	database.RecordLatestData(params.Ctx, params.CallbackQuery.From.ID, db_struct.LatestCallbackQueryData, params.CallbackQuery.Data)
 
 	for _, plugin := range plugin_utils.AllPlugins.CallbackQuery {
 		if strings.HasPrefix(params.CallbackQuery.Data, plugin.CallbackDataPrefix) {
