@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"time"
 	"trbot/database/db_struct"
 	"trbot/utils"
@@ -16,13 +17,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var Database DataBaseYaml
+var database DataBaseYaml
 
 var YAMLDatabasePath = filepath.Join(configs.YAMLDatabaseDir, configs.YAMLFileName)
 
-// 需要重构，错误信息不足
-
 type DataBaseYaml struct {
+	rw sync.RWMutex
 	// 如果运行中希望程序强制读取新数据，在 YAML 数据库文件的开头添加 FORCEOVERWRITE: true 即可
 	ForceOverwrite bool `yaml:"FORCEOVERWRITE,omitempty"`
 
@@ -51,8 +51,8 @@ func SaveDatabase(ctx context.Context) error {
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	Database.UpdateTimestamp = time.Now().Unix()
-	err := yaml.SaveYAML(YAMLDatabasePath, &Database)
+	database.UpdateTimestamp = time.Now().Unix()
+	err := yaml.SaveYAML(YAMLDatabasePath, &database)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -71,7 +71,7 @@ func ReadDatabase(ctx context.Context) error {
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	err := yaml.LoadYAML(YAMLDatabasePath, &Database)
+	err := yaml.LoadYAML(YAMLDatabasePath, &database)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Warn().
@@ -79,7 +79,7 @@ func ReadDatabase(ctx context.Context) error {
 				Str("path", YAMLDatabasePath).
 				Msg("Not found database file. Created new one")
 			// 如果是找不到文件，新建一个
-			err = yaml.SaveYAML(YAMLDatabasePath, &Database)
+			err = yaml.SaveYAML(YAMLDatabasePath, &database)
 			if err != nil {
 				logger.Error().
 					Err(err).
@@ -163,146 +163,182 @@ func AutoSaveDatabaseHandler(ctx context.Context) {
 		Logger()
 
 	// 先读取一下数据库文件
-	savedDatabase, err := ReadYamlDB(ctx, YAMLDatabasePath)
+	databaseFile, err := ReadYamlDB(ctx, YAMLDatabasePath)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Str("path", YAMLDatabasePath).
 			Msg("Failed to read database file")
-	} else {
-		// 如果读取数据库文件时发现数据库为空，使用当前的数据重建数据库文件
-		if savedDatabase == nil {
+		return
+	}
+
+	// 加锁检查数据库
+	database.rw.RLock()
+	needRecover   := databaseFile == nil
+	needOverwrite := databaseFile != nil && databaseFile.ForceOverwrite
+	sameData      := databaseFile != nil && reflect.DeepEqual(databaseFile.Data, database.Data)
+	sameTimestamp := databaseFile != nil && databaseFile.UpdateTimestamp == database.UpdateTimestamp
+	fileNewer     := databaseFile != nil && databaseFile.UpdateTimestamp >= database.UpdateTimestamp
+	database.rw.RUnlock()
+
+	// 数据库文件为空，需要恢复
+	if needRecover {
+		database.rw.Lock()
+		defer database.rw.Unlock()
+
+		logger.Warn().
+			Str("path", YAMLDatabasePath).
+			Msg("The database file is empty, recover database file using current data")
+		err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, &database)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("path", YAMLDatabasePath).
+				Msg("Failed to recover database file using current data")
+		} else {
 			logger.Warn().
 				Str("path", YAMLDatabasePath).
-				Msg("The database file is empty, recover database file using current data")
-			err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
+				Msg("The database file is recovered using current data")
+		}
+		return
+	}
+
+	// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记
+	// 无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
+	if needOverwrite {
+		database.rw.Lock()
+		defer database.rw.Unlock()
+
+		logger.Warn().
+			Str("path", YAMLDatabasePath).
+			Msg("Detected `FORCEOVERWRITE: true` in database file, save current database to another file first")
+
+		oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", time.Now().Unix(), configs.YAMLFileName)
+		oldFilePath := filepath.Join(configs.YAMLDatabaseDir, oldFileName)
+
+		err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, oldFileName, databaseFile)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Str("oldPath", oldFilePath).
+				Msg("Failed to save the database before overwrite")
+		} else {
+			logger.Warn().
+				Err(err).
+				Str("oldPath", oldFilePath).
+				Msg("The database before overwrite is saved to another file")
+		}
+		database.Data            = databaseFile.Data
+		database.UpdateTimestamp = databaseFile.UpdateTimestamp
+		err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, &database)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("path", YAMLDatabasePath).
+				Msg("Failed to save the database after overwrite")
+		} else {
+			logger.Warn().
+				Str("path", YAMLDatabasePath).
+				Msg("Read new database file and save to the old file")
+		}
+		return
+	}
+
+	// 数据无变动
+	if sameData && sameTimestamp {
+		logger.Debug().Msg("Looks database no any change, skip autosave this time")
+		return
+	}
+
+	// 数据库文件更新时间比程序中的更新时间更晚
+	if fileNewer {
+		database.rw.Lock()
+		defer database.rw.Unlock()
+
+		logger.Warn().Msg("The database file is newer than current data in the program")
+		// 如果只是更新时间有差别，更新一下时间，再保存就行
+		if sameData {
+			logger.Warn().
+				Msg("But current data and database is the same, updating UpdateTimestamp in the database only")
+			database.UpdateTimestamp = time.Now().Unix()
+			err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, &database)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to save database after updating UpdateTimestamp")
+			}
+		} else {
+			// 数据库文件与程序中的数据不同，提示不要在程序运行的时候乱动数据库文件
+			logger.Warn().
+				Str("notice", "Do not modify the database file while the program is running, If you want to overwrite the current database, please add the field `FORCEOVERWRITE: true` at the beginning of the file").
+				Msg("The database file is different from the current database, saving modified file and recovering database file using current data in the program")
+
+			// 将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
+			editedFileName := fmt.Sprintf("edited_%d_%s", time.Now().Unix(), configs.YAMLFileName)
+			editedFilePath := filepath.Join(configs.YAMLDatabaseDir, editedFileName)
+
+			err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, editedFileName, databaseFile)
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("editedPath", editedFilePath).
+					Msg("Failed to save modified database")
+			} else {
+				logger.Warn().
+					Str("editedPath", editedFilePath).
+					Msg("The modified database is saved to another file")
+			}
+			err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, &database)
 			if err != nil {
 				logger.Error().
 					Err(err).
 					Str("path", YAMLDatabasePath).
-					Msg("Failed to recover database file using current data")
+					Msg("Failed to recover database file")
 			} else {
 				logger.Warn().
 					Str("path", YAMLDatabasePath).
-					Msg("The database file is recovered using current data")
-			}
-		} else if reflect.DeepEqual(*savedDatabase, Database) {
-			// 没有修改就跳过保存
-			logger.Debug().Msg("Looks database no any change, skip autosave this time")
-		} else {
-			// 如果数据库文件中有设定专用的 `FORCEOVERWRITE: true` 覆写标记
-			// 无论任何修改，先保存程序中的数据，再读取新的数据替换掉当前的数据并保存
-			if savedDatabase.ForceOverwrite {
-				logger.Warn().
-					Str("path", YAMLDatabasePath).
-					Msg("Detected `FORCEOVERWRITE: true` in database file, save current database to another file first")
-
-				oldFileName := fmt.Sprintf("beforeOverwritten_%d_%s", time.Now().Unix(), configs.YAMLFileName)
-				oldFilePath := filepath.Join(configs.YAMLDatabaseDir, oldFileName)
-
-				err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, oldFileName, savedDatabase)
-				if err != nil {
-					logger.Warn().
-						Err(err).
-						Str("oldPath", oldFilePath).
-						Msg("Failed to save the database before overwrite")
-				} else {
-					logger.Warn().
-						Err(err).
-						Str("oldPath", oldFilePath).
-						Msg("The database before overwrite is saved to another file")
-				}
-				Database = *savedDatabase
-				Database.ForceOverwrite = false // 移除强制覆盖标记
-				err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("path", YAMLDatabasePath).
-						Msg("Failed to save the database after overwrite")
-				} else {
-					logger.Warn().
-						Str("path", YAMLDatabasePath).
-						Msg("Read new database file and save to the old file")
-				}
-			} else {
-				// 没有设定覆写标记，检测到本地的数据库更新时间比程序中的更新时间更晚
-				if savedDatabase.UpdateTimestamp >= Database.UpdateTimestamp {
-					logger.Warn().
-						Msg("The database file is newer than current data in the program")
-					// 如果只是更新时间有差别，更新一下时间，再保存就行
-					if reflect.DeepEqual(savedDatabase.Data, Database.Data) {
-						logger.Warn().
-							Msg("But current data and database is the same, updating UpdateTimestamp in the database only")
-						Database.UpdateTimestamp = time.Now().Unix()
-						err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Msg("Failed to save database after updating UpdateTimestamp")
-						}
-					} else {
-						// 数据库文件与程序中的数据不同，提示不要在程序运行的时候乱动数据库文件
-						logger.Warn().
-							Str("notice", "Do not modify the database file while the program is running, If you want to overwrite the current database, please add the field `FORCEOVERWRITE: true` at the beginning of the file.").
-							Msg("The database file is different from the current database, saving modified file and recovering database file using current data in the program")
-
-						// 将新的数据文件改名另存为 `edited_时间戳_文件名`，再使用程序中的数据还原数据文件
-						editedFileName := fmt.Sprintf("edited_%d_%s", time.Now().Unix(), configs.YAMLFileName)
-						editedFilePath := filepath.Join(configs.YAMLDatabaseDir, editedFileName)
-
-						err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, editedFileName, savedDatabase)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Str("editedPath", editedFilePath).
-								Msg("Failed to save modified database")
-						} else {
-							logger.Warn().
-								Str("editedPath", editedFilePath).
-								Msg("The modified database is saved to another file")
-						}
-						err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Str("path", YAMLDatabasePath).
-								Msg("Failed to recover database file")
-						} else {
-							logger.Warn().
-								Str("path", YAMLDatabasePath).
-								Msg("The database file is recovered using current data in the program")
-						}
-					}
-				} else {
-					// 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
-					// 无论如何都尽量不要手动修改数据库文件，如果必要也请在开头添加专用的 `FORCEOVERWRITE: true` 覆写标记，或停止程序后再修改
-					Database.UpdateTimestamp = time.Now().Unix()
-					err := SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, Database)
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Msg("Failed to auto save database")
-					} else {
-						logger.Debug().
-							Str("path", YAMLDatabasePath).
-							Msg("The database is auto saved")
-					}
-				}
+					Msg("The database file is recovered using current data in the program")
 			}
 		}
+		return
 	}
 
+	// 正常保存流程
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	// 数据有更改，程序内的更新时间也比本地数据库晚，正常保存
+	// 无论如何都尽量不要手动修改数据库文件，如果必要也请在开头添加专用的 `FORCEOVERWRITE: true` 覆写标记，或停止程序后再修改
+	database.UpdateTimestamp = time.Now().Unix()
+	err = SaveYamlDB(ctx, configs.YAMLDatabaseDir, configs.YAMLFileName, &database)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to auto save database")
+	} else {
+		logger.Debug().Str("path", YAMLDatabasePath).Msg("The database is auto saved")
+	}
+}
+
+// 获取 ID 信息
+func GetChatInfo(ctx context.Context, id int64) (*db_struct.ChatInfo, error) {
+	database.rw.RLock()
+	defer database.rw.RUnlock()
+	for _, data := range database.Data.ChatInfo {
+		if data.ID == id {
+			return &data, nil
+		}
+	}
+	return nil, fmt.Errorf("ChatInfo not found")
 }
 
 // 初次添加群组时，获取必要信息
 func InitChat(ctx context.Context, chat *models.Chat) error {
-	for _, data := range Database.Data.ChatInfo {
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	for _, data := range database.Data.ChatInfo {
 		if data.ID == chat.ID {
 			return nil // 群组已存在，不重复添加
 		}
 	}
-	Database.Data.ChatInfo = append(Database.Data.ChatInfo, db_struct.ChatInfo{
+	database.Data.ChatInfo = append(database.Data.ChatInfo, db_struct.ChatInfo{
 		ID:       chat.ID,
 		ChatType: chat.Type,
 		ChatName: utils.ShowChatName(chat),
@@ -312,12 +348,14 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 }
 
 func InitUser(ctx context.Context, user *models.User) error {
-	for _, data := range Database.Data.ChatInfo {
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	for _, data := range database.Data.ChatInfo {
 		if data.ID == user.ID {
 			return nil // 用户已存在，不重复添加
 		}
 	}
-	Database.Data.ChatInfo = append(Database.Data.ChatInfo, db_struct.ChatInfo{
+	database.Data.ChatInfo = append(database.Data.ChatInfo, db_struct.ChatInfo{
 		ID:       user.ID,
 		ChatType: models.ChatTypePrivate,
 		ChatName: utils.ShowUserName(user),
@@ -326,21 +364,13 @@ func InitUser(ctx context.Context, user *models.User) error {
 	return SaveDatabase(ctx)
 }
 
-// 获取 ID 信息
-func GetChatInfo(ctx context.Context, id int64) (*db_struct.ChatInfo, error) {
-	for Index, Data := range Database.Data.ChatInfo {
-		if Data.ID == id {
-			return &Database.Data.ChatInfo[Index], nil
-		}
-	}
-	return nil, fmt.Errorf("ChatInfo not found")
-}
-
 func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
-	for Index, Data := range Database.Data.ChatInfo {
-		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix() + 1
-			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	for index, data := range database.Data.ChatInfo {
+		if data.ID == chatID {
+			database.UpdateTimestamp = time.Now().Unix() + 1
+			v := reflect.ValueOf(&database.Data.ChatInfo[index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
 					v.Field(i).SetInt(v.Field(i).Int() + 1)
@@ -353,10 +383,12 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struc
 }
 
 func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
-	for Index, Data := range Database.Data.ChatInfo {
-		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix() + 1
-			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	for index, data := range database.Data.ChatInfo {
+		if data.ID == chatID {
+			database.UpdateTimestamp = time.Now().Unix() + 1
+			v := reflect.ValueOf(&database.Data.ChatInfo[index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
 					v.Field(i).SetString(value)
@@ -369,10 +401,12 @@ func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.Cha
 }
 
 func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
-	for Index, Data := range Database.Data.ChatInfo {
-		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix() + 1
-			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	for index, data := range database.Data.ChatInfo {
+		if data.ID == chatID {
+			database.UpdateTimestamp = time.Now().Unix() + 1
+			v := reflect.ValueOf(&database.Data.ChatInfo[index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
 					v.Field(i).SetBool(value)
@@ -385,10 +419,12 @@ func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struc
 }
 
 func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
-	for Index, Data := range Database.Data.ChatInfo {
-		if Data.ID == chatID {
-			Database.UpdateTimestamp = time.Now().Unix() + 1
-			v := reflect.ValueOf(&Database.Data.ChatInfo[Index]).Elem()
+	database.rw.Lock()
+	defer database.rw.Unlock()
+	for index, data := range database.Data.ChatInfo {
+		if data.ID == chatID {
+			database.UpdateTimestamp = time.Now().Unix() + 1
+			v := reflect.ValueOf(&database.Data.ChatInfo[index]).Elem()
 			for i := 0; i < v.NumField(); i++ {
 				if v.Type().Field(i).Name == string(fieldName) {
 					v.Field(i).SetString(value)

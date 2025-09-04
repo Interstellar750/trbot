@@ -36,6 +36,7 @@ func SignalsHandler(ctx context.Context) {
 			yaml_db.AutoSaveDatabaseHandler(ctx)
 		case <-ctx.Done():
 			if saveDatabaseRetryCount == 0 { logger.Warn().Msg("Cancle signal received") }
+			plugin_utils.SavePluginsDatabase(ctx)
 			err := database.SaveDatabase(ctx)
 			if err != nil {
 				saveDatabaseRetryCount++
