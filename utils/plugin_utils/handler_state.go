@@ -93,7 +93,7 @@ func EditMessageStateHandler(chatID int64, remainingTime int, stateFunc func(*ha
 }
 
 func RunMessageStateHandler(opts *handler_params.Message) bool {
-	if AllPlugins.StateHandler == nil{ return false }
+	if AllPlugins.StateHandler == nil { return false }
 	handler, isExist := AllPlugins.StateHandler[opts.Message.Chat.ID]
 	if isExist {
 		logger := zerolog.Ctx(opts.Ctx).
@@ -125,7 +125,7 @@ func RunMessageStateHandler(opts *handler_params.Message) bool {
 				}
 			}
 
-			delete(AllPlugins.StateHandler, opts.ChatInfo.ID)
+			delete(AllPlugins.StateHandler, opts.Message.Chat.ID)
 			return true
 		}
 		logger.Info().Msg("Hit state handler")
@@ -141,8 +141,9 @@ func RunMessageStateHandler(opts *handler_params.Message) bool {
 				Msg("Error in state handler")
 		}
 		if handler.Remaining == 0 {
-			delete(AllPlugins.StateHandler, opts.ChatInfo.ID)
+			delete(AllPlugins.StateHandler, opts.Message.Chat.ID)
 		} else {
+			// save `handler.Remaining` value
 			AllPlugins.StateHandler[opts.ChatInfo.ID] = handler
 		}
 	}
