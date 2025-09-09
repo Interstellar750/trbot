@@ -440,12 +440,12 @@ func stickerLinkHandler(opts *handler_params.Message) error {
 			if config.Config.AllowDownloadStickerSet {
 				if config.Config.DisableConvert {
 					button = [][]models.InlineKeyboardButton{
-						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) }},
+						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) }},
 					}
 				} else {
 					button = [][]models.InlineKeyboardButton{
-						{{ Text: "下载转换后的贴纸包", CallbackData: fmt.Sprintf("S_%s", opts.Message.Sticker.SetName) }},
-						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) }},
+						{{ Text: "下载转换后的贴纸包", CallbackData: fmt.Sprintf("S_%s", stickerSet.Name) }},
+						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) }},
 					}
 				}
 			}
