@@ -11,9 +11,11 @@ import (
 	"trbot/plugins/sticker_download/download"
 	"trbot/plugins/sticker_download/mpeg4gif"
 	"trbot/utils"
+	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
@@ -203,7 +205,7 @@ func stickerHandler(opts *handler_params.Message) error {
 			}
 
 			if config.Config.UseCollcetSticker {
-				collect.AddButton(opts.Message.Sticker.SetName, &button)
+				collect.AddButton(opts.Message.Sticker.SetName, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
 			}
 
 			// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
@@ -449,7 +451,7 @@ func stickerLinkHandler(opts *handler_params.Message) error {
 			}
 
 			if config.Config.UseCollcetSticker {
-				collect.AddButton(stickerSet.Name, &button)
+				collect.AddButton(stickerSet.Name, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
 			}
 
 			var ReplyMarkup models.ReplyMarkup

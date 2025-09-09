@@ -275,21 +275,28 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 	return handlerErr.Flat()
 }
 
-func AddButton(setName string, button *[][]models.InlineKeyboardButton) {
+func AddButton(setName string, isManager bool, button *[][]models.InlineKeyboardButton) {
 	if stickerCollect.ChannelID != 0 {
 		set := stickerCollect.GetStickerSetByName(setName)
 		if set != nil {
-			*button = append(*button, []models.InlineKeyboardButton{
-				{
-					Text:         fmt.Sprintf("🔁 更新? (%d)", set.Count),
-					CallbackData: fmt.Sprintf("c_%s", setName),
-				},
-				{
+			if isManager {
+				*button = append(*button, []models.InlineKeyboardButton{
+					{
+						Text:         fmt.Sprintf("🔁 更新? (%d)", set.Count),
+						CallbackData: fmt.Sprintf("c_%s", setName),
+					},
+					{
+						Text: "✅ 已收藏至频道",
+						URL:  utils.MsgLinkPrivate(stickerCollect.ChannelID, set.MsgID),
+					},
+				})
+			} else {
+				*button = append(*button, []models.InlineKeyboardButton{{
 					Text: "✅ 已收藏至频道",
 					URL:  utils.MsgLinkPrivate(stickerCollect.ChannelID, set.MsgID),
-				},
-			})
-		} else {
+				}})
+			}
+		} else if isManager {
 			*button = append(*button, []models.InlineKeyboardButton{{
 				Text: "⭐️ 收藏至频道",
 				CallbackData: fmt.Sprintf("c_%s", setName),
