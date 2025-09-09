@@ -417,22 +417,6 @@ func InitBot() (context.Context, context.CancelFunc, zerolog.Logger) {
 				Int("RedisDatabaseID", BotConfig.RedisDatabaseID).
 				Msg("Get Redis URL and Database ID from config")
 		}
-
-		FFmpegPath := os.Getenv("FFMPEG_PATH")
-		if FFmpegPath != "" {
-			BotConfig.FFmpegPath = FFmpegPath
-			logger.Info().
-				Str("FFmpegPath", BotConfig.FFmpegPath).
-				Msg("Get FFmpeg path from environment")
-		} else if cfg.FFmpegPath != "" {
-			BotConfig.FFmpegPath = cfg.FFmpegPath
-			logger.Info().
-				Str("FFmpegPath", BotConfig.FFmpegPath).
-				Msg("Get FFmpeg path from config")
-		} else {
-			logger.Warn().
-				Msg("No FFmpeg path in environment `.env` file and YAML config file, you will not be able to use some features that depend on it")
-		}
 	}
 
 	// attach logger into ctx

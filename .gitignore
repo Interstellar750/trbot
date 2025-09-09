@@ -30,3 +30,4 @@ __debug_bin*
 /data
 config.yaml
 /ffmpeg
+/lottie-converter
