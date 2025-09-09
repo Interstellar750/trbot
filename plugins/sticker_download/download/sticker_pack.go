@@ -152,7 +152,7 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 				Msg("Sticker file already exists")
 		}
 
-		if !config.Config.DisableConvert {
+		if !config.Config.DisableConvert && needConvert {
 			convertedStickerPath := filepath.Join(convertedDir, sticker.FileID + dotFileSuffix_converted)
 
 			_, err = os.Stat(convertedStickerPath)
