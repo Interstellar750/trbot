@@ -27,7 +27,7 @@ var tsErr     error
 var tsDataPath  string = filepath.Join(configs.YAMLDatabaseDir, "teamspeak/", configs.YAMLFileName)
 var botNickName string = "trbot_teamspeak_plugin"
 
-var tsData      TSServerQuery
+var tsData      TSConfig
 var botInstance *bot.Bot
 
 var resetListenTicker = make(chan bool)
@@ -39,7 +39,7 @@ var isCanListening bool
 var isMessagePinned    bool
 var reconnectMessageID int
 
-type TSServerQuery struct {
+type TSConfig struct {
 	// get `Name` And `Password` in `TeamSpeak 3 Client` -> `Tools` -> `ServerQuery Login`
 	URL                    string `yaml:"URL"`
 	Name                   string `yaml:"Name"`
@@ -221,7 +221,7 @@ func readTeamspeakData(ctx context.Context) error {
 				Err(err).
 				Str("path", tsDataPath).
 				Msg("Not found teamspeak config file. Created new one")
-			err = yaml.SaveYAML(tsDataPath, &TSServerQuery{
+			err = yaml.SaveYAML(tsDataPath, &TSConfig{
 				PollingInterval:     5,
 				SendMessageMode:     true,
 				DeleteTimeoutInMinute: 10,
@@ -439,7 +439,7 @@ func listenUserStatus(ctx context.Context) {
 					isCanListening = true
 					retryCount = 0
 					logger.Info().Msg("reconnect success")
-					botMessage, err := botInstance.SendMessage(timeoutCtx, &bot.SendMessageParams{
+					botMessage, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
 						ChatID: tsData.GroupID,
 						Text:   "已成功与服务器重新建立连接",
 					})
@@ -456,7 +456,7 @@ func listenUserStatus(ctx context.Context) {
 							deleteMessageIDs = []int{botMessage.ID, reconnectMessageID}
 							reconnectMessageID = 0
 						}
-						_, err = botInstance.DeleteMessages(timeoutCtx, &bot.DeleteMessagesParams{
+						_, err = botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
 							ChatID:     tsData.GroupID,
 							MessageIDs: deleteMessageIDs,
 						})
@@ -507,9 +507,8 @@ func checkOnlineClientChange(ctx context.Context, checkCount, errCount *int, bef
 			*errCount = 0
 			isCanListening = false
 			botMessage, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    tsData.GroupID,
-				Text:      "已连续五次检查在线客户端失败，开始尝试自动重连",
-				ParseMode: models.ParseModeHTML,
+				ChatID: tsData.GroupID,
+				Text:   "已连续五次检查在线客户端失败，开始尝试自动重连",
 			})
 			if err != nil {
 				logger.Error().
