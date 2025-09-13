@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"trbot/utils"
 	"trbot/utils/origin_info"
 	"trbot/utils/type/message_utils"
 
@@ -15,13 +16,15 @@ import (
 )
 
 type MessageData struct {
-	ID     int                `json:"id"`
-	Type   message_utils.Type `json:"type,omitempty"`
-	FileID    string          `json:"file_id,omitempty"`
-	FileTitle string          `json:"file_title,omitempty"`
-	FileName  string          `json:"file_name,omitempty"`
-	Text      string          `json:"text,omitempty"`
-	Desc      string          `json:"desc,omitempty"`
+	ID              int                `json:"id"`
+	Type            message_utils.Type `json:"type,omitempty"`
+	FileID          string             `json:"file_id,omitempty"`
+	FileTitle       string             `json:"file_title,omitempty"`
+	FileName        string             `json:"file_name,omitempty"`
+	MediaGroupID    string             `json:"media_group_id,omitempty"`
+	// MessageThreadID int                `json:"message_thread_id,omitempty"`
+	Text            string             `json:"text,omitempty"`
+	Desc            string             `json:"desc,omitempty"`
 
 	Entities              []models.MessageEntity     `json:"entities,omitempty"`
 	LinkPreviewOptions    *models.LinkPreviewOptions `json:"link_preview_options,omitempty"`
@@ -33,6 +36,37 @@ type MessageData struct {
 
 func (md MessageData) MsgIDStr() string {
 	return strconv.Itoa(md.ID)
+}
+
+func (md MessageData) BuildButton(username string) models.ReplyMarkup {
+	var buttons []models.InlineKeyboardButton
+
+	if md.OriginInfo != nil {
+		if md.OriginInfo.FromID < 0 && md.OriginInfo.MessageID != 0 {
+			buttons = append(buttons, models.InlineKeyboardButton{
+				Text: "来自 " + md.OriginInfo.FromName,
+				URL:  utils.MsgLinkPrivate(md.OriginInfo.FromID, md.OriginInfo.MessageID),
+			})
+		} else if md.OriginInfo.FromID > 0 {
+			buttons = append(buttons, models.InlineKeyboardButton{
+				Text: "来自 " + md.OriginInfo.FromName,
+				URL:  fmt.Sprintf("tg://user?id=%d", md.OriginInfo.FromID),
+			})
+		}
+	}
+
+	if md.MediaGroupID != "" {
+		buttons = append(buttons, models.InlineKeyboardButton{
+			Text: "查看完整消息",
+			URL:  fmt.Sprintf("https://t.me/%s/%d", username, md.ID),
+		})
+	}
+
+	if len(buttons) == 0 {
+		return nil
+	}
+
+	return &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{buttons}}
 }
 
 // Please pass in the parameter as a pointer
@@ -47,10 +81,11 @@ func UnmarshalMessageData(data, out any) error {
 func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message) MessageData {
 	if msg == nil { return MessageData{} }
 	var data = MessageData{
-		ID:                 msg.ID,
+		ID:                    msg.ID,
+		MediaGroupID:          msg.MediaGroupID,
+		// MessageThreadID:       msg.MessageThreadID,
 		LinkPreviewOptions:    msg.LinkPreviewOptions,
 		ShowCaptionAboveMedia: msg.ShowCaptionAboveMedia,
-		// HasMediaSpoiler:       msg.HasMediaSpoiler,
 	}
 
 	if msg.Caption != "" {
@@ -67,29 +102,29 @@ func BuildMessageData(ctx context.Context, thebot *bot.Bot, msg *models.Message)
 	case msgType.Text:
 		// do nothing
 	case msgType.Animation:
-		data.FileID = msg.Animation.FileID
+		data.FileID   = msg.Animation.FileID
 		data.FileName = msg.Animation.FileName
 	case msgType.Audio:
-		data.FileID = msg.Audio.FileID
-		data.FileName = msg.Audio.FileName
+		data.FileID    = msg.Audio.FileID
+		data.FileName  = msg.Audio.FileName
 		data.FileTitle = msg.Audio.Title
 	case msgType.Document:
-		data.FileID = msg.Document.FileID
+		data.FileID   = msg.Document.FileID
 		data.FileName = msg.Document.FileName
 	case msgType.Photo:
 		data.FileID = msg.Photo[len(msg.Photo)-1].FileID
 	case msgType.Sticker:
-		data.FileID = msg.Sticker.FileID
+		data.FileID   = msg.Sticker.FileID
 		data.FileName = msg.Sticker.SetName
 
 		if msg.Sticker.SetName != "" {
-			stickerSet, _ := thebot.GetStickerSet(ctx, &bot.GetStickerSetParams{Name: msg.Sticker.SetName})
+			stickerSet, _ := thebot.GetStickerSet(ctx, &bot.GetStickerSetParams{ Name: msg.Sticker.SetName })
 			if stickerSet != nil {
 				data.FileTitle = stickerSet.Title
 			}
 		}
 	case msgType.Video:
-		data.FileID = msg.Video.FileID
+		data.FileID   = msg.Video.FileID
 		data.FileName = msg.Video.FileName
 
 		if data.FileName == "" {
