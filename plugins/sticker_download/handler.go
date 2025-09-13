@@ -324,19 +324,36 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Msg("Start download sticker set")
 
-		_, err = opts.Thebot.EditMessageCaption(opts.Ctx, &bot.EditMessageCaptionParams{
-			ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
-			MessageID: opts.CallbackQuery.Message.Message.ID,
-			Caption:   fmt.Sprintf("正在下载%s <a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包，请稍候...", utils.TextForTrueOrFalse(needConvert, "并转换", ""), stickerSet.Name, stickerSet.Title),
-			ParseMode: models.ParseModeHTML,
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-				Str("content", "start download stickerset notice").
-				Msg(flaterr.EditMessageCaption.Str())
-			handlerErr.Addt(flaterr.EditMessageCaption, "start download stickerset notice", err)
+		if opts.CallbackQuery.Message.Message.Caption != "" {
+			_, err = opts.Thebot.EditMessageCaption(opts.Ctx, &bot.EditMessageCaptionParams{
+				ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
+				Caption:   fmt.Sprintf("正在下载%s <a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包，请稍候...", utils.TextForTrueOrFalse(needConvert, "并转换", ""), stickerSet.Name, stickerSet.Title),
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+					Str("content", "start download stickerset notice").
+					Msg(flaterr.EditMessageCaption.Str())
+				handlerErr.Addt(flaterr.EditMessageCaption, "start download stickerset notice", err)
+			}
+		} else {
+			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID: opts.CallbackQuery.Message.Message.ID,
+				Text:      fmt.Sprintf("正在下载%s <a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包，请稍候...", utils.TextForTrueOrFalse(needConvert, "并转换", ""), stickerSet.Name, stickerSet.Title),
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+					Str("content", "start download stickerset notice").
+					Msg(flaterr.EditMessageText.Str())
+				handlerErr.Addt(flaterr.EditMessageText, "start download stickerset notice", err)
+			}
 		}
 
 		stickerData, err := download.GetStickerPack(opts.Ctx, opts.Thebot, stickerSet, needConvert)
