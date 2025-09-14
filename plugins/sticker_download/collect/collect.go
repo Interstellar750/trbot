@@ -13,6 +13,7 @@ import (
 	"trbot/utils/configs"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
+	"trbot/utils/type/contain"
 	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
@@ -124,6 +125,19 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 				Str("content", "collect channel ID not set").
 				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addt(flaterr.AnswerCallbackQuery, "collect channel ID not set", err)
+		}
+	} else if !contain.Int64(opts.CallbackQuery.From.ID, configs.BotConfig.AdminIDs...) {
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: opts.CallbackQuery.ID,
+			Text:            "只有管理员才能使用此功能",
+			ShowAlert:       true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "only admin can use this function").
+				Msg(flaterr.AnswerCallbackQuery.Str())
+			handlerErr.Addt(flaterr.AnswerCallbackQuery, "only admin can use this function", err)
 		}
 	} else {
 		stickerSetName := strings.TrimPrefix(opts.CallbackQuery.Data, "c_")
