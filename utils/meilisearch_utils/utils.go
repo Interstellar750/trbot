@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-	"trbot/utils"
 	"trbot/utils/origin_info"
 	"trbot/utils/type/message_utils"
 
@@ -41,19 +40,19 @@ func (md MessageData) MsgIDStr() string {
 func (md MessageData) BuildButton(username string) models.ReplyMarkup {
 	var buttons []models.InlineKeyboardButton
 
-	if md.OriginInfo != nil {
-		if md.OriginInfo.FromID < 0 && md.OriginInfo.MessageID != 0 {
-			buttons = append(buttons, models.InlineKeyboardButton{
-				Text: "来自 " + md.OriginInfo.FromName,
-				URL:  utils.MsgLinkPrivate(md.OriginInfo.FromID, md.OriginInfo.MessageID),
-			})
-		} else if md.OriginInfo.FromID > 0 {
-			buttons = append(buttons, models.InlineKeyboardButton{
-				Text: "来自 " + md.OriginInfo.FromName,
-				URL:  fmt.Sprintf("tg://user?id=%d", md.OriginInfo.FromID),
-			})
-		}
-	}
+	// if md.OriginInfo != nil {
+	// 	if md.OriginInfo.FromID < 0 && md.OriginInfo.MessageID != 0 {
+	// 		buttons = append(buttons, models.InlineKeyboardButton{
+	// 			Text: "来自 " + md.OriginInfo.FromName,
+	// 			URL:  utils.MsgLinkPrivate(md.OriginInfo.FromID, md.OriginInfo.MessageID),
+	// 		})
+	// 	} else if md.OriginInfo.FromID > 0 {
+	// 		buttons = append(buttons, models.InlineKeyboardButton{
+	// 			Text: "来自 " + md.OriginInfo.FromName,
+	// 			URL:  fmt.Sprintf("tg://user?id=%d", md.OriginInfo.FromID),
+	// 		})
+	// 	}
+	// }
 
 	if md.MediaGroupID != "" {
 		buttons = append(buttons, models.InlineKeyboardButton{
