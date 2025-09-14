@@ -88,11 +88,11 @@ func channelSaveMessageHandler(opts *handler_params.Message) error {
 				ChatID:              common.SavedMessageList.NoticeChatID,
 				Text:                "已经在频道中保存了一个新消息，要为它添加关键词吗？",
 				DisableNotification: true,
+				ReplyMarkup:          buildMetadataKeyboard(msgData),
 				ReplyParameters:     &models.ReplyParameters{
 					MessageID: opts.Message.ID,
 					ChatID:    common.SavedMessageList.ChannelID,
 				},
-				ReplyMarkup:   buildMetadataKeyboard(msgData),
 			})
 			if err != nil {
 				logger.Error().
@@ -235,28 +235,25 @@ func channelMetadataHandler(opts *handler_params.Message) error {
 }
 
 func buildMetadataKeyboard(msgData meilisearch_utils.MessageData) models.ReplyMarkup {
-	var button [][]models.InlineKeyboardButton
-	button = append(button, []models.InlineKeyboardButton{
-		{
-			Text:         "修改描述",
-			CallbackData: fmt.Sprintf("savedmsg_channel_add_desc_%d", msgData.ID),
-		},
-		{
-			Text: "查看消息",
-			URL:  utils.MsgLinkPrivate(common.SavedMessageList.ChannelID, msgData.ID),
-		},
-		// {
-		// 	Text:         "移除来源信息",
-		// 	CallbackData: fmt.Sprintf("savedmsg_remove_origin_%d", msgData.MsgID),
-		// },
-		// {
-		// 	Text:         "删除消息",
-		// 	CallbackData: fmt.Sprintf("delete_message:%d", msgData.MsgID),
-		// },
-	})
-
 	return &models.InlineKeyboardMarkup{
-		InlineKeyboard: button,
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+		{
+			{
+				Text:         "修改描述",
+				CallbackData: fmt.Sprintf("savedmsg_channel_add_desc_%d", msgData.ID),
+			},
+			{
+				Text:         "折叠消息",
+				CallbackData: fmt.Sprintf("savedmsg_channel_expandable_%d", msgData.ID),
+			},
+		},
+		{
+			{
+				Text: "查看消息",
+				URL:  utils.MsgLinkPrivate(common.SavedMessageList.ChannelID, msgData.ID),
+			},
+		},
+	},
 	}
 }
 
@@ -329,6 +326,61 @@ func channelCallbackHandler(opts *handler_params.CallbackQuery) error {
 				},
 			})
 		}
+	} else if strings.HasPrefix(opts.CallbackQuery.Data, "savedmsg_channel_expandable_") {
+		msgIDString := strings.TrimPrefix(opts.CallbackQuery.Data, "savedmsg_channel_expandable_")
+
+		var msgData meilisearch_utils.MessageData
+
+		err := common.MeilisearchClient.Index(common.SavedMessageList.ChannelIDStr()).GetDocument(msgIDString, nil, &msgData)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to get message data that need edit to expandable blockquote")
+			return fmt.Errorf("failed to get message data that need edit to expandable blockquote: %w", err)
+		}
+
+		taskinfo, err := common.MeilisearchClient.Index(common.SavedMessageList.ChannelIDStr()).UpdateDocuments(&meilisearch_utils.MessageData{
+			ID:   msgData.ID,
+			Entities: append(msgData.Entities, models.MessageEntity{
+				Type:   models.MessageEntityTypeExpandableBlockquote,
+				Offset: 0,
+				Length: common.UTF16Length(msgData.Text),
+			}),
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to send update document entities request to Meilisearch")
+			return fmt.Errorf("failed to send update document entities request to Meilisearch: %w", err)
+		} else {
+			task, err := meilisearch_utils.WaitForTask(opts.Ctx, &common.MeilisearchClient, taskinfo.TaskUID, time.Second * 1)
+			if err != nil {
+				return fmt.Errorf("wait for update document entities failed: %w", err)
+			} else if task.Status != meilisearch.TaskStatusSucceeded {
+				return fmt.Errorf("failed to update document entities: %s", task.Error.Message)
+			}
+
+			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+				ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+				MessageID:   opts.CallbackQuery.Message.Message.ID,
+				Text:        "已为消息启用折叠样式",
+				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+					Text: "查看消息",
+					URL:  utils.MsgLinkPrivate(common.SavedMessageList.ChannelID, editingMessageID),
+				}}}},
+			})
+			editingMessageID = 0 // Reset the editing message ID after successful update
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Int("messageID", opts.CallbackQuery.Message.Message.ID).
+					Str("content", "entities updated notice").
+					Msg(flaterr.EditMessageText.Str())
+				return fmt.Errorf(flaterr.EditMessageText.Fmt(), "entities updated notice", err)
+			}
+		}
+
+
 	}
 	return nil
 }
@@ -375,8 +427,8 @@ func editDescriptionHandler(opts *handler_params.Message) error {
 				Err(err).
 				Int("messageID", opts.Message.ID).
 				Str("content", "description updated notice").
-				Msg(flaterr.SendMessage.Str())
-			return fmt.Errorf(flaterr.SendMessage.Fmt(), "description updated notice", err)
+				Msg(flaterr.EditMessageText.Str())
+			return fmt.Errorf(flaterr.EditMessageText.Fmt(), "description updated notice", err)
 		}
 
 		_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
