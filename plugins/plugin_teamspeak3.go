@@ -100,12 +100,16 @@ func initTeamSpeak(ctx context.Context) bool {
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
+	logger.Info().Msg("Reading config file...")
+
 	// 读取配置文件
 	err := readTeamspeakData(ctx)
 	if err != nil {
 		tsErr = fmt.Errorf("failed to read teamspeak config data: %w", err)
 		return false
 	}
+
+	logger.Info().Msg("Checking config file...")
 
 	// 如果服务器地址为空不允许重新启动
 	if tsData.URL == "" {
@@ -115,7 +119,13 @@ func initTeamSpeak(ctx context.Context) bool {
 		tsErr = fmt.Errorf("no URL in config")
 		return false
 	} else {
-		if tsClient != nil { tsClient.Close() }
+		if tsClient != nil {
+			logger.Info().Msg("Closing client...")
+			tsClient.Close()
+			tsClient = nil
+		}
+
+		logger.Info().Msg("Starting client...")
 		tsClient, err = ts3.NewClient(tsData.URL)
 		if err != nil {
 			logger.Error().
@@ -127,6 +137,8 @@ func initTeamSpeak(ctx context.Context) bool {
 		}
 	}
 
+	logger.Info().Msg("Checking credentials...")
+
 	// ServerQuery 账号名或密码为空也不允许重新启动
 	if tsData.Name == "" || tsData.Password == "" {
 		logger.Error().
@@ -135,6 +147,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		tsErr = fmt.Errorf("no Name/Password in config")
 		return false
 	} else {
+		logger.Info().Msg("Logining...")
 		err = tsClient.Login(tsData.Name, tsData.Password)
 		if err != nil {
 			logger.Error().
@@ -146,6 +159,8 @@ func initTeamSpeak(ctx context.Context) bool {
 		}
 	}
 
+	logger.Info().Msg("Checking Group ID...")
+
 	// 检查要设定通知的群组 ID 是否存在
 	if tsData.GroupID == 0 {
 		logger.Error().
@@ -155,6 +170,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		return false
 	}
 
+	logger.Info().Msg("Testing connection...")
 	// 显示服务端版本测试一下连接
 	v, err := tsClient.Version()
 	if err != nil {
@@ -172,6 +188,8 @@ func initTeamSpeak(ctx context.Context) bool {
 			Msg("TeamSpeak server connected")
 	}
 
+	logger.Info().Msg("Switching virtual servers...")
+
 	// 切换默认虚拟服务器
 	err = tsClient.Use(1)
 	if err != nil {
@@ -182,6 +200,8 @@ func initTeamSpeak(ctx context.Context) bool {
 		return false
 	}
 
+	logger.Info().Msg("Checking nickname...")
+
 	// 改一下 bot 自己的 nickname，使得在检测用户列表时默认不显示自己
 	m, err := tsClient.Whoami()
 	if err != nil {
@@ -191,6 +211,7 @@ func initTeamSpeak(ctx context.Context) bool {
 		tsErr = fmt.Errorf("failed to get bot info: %w", err)
 		return false
 	} else if m != nil && m.ClientName != botNickName {
+		logger.Info().Msg("Setting nickname...")
 		// 当 bot 自己的 nickname 不等于配置文件中的 nickname 时，才进行修改
 		err = tsClient.SetNick(botNickName)
 		if err != nil {
@@ -201,6 +222,8 @@ func initTeamSpeak(ctx context.Context) bool {
 			return false
 		}
 	}
+
+	logger.Info().Msg("Successfully connected!")
 
 	// 没遇到不可重新初始化的部分则返回初始化成功
 	isSuccessInit = true
@@ -427,12 +450,8 @@ func listenUserStatus(ctx context.Context) {
 				logger.Info().
 					Int("retryCount", retryCount).
 					Msg("try reconnect...")
-				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
-				if retryCount < 15 {
-					retryCount++
-					listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
-				}
-				timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 10)
+
+				timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 30)
 				if initTeamSpeak(timeoutCtx) {
 					// 重新初始化成功则恢复 ticker 速度
 					listenTicker.Reset(time.Second * time.Duration(tsData.PollingInterval))
@@ -470,11 +489,16 @@ func listenUserStatus(ctx context.Context) {
 						}
 					}
 				} else {
+					// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
 					// 无法成功则等待下一个周期继续尝试
+					if retryCount < 15 {
+						retryCount++
+						listenTicker.Reset(time.Duration(retryCount) * 20 * time.Second)
+					}
+
 					logger.Warn().
-						Err(tsErr).
 						Int("retryCount", retryCount).
-						Int("nextRetry", (retryCount) * 20).
+						Time("nextRetry", time.Now().Add(time.Duration(retryCount) * 20 * time.Second)).
 						Msg("reconnect failed")
 				}
 				cancel()
