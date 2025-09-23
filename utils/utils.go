@@ -307,7 +307,8 @@ func OutputVersionInfo() string {
 		info += fmt.Sprintf("`Runtime:   `%s\n", runtime.Version())
 		info += fmt.Sprintf("`Goroutine: `%d\n", runtime.NumGoroutine())
 		info += fmt.Sprintf("`Hostname:  `%s\n", hostname)
-		info += fmt.Sprintf("`Platform:  `%s/%s\n", runtime.GOOS, runtime.GOARCH)
+		info += fmt.Sprintf("`Platform:  `%s / %s\n", runtime.GOOS, runtime.GOARCH)
+		info += fmt.Sprintf("`StartAt:   `%s\n", configs.StartAt)
 		return info
 	}
 	return fmt.Sprintln(
@@ -315,6 +316,8 @@ func OutputVersionInfo() string {
 		"\n`Runtime:   `", runtime.Version(),
 		"\n`Goroutine: `", runtime.NumGoroutine(),
 		"\n`Hostname:  `", hostname,
+		"\n`Platform:  `", runtime.GOOS, "/", runtime.GOARCH,
+		"\n`StartAt:   `", configs.StartAt,
 	)
 }
 
