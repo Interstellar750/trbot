@@ -50,20 +50,21 @@ func WebMToGif(webmPath, gifPath string) error {
 }
 
 // use lottie-converter, gifski and compress/gzip
-func TGSToGif(tgsPath, gifPath string) error {
+func TGSToGif(fileID, tgsPath, gifPath string) error {
+	var tempDir = filepath.Join(config.TempDir, fileID)
 	var fps string = "30"
 	if config.Config.TGSConvertFPS != 0 {
 		fps = fmt.Sprintf("%d", config.Config.TGSConvertFPS)
 	}
 	// 创建临时目录
-	err := os.MkdirAll(config.TempDir, 0755)
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.RemoveAll(config.TempDir)
+	defer os.RemoveAll(tempDir)
 
 	// 若为 .tgs 文件，解压为 .json
-	lottiePath := filepath.Join(config.TempDir, "animation.json")
+	lottiePath := filepath.Join(tempDir, "animation.json")
 	inFile, err := os.Open(tgsPath)
 	if err != nil {
 		return fmt.Errorf("failed to open tgs file: %w", err)
@@ -92,7 +93,7 @@ func TGSToGif(tgsPath, gifPath string) error {
 		"--height", "512",
 		"--fps", fps,
 		"--threads", "1",
-		"--output", config.TempDir,
+		"--output", tempDir,
 		lottiePath,
 	).Run()
 	if err != nil {
@@ -100,7 +101,7 @@ func TGSToGif(tgsPath, gifPath string) error {
 	}
 
 	// 查找 PNG 文件
-	files, err := filepath.Glob(filepath.Join(config.TempDir, "*.png"))
+	files, err := filepath.Glob(filepath.Join(tempDir, "*.png"))
 	if err != nil || len(files) == 0 {
 		return fmt.Errorf("no PNG files found: %w", err)
 	}

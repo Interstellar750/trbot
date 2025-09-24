@@ -197,7 +197,7 @@ func GetSticker(opts *handler_params.Message) (*common.StickerDatas, error) {
 					}
 				case opts.Message.Sticker.IsAnimated:
 					if config.Config.LottieToPNGPath != "" && config.Config.GifskiPath != "" {
-						err = convert.TGSToGif(originStickerPath, convertedStickerPath)
+						err = convert.TGSToGif(opts.Message.Sticker.FileID, originStickerPath, convertedStickerPath)
 						if err != nil {
 							logger.Error().
 								Err(err).

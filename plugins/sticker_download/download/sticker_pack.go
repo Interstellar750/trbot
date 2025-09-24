@@ -186,7 +186,7 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 							return nil, fmt.Errorf("failed to convert WebM [%s] to GIF: %w", originStickerPath, err)
 						}
 					case sticker.IsAnimated:
-						err = convert.TGSToGif(originStickerPath, convertedStickerPath)
+						err = convert.TGSToGif(sticker.FileID, originStickerPath, convertedStickerPath)
 						if err != nil {
 							logger.Error().
 								Err(err).
