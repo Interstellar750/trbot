@@ -170,24 +170,9 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 					Int("allCount", len(stickerSet.Stickers)),
 				).
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-				Msg("Start download sticker set")
+				Msg("Start download and collect sticker set")
 
-			if opts.CallbackQuery.Message.Message.Caption != "" {
-				_, err = opts.Thebot.EditMessageCaption(opts.Ctx, &bot.EditMessageCaptionParams{
-					ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
-					MessageID: opts.CallbackQuery.Message.Message.ID,
-					Caption:   fmt.Sprintf("正在收藏 <a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包，请稍候...", stickerSet.Name, stickerSet.Title),
-					ParseMode: models.ParseModeHTML,
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-						Str("content", "start download stickerset notice").
-						Msg(flaterr.EditMessageCaption.Str())
-					handlerErr.Addt(flaterr.EditMessageCaption, "start download stickerset notice", err)
-				}
-			} else {
+			if opts.CallbackQuery.Message.Message.Text != "" {
 				_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 					ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
 					MessageID: opts.CallbackQuery.Message.Message.ID,
@@ -201,6 +186,21 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 						Str("content", "start download stickerset notice").
 						Msg(flaterr.EditMessageText.Str())
 					handlerErr.Addt(flaterr.EditMessageText, "start download stickerset notice", err)
+				}
+			} else {
+				_, err = opts.Thebot.EditMessageCaption(opts.Ctx, &bot.EditMessageCaptionParams{
+					ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
+					MessageID: opts.CallbackQuery.Message.Message.ID,
+					Caption:   fmt.Sprintf("正在收藏 <a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包，请稍候...", stickerSet.Name, stickerSet.Title),
+					ParseMode: models.ParseModeHTML,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+						Str("content", "start download stickerset notice").
+						Msg(flaterr.EditMessageCaption.Str())
+					handlerErr.Addt(flaterr.EditMessageCaption, "start download stickerset notice", err)
 				}
 			}
 
