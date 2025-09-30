@@ -22,22 +22,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var tsConfig TSConfig
+var tsConfig ServerConfig
 var tsErr    error
 
 var tsConfigPath string = filepath.Join(configs.YAMLDatabaseDir, "teamspeak/", configs.YAMLFileName)
 var botNickName  string = "trbot_teamspeak_plugin"
 
 var botInstance *bot.Bot
-
-type TSConfig struct {
-	rw sync.RWMutex
-
-	AllowNew         bool  `yaml:"AllowNew"`
-	PollingIntervals []int `yaml:"PollingIntervals"`
-
-	Servers map[int64]*ServerConfig `yaml:"Servers"`
-}
 
 type ServerConfig struct {
 	rw sync.RWMutex
@@ -453,12 +444,12 @@ func (sc *ServerConfig) StartListening(ctx context.Context) {
 					// 无法成功则等待下一个周期继续尝试
 					if sc.s.RetryCount < 15 {
 						sc.s.RetryCount++
-						listenTicker.Reset(time.Duration(sc.s.RetryCount) * 200 * time.Second)
+						listenTicker.Reset(time.Duration(sc.s.RetryCount) * 20 * time.Second)
 					}
 
 					logger.Warn().
 						Int("retryCount", sc.s.RetryCount).
-						Time("nextRetry", time.Now().Add(time.Duration(sc.s.RetryCount) * 200 * time.Second)).
+						Time("nextRetry", time.Now().Add(time.Duration(sc.s.RetryCount) * 20 * time.Second)).
 						Msg("reconnect failed")
 				} else {
 					// 重新初始化成功则恢复 ticker 速度
@@ -530,10 +521,8 @@ func init() {
 		Func: func(ctx context.Context, thebot *bot.Bot) error{
 			botInstance = thebot
 			if initTeamSpeak(ctx) {
-				for _, client := range tsConfig.Servers {
-					if client.s.IsSuccessInit {
-						go client.StartListening(ctx)
-					}
+				if tsConfig.s.IsSuccessInit {
+					go tsConfig.StartListening(ctx)
 				}
 			}
 			return tsErr
@@ -578,37 +567,22 @@ func initTeamSpeak(ctx context.Context) bool {
 		return false
 	}
 
-	var count int = len(tsConfig.Servers)
-	var successCount int
+	logger.Info().
+		Int64("ChatID", tsConfig.GroupID).
+		Msg("Initializing TeamSpeak client...")
 
-	if count == 0 {
-		logger.Warn().Msg("No TeamSpeak clients found in config file")
+	err = tsConfig.Connect(ctx)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Int64("ChatID", tsConfig.GroupID).
+			Msg("Failed to initialize TeamSpeak client")
 		return false
 	}
 
-	for id, client := range tsConfig.Servers {
-		logger.Info().
-			Int64("ChatID", id).
-			Msg("Initializing TeamSpeak client...")
-		// client.resetTicker = make(chan bool)
-
-		err = client.Connect(ctx)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("ChatID", id).
-				Msg("Failed to initialize TeamSpeak client")
-			continue
-		}
-		successCount++
-	}
-
-	if successCount == 0 {
-		logger.Error().Msg("Failed to initialize all TeamSpeak clients")
-		return false
-	}
-
-	logger.Info().Msgf("Successfully initialized (%d/%d) TeamSpeak clients", successCount, count)
+	logger.Info().
+		Int64("ChatID", tsConfig.GroupID).
+		Msg("Successfully initialized TeamSpeak")
 
 	return true
 }
@@ -627,9 +601,10 @@ func readTeamspeakData(ctx context.Context) error {
 				Err(err).
 				Str("path", tsConfigPath).
 				Msg("Not found teamspeak config file. Created new one")
-			err = yaml.SaveYAML(tsConfigPath, &TSConfig{
-				AllowNew: true,
-				PollingIntervals: []int{5, 10, 30, 60},
+			err = yaml.SaveYAML(tsConfigPath, &ServerConfig{
+				PollingInterval: 10,
+				SendMessageMode: true,
+				DeleteTimeoutInMinute: 10,
 			})
 			if err != nil {
 				logger.Error().
@@ -675,47 +650,11 @@ func showStatus(opts *handler_params.Message) error {
 		Logger()
 
 	var handlerErr flaterr.MultErr
-
-	if opts.Message.Chat.Type == models.ChatTypePrivate {
-		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Message.Chat.ID,
-			Text:            "此功能仅可在绑定的群组中使用",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("chatID", opts.Message.Chat.ID).
-				Str("content", "only available in group").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "only available in group", err)
-		}
-		return handlerErr.Flat()
-	}
-
-	server, isExist := tsConfig.Servers[opts.Message.Chat.ID]
-	if !isExist {
-		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID:          opts.Message.Chat.ID,
-			Text:            "此群组并未绑定任何 Teamspeak 服务器",
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("chatID", opts.Message.Chat.ID).
-				Str("content", "no binding teamspeak server").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "no binding teamspeak server", err)
-		}
-		return handlerErr.Flat()
-	}
-
 	var pendingMessage string
 
 	// 正常运行就输出用户列表，否则发送错误信息
-	if server.s.IsSuccessInit && server.s.IsCanListening {
-		onlineClients, err := server.c.Server.ClientList()
+	if tsConfig.s.IsSuccessInit && tsConfig.s.IsCanListening {
+		onlineClients, err := tsConfig.c.Server.ClientList()
 		if err != nil {
 			logger.Error().
 				Err(err).
@@ -743,20 +682,20 @@ func showStatus(opts *handler_params.Message) error {
 		}
 	} else {
 		timeoutCtx, cancel := context.WithTimeout(opts.Ctx, time.Second * 30)
-		err := server.Connect(timeoutCtx)
+		err := tsConfig.Connect(timeoutCtx)
 		if err != nil {
 			pendingMessage = fmt.Sprintf("初始化 teamspeak 插件时发生了一些错误:\n<blockquote expandable>%s</blockquote>\n\n", err)
 			handlerErr.Addf("failed to reinit teamspeak plugin: %w", err)
-			if server.s.IsListening {
+			if tsConfig.s.IsListening {
 				pendingMessage += "尝试重新初始化失败，您可以使用 /ts3 命令来尝试重新连接或等待自动重连"
 			} else {
 				pendingMessage += "尝试重新初始化失败，由于监听服务未在运行，您需要手动使用 /ts3 命令来尝试重新连接"
 			}
 		} else {
-			if server.s.IsListening  {
-				server.s.ResetTicker <- true
+			if tsConfig.s.IsListening  {
+				tsConfig.s.ResetTicker <- true
 			} else {
-				go server.StartListening(opts.Ctx)
+				go tsConfig.StartListening(opts.Ctx)
 			}
 			pendingMessage = "尝试重新初始化成功，现可正常运行"
 		}
@@ -765,7 +704,7 @@ func showStatus(opts *handler_params.Message) error {
 
 	var buttons models.ReplyMarkup
 	// 显示管理按钮
-	if opts.Message.Chat.ID == server.GroupID && contain.Int64(opts.Message.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, server.GroupID)...) || contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
+	if opts.Message.Chat.ID == tsConfig.GroupID && contain.Int64(opts.Message.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsConfig.GroupID)...) || contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
 		buttons = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 			Text:         "管理此功能",
 			CallbackData: "teamspeak",
@@ -858,10 +797,8 @@ func changePinnedMessage(ctx context.Context, server *ServerConfig, checkCount *
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	// var checkcount int static
-
 	// 没有新加入和离开用户，等待一阵子后再更新用户在线时间
-	if len(add) + len(remove) == 0 && *checkCount < 12 {
+	if len(add) + len(remove) == 0 && *checkCount < (60 / tsConfig.PollingInterval) {
 		*checkCount++
 		return
 	} else {
@@ -924,30 +861,13 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 
 	var handlerErr flaterr.MultErr
 
-	server, isExist := tsConfig.Servers[opts.CallbackQuery.Message.Message.Chat.ID]
-	if !isExist {
-		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-			CallbackQueryID: opts.CallbackQuery.ID,
-			Text: "服务器未找到",
-			ShowAlert: true,
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("chatID", opts.CallbackQuery.Message.Message.Chat.ID).
-				Str("content", "no this server").
-				Msg(flaterr.AnswerCallbackQuery.Str())
-		}
-		return handlerErr.Flat()
-	}
-
-	if contain.Int64(opts.CallbackQuery.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, server.GroupID)...) || contain.Int64(opts.CallbackQuery.From.ID, configs.BotConfig.AdminIDs...) {
+	if contain.Int64(opts.CallbackQuery.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsConfig.GroupID)...) || contain.Int64(opts.CallbackQuery.From.ID, configs.BotConfig.AdminIDs...) {
 		var needEdit bool = true
 		var needSave bool = false
 
 		switch opts.CallbackQuery.Data {
 		case "teamspeak_pinmessage":
-			if server.PinMessageMode && !server.SendMessageMode {
+			if tsConfig.PinMessageMode && !tsConfig.SendMessageMode {
 				needEdit = false
 				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 					CallbackQueryID: opts.CallbackQuery.ID,
@@ -962,14 +882,14 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 					handlerErr.Addt(flaterr.AnswerCallbackQuery, "at least need one notice method", err)
 				}
 			} else {
-				server.PinMessageMode = !server.PinMessageMode
+				tsConfig.PinMessageMode = !tsConfig.PinMessageMode
 				needSave = true
 			}
 		case "teamspeak_pinmessage_deletepinedmessage":
-			server.DeleteOldPinnedMessage = !server.DeleteOldPinnedMessage
+			tsConfig.DeleteOldPinnedMessage = !tsConfig.DeleteOldPinnedMessage
 			needSave = true
 		case "teamspeak_sendmessage":
-			if server.SendMessageMode && !server.PinMessageMode {
+			if tsConfig.SendMessageMode && !tsConfig.PinMessageMode {
 				needEdit = false
 				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 					CallbackQueryID: opts.CallbackQuery.ID,
@@ -984,11 +904,11 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 					handlerErr.Addt(flaterr.AnswerCallbackQuery, "at least need one notice method", err)
 				}
 			} else {
-				server.SendMessageMode = !server.SendMessageMode
+				tsConfig.SendMessageMode = !tsConfig.SendMessageMode
 				needSave = true
 			}
 		case "teamspeak_sendmessage_autodelete":
-			server.AutoDeleteMessage = !server.AutoDeleteMessage
+			tsConfig.AutoDeleteMessage = !tsConfig.AutoDeleteMessage
 			needSave = true
 		}
 
@@ -997,7 +917,7 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 				ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.CallbackQuery.Message.Message.ID,
 				Text:      "选择通知用户变动的方式",
-				ReplyMarkup: server.BuildConfigKeyboard(),
+				ReplyMarkup: tsConfig.BuildConfigKeyboard(),
 			})
 			if err != nil {
 				logger.Error().
