@@ -70,7 +70,13 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 	}
 	if sc.c != nil {
 		logger.Info().Msg("Closing client...")
-		sc.c.Close()
+		err = sc.c.Close()
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("path", tsConfigPath).
+				Msg("Failed to close client")
+		}
 		sc.c = nil
 	}
 
@@ -102,7 +108,6 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 			Msg("Failed to login to server")
 		return fmt.Errorf("failed to login to server: %w", err)
 	}
-
 
 	logger.Info().Msg("Checking Group ID...")
 	// 检查要设定通知的群组 ID 是否存在
@@ -430,6 +435,9 @@ func (sc *ServerConfig) StartListening(ctx context.Context) {
 
 	for {
 		select {
+		case <-ctx.Done():
+			sc.c.Close()
+			return
 		case <-sc.s.ResetTicker:
 			listenTicker.Reset(time.Second * time.Duration(sc.PollingInterval))
 			sc.s.IsCanListening = true
