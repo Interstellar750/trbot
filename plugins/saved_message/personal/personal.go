@@ -511,7 +511,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							ID:                  msgData.MsgIDStr(),
 							Title:               msgData.Text,
 							Description:         msgData.Desc,
-							ReplyMarkup:         msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:         msgData.OriginInfo.BuildButton(),
 							InputMessageContent: &models.InputTextMessageContent{
 								MessageText:        msgData.Text,
 								Entities:           msgData.Entities,
@@ -524,7 +524,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							AudioFileID:     msgData.FileID,
 							Caption:         msgData.Text,
 							CaptionEntities: msgData.Entities,
-							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Document:
 						resultList = append(resultList, &models.InlineQueryResultCachedDocument{
@@ -534,7 +534,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							Caption:         msgData.Text,
 							CaptionEntities: msgData.Entities,
 							Description:     msgData.Desc,
-							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Animation:
 						resultList = append(resultList, &models.InlineQueryResultCachedMpeg4Gif{
@@ -543,7 +543,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							Title:           msgData.FileName,
 							Caption:         msgData.Text,
 							CaptionEntities: msgData.Entities,
-							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Photo:
 						resultList = append(resultList, &models.InlineQueryResultCachedPhoto{
@@ -553,13 +553,13 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							CaptionEntities:       msgData.Entities,
 							Description:           msgData.Desc,
 							ShowCaptionAboveMedia: msgData.ShowCaptionAboveMedia,
-							ReplyMarkup:           msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:           msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Sticker:
 						resultList = append(resultList, &models.InlineQueryResultCachedSticker{
 							ID:            msgData.MsgIDStr(),
 							StickerFileID: msgData.FileID,
-							ReplyMarkup:   msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:   msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Video:
 						resultList = append(resultList, &models.InlineQueryResultCachedVideo{
@@ -569,7 +569,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							Description:     msgData.Desc,
 							Caption:         msgData.Text,
 							CaptionEntities: msgData.Entities,
-							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.VideoNote:
 						resultList = append(resultList, &models.InlineQueryResultCachedDocument{
@@ -579,7 +579,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							Description:     msgData.Desc,
 							Caption:         msgData.Text,
 							CaptionEntities: msgData.Entities,
-							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					case message_utils.Voice:
 						resultList = append(resultList, &models.InlineQueryResultCachedVoice{
@@ -588,7 +588,7 @@ func userInlineHandler(opts *handler_params.InlineQuery) error {
 							Title:           msgData.FileTitle,
 							Caption:         msgData.Text,
 							CaptionEntities: msgData.Entities,
-							ReplyMarkup:     msgData.OriginInfo.BuildButton(),
+							// ReplyMarkup:     msgData.OriginInfo.BuildButton(),
 						})
 					}
 				}

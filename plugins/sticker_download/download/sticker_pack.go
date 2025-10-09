@@ -284,6 +284,7 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 			Err(err).
 			Str("zipFileFullPath", zipFileFullPath).
 			Msg("Failed to read compressed sticker set zip file info")
+		return nil, fmt.Errorf("failed to read compressed sticker set zip file [%s] info: %w", zipFileFullPath, err)
 	} else {
 		data.StickerSetSize = fileinfo.Size()
 	}
