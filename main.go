@@ -23,7 +23,6 @@ func main() {
 		bot.WithAllowedUpdates(configs.BotConfig.AllowedUpdates),
 		bot.WithErrorsHandler(func(err error){ logger.Error().Err(err).Msg("go-telegram/bot") }),
 		bot.WithSkipGetMe(),
-		bot.WithWorkers(2),
 	}...)
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to create bot instance") }
 

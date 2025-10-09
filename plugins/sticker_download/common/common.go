@@ -10,6 +10,8 @@ type StickerDatas struct {
 	StickerIndex    int
 	StickerSetName  string // 贴纸包的 urlname
 	StickerSetTitle string // 贴纸包名称
+	StickerSetSize  int64
+	StickerSetFileName string
 
 	WebP int
 	WebM int

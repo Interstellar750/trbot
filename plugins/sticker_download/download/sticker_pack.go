@@ -11,6 +11,7 @@ import (
 	"trbot/plugins/sticker_download/common"
 	"trbot/plugins/sticker_download/config"
 	"trbot/plugins/sticker_download/convert"
+	"trbot/plugins/sticker_download/lock"
 	"trbot/utils"
 	"trbot/utils/flaterr"
 
@@ -20,6 +21,9 @@ import (
 )
 
 func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.StickerSet, needConvert bool) (*common.StickerDatas, error) {
+	lock.Download.Lock()
+	defer lock.Download.Unlock()
+
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "StickerDownload").
@@ -223,19 +227,19 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 		}
 	}
 
-	var zipFileFullPath    string
 	var compressFolderPath string
-
 	var isZiped bool = true
 
 	// 根据要下载的类型设置压缩包的文件名和路径以及压缩包中的贴纸数量
 	if needConvert {
-		zipFileFullPath = filepath.Join(config.CompressedDir, fmt.Sprintf("%s(%d)_converted.zip", stickerSet.Name, data.StickerCount))
+		data.StickerSetFileName = fmt.Sprintf("%s(%d)_converted.zip", stickerSet.Name, data.StickerCount)
 		compressFolderPath = convertedDir
 	} else {
-		zipFileFullPath = filepath.Join(config.CompressedDir, fmt.Sprintf("%s(%d).zip", stickerSet.Name, data.StickerCount))
+		data.StickerSetFileName = fmt.Sprintf("%s(%d).zip", stickerSet.Name, data.StickerCount)
 		compressFolderPath = originDir
 	}
+
+	zipFileFullPath := filepath.Join(config.CompressedDir, data.StickerSetFileName)
 
 	_, err := os.Stat(zipFileFullPath) // 检查压缩包文件是否存在
 	if err != nil {
@@ -272,6 +276,16 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 		logger.Debug().
 			Str("zipFileFullPath", zipFileFullPath).
 			Msg("sticker set zip file already compressed")
+	}
+
+	fileinfo, err := os.Stat(zipFileFullPath)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("zipFileFullPath", zipFileFullPath).
+			Msg("Failed to read compressed sticker set zip file info")
+	} else {
+		data.StickerSetSize = fileinfo.Size()
 	}
 
 	// 读取压缩后的贴纸包

@@ -378,27 +378,49 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 				handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
 			}
 		} else {
-			documentParams := &bot.SendDocumentParams{
-				ChatID:    opts.CallbackQuery.From.ID,
-				ParseMode: models.ParseModeHTML,
-			}
+			var pendingMessage string
 
 			if needConvert {
-				documentParams.Caption  = fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 已下载\n包含 %d 个贴纸（经过转换）", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
-				documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d)_converted.zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data}
+				pendingMessage = fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 已下载\n包含 %d 个贴纸（经过转换）", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
 			} else {
-				documentParams.Caption  = fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 已下载\n包含 %d 个贴纸", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
-				documentParams.Document = &models.InputFileUpload{Filename: fmt.Sprintf("%s(%d).zip", stickerData.StickerSetName, stickerData.StickerCount), Data: stickerData.Data}
+				pendingMessage = fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 已下载\n包含 %d 个贴纸", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
 			}
 
-			_, err = opts.Thebot.SendDocument(opts.Ctx, documentParams)
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
-					Str("content", "sticker set zip file").
-					Msg(flaterr.SendDocument.Str())
-				handlerErr.Addt(flaterr.SendDocument, "sticker set zip file", err)
+			// 获取 stickerData.Data 的文件大小
+			if stickerData.StickerSetSize > 50 * 1024 * 1024 {
+				_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:    opts.CallbackQuery.From.ID,
+					Text:      pendingMessage + "<blockquote>由于文件大小超过 50 MB，请点击下方按钮下载\n注意：此链接并不会一直有效</blockquote>",
+					ParseMode: models.ParseModeHTML,
+					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "Download",
+						URL:  fmt.Sprintf("https://alist.trle5.xyz/d/cache/sticker_compressed/%s", stickerData.StickerSetFileName),
+					}}}},
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+						Str("content", "download sticker set error").
+						Msg(flaterr.SendMessage.Str())
+					handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
+				}
+			} else {
+				_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
+					ChatID:    opts.CallbackQuery.From.ID,
+					ParseMode: models.ParseModeHTML,
+					Document:  &models.InputFileUpload{Filename: stickerData.StickerSetFileName, Data: stickerData.Data},
+					Caption: pendingMessage,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+						Str("content", "sticker set zip file").
+						Msg(flaterr.SendDocument.Str())
+					handlerErr.Addt(flaterr.SendDocument, "sticker set zip file", err)
+				}
 			}
 		}
 	}
