@@ -9,7 +9,6 @@ import (
 	"trbot/plugins/sticker_download/common"
 	"trbot/plugins/sticker_download/config"
 	"trbot/plugins/sticker_download/convert"
-	"trbot/plugins/sticker_download/lock"
 	"trbot/utils"
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
@@ -20,10 +19,6 @@ import (
 
 // 下载单个贴纸
 func GetSticker(opts *handler_params.Message) (*common.StickerDatas, error) {
-	// if !lock.Download.TryLock() {}
-	lock.Download.Lock()
-	defer lock.Download.Unlock()
-
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "StickerDownload").

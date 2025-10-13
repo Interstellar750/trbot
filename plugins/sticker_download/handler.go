@@ -9,6 +9,7 @@ import (
 	"trbot/plugins/sticker_download/collect"
 	"trbot/plugins/sticker_download/config"
 	"trbot/plugins/sticker_download/download"
+	"trbot/plugins/sticker_download/lock"
 	"trbot/plugins/sticker_download/mpeg4gif"
 	"trbot/utils"
 	"trbot/utils/configs"
@@ -127,6 +128,38 @@ func stickerHandler(opts *handler_params.Message) error {
 			Err(err).
 			Msg("Failed to incremental sticker download count")
 		handlerErr.Addf("failed to incremental sticker download count: %w", err)
+	}
+
+	if lock.Download.TryLock() {
+		// 成功获取到锁，直接继续下载不发送提示信息
+		defer lock.Download.Unlock()
+	} else {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:          opts.Message.From.ID,
+			Text:            "已加入贴纸下载队列，请稍候...",
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "sticker download in progress notice").
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addt(flaterr.SendMessage, "sticker download in progress notice", err)
+		}
+
+		// 发送信息提示等待后，阻断等待锁
+		lock.Download.Lock()
+		defer lock.Download.Unlock()
+	}
+
+	_, err = opts.Thebot.SendChatAction(opts.Ctx, &bot.SendChatActionParams{
+		ChatID: opts.Message.From.ID,
+		Action: models.ChatActionChooseSticker,
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("failed to send chat action")
 	}
 
 	stickerData, err := download.GetSticker(opts)
@@ -250,7 +283,7 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "stickerset download disabled notice").
 				Msg(flaterr.AnswerCallbackQuery.Str())
-			handlerErr.Addf(flaterr.AnswerCallbackQuery.Str(), "stickerset download disabled notice", err)
+			handlerErr.Addt(flaterr.AnswerCallbackQuery, "stickerset download disabled notice", err)
 		}
 		return handlerErr.Flat()
 	}
@@ -281,13 +314,47 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "stickerset convert disabled notice").
 					Msg(flaterr.AnswerCallbackQuery.Str())
-				handlerErr.Addf(flaterr.AnswerCallbackQuery.Str(), "stickerset convert disabled notice", err)
+				handlerErr.Addt(flaterr.AnswerCallbackQuery, "stickerset convert disabled notice", err)
 			}
 			return handlerErr.Flat()
 		}
 	} else {
 		setName = strings.TrimPrefix(opts.CallbackQuery.Data, "s_")
 		needConvert = false
+	}
+
+	if lock.Download.TryLock() {
+		// 成功获取到锁，直接继续下载不发送提示信息
+		defer lock.Download.Unlock()
+	} else {
+		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: opts.CallbackQuery.ID,
+			Text:            "您的下载请求已提交，但由于当前有其他用户正在下载贴纸，可能需要等待一段时间后才能开始下载",
+			ShowAlert:       true,
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+				Str("content", "stickerset download in progress notice").
+				Msg(flaterr.AnswerCallbackQuery.Str())
+			handlerErr.Addt(flaterr.AnswerCallbackQuery, "stickerset download in progress notice", err)
+		}
+
+		// 发送信息提示等待后，阻断等待锁
+		lock.Download.Lock()
+		defer lock.Download.Unlock()
+
+	}
+
+	_, err = opts.Thebot.SendChatAction(opts.Ctx, &bot.SendChatActionParams{
+		ChatID: opts.CallbackQuery.From.ID,
+		Action: models.ChatActionTyping,
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("failed to send chat action")
 	}
 
 	// 通过贴纸的 packName 获取贴纸集
@@ -393,8 +460,9 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 					Text:      pendingMessage + "<blockquote>由于文件大小超过 50 MB，请点击下方按钮下载\n注意：此链接并不会一直有效</blockquote>",
 					ParseMode: models.ParseModeHTML,
 					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.CallbackQuery.Message.Message.ID },
 					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "Download",
+						Text: "浏览器下载",
 						URL:  fmt.Sprintf("https://alist.trle5.xyz/d/cache/sticker_compressed/%s", stickerData.StickerSetFileName),
 					}}}},
 				})
@@ -409,9 +477,10 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			} else {
 				_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
 					ChatID:    opts.CallbackQuery.From.ID,
-					ParseMode: models.ParseModeHTML,
 					Document:  &models.InputFileUpload{Filename: stickerData.StickerSetFileName, Data: stickerData.Data},
-					Caption: pendingMessage,
+					Caption:   pendingMessage,
+					ParseMode: models.ParseModeHTML,
+					ReplyParameters: &models.ReplyParameters{ MessageID: opts.CallbackQuery.Message.Message.ID },
 				})
 				if err != nil {
 					logger.Error().

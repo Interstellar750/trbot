@@ -11,7 +11,6 @@ import (
 	"trbot/plugins/sticker_download/common"
 	"trbot/plugins/sticker_download/config"
 	"trbot/plugins/sticker_download/convert"
-	"trbot/plugins/sticker_download/lock"
 	"trbot/utils"
 	"trbot/utils/flaterr"
 
@@ -21,9 +20,6 @@ import (
 )
 
 func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.StickerSet, needConvert bool) (*common.StickerDatas, error) {
-	lock.Download.Lock()
-	defer lock.Download.Unlock()
-
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "StickerDownload").
