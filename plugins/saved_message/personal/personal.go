@@ -695,7 +695,7 @@ func agreePrivacyPolicy(opts *handler_params.Message) error {
 		handlerErr.Addf("failed to create chat index for saved message user: %w", err)
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Message.Chat.ID,
-			Text:      fmt.Sprintf("创建收藏信息索引失败，请稍后再试或联系机器人管理员:\n<blockquote expandable>%s</blockquote>", err.Error()),
+			Text:      fmt.Sprintf("创建收藏信息索引失败，请稍后再试或联系机器人管理员:\n<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
@@ -717,7 +717,7 @@ func agreePrivacyPolicy(opts *handler_params.Message) error {
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Message.Chat.ID,
-			Text:      fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s</blockquote>", err.Error()),
+			Text:      fmt.Sprintf("保存收藏列表数据库失败，请稍后再试或联系机器人管理员\n<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {

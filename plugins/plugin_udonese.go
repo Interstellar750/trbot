@@ -467,12 +467,12 @@ func addUdoneseHandler(opts *handler_params.Message) error {
 						Msg("Failed to save udonese list after add word")
 					handlerErr.Addf("failed to save udonese list after add word: %w", err)
 
-					pendingMessage += fmt.Sprintf("保存语句时似乎发生了一些错误: <blockquote expandable>%s</blockquote>", err.Error())
+					pendingMessage += fmt.Sprintf("保存语句时似乎发生了一些错误: <blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error()))
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-						ChatID: opts.Message.Chat.ID,
-						Text: pendingMessage,
+						ChatID:          opts.Message.Chat.ID,
+						Text:            pendingMessage,
+						ParseMode:       models.ParseModeHTML,
 						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-						ParseMode: models.ParseModeHTML,
 					})
 					if err != nil {
 						logger.Error().

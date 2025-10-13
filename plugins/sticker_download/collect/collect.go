@@ -152,7 +152,7 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.CallbackQuery.From.ID,
-				Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", err),
+				Text:   fmt.Sprintf("获取贴纸包时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
@@ -213,7 +213,7 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 
 				_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.CallbackQuery.From.ID,
-					Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote expandable>Failed to download sticker set: %s</blockquote>", err),
+					Text:   fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote expandable>Failed to download sticker set: %s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 					ParseMode: models.ParseModeHTML,
 				})
 				if err != nil {
@@ -257,7 +257,7 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 					handlerErr.Addt(flaterr.SendDocument, "collect sticker set", err)
 					_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 						ChatID:    opts.CallbackQuery.From.ID,
-						Text:      fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", err.Error()),
+						Text:      fmt.Sprintf("将贴纸包发送到收藏频道失败: <blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 						ParseMode: models.ParseModeHTML,
 					})
 					if err != nil {
@@ -313,20 +313,19 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 				}
 			}
 		}
-
 	}
 
 	return handlerErr.Flat()
 }
 
-func AddButton(setName string, isManager bool, button *[][]models.InlineKeyboardButton) {
+func AddButton(setName string, newCount int, isManager bool, button *[][]models.InlineKeyboardButton) {
 	if stickerCollect.ChannelID != 0 {
 		set := stickerCollect.GetStickerSetByName(setName)
 		if set != nil {
 			if isManager {
 				*button = append(*button, []models.InlineKeyboardButton{
 					{
-						Text:         fmt.Sprintf("🔁 更新? (%d)", set.Count),
+						Text:         fmt.Sprintf("🔁 更新 (%d>%d)", set.Count, newCount),
 						CallbackData: fmt.Sprintf("c_%s", setName),
 					},
 					{

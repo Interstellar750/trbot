@@ -171,7 +171,7 @@ func stickerHandler(opts *handler_params.Message) error {
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.Message.From.ID,
-			Text:            fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", err),
+			Text:            fmt.Sprintf("下载贴纸时发生了一些错误\n<blockquote expandable>Failed to download sticker: %s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ParseMode:       models.ParseModeHTML,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 		})
@@ -238,7 +238,7 @@ func stickerHandler(opts *handler_params.Message) error {
 			}
 
 			if config.Config.UseCollcetSticker {
-				collect.AddButton(opts.Message.Sticker.SetName, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
+				collect.AddButton(opts.Message.Sticker.SetName, stickerData.StickerCount, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
 			}
 
 			// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
@@ -354,7 +354,7 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:          opts.CallbackQuery.From.ID,
-			Text:            fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", err),
+			Text:            fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>Failed to get sticker set info: %s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ParseMode:       models.ParseModeHTML,
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.CallbackQuery.Message.Message.ID },
 		})
@@ -414,7 +414,7 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:    opts.CallbackQuery.From.ID,
-				Text:      fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote expandable>Failed to download sticker set: %s</blockquote>", err),
+				Text:      fmt.Sprintf("下载贴纸包时发生了一些错误\n<blockquote expandable>Failed to download sticker set: %s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
@@ -442,8 +442,8 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.CallbackQuery.Message.Message.ID },
 					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-						Text: "浏览器下载",
-						URL:  fmt.Sprintf("https://alist.trle5.xyz/d/cache/sticker_compressed/%s", stickerData.StickerSetFileName),
+						Text: "打开浏览器下载",
+						URL:  fmt.Sprintf("https://alist.trle5.xyz/d/cache/sticker_compressed/%s_%s", stickerData.StickerSetHash, stickerData.StickerSetFileName),
 					}}}},
 				})
 				if err != nil {
@@ -508,7 +508,7 @@ func stickerLinkHandler(opts *handler_params.Message) error {
 
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID:          opts.Message.From.ID,
-				Text:            fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>%s</blockquote>", err),
+				Text:            fmt.Sprintf("获取贴纸包信息时发生了一些错误\n<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 				ParseMode:       models.ParseModeHTML,
 				ReplyParameters: &models.ReplyParameters{MessageID: opts.Message.ID},
 			})
@@ -537,7 +537,7 @@ func stickerLinkHandler(opts *handler_params.Message) error {
 			}
 
 			if config.Config.UseCollcetSticker {
-				collect.AddButton(stickerSet.Name, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
+				collect.AddButton(stickerSet.Name, len(stickerSet.Stickers), contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
 			}
 
 			var ReplyMarkup models.ReplyMarkup

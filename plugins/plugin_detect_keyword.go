@@ -987,6 +987,9 @@ func keywordDetector(opts *handler_params.Message) error {
 func notifyUser(ctx context.Context, thebot *bot.Bot, message *models.Message, user *KeywordUserList, keyword, text string, isGlobalKeyword bool) error {
 	var handlerErr flaterr.MultErr
 
+	// 防止原信息过长导致最后组合的信息超过单条消息字符上限（4096）
+	if len(text) > 2048 { text = text[:2048] + "..." }
+
 	_, err := thebot.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: user.UserID,
 		Text:   fmt.Sprintf("在 <a href=\"https://t.me/c/%s/\">%s</a> 中\n来自 %s 的消息\n触发了%s关键词 [ %s ]\n<blockquote expandable>%s</blockquote>",

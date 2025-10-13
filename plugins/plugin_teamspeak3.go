@@ -668,7 +668,7 @@ func showStatus(opts *handler_params.Message) error {
 				Err(err).
 				Msg("Failed to get online client")
 			handlerErr.Addf("failed to get online client: %w", err)
-			pendingMessage = fmt.Sprintf("获取服务器用户列表时发生了一些错误:\n<blockquote expandable>%s</blockquote>", err)
+			pendingMessage = fmt.Sprintf("获取服务器用户列表时发生了一些错误:\n<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error()))
 		} else {
 			pendingMessage += fmt.Sprintln("在线客户端:")
 			var userCount int

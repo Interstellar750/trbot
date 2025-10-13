@@ -48,7 +48,7 @@ func ConvertMP4ToGifHandler(opts *handler_params.Message) error {
 
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:    opts.Message.From.ID,
-			Text:      fmt.Sprintf("下载 GIF 时发生了一些错误\n<blockquote expandable>Failed to download MP4: %s</blockquote>", err),
+			Text:      fmt.Sprintf("下载 GIF 时发生了一些错误\n<blockquote expandable>Failed to download MP4: %s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {

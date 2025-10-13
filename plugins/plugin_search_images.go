@@ -121,7 +121,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 			handlerErr.Addf("error when cache photo: %w", err)
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Message.Chat.ID,
-				Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", err.Error()),
+				Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
 				ParseMode: models.ParseModeHTML,
 			})
@@ -177,7 +177,7 @@ func searchImageHandler(opts *handler_params.Message) error {
 		handlerErr.Addf("error when cache photo: %w", err)
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Message.Chat.ID,
-			Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", err.Error()),
+			Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			ParseMode: models.ParseModeHTML,
 		})
