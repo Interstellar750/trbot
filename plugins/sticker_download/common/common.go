@@ -8,10 +8,12 @@ type StickerDatas struct {
 	IsCustomSticker bool
 	StickerCount    int
 	StickerIndex    int
-	StickerSetName  string // 贴纸包的 urlname
-	StickerSetTitle string // 贴纸包名称
-	StickerSetSize  int64
+
+	StickerSetName     string // 贴纸包的 urlname
+	StickerSetTitle    string // 贴纸包名称
+	StickerSetSize     int64
 	StickerSetFileName string
+	StickerSetHash     string
 
 	WebP int
 	WebM int

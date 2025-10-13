@@ -267,6 +267,7 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 		With().
 		Str("pluginName", "StickerDownload").
 		Str(utils.GetCurrentFuncName()).
+		Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 		Logger()
 
 	var handlerErr flaterr.MultErr
@@ -280,7 +281,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "stickerset download disabled notice").
 				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addt(flaterr.AnswerCallbackQuery, "stickerset download disabled notice", err)
@@ -292,7 +292,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Msg("Failed to incremental sticker set download count")
 		handlerErr.Addf("failed to incremental sticker set download count: %w", err)
 	}
@@ -311,7 +310,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "stickerset convert disabled notice").
 					Msg(flaterr.AnswerCallbackQuery.Str())
 				handlerErr.Addt(flaterr.AnswerCallbackQuery, "stickerset convert disabled notice", err)
@@ -335,7 +333,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "stickerset download in progress notice").
 				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addt(flaterr.AnswerCallbackQuery, "stickerset download in progress notice", err)
@@ -344,17 +341,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 		// 发送信息提示等待后，阻断等待锁
 		lock.Download.Lock()
 		defer lock.Download.Unlock()
-
-	}
-
-	_, err = opts.Thebot.SendChatAction(opts.Ctx, &bot.SendChatActionParams{
-		ChatID: opts.CallbackQuery.From.ID,
-		Action: models.ChatActionTyping,
-	})
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("failed to send chat action")
 	}
 
 	// 通过贴纸的 packName 获取贴纸集
@@ -362,7 +348,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 	if err != nil {
 		logger.Error().
 			Err(err).
-			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Str("setName", setName).
 			Msg(flaterr.GetStickerSet.Str())
 		handlerErr.Addt(flaterr.GetStickerSet, setName, err)
@@ -376,19 +361,18 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Str("content", "get sticker set info error").
 				Msg(flaterr.SendMessage.Str())
 			handlerErr.Addt(flaterr.SendMessage, "get sticker set info error", err)
 		}
 	} else {
 		logger.Info().
+			Bool("needConvert", needConvert).
 			Dict("stickerSet", zerolog.Dict().
 				Str("title", stickerSet.Title).
 				Str("name", stickerSet.Name).
 				Int("allCount", len(stickerSet.Stickers)),
 			).
-			Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 			Msg("Start download sticker set")
 
 		if opts.CallbackQuery.Message.Message.Text != "" {
@@ -401,7 +385,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start download stickerset notice").
 					Msg(flaterr.EditMessageText.Str())
 				handlerErr.Addt(flaterr.EditMessageText, "start download stickerset notice", err)
@@ -416,7 +399,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "start download stickerset notice").
 					Msg(flaterr.EditMessageCaption.Str())
 				handlerErr.Addt(flaterr.EditMessageCaption, "start download stickerset notice", err)
@@ -427,7 +409,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 		if err != nil {
 			logger.Error().
 				Err(err).
-				Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 				Msg("Failed to download sticker set")
 			handlerErr.Addf("failed to download sticker set: %w", err)
 
@@ -439,7 +420,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 					Str("content", "download sticker set error").
 					Msg(flaterr.SendMessage.Str())
 				handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
@@ -469,7 +449,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "download sticker set error").
 						Msg(flaterr.SendMessage.Str())
 					handlerErr.Addt(flaterr.SendMessage, "download sticker set error", err)
@@ -485,7 +464,6 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 				if err != nil {
 					logger.Error().
 						Err(err).
-						Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
 						Str("content", "sticker set zip file").
 						Msg(flaterr.SendDocument.Str())
 					handlerErr.Addt(flaterr.SendDocument, "sticker set zip file", err)
@@ -497,7 +475,7 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 	return handlerErr.Flat()
 }
 
-// full command "t.me/addstickers/" or "https://t.me/addstickers/"
+// full command for "t.me/addstickers/" or "https://t.me/addstickers/"
 func stickerLinkHandler(opts *handler_params.Message) error {
 	if opts.Message == nil || opts.Message.Text == "" {
 		return nil
