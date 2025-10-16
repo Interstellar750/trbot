@@ -1,6 +1,7 @@
 package download
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,22 +26,22 @@ func GetSticker(opts *handler_params.Message) (*common.StickerDatas, error) {
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	var data common.StickerDatas
+	var data = common.StickerDatas{
+		StickerIndex: -1, // 防止用户发送的是还没来得及更新信息的新贴纸
+	}
+	var err error
 
 	// 根据贴纸类型设置文件扩展名
-	var dotFileSuffix           string // `.webp`, `.webm`, `.tgs`
-	var dotFileSuffix_converted string // `.gif`,  `.gif`,  `.png`
-
 	switch {
 	case opts.Message.Sticker.IsVideo:
-		dotFileSuffix = ".webm"
-		dotFileSuffix_converted = ".gif"
+		data.StickerSuffix = ".webm"
+		data.StickerConvertedSuffix = ".gif"
 	case opts.Message.Sticker.IsAnimated:
-		dotFileSuffix = ".tgs"
-		dotFileSuffix_converted = ".gif"
+		data.StickerSuffix = ".tgs"
+		data.StickerConvertedSuffix = ".gif"
 	default:
-		dotFileSuffix = ".webp"
-		dotFileSuffix_converted = ".png"
+		data.StickerSuffix = ".webp"
+		data.StickerConvertedSuffix = ".png"
 	}
 
 	// 检查一下贴纸是否有 packName，没有的话就是自定义贴纸
@@ -63,6 +64,7 @@ func GetSticker(opts *handler_params.Message) (*common.StickerDatas, error) {
 				data.StickerCount    = len(stickerSet.Stickers)
 				data.StickerSetName  = stickerSet.Name
 				data.StickerSetTitle = stickerSet.Title
+				data.StickerSetHash  = hashStickerSet(stickerSet)
 
 				// 寻找贴纸在贴纸包中的索引并赋值
 				for i, n := range stickerSet.Stickers {
@@ -83,86 +85,213 @@ func GetSticker(opts *handler_params.Message) (*common.StickerDatas, error) {
 	}
 
 	var originStickerDir  string = filepath.Join(config.CachedDir, data.StickerSetName)
-	var originStickerPath string = filepath.Join(originStickerDir, opts.Message.Sticker.FileID + dotFileSuffix)
+	var originStickerPath string = filepath.Join(originStickerDir, opts.Message.Sticker.FileID + data.StickerSuffix)
 
-	_, err := os.Stat(originStickerPath) // 检查贴纸源文件是否已缓存
-	if err != nil {
-		// 如果文件不存在，进行下载，否则返回错误
-		if os.IsNotExist(err) {
-			// 日志提示该文件没被缓存，正在下载
+	if !data.IsCustomSticker && data.StickerIndex != -1 {
+		var targetCompressedZipPath string = filepath.Join(config.CompressedDir, fmt.Sprintf("%s_%s(%d)%s", data.StickerSetHash, data.StickerSetName, data.StickerCount, common.StickerSetConvertedSuffix))
+		var targetFileName          string = fmt.Sprintf("%s_%03d%s", opts.Message.Sticker.SetName, data.StickerIndex, data.StickerConvertedSuffix)
+
+		_, err := os.Stat(targetCompressedZipPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				logger.Error().
+					Err(err).
+					Str("zipPath", targetCompressedZipPath).
+					Msg("Failed to check if compressed zip file exists")
+			} else {
+				// 转换过的打包贴纸不存在，就尝试拿原始的打包贴纸
+				targetCompressedZipPath = filepath.Join(config.CompressedDir, fmt.Sprintf("%s_%s(%d)%s", data.StickerSetHash, data.StickerSetName, data.StickerCount, common.StickerSetSuffix))
+				targetFileName          = fmt.Sprintf("%s_%03d%s", opts.Message.Sticker.SetName, data.StickerIndex, data.StickerSuffix)
+
+				_, err = os.Stat(targetCompressedZipPath)
+				if err != nil {
+					if !os.IsNotExist(err) {
+						logger.Error().
+							Err(err).
+							Str("zipPath", targetCompressedZipPath).
+							Msg("Failed to check if compressed zip file exists")
+					}
+				} else {
+					data.IsCompressed = true
+				}
+			}
+		} else {
+			data.IsCompressed = true
+			data.IsConverted  = true
+		}
+
+		// 打包过直接拿压缩包里的贴纸返回
+		if data.IsCompressed {
 			logger.Debug().
-				Str("path", originStickerPath).
-				Msg("Sticker file not cached, downloading")
+				Str("zipPath", targetCompressedZipPath).
+				Msg("Sticker pack zip found, trying to extract target sticker")
 
-			// 从服务器获取文件信息
-			fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Message.Sticker.FileID })
+			data.ZipFile, err = zip.OpenReader(targetCompressedZipPath)
 			if err != nil {
 				logger.Error().
 					Err(err).
-					Str("fileID", opts.Message.Sticker.FileID).
-					Str("content", "sticker file info").
-					Msg(flaterr.GetFile.Str())
-				return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Message.Sticker.FileID, err)
+					Str("zipPath", targetCompressedZipPath).
+					Msg("Failed to open sticker pack zip")
+			} else {
+				for _, f := range data.ZipFile.File {
+					if filepath.Base(f.Name) == targetFileName {
+						logger.Debug().
+							Str("file", f.Name).
+							Msg("Found sticker in pack zip, reading it")
+
+						stickerInZip, err := f.Open()
+						if err != nil {
+							logger.Error().
+								Err(err).
+								Str("file", f.Name).
+								Msg("Failed to open sticker file from zip")
+						} else {
+							// 开启转换且读取压缩包中的贴纸是未转换过的时，从压缩包中提取贴纸到缓存目录
+							if !config.Config.DisableConvert && !data.IsConverted {
+
+								_, err := os.Stat(originStickerPath)
+								if err != nil {
+									// 如果文件不存在，提取贴纸到缓存目录留给后续转换
+									if os.IsNotExist(err) {
+										logger.Debug().
+											Str("path", originStickerPath).
+											Msg("Origin sticker file not cached, extract it...")
+
+										// 创建保存贴纸的目录
+										err = os.MkdirAll(originStickerDir, 0755)
+										if err != nil {
+											logger.Error().
+												Err(err).
+												Str("directory", originStickerDir).
+												Msg("Failed to create sticker directory to save sticker")
+										} else {
+											// 创建贴纸空文件
+											sticker, err := os.Create(originStickerPath)
+											if err != nil {
+												logger.Error().
+													Err(err).
+													Str("path", originStickerPath).
+													Msg("Failed to create empty sticker file")
+											} else {
+												defer sticker.Close()
+												// 将提取的原贴纸写入空文件
+												_, err = io.Copy(sticker, stickerInZip)
+												if err != nil {
+													logger.Error().
+														Err(err).
+														Str("fullPath", originStickerPath).
+														Msg("Failed to writing sticker data to file")
+												} else {
+													data.IsCached = true
+												}
+											}
+										}
+									} else {
+										logger.Error().
+											Err(err).
+											Str("path", originStickerPath).
+											Msg("Failed to check sticker file existence")
+									}
+								}
+							} else {
+								data.Data = stickerInZip
+								data.IsCached = true
+
+								// 返回已找到的贴纸（直接返回）
+								return &data, nil
+							}
+						}
+						break
+					}
+				}
+
+				logger.Debug().
+					Str("stickerID", opts.Message.Sticker.FileID).
+					Msg("Target sticker not found in sticker pack zip, fallback to single file mode")
 			}
+		}
+	}
 
-			// 组合链接下载贴纸源文件
-			resp, err := http.Get(opts.Thebot.FileDownloadLink(fileinfo))
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("filePath", fileinfo.FilePath).
-					Msg("Failed to download sticker file")
-				return nil, fmt.Errorf("failed to download sticker file [%s]: %w", fileinfo.FilePath, err)
-			}
-			defer resp.Body.Close()
-
-			// 创建保存贴纸的目录
-			err = os.MkdirAll(originStickerDir, 0755)
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("directory", originStickerDir).
-					Msg("Failed to create sticker directory to save sticker")
-				return nil, fmt.Errorf("failed to create directory [%s] to save sticker: %w", originStickerDir, err)
-			}
-
-			// 创建贴纸空文件
-			downloadedSticker, err := os.Create(originStickerPath)
-			if err != nil {
-				logger.Error().
-					Err(err).
+	if !data.IsCached {
+		_, err := os.Stat(originStickerPath) // 检查贴纸源文件是否已缓存
+		if err != nil {
+			// 如果文件不存在，进行下载，否则返回错误
+			if os.IsNotExist(err) {
+				// 日志提示该文件没被缓存，正在下载
+				logger.Debug().
 					Str("path", originStickerPath).
-					Msg("Failed to create empty sticker file")
-				return nil, fmt.Errorf("failed to create empty sticker file [%s]: %w", originStickerPath, err)
-			}
-			defer downloadedSticker.Close()
+					Msg("Sticker file not cached, downloading")
 
-			// 将下载的原贴纸写入空文件
-			_, err = io.Copy(downloadedSticker, resp.Body)
-			if err != nil {
+				// 从服务器获取文件信息
+				fileinfo, err := opts.Thebot.GetFile(opts.Ctx, &bot.GetFileParams{ FileID: opts.Message.Sticker.FileID })
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("fileID", opts.Message.Sticker.FileID).
+						Str("content", "sticker file info").
+						Msg(flaterr.GetFile.Str())
+					return nil, fmt.Errorf(flaterr.GetFile.Fmt(), opts.Message.Sticker.FileID, err)
+				}
+
+				// 组合链接下载贴纸源文件
+				resp, err := http.Get(opts.Thebot.FileDownloadLink(fileinfo))
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("filePath", fileinfo.FilePath).
+						Msg("Failed to download sticker file")
+					return nil, fmt.Errorf("failed to download sticker file [%s]: %w", fileinfo.FilePath, err)
+				}
+				defer resp.Body.Close()
+
+				// 创建保存贴纸的目录
+				err = os.MkdirAll(originStickerDir, 0755)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("directory", originStickerDir).
+						Msg("Failed to create sticker directory to save sticker")
+					return nil, fmt.Errorf("failed to create directory [%s] to save sticker: %w", originStickerDir, err)
+				}
+
+				// 创建贴纸空文件
+				downloadedSticker, err := os.Create(originStickerPath)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("path", originStickerPath).
+						Msg("Failed to create empty sticker file")
+					return nil, fmt.Errorf("failed to create empty sticker file [%s]: %w", originStickerPath, err)
+				}
+				defer downloadedSticker.Close()
+
+				// 将下载的原贴纸写入空文件
+				_, err = io.Copy(downloadedSticker, resp.Body)
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("fullPath", originStickerPath).
+						Msg("Failed to writing sticker data to file")
+					return nil, fmt.Errorf("failed to writing sticker data to file [%s]: %w", originStickerPath, err)
+				}
+			} else {
 				logger.Error().
 					Err(err).
 					Str("fullPath", originStickerPath).
-					Msg("Failed to writing sticker data to file")
-				return nil, fmt.Errorf("failed to writing sticker data to file [%s]: %w", originStickerPath, err)
+					Msg("Failed to read cached sticker file info")
+				return nil, fmt.Errorf("failed to read cached sticker file [%s] info: %w", originStickerPath, err)
 			}
 		} else {
-			logger.Error().
-				Err(err).
+			// 文件已存在，跳过下载
+			logger.Debug().
 				Str("fullPath", originStickerPath).
-				Msg("Failed to read cached sticker file info")
-			return nil, fmt.Errorf("failed to read cached sticker file [%s] info: %w", originStickerPath, err)
+				Msg("Sticker file already cached")
 		}
-	} else {
-		// 文件已存在，跳过下载
-		logger.Debug().
-			Str("fullPath", originStickerPath).
-			Msg("Sticker file already cached")
 	}
 
-	if !config.Config.DisableConvert {
+	if !config.Config.DisableConvert && !data.IsConverted {
 		convertedStickerDir  := filepath.Join(config.ConvertedDir, data.StickerSetName)
-		convertedStickerPath := filepath.Join(convertedStickerDir, opts.Message.Sticker.FileID + dotFileSuffix_converted)
+		convertedStickerPath := filepath.Join(convertedStickerDir, opts.Message.Sticker.FileID + data.StickerConvertedSuffix)
 
 		_, err = os.Stat(convertedStickerPath)
 		if err != nil {

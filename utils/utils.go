@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"html"
@@ -14,6 +13,7 @@ import (
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/pkg/errors"
@@ -271,53 +271,37 @@ func GetUserOrSenderChatDict(msg *models.Message) (string, *zerolog.Event) {
 	return "noUserOrSender", zerolog.Dict()
 }
 
-// 从 log.txt 读取文件
-func ReadLog() ([]string, error) {
-	// 打开日志文件
-	file, err := os.Open(configs.BotConfig.LogFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	// 读取文件内容
-	scanner := bufio.NewScanner(file)
-	var lines []string
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return lines, nil
-}
-
 // 输出版本信息
 func OutputVersionInfo() string {
-	hostname, _ := os.Hostname()
 	var gitURL string = "https://gitea.trle5.xyz/trle5/trbot/commit/"
-	var info   string
+	var m runtime.MemStats;
+	runtime.ReadMemStats(&m)
+	hostname, _ := os.Hostname()
+
 	if configs.BuildAt != "" {
-		info += fmt.Sprintf("`Version:   `%s\n", configs.Version)
-		info += fmt.Sprintf("`Branch:    `%s\n", configs.Branch)
-		info += fmt.Sprintf("`Commit:    `[%s](%s%s) (%s)\n", configs.Commit[:10], gitURL, configs.Commit, configs.Changes)
-		info += fmt.Sprintf("`BuildAt:   `[%s](%s%s)\n", configs.BuildAt, "https://timestamp.online/timestamp/", configs.BuildAt)
-		info += fmt.Sprintf("`BuildOn:   `%s\n", configs.BuildOn)
-		info += fmt.Sprintf("`Runtime:   `%s\n", runtime.Version())
-		info += fmt.Sprintf("`Goroutine: `%d\n", runtime.NumGoroutine())
-		info += fmt.Sprintf("`Hostname:  `%s\n", hostname)
-		info += fmt.Sprintf("`Platform:  `%s / %s\n", runtime.GOOS, runtime.GOARCH)
-		info += fmt.Sprintf("`StartAt:   `%s\n", configs.StartAt)
+		info := "<blockquote expandable>"
+		info += fmt.Sprintf("<code>MemUsage:  </code>%s\n", humanize.IBytes(m.Sys))
+		info += fmt.Sprintf("<code>Goroutine: </code>%d\n", runtime.NumGoroutine())
+		info += fmt.Sprintf("<code>Uptime:    </code>%s\n", humanize.Time(configs.StartAt))
+		info += fmt.Sprintf("<code>Version:   </code>%s\n", configs.Version)
+		info += fmt.Sprintf("<code>Branch:    </code>%s\n", configs.Branch)
+		info += fmt.Sprintf("<code>Commit:    </code><a href=\"%s%s\">%s</a> (%s)\n", gitURL, configs.Commit, configs.Commit[:10], configs.Changes)
+		info += fmt.Sprintf("<code>BuildAt:   </code><a href=\"%s%s\">%s</a>\n", "https://timestamp.online/timestamp/", configs.BuildAt, configs.BuildAt)
+		info += fmt.Sprintf("<code>BuildOn:   </code>%s\n", configs.BuildOn)
+		info += fmt.Sprintf("<code>Platform:  </code>%s / %s\n", runtime.GOOS, runtime.GOARCH)
+		info += fmt.Sprintf("<code>Runtime:   </code>%s\n", runtime.Version())
+		info += fmt.Sprintf("<code>Hostname:  </code>%s\n", hostname)
+		info += "</blockquote>"
 		return info
 	}
 	return fmt.Sprintln(
-		"Warning: No build info\n",
-		"\n`Runtime:   `", runtime.Version(),
-		"\n`Goroutine: `", runtime.NumGoroutine(),
-		"\n`Hostname:  `", hostname,
-		"\n`Platform:  `", runtime.GOOS, "/", runtime.GOARCH,
-		"\n`StartAt:   `", configs.StartAt,
+		"<b>Warning: No build info</b>\n",
+		"\n<code>MemUsage:  </code>", humanize.IBytes(m.Sys),
+		"\n<code>Goroutine: </code>", runtime.NumGoroutine(),
+		"\n<code>Uptime:    </code>", humanize.Time(configs.StartAt),
+		"\n<code>Platform:  </code>", runtime.GOOS, "/", runtime.GOARCH,
+		"\n<code>Runtime:   </code>", runtime.Version(),
+		"\n<code>Hostname:  </code>", hostname,
 	)
 }
 

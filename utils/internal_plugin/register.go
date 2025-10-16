@@ -3,6 +3,8 @@ package internal_plugin
 import (
 	"context"
 	"fmt"
+	"os"
+	"runtime"
 	"strings"
 	"time"
 	"trbot/database"
@@ -144,14 +146,11 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 		{
 			SlashCommand: "version",
 			MessageHandler: func(opts *handler_params.Message) error {
-				// info, err := opts.Thebot.GetWebhookInfo(ctx)
-				// fmt.Println(info)
-				// return
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:             opts.Message.Chat.ID,
 					Text:               utils.OutputVersionInfo(),
 					ReplyParameters:    &models.ReplyParameters{ MessageID: opts.Message.ID },
-					ParseMode:          models.ParseModeMarkdownV1,
+					ParseMode:          models.ParseModeHTML,
 					LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True() },
 					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "关闭",
@@ -183,6 +182,27 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 						Str("content", "there is no state handler").
 						Msg(flaterr.SendMessage.Str())
 					return fmt.Errorf(flaterr.SendMessage.Fmt(), "there is no state handler", err)
+				}
+				return nil
+			},
+		},
+		{
+			SlashCommand: "log",
+			ForChatType: []models.ChatType{models.ChatTypePrivate},
+			MessageHandler: func(opts *handler_params.Message) error {
+				if contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
+					file, err := os.Open(configs.BotConfig.LogFilePath)
+					if err != nil {
+						return err
+					}
+					defer file.Close()
+					_, err = opts.Thebot.SendDocument(opts.Ctx, &bot.SendDocumentParams{
+						ChatID:          opts.Message.Chat.ID,
+						Caption:         time.Now().Format(time.RFC3339),
+						Document:        &models.InputFileUpload{Filename: "log.txt", Data: file},
+						ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+					})
+					return err
 				}
 				return nil
 			},
@@ -558,57 +578,37 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 			Description: "测试 panic",
 		},
 		{
-			PrefixCommand: "log",
+			PrefixCommand: "gc",
 			Attr: plugin_utils.InlineHandlerAttr{
 				IsHideInCommandList: true,
 				IsCantBeDefault:     true,
 				IsOnlyAllowAdmin:    true,
 			},
 			InlineHandler: func(opts *handler_params.InlineQuery) error {
-				logger := zerolog.Ctx(opts.Ctx).With().
-					Str("query", opts.InlineQuery.Query).
-					Dict(utils.GetUserDict(opts.InlineQuery.From)).
-					Logger()
+				runtime.GC()
+				time.Sleep(time.Second)
+				var m runtime.MemStats
+				var msg string
+				runtime.ReadMemStats(&m)
 
-				var handlerErr flaterr.MultErr
-
-				logs, err := utils.ReadLog()
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("command", "log").
-						Msg("Failed to read log by inline command")
-					handlerErr.Addf("failed to read log: %w", err)
-				} else {
-					log_count := len(logs)
-					var log_all string
-					for index, log := range logs {
-						log_all = fmt.Sprintf("%s\n%02d %s", log_all, index, log)
-					}
-					_, err := opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
-						InlineQueryID: opts.InlineQuery.ID,
-						Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
-							ID:    "log",
-							Title: fmt.Sprintf("%d logs update at %s", log_count, time.Now().Format(time.RFC3339)),
-							InputMessageContent: &models.InputTextMessageContent{
-								MessageText: fmt.Sprintf("last update at %s\n%s", time.Now().Format(time.RFC3339), log_all),
-								ParseMode:   models.ParseModeMarkdownV1,
-							},
-						}},
-						IsPersonal: true,
-						CacheTime:  0,
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Str("content", "log infos").
-							Msg(flaterr.AnswerInlineQuery.Str())
-						handlerErr.Addt(flaterr.AnswerInlineQuery, "log infos", err)
-					}
-				}
-				return handlerErr.Flat()
+				msg += fmt.Sprintf("已使用: %d MB\n", m.Sys / 1024 / 1024)
+				msg += fmt.Sprintf("堆总计: %d MB\n", m.HeapAlloc / 1024 / 1024)
+				msg += fmt.Sprintf("堆空闲: %d MB\n", m.HeapIdle / 1024 / 1024)
+				msg += fmt.Sprintf("堆释放: %d MB\n", m.HeapReleased / 1024 / 1024)
+				opts.Thebot.AnswerInlineQuery(opts.Ctx, &bot.AnswerInlineQueryParams{
+					InlineQueryID: opts.InlineQuery.ID,
+					Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
+						ID:    "gc",
+						Title: "已执行 GC",
+						Description: fmt.Sprintf("当前已使用内存 %d MB", m.Sys / 1024 / 1024),
+						InputMessageContent: &models.InputTextMessageContent{ MessageText: msg },
+					}},
+					IsPersonal: true,
+					CacheTime:  0,
+				})
+				return nil
 			},
-			Description: "显示日志",
+			Description: "垃圾回收",
 		},
 		{
 			PrefixCommand: "reloadpdb",

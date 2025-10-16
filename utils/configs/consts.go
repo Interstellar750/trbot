@@ -15,5 +15,5 @@ var (
 	BuildAt string
 	BuildOn string
 	Changes string // uncommit files when build
-	StartAt string = time.Now().Format("01-02 15:04:05")
+	StartAt time.Time = time.Now()
 )

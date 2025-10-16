@@ -42,10 +42,10 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 
 	// 根据要下载的类型设置压缩包的文件名和路径以及压缩包中的贴纸数量
 	if needConvert {
-		data.StickerSetFileName = fmt.Sprintf("%s(%d)_converted.zip", stickerSet.Name, data.StickerCount)
+		data.StickerSetFileName = fmt.Sprintf("%s(%d)%s", stickerSet.Name, data.StickerCount, common.StickerSetConvertedSuffix)
 		compressDir = convertedDir
 	} else {
-		data.StickerSetFileName = fmt.Sprintf("%s(%d).zip", stickerSet.Name, data.StickerCount)
+		data.StickerSetFileName = fmt.Sprintf("%s(%d)%s", stickerSet.Name, data.StickerCount, common.StickerSetSuffix)
 		compressDir = originDir
 	}
 
@@ -60,26 +60,23 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 			isCompressed = false
 
 			for i, sticker := range stickerSet.Stickers {
-				var dotFileSuffix           string
-				var dotFileSuffix_converted string
-
 				// 根据贴纸类型设置文件扩展名和统计贴纸数量
 				switch {
 				case sticker.IsVideo:
-					dotFileSuffix = ".webm"
-					dotFileSuffix_converted = ".gif"
+					data.StickerSuffix = ".webm"
+					data.StickerConvertedSuffix = ".gif"
 					data.WebM++
 				case sticker.IsAnimated:
-					dotFileSuffix = ".tgs"
-					dotFileSuffix_converted = ".gif"
+					data.StickerSuffix = ".tgs"
+					data.StickerConvertedSuffix = ".gif"
 					data.TGS++
 				default:
-					dotFileSuffix = ".webp"
-					dotFileSuffix_converted = ".png"
+					data.StickerSuffix = ".webp"
+					data.StickerConvertedSuffix = ".png"
 					data.WebP++
 				}
 
-				originStickerPath := filepath.Join(originDir, sticker.FileID + dotFileSuffix)
+				originStickerPath := filepath.Join(originDir, sticker.FileID + data.StickerSuffix)
 
 				// 检查贴纸是否已缓存
 				_, err := os.Stat(originStickerPath)
@@ -166,7 +163,7 @@ func GetStickerPack(ctx context.Context, thebot *bot.Bot, stickerSet *models.Sti
 
 				// 是否需要转换
 				if !config.Config.DisableConvert && needConvert {
-					convertedStickerPath := filepath.Join(convertedDir, sticker.FileID + dotFileSuffix_converted)
+					convertedStickerPath := filepath.Join(convertedDir, sticker.FileID + data.StickerConvertedSuffix)
 
 					_, err = os.Stat(convertedStickerPath)
 					if err != nil {

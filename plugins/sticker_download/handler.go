@@ -183,6 +183,9 @@ func stickerHandler(opts *handler_params.Message) error {
 			handlerErr.Addt(flaterr.SendMessage, "sticker download error", err)
 		}
 	} else {
+		if stickerData.ZipFile != nil {
+			defer stickerData.ZipFile.Close()
+		}
 		documentParams := &bot.SendDocumentParams{
 			ChatID:                      opts.Message.From.ID,
 			ParseMode:                   models.ParseModeHTML,
