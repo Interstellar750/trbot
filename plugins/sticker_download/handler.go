@@ -378,6 +378,24 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 			).
 			Msg("Start download sticker set")
 
+		if len(stickerSet.Stickers) > 120 {
+			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+				ChatID:             opts.CallbackQuery.From.ID,
+				Text:               fmt.Sprintf("抱歉，<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中的贴纸数量过多 (%d)，无法使用打包下载功能<blockquote expandable>您可以单独发送要下载的贴纸</blockquote>", stickerSet.Name, stickerSet.Title, len(stickerSet.Stickers)),
+				ReplyParameters:    &models.ReplyParameters{ MessageID: opts.CallbackQuery.Message.Message.ID },
+				LinkPreviewOptions: &models.LinkPreviewOptions{ IsDisabled: bot.True()},
+				ParseMode:          models.ParseModeHTML,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "too many stickers").
+					Msg(flaterr.SendMessage.Str())
+				handlerErr.Addt(flaterr.SendMessage, "too many stickers", err)
+			}
+			return handlerErr.Flat()
+		}
+
 		if opts.CallbackQuery.Message.Message.Text != "" {
 			_, err = opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 				ChatID:    opts.CallbackQuery.Message.Message.Chat.ID,
