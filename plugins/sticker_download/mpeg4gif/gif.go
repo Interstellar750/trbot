@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"trbot/plugins/sticker_download/convert"
+	"trbot/plugins/sticker_download/lock"
 	"trbot/utils"
 	"trbot/utils/configs"
 	"trbot/utils/flaterr"
@@ -35,6 +36,28 @@ func ConvertMP4ToGifHandler(opts *handler_params.Message) error {
 		Logger()
 
 	var handlerErr flaterr.MultErr
+
+	if lock.Download.TryLock() {
+		// 成功获取到锁，直接继续下载不发送提示信息
+		defer lock.Download.Unlock()
+	} else {
+		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+			ChatID:          opts.Message.From.ID,
+			Text:            "已加入下载队列，请稍候...",
+			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+		})
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("content", "gif download in progress notice").
+				Msg(flaterr.SendMessage.Str())
+			handlerErr.Addt(flaterr.SendMessage, "gif download in progress notice", err)
+		}
+
+		// 发送信息提示等待后，阻断等待锁
+		lock.Download.Lock()
+		defer lock.Download.Unlock()
+	}
 
 	logger.Info().
 		Msg("Start download GIF")
