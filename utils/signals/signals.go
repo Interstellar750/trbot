@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 	"trbot/database"
-	"trbot/database/yaml_db"
 	"trbot/utils/plugin_utils"
 
 	"github.com/rs/zerolog"
@@ -25,15 +24,11 @@ var SIGNALS = SignalChannel{
 
 func SignalsHandler(ctx context.Context) {
 	logger := zerolog.Ctx(ctx)
-	every10Min := time.NewTicker(10 * time.Minute)
-	defer every10Min.Stop()
 	var saveDatabaseRetryCount int = 0
 	var saveDatabaseRetryMax   int = 10
 
 	for {
 		select {
-		case <-every10Min.C: // 每次 Ticker 触发时执行任务
-			yaml_db.AutoSaveDatabaseHandler(ctx)
 		case <-ctx.Done():
 			if saveDatabaseRetryCount == 0 { logger.Warn().Msg("Cancle signal received") }
 			plugin_utils.SavePluginsDatabase(ctx)

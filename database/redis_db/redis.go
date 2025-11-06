@@ -135,7 +135,7 @@ func InitChat(ctx context.Context, chat *models.Chat) error {
 	return nil
 }
 
-func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_UsageCount) error {
+func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struct.UsageCount) error {
 	count, err := UserDB.HGet(ctx, strconv.FormatInt(chatID, 10), string(fieldName)).Int()
 	if err != nil {
 		if err == redis.Nil {
@@ -156,7 +156,7 @@ func IncrementalUsageCount(ctx context.Context, chatID int64, fieldName db_struc
 	return nil
 }
 
-func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_LatestData, value string) error {
+func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.LatestData, value string) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
 	if err != nil {
 		return fmt.Errorf("failed to record latest [%s] data: %w", string(fieldName), err)
@@ -165,7 +165,7 @@ func RecordLatestData(ctx context.Context, chatID int64, fieldName db_struct.Cha
 	return nil
 }
 
-func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_Status, value bool) error {
+func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struct.Status, value bool) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
 	if err != nil {
 		return fmt.Errorf("failed to update operation [%s] status: %w", string(fieldName), err)
@@ -174,7 +174,7 @@ func UpdateOperationStatus(ctx context.Context, chatID int64, fieldName db_struc
 	return nil
 }
 
-func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.ChatInfoField_CustomFlag, value string) error {
+func SetCustomFlag(ctx context.Context, chatID int64, fieldName db_struct.Flag, value string) error {
 	err := UserDB.HSet(ctx, strconv.FormatInt(chatID, 10), string(fieldName), value).Err()
 	if err != nil {
 		return fmt.Errorf("failed to set custom [%s] flag: %w", string(fieldName), err)

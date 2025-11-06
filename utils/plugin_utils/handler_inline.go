@@ -91,7 +91,7 @@ func BuildDefaultInlineCommandSelectKeyboard(chatInfo *db_struct.ChatInfo) model
 		if v.Attr.IsCantBeDefault {
 			continue
 		}
-		if chatInfo.DefaultInlinePlugin == v.Command {
+		if chatInfo.Flag[db_struct.DefaultInlinePlugin] == v.Command {
 			inlinePlugins = append(inlinePlugins, []models.InlineKeyboardButton{{
 				Text: fmt.Sprintf("✅ [ %s%s ] - %s", configs.BotConfig.InlineSubCommandSymbol, v.Command, v.Description),
 				CallbackData: "inline_default_" + v.Command,

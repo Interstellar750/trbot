@@ -572,8 +572,8 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			if !IsAdmin && plugin.Attr.IsHideInCommandList { continue }
 			if strings.HasPrefix(plugin.Command, parsedQuery.SubCommand) {
 				var description string
-				if plugin.Command == opts.ChatInfo.DefaultInlinePlugin      { description += "您的默认命令 | " }
-				if plugin.Command == configs.BotConfig.InlineDefaultHandler { description += "机器人默认命令 | " }
+				if plugin.Command == opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin] { description += "您的默认命令 | " }
+				if plugin.Command == configs.BotConfig.InlineDefaultHandler            { description += "机器人默认命令 | " }
 
 				if plugin.Attr.IsOnlyAllowAdmin    { description += "管理员 | " }
 				if plugin.Attr.IsHideInCommandList { description += "隐藏 | "   }
@@ -624,16 +624,16 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 		}
 	} else {
 		// inline query 不以命令符号开头，检查是否有默认 handler
-		if opts.ChatInfo.DefaultInlinePlugin != "" {
+		if opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin] != "" {
 			// 来自用户设定的默认命令
 			defaultHandlerLogger := inlineLogger.With().
-				Str("userDefaultHandlerCommand", opts.ChatInfo.DefaultInlinePlugin).
+				Str("userDefaultHandlerCommand", opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin]).
 				Logger()
 
 			// 插件处理完后返回全部列表，由设定好的函数进行分页输出
 			for _, plugin := range plugin_utils.AllPlugins.InlineHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
+				if opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin] == plugin.Command {
 					slogger := defaultHandlerLogger.With().
 						Str("handlerType", "returnResult").
 						Logger()
@@ -663,7 +663,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			// 完全由插件控制输出，若回答请求时列表数量超过 50 项会出错，无法回应用户请求
 			for _, plugin := range plugin_utils.AllPlugins.InlineManualHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-				if opts.ChatInfo.DefaultInlinePlugin == plugin.Command {
+				if opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin] == plugin.Command {
 					slogger := defaultHandlerLogger.With().
 						Str("handlerType", "manuallyAnswerResult").
 						Logger()
@@ -685,7 +685,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 			// 符合命令前缀，完全由插件自行控制输出
 			for _, plugin := range plugin_utils.AllPlugins.InlinePrefixHandler {
 				if plugin.Attr.IsOnlyAllowAdmin && !IsAdmin { continue }
-				if opts.ChatInfo.DefaultInlinePlugin == plugin.PrefixCommand {
+				if opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin] == plugin.PrefixCommand {
 					slogger := defaultHandlerLogger.With().
 						Str("handlerType", "manuallyAnswerResult_PrefixCommand").
 						Logger()
@@ -710,7 +710,7 @@ func inlineHandler(opts *handler_params.InlineQuery) {
 				InlineQueryID: opts.InlineQuery.ID,
 				Results: []models.InlineQueryResult{&models.InlineQueryResultArticle{
 					ID:                  "noInlinePlugin",
-					Title:               fmt.Sprintf("不存在的默认命令 [%s]", opts.ChatInfo.DefaultInlinePlugin),
+					Title:               fmt.Sprintf("不存在的默认命令 [%s]", opts.ChatInfo.Flag[db_struct.DefaultInlinePlugin]),
 					Description:         "或许是因为管理员已经移除了这个插件，请重新选择一个默认命令",
 					InputMessageContent: &models.InputTextMessageContent{ MessageText: "此默认命令无效，或许是因为管理员已经移除了这个插件，请重新选择一个默认命令" },
 				}},
@@ -890,7 +890,7 @@ func callbackQueryHandler(params *handler_params.CallbackQuery) {
 
 	if !limiter.CallbackQuery.Try(params.CallbackQuery.From.ID) {
 		callbackQueryLogger.Info().
-			Str("pendingQueryData", params.ChatInfo.LatestCallbackQueryData).
+			Str("pendingQueryData", params.ChatInfo.Flag[db_struct.DefaultInlinePlugin]).
 			Msg("another callback request is processing, ignore")
 		_, err := params.Thebot.AnswerCallbackQuery(params.Ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: params.CallbackQuery.ID,

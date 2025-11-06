@@ -33,7 +33,7 @@ func main() {
 		Dict(utils.GetUserDict(configs.BotMe)).
 		Msg("Bot initialized")
 
-	database.InitAndListDatabases(ctx)
+	database.InitDatabase(ctx)
 
 	// set log level after bot initialized
 	zerolog.SetGlobalLevel(configs.BotConfig.LevelForZeroLog(false))
