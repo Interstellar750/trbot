@@ -10,9 +10,12 @@ import (
 	"trbot/database/db_struct"
 	"trbot/utils"
 	"trbot/utils/configs"
+	"trbot/utils/task"
 	"trbot/utils/yaml"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/reugn/go-quartz/job"
+	"github.com/reugn/go-quartz/quartz"
 	"github.com/rs/zerolog"
 )
 
@@ -29,18 +32,21 @@ func Initialize(ctx context.Context) (*DataBaseYaml, error) {
 		return nil, fmt.Errorf("failed to read yaml database: %w", err)
 	}
 
-	go func(ctx context.Context){
-		every10Min := time.NewTicker(10 * time.Minute)
-		defer every10Min.Stop()
-		for {
-			select {
-			case <-every10Min.C:
+	err = task.ScheduleTask(ctx, task.Task{
+		Name:    "save_yaml_database",
+		Group:   "trbot",
+		Job:     job.NewFunctionJobWithDesc(
+			func(ctx context.Context) (int, error) {
 				db.AutoSaveDatabaseHandler(ctx)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx)
+				return 0, nil
+			},
+			"Save yaml database every 10 minutes",
+		),
+		Trigger: quartz.NewSimpleTrigger(30 * time.Second),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to add auto save database task: %w", err)
+	}
 
 	return &db, nil
 }

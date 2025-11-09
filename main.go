@@ -9,6 +9,7 @@ import (
 	"trbot/utils/configs"
 	"trbot/utils/internal_plugin"
 	"trbot/utils/signals"
+	"trbot/utils/task"
 
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
@@ -32,6 +33,9 @@ func main() {
 	logger.Info().
 		Dict(utils.GetUserDict(configs.BotMe)).
 		Msg("Bot initialized")
+
+	// init task handler
+	task.InitTaskHandler(ctx)
 
 	database.InitDatabase(ctx)
 

@@ -17,10 +17,12 @@ import (
 	"trbot/utils/inline_utils"
 	"trbot/utils/plugin_utils"
 	"trbot/utils/signals"
+	"trbot/utils/task"
 	"trbot/utils/type/contain"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/reugn/go-quartz/job"
 	"github.com/rs/zerolog"
 )
 
@@ -30,6 +32,31 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 	plugins.InitPlugins()
 
 	plugin_utils.RunPluginInitializers(ctx, thebot)
+
+	task.ScheduleTask(ctx, task.Task{
+		Name:    "reload_plugins_database",
+		Group:   "trbot",
+		Job:     job.NewFunctionJobWithDesc(
+			func(ctx context.Context) (int, error) {
+				plugin_utils.ReloadPluginsDatabase(ctx)
+				return 0, nil
+			},
+			"Reload plugins database",
+		),
+		Trigger: nil,
+	})
+	task.ScheduleTask(ctx, task.Task{
+		Name:    "save_plugins_database",
+		Group:   "trbot",
+		Job:     job.NewFunctionJobWithDesc(
+			func(ctx context.Context) (int, error) {
+				plugin_utils.SavePluginsDatabase(ctx)
+				return 0, nil
+			},
+			"Save plugins database",
+		),
+		Trigger: nil,
+	})
 
 	// 以 `/` 符号开头的命令
 	plugin_utils.AddSlashCommandHandlers([]plugin_utils.SlashCommand{

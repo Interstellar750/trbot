@@ -4,8 +4,10 @@ import (
 	"context"
 	"trbot/database/db_struct"
 	"trbot/database/yaml_db"
+	"trbot/utils/task"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/reugn/go-quartz/job"
 	"github.com/rs/zerolog"
 )
 
@@ -31,16 +33,35 @@ type DatabaseBackend interface {
 }
 
 func InitDatabase(ctx context.Context) {
+	logger := zerolog.Ctx(ctx)
 	var err error
 
 	database, err = yaml_db.Initialize(ctx)
 	if err != nil {
-		zerolog.Ctx(ctx).Fatal().
+		logger.Error().
 			Err(err).
 			Msg("Failed to initialize database")
-	} else {
-		zerolog.Ctx(ctx).Info().
-			Str("name", database.Name()).
-			Msg("Database initialized")
 	}
+
+	err = task.ScheduleTask(ctx, task.Task{
+		Name:    "save_database",
+		Group:   "trbot",
+		Job:     job.NewFunctionJobWithDesc(
+			func(ctx context.Context) (int, error) {
+				return 0, database.SaveDatabase(ctx)
+			},
+			"Save database",
+		),
+		Trigger: nil,
+	})
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Str("taskName", "save_database").
+			Msg("Failed to add save database task")
+	}
+
+	logger.Info().
+		Str("name", database.Name()).
+		Msg("Database initialized")
 }
