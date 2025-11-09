@@ -42,7 +42,7 @@ func Initialize(ctx context.Context) (*DataBaseYaml, error) {
 			},
 			"Save yaml database every 10 minutes",
 		),
-		Trigger: quartz.NewSimpleTrigger(30 * time.Second),
+		Trigger: quartz.NewSimpleTrigger(10 * time.Minute),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to add auto save database task: %w", err)
