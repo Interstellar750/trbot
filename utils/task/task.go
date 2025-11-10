@@ -101,12 +101,32 @@ func ScheduleTask(ctx context.Context, task Task) error {
 	return nil
 }
 
-// UpdateTask updates a specified task by name and group.
-func UpdateTask(ctx context.Context, name, group string, job quartz.Job, trigger quartz.Trigger) error {
-	if group == "" {
-		group = "default"
+// RunTask executes a specified task by name and group.
+func RunTask(ctx context.Context, name, group string) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str(utils.GetCurrentFuncName()).
+		Str("name", name).
+		Str("group", group).
+		Logger()
+
+	job, err := Scheduler.GetScheduledJob(quartz.NewJobKeyWithGroup(name, group))
+	if err != nil {
+		logger.Error().Err(err).Msg("Job not found")
+		return err
 	}
 
+	err = job.JobDetail().Job().Execute(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("Job execution failed")
+		return err
+	}
+
+	return nil
+}
+
+// UpdateTask updates a specified task by name and group.
+func UpdateTask(ctx context.Context, name, group string, job quartz.Job, trigger quartz.Trigger) error {
 	logger := zerolog.Ctx(ctx).With().
 		Str(utils.GetCurrentFuncName()).
 		Str("name", name).
@@ -163,49 +183,65 @@ func UpdateTask(ctx context.Context, name, group string, job quartz.Job, trigger
 	return nil
 }
 
-// RunJobByName executes the job in `default` group.
-func RunJobByName(ctx context.Context, name string) error {
+// PauseTask pause a specified task by name and group.
+func PauseTask(ctx context.Context, name, group string) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str(utils.GetCurrentFuncName()).
 		Str("name", name).
 		Logger()
 
-	job, err := Scheduler.GetScheduledJob(quartz.NewJobKey(name))
+	err := Scheduler.PauseJob(quartz.NewJobKeyWithGroup(name, group))
 	if err != nil {
-		logger.Error().Err(err).Msg("Job not found")
+		logger.Error().
+			Err(err).
+			Msg("Failed to pause task")
 		return err
 	}
 
-	err = job.JobDetail().Job().Execute(ctx)
-	if err != nil {
-		logger.Error().Err(err).Msg("Job execution failed")
-		return err
-	}
+	logger.Info().Msg("Task paused successfully")
 
 	return nil
 }
 
-// RunJobByNameAndGroup executes the job in specified group.
-func RunJobByNameAndGroup(ctx context.Context, name, group string) error {
+// ResumeTask resume a specified task by name and group.
+func ResumeTask(ctx context.Context, name, group string) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str(utils.GetCurrentFuncName()).
 		Str("name", name).
-		Str("group", group).
 		Logger()
 
-	job, err := Scheduler.GetScheduledJob(quartz.NewJobKeyWithGroup(name, group))
+	err := Scheduler.ResumeJob(quartz.NewJobKeyWithGroup(name, group))
 	if err != nil {
-		logger.Error().Err(err).Msg("Job not found")
+		logger.Error().
+			Err(err).
+			Msg("Failed to resume task")
 		return err
 	}
 
-	err = job.JobDetail().Job().Execute(ctx)
+	logger.Info().Msg("Task resumed successfully")
+
+	return nil
+}
+
+// DeleteTask delete a specified task by name and group.
+func DeleteTask(ctx context.Context, name, group string) error {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str(utils.GetCurrentFuncName()).
+		Str("name", name).
+		Logger()
+
+	err := Scheduler.DeleteJob(quartz.NewJobKeyWithGroup(name, group))
 	if err != nil {
-		logger.Error().Err(err).Msg("Job execution failed")
+		logger.Error().
+			Err(err).
+			Msg("Failed to delete task")
 		return err
 	}
+
+	logger.Info().Msg("Task deleted successfully")
 
 	return nil
 }

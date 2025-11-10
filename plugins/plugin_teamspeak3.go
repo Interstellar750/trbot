@@ -12,6 +12,7 @@ import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/task"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 	"trbot/utils/yaml"
@@ -19,6 +20,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/multiplay/go-ts3"
+	"github.com/reugn/go-quartz/job"
+	"github.com/reugn/go-quartz/quartz"
 	"github.com/rs/zerolog"
 )
 
@@ -32,8 +35,8 @@ var botInstance *bot.Bot
 
 type ServerConfig struct {
 	rw sync.RWMutex
-	c *ts3.Client
-	s Status
+	c  *ts3.Client
+	s  Status
 
 	// get `Name` And `Password` in `TeamSpeak 3 Client` -> `Tools` -> `ServerQuery Login`
 	URL                    string `yaml:"URL"`
@@ -388,7 +391,7 @@ func (sc *ServerConfig) StartListening(ctx context.Context) {
 	}
 
 	if sc.PollingInterval == 0 {
-		sc.PollingInterval = 5
+		sc.PollingInterval = 10
 	}
 	if sc.DeleteTimeoutInMinute == 0 {
 		sc.DeleteTimeoutInMinute = 10
@@ -516,6 +519,15 @@ type Status struct {
 	CheckFailedCount int
 
 	BeforeOnlineClient []OnlineClient
+
+	IsDeleteMessageTaskSuspend bool
+
+	OldMessageID []OldMessageID
+}
+
+type OldMessageID struct {
+	Date int
+	ID  int
 }
 
 type OnlineClient struct {
@@ -531,6 +543,61 @@ func init() {
 			if initTeamSpeak(ctx) {
 				if tsConfig.s.IsSuccessInit {
 					go tsConfig.StartListening(ctx)
+				}
+				logger := zerolog.Ctx(ctx)
+				err := task.ScheduleTask(ctx, task.Task{
+					Name:  "delete_old_message",
+					Group: "teamspeak3",
+					Job: job.NewFunctionJobWithDesc(
+						func(ctx context.Context) (int, error) {
+							var msgIDs []int
+							var newIDList []OldMessageID
+							for _, msg := range tsConfig.s.OldMessageID {
+								if time.Now().Unix() > int64(msg.Date + tsConfig.DeleteTimeoutInMinute * 60) {
+									msgIDs = append(msgIDs, msg.ID)
+								} else {
+									newIDList = append(newIDList, msg)
+								}
+							}
+							tsConfig.s.OldMessageID = newIDList
+
+							if len(msgIDs) > 0 {
+								_, err := botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+									ChatID: tsConfig.GroupID,
+									MessageIDs: msgIDs,
+								})
+								if err != nil {
+									logger.Error().
+										Err(err).
+										Ints("msgIDs", msgIDs).
+										Int("deleteMessageMinute", tsConfig.DeleteTimeoutInMinute).
+										Str("content", "teamspeak user change notify").
+										Msg(flaterr.DeleteMessage.Str())
+									return 1, err
+								}
+							}
+							return 0, nil
+						},
+						"delete teamspeake user change notify message",
+					),
+					Trigger: quartz.NewSimpleTrigger(time.Minute * time.Duration(tsConfig.DeleteTimeoutInMinute)),
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "teamspeak user change notify").
+						Msg("Failed to schedule delete message job")
+				}
+
+				if !tsConfig.AutoDeleteMessage {
+					err = task.PauseTask(ctx, "delete_old_message", "teamspeak3")
+					if err != nil {
+						logger.Error().
+						Err(err).
+						Msg("Failed to pause delete old message task")
+					} else {
+						tsConfig.s.IsDeleteMessageTaskSuspend = true
+					}
 				}
 			}
 			return tsErr
@@ -792,9 +859,33 @@ func notifyClientChange(ctx context.Context, server *ServerConfig, add, remove [
 			Int64("chatID", server.GroupID).
 			Str("content", "teamspeak user change notify").
 			Msg(flaterr.SendMessage.Str())
-	} else {
-		// oldMessageIDs = append(oldMessageIDs, msg.ID)
-		go deleteOldMessage(ctx, server, msg.ID)
+	}
+
+	if tsConfig.AutoDeleteMessage {
+		if tsConfig.s.IsDeleteMessageTaskSuspend {
+			err = task.ResumeTask(ctx, "delete_old_message", "teamspeak3")
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to resume delete old message task")
+			} else {
+				tsConfig.s.IsDeleteMessageTaskSuspend = false
+			}
+		}
+		tsConfig.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
+			Date: msg.Date,
+			ID:   msg.ID,
+		})
+	} else if !tsConfig.s.IsDeleteMessageTaskSuspend {
+		err = task.PauseTask(ctx, "delete_old_message", "teamspeak3")
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to pause delete old message task")
+		} else {
+			tsConfig.s.IsDeleteMessageTaskSuspend = true
+			tsConfig.s.OldMessageID = []OldMessageID{}
+		}
 	}
 }
 
@@ -961,24 +1052,4 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 	}
 
 	return handlerErr.Flat()
-}
-
-// This is not a good solution
-func deleteOldMessage(ctx context.Context, server *ServerConfig, msgID int) {
-	if server.DeleteTimeoutInMinute == 0 { server.DeleteTimeoutInMinute = 10 }
-	time.Sleep(time.Minute * time.Duration(server.DeleteTimeoutInMinute))
-	_, err := botInstance.DeleteMessage(ctx, &bot.DeleteMessageParams{
-		ChatID: server.GroupID,
-		MessageID: msgID,
-	})
-	if err != nil {
-		zerolog.Ctx(ctx).Error().
-			Err(err).
-			Str("pluginName", "teamspeak3").
-			Str(utils.GetCurrentFuncName()).
-			Int("messageID", msgID).
-			Int("deleteMessageMinute", server.DeleteTimeoutInMinute).
-			Str("content", "teamspeak user change notify").
-			Msg(flaterr.DeleteMessage.Str())
-	}
 }
