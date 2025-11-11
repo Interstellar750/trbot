@@ -101,6 +101,11 @@ func ScheduleTask(ctx context.Context, task Task) error {
 	return nil
 }
 
+// FindJob returns a `quartz.ScheduledJob` by name and group.
+func FindJob(name, group string) (quartz.ScheduledJob, error) {
+	return Scheduler.GetScheduledJob(quartz.NewJobKeyWithGroup(name, group))
+}
+
 // RunTask executes a specified task by name and group.
 func RunTask(ctx context.Context, name, group string) error {
 	logger := zerolog.Ctx(ctx).

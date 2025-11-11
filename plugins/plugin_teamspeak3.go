@@ -26,7 +26,6 @@ import (
 )
 
 var tsConfig ServerConfig
-var tsErr    error
 
 var tsConfigPath string = filepath.Join(configs.YAMLDatabaseDir, "teamspeak/", configs.YAMLFileName)
 var botNickName  string = "trbot_teamspeak_plugin"
@@ -52,6 +51,7 @@ type ServerConfig struct {
 	PinnedMessageID        int    `yaml:"PinnedMessageID"`
 }
 
+// Connect 检查配置并尝试连接到 TeamSpeak 服务器
 func (sc *ServerConfig) Connect(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
@@ -71,6 +71,7 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 			Msg("No URL in config")
 		return fmt.Errorf("no URL in config")
 	}
+
 	if sc.c != nil {
 		logger.Info().Msg("Closing client...")
 		err = sc.c.Close()
@@ -80,6 +81,8 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 				Str("path", tsConfigPath).
 				Msg("Failed to close client")
 		}
+		// 尽管它有时会返回错误，但可能还是会正常关闭，所以等一等，然后抛弃旧的客户端
+		time.Sleep(10 * time.Second)
 		sc.c = nil
 	}
 
@@ -172,11 +175,30 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 
 	logger.Info().Msg("Successfully connected!")
 
-	// 没遇到不可重新初始化的部分则返回初始化成功
-	sc.s.IsSuccessInit = true
+	if !sc.s.IsCheckClientTaskScheduled {
+		err = sc.ScheduleCheckClientTask(ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to schedule check client task")
+			return fmt.Errorf("failed to schedule check client task: %w", err)
+		}
+	}
+
+	if !sc.s.IsDeleteMessageTaskScheduled {
+		err = sc.ScheduleDeleteMessageTask(ctx)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to schedule delete message task")
+			return fmt.Errorf("failed to schedule delete message task: %w", err)
+		}
+	}
+
 	return nil
 }
 
+// CheckClient 检查 TeamSpeak 服务器的状态和用户数量，根据配置通知用户或尝试重连
 func (sc *ServerConfig) CheckClient(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
@@ -193,13 +215,11 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 			Msg("Failed to get online client")
 		// 连不上服务器直接尝试重连
 		if err.Error() == "not connected" {
-			sc.s.CheckFailedCount = 0
-			sc.s.IsCanListening = false
+			sc.PauseCheckClientTask(ctx, true)
 		}
 		// 不是连不上服务器，则累积到五次后再重连
 		if sc.s.CheckFailedCount >= 5 {
-			sc.s.CheckFailedCount = 0
-			sc.s.IsCanListening = false
+			sc.PauseCheckClientTask(ctx, true)
 			botMessage, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: sc.GroupID,
 				Text:   "已连续五次检查在线客户端失败，开始尝试自动重连",
@@ -220,6 +240,7 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 		sc.s.CheckFailedCount = 0 // 重置失败计数
 		for _, client := range onlineClients {
 			if client.Nickname == botNickName { continue }
+
 			var isExist bool
 			for _, user := range sc.s.BeforeOnlineClient {
 				if user.Username == client.Nickname {
@@ -240,7 +261,7 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 				Int("clientJoin", len(added)).
 				Int("clientLeave", len(removed)).
 				Msg("online client change detected")
-			notifyClientChange(ctx, sc, added, removed)
+			sc.NotifyClientChange(ctx, added, removed)
 		}
 		if sc.PinMessageMode {
 			if sc.PinnedMessageID == 0 {
@@ -303,28 +324,375 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 				}
 
 			}
-			changePinnedMessage(ctx, sc, &sc.s.CheckCount, nowOnlineClient, added, removed)
+			sc.ChangePinnedMessage(ctx, nowOnlineClient, added, removed)
 		}
 		sc.s.BeforeOnlineClient = nowOnlineClient
 	}
 }
 
-func (sc *ServerConfig) Retry(ctx context.Context) error {
+// ScheduleOrResumeCheckClientTask 创建检查客户端任务
+func (sc *ServerConfig) ScheduleCheckClientTask(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	logger.Info().
-		Int("retryCount", sc.s.RetryCount).
-		Msg("try reconnect...")
+	err := task.ScheduleTask(ctx, task.Task{
+		Name:  fmt.Sprintf("check_client_%d", sc.GroupID),
+		Group: "teamspeak3",
+		Job: job.NewFunctionJobWithDesc(
+			func(ctx context.Context) (int, error) {
+				sc.CheckClient(ctx)
+				return 0, nil
+			},
+			"check teamspeak client changes",
+		),
+		Trigger: quartz.NewSimpleTrigger(time.Second * time.Duration(sc.PollingInterval)),
+	})
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to schedule check client job")
+		return err
+	}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 30)
-	defer cancel()
-	return sc.Connect(timeoutCtx)
+	sc.s.IsCheckClientTaskScheduled = true
+	sc.s.IsCheckClientTaskRunning   = true
+
+	return nil
 }
 
+// ResumeCheckClientTask 恢复检查客户端任务
+func (sc *ServerConfig) ResumeCheckClientTask(ctx context.Context) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	if !sc.s.IsCheckClientTaskRunning {
+		err := task.ResumeTask(ctx, fmt.Sprintf("check_client_%d", sc.GroupID), "teamspeak3")
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to resume check client task")
+		} else {
+			sc.s.IsCheckClientTaskRunning = true
+		}
+	}
+}
+
+// PauseCheckClientTask 暂停检查客户端任务，可选是否开始重试
+func (sc *ServerConfig) PauseCheckClientTask(ctx context.Context, retry bool) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	if sc.s.IsCheckClientTaskRunning {
+		err := task.PauseTask(ctx, fmt.Sprintf("check_client_%d", sc.GroupID), "teamspeak3")
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to pause check client task")
+		} else {
+			sc.s.IsCheckClientTaskRunning = false
+		}
+	}
+
+	if retry && !sc.s.IsInRetryLoop {
+		go sc.RetryLoop(ctx)
+		logger.Warn().Msg("Start retry connect loop")
+	}
+}
+
+// NotifyClientChange 通过在对话中发送信息的方式来通知用户变化
+func (sc *ServerConfig) NotifyClientChange(ctx context.Context, add, remove []string) {
+	var pendingMessage string
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	if len(add) > 0 {
+		pendingMessage += fmt.Sprintln("以下用户进入了服务器:")
+		for _, nickname := range add {
+			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
+		}
+	}
+	if len(remove) > 0 {
+		pendingMessage += fmt.Sprintln("以下用户离开了服务器:")
+		for _, nickname := range remove {
+			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
+		}
+	}
+
+	msg, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: sc.GroupID,
+		Text:   pendingMessage,
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Int64("chatID", sc.GroupID).
+			Str("content", "teamspeak user change notify").
+			Msg(flaterr.SendMessage.Str())
+	}
+
+	if tsConfig.s.IsDeleteMessageTaskScheduled {
+		if tsConfig.AutoDeleteMessage {
+			tsConfig.ResumeDeleteMessageTask(ctx)
+			tsConfig.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
+				Date: msg.Date,
+				ID:   msg.ID,
+			})
+		} else if tsConfig.s.IsDeleteMessageTaskRunning {
+			tsConfig.PauseDeleteMessageTask(ctx)
+			tsConfig.s.OldMessageID = []OldMessageID{}
+		}
+	}
+}
+
+// ChangePinnedMessage 通过编辑置顶消息的方式来通知用户变化
+func (sc *ServerConfig) ChangePinnedMessage(ctx context.Context, online []OnlineClient, add, remove []string) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	// 没有新加入和离开用户，等待一阵子后再更新用户在线时间
+	if len(add) + len(remove) == 0 && sc.s.CheckCount < (60 / tsConfig.PollingInterval) {
+		sc.s.CheckCount++
+		return
+	} else {
+		sc.s.CheckCount = 0
+	}
+
+	var pendingMessage string = fmt.Sprintf("%s | ", time.Now().Format("15:04"))
+
+	if len(online) > 0 {
+		pendingMessage += fmt.Sprintf("有 %d 位用户在线:\n<blockquote>", len(online))
+		for _, client := range online {
+			pendingMessage += fmt.Sprintf("[ %s ] 已在线 %.1f 分钟\n", client.Username, time.Since(client.JoinTime).Minutes())
+		}
+		pendingMessage += "</blockquote>\n"
+	} else {
+		pendingMessage += "没有用户在线\n\n"
+	}
+
+	if len(add) + len(remove) > 0 {
+		if len(add) > 0 {
+			pendingMessage += fmt.Sprintln("以下用户进入了服务器:")
+			for _, nickname := range add {
+				pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
+			}
+		}
+		if len(remove) > 0 {
+			pendingMessage += fmt.Sprintln("以下用户离开了服务器:")
+			for _, nickname := range remove {
+				pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
+			}
+		}
+	}
+
+	if !sc.s.IsMessagePinned {
+		pendingMessage += "<blockquote expandable>无法置顶用户列表消息，请检查机器人是否拥有对应的权限，您也可以手动置顶此消息</blockquote>"
+	}
+
+	_, err := botInstance.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:    sc.GroupID,
+		MessageID: sc.PinnedMessageID,
+		Text:      pendingMessage,
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Int64("chatID", sc.GroupID).
+			Str("content", "teamspeak user change notify").
+			Msg(flaterr.EditMessageText.Str())
+	}
+}
+
+// ScheduleDeleteMessageTask 创建定时删除旧通知信息的任务
+func (sc *ServerConfig) ScheduleDeleteMessageTask(ctx context.Context) error {
+	logger := zerolog.Ctx(ctx)
+
+	// 根据 sc.DeleteTimeoutInMinute 计划一个任务
+	// 定时检查 sc.s.OldMessageID 中是否有过期的消息，如果有则删除
+	err := task.ScheduleTask(ctx, task.Task{
+		Name:  fmt.Sprintf("delete_old_message_%d", sc.GroupID),
+		Group: "teamspeak3",
+		Job: job.NewFunctionJobWithDesc(
+			func(ctx context.Context) (int, error) {
+				var msgIDs []int
+				var newIDList []OldMessageID
+				for _, msg := range sc.s.OldMessageID {
+					if time.Now().Unix() > int64(msg.Date + sc.DeleteTimeoutInMinute * 60) {
+						msgIDs = append(msgIDs, msg.ID)
+					} else {
+						newIDList = append(newIDList, msg)
+					}
+				}
+				sc.s.OldMessageID = newIDList
+
+				if len(msgIDs) > 0 {
+					_, err := botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+						ChatID: sc.GroupID,
+						MessageIDs: msgIDs,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Ints("msgIDs", msgIDs).
+							Int("deleteMessageMinute", sc.DeleteTimeoutInMinute).
+							Str("content", "teamspeak user change notify").
+							Msg(flaterr.DeleteMessage.Str())
+						return 1, err
+					}
+				}
+				return 0, nil
+			},
+			"delete teamspeak user change notify message",
+		),
+		Trigger: quartz.NewSimpleTrigger(time.Minute * time.Duration(sc.DeleteTimeoutInMinute)),
+	})
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to schedule delete message job")
+		return err
+	}
+
+	sc.s.IsDeleteMessageTaskScheduled = true
+	sc.s.IsDeleteMessageTaskRunning   = true
+
+	// 如果 sc.AutoDeleteMessage 不为真，则就是没有启用自动删除消息功能，所以暂停任务
+	if !sc.AutoDeleteMessage {
+		sc.PauseDeleteMessageTask(ctx)
+	}
+
+	return nil
+}
+
+// ResumeDeleteMessageTask 恢复删除旧通知信息的任务
+func (sc *ServerConfig) ResumeDeleteMessageTask(ctx context.Context) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	if !tsConfig.s.IsDeleteMessageTaskRunning {
+		err := task.ResumeTask(ctx, fmt.Sprintf("delete_old_message_%d", tsConfig.GroupID), "teamspeak3")
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to resume delete old message task")
+		} else {
+			tsConfig.s.IsDeleteMessageTaskRunning = true
+		}
+	}
+}
+
+// PauseDeleteMessageTask 暂停删除旧通知信息的任务
+func (sc *ServerConfig) PauseDeleteMessageTask(ctx context.Context) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	if tsConfig.s.IsDeleteMessageTaskRunning {
+		err := task.PauseTask(ctx, fmt.Sprintf("delete_old_message_%d", tsConfig.GroupID), "teamspeak3")
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to pause delete old message task")
+		} else {
+			tsConfig.s.IsDeleteMessageTaskRunning = false
+		}
+	}
+}
+
+// RetryLoop 将循环尝试连接到服务器，直到成功为止
+func (sc *ServerConfig) RetryLoop(ctx context.Context) {
+	logger := zerolog.Ctx(ctx).
+		With().
+		Str("pluginName", "teamspeak3").
+		Str(utils.GetCurrentFuncName()).
+		Logger()
+
+	sc.s.IsInRetryLoop = true
+	defer func() { sc.s.IsInRetryLoop = false }()
+	sc.s.RetryCount = 0
+
+	retryTicker := time.NewTicker(time.Second * 5)
+	defer retryTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sc.s.ResetTicker:
+			sc.ResumeCheckClientTask(ctx)
+			logger.Info().Msg("reconnect by command success")
+			return
+		case <-retryTicker.C:
+			logger.Info().
+				Int("retryCount", sc.s.RetryCount).
+				Msg("try reconnect...")
+
+			// 实际上并不生效...
+			timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 30)
+			defer cancel()
+
+			err := sc.Connect(timeoutCtx)
+			if err != nil {
+				// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
+				// 无法成功则等待下一个周期继续尝试
+				if sc.s.RetryCount < 15 {
+					sc.s.RetryCount++
+					retryTicker.Reset(time.Duration(sc.s.RetryCount * 20) * time.Second)
+				}
+
+				logger.Warn().
+					Int("retryCount", sc.s.RetryCount).
+					Time("nextRetry", time.Now().Add(time.Duration(sc.s.RetryCount * 20) * time.Second)).
+					Msg("reconnect failed")
+			} else {
+				// 重新初始化成功则恢复查询任务
+				sc.ResumeCheckClientTask(ctx)
+				logger.Info().Msg("reconnect success")
+				botMessage, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: sc.GroupID,
+					Text:   "已成功与服务器重新建立连接",
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Int64("chatID", sc.GroupID).
+						Str("content", "success reconnect to server notice").
+						Msg(flaterr.SendMessage.Str())
+				} else {
+					time.Sleep(time.Second * 5)
+					var deleteMessageIDs []int = []int{botMessage.ID}
+					if sc.s.ReconnectMessageID != 0 {
+						deleteMessageIDs = []int{botMessage.ID, sc.s.ReconnectMessageID}
+						sc.s.ReconnectMessageID = 0
+					}
+					_, err = botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+						ChatID:     sc.GroupID,
+						MessageIDs: deleteMessageIDs,
+					})
+					if err != nil {
+						logger.Error().
+							Err(err).
+							Int64("chatID", sc.GroupID).
+							Ints("messageIDs", deleteMessageIDs).
+							Str("content", "success reconnect to server notice").
+							Msg(flaterr.DeleteMessages.Str())
+					}
+				}
+			}
+		}
+	}
+}
+
+// BuildConfigKeyboard 构建一个 &models.InlineKeyboardMarkup 类型的配置键盘
 func (sc *ServerConfig) BuildConfigKeyboard() models.ReplyMarkup {
 	var buttons [][]models.InlineKeyboardButton
 
@@ -371,31 +739,14 @@ func (sc *ServerConfig) BuildConfigKeyboard() models.ReplyMarkup {
 	return &models.InlineKeyboardMarkup{ InlineKeyboard: buttons }
 }
 
-func (sc *ServerConfig) StartListening(ctx context.Context) {
+// RemovePinnedMessage 取消或删除上一次的置顶消息
+func (sc *ServerConfig) RemovePinnedMessage(ctx context.Context) {
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	sc.s.IsListening = true
-	sc.s.IsCanListening = true
-
-	defer func() {
-		sc.s.IsListening = false
-		logger.Warn().Msg("listenUserStatus goroutine stopped")
-	}()
-
-	if sc.s.ResetTicker == nil {
-		sc.s.ResetTicker = make(chan bool)
-	}
-
-	if sc.PollingInterval == 0 {
-		sc.PollingInterval = 10
-	}
-	if sc.DeleteTimeoutInMinute == 0 {
-		sc.DeleteTimeoutInMinute = 10
-	}
 	// 取消置顶上一次的置顶消息
 	if sc.PinnedMessageID != 0 {
 		if sc.DeleteOldPinnedMessage {
@@ -432,87 +783,16 @@ func (sc *ServerConfig) StartListening(ctx context.Context) {
 			logger.Error().Err(err).Msg("Failed to save teamspeak data after delete or unpin message")
 		}
 	}
-
-	listenTicker := time.NewTicker(time.Second * time.Duration(sc.PollingInterval))
-	defer listenTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			sc.c.Close()
-			return
-		case <-sc.s.ResetTicker:
-			listenTicker.Reset(time.Second * time.Duration(sc.PollingInterval))
-			sc.s.IsCanListening = true
-			sc.s.RetryCount = 0
-		case <-listenTicker.C:
-			if sc.s.IsCanListening {
-				sc.CheckClient(ctx)
-			} else {
-				err := sc.Retry(ctx)
-				if err != nil {
-					// 出现错误时，先降低 ticker 速度，然后尝试重新初始化
-					// 无法成功则等待下一个周期继续尝试
-					if sc.s.RetryCount < 15 {
-						sc.s.RetryCount++
-						listenTicker.Reset(time.Duration(sc.s.RetryCount) * 20 * time.Second)
-					}
-
-					logger.Warn().
-						Int("retryCount", sc.s.RetryCount).
-						Time("nextRetry", time.Now().Add(time.Duration(sc.s.RetryCount) * 20 * time.Second)).
-						Msg("reconnect failed")
-				} else {
-					// 重新初始化成功则恢复 ticker 速度
-					listenTicker.Reset(time.Second * time.Duration(sc.PollingInterval))
-					sc.s.IsCanListening = true
-					sc.s.RetryCount = 0
-					logger.Info().Msg("reconnect success")
-					botMessage, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
-						ChatID: sc.GroupID,
-						Text:   "已成功与服务器重新建立连接",
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Int64("chatID", sc.GroupID).
-							Str("content", "success reconnect to server notice").
-							Msg(flaterr.SendMessage.Str())
-					} else {
-						time.Sleep(time.Second * 5)
-						var deleteMessageIDs []int = []int{botMessage.ID}
-						if sc.s.ReconnectMessageID != 0 {
-							deleteMessageIDs = []int{botMessage.ID, sc.s.ReconnectMessageID}
-							sc.s.ReconnectMessageID = 0
-						}
-						_, err = botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-							ChatID:     sc.GroupID,
-							MessageIDs: deleteMessageIDs,
-						})
-						if err != nil {
-							logger.Error().
-								Err(err).
-								Int64("chatID", sc.GroupID).
-								Ints("messageIDs", deleteMessageIDs).
-								Str("content", "success reconnect to server notice").
-								Msg(flaterr.DeleteMessages.Str())
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 type Status struct {
-	IsSuccessInit   bool
-	IsListening     bool
-	IsCanListening  bool
 	IsMessagePinned bool
 
 	ResetTicker (chan bool)
 
 	ReconnectMessageID int
+
+	IsInRetryLoop bool
 
 	RetryCount       int
 	CheckCount       int
@@ -520,7 +800,11 @@ type Status struct {
 
 	BeforeOnlineClient []OnlineClient
 
-	IsDeleteMessageTaskSuspend bool
+	IsCheckClientTaskScheduled bool
+	IsCheckClientTaskRunning   bool
+
+	IsDeleteMessageTaskScheduled bool
+	IsDeleteMessageTaskRunning   bool
 
 	OldMessageID []OldMessageID
 }
@@ -538,70 +822,7 @@ type OnlineClient struct {
 func init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
 		Name: "teamspeak",
-		Func: func(ctx context.Context, thebot *bot.Bot) error{
-			botInstance = thebot
-			if initTeamSpeak(ctx) {
-				if tsConfig.s.IsSuccessInit {
-					go tsConfig.StartListening(ctx)
-				}
-				logger := zerolog.Ctx(ctx)
-				err := task.ScheduleTask(ctx, task.Task{
-					Name:  "delete_old_message",
-					Group: "teamspeak3",
-					Job: job.NewFunctionJobWithDesc(
-						func(ctx context.Context) (int, error) {
-							var msgIDs []int
-							var newIDList []OldMessageID
-							for _, msg := range tsConfig.s.OldMessageID {
-								if time.Now().Unix() > int64(msg.Date + tsConfig.DeleteTimeoutInMinute * 60) {
-									msgIDs = append(msgIDs, msg.ID)
-								} else {
-									newIDList = append(newIDList, msg)
-								}
-							}
-							tsConfig.s.OldMessageID = newIDList
-
-							if len(msgIDs) > 0 {
-								_, err := botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-									ChatID: tsConfig.GroupID,
-									MessageIDs: msgIDs,
-								})
-								if err != nil {
-									logger.Error().
-										Err(err).
-										Ints("msgIDs", msgIDs).
-										Int("deleteMessageMinute", tsConfig.DeleteTimeoutInMinute).
-										Str("content", "teamspeak user change notify").
-										Msg(flaterr.DeleteMessage.Str())
-									return 1, err
-								}
-							}
-							return 0, nil
-						},
-						"delete teamspeake user change notify message",
-					),
-					Trigger: quartz.NewSimpleTrigger(time.Minute * time.Duration(tsConfig.DeleteTimeoutInMinute)),
-				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "teamspeak user change notify").
-						Msg("Failed to schedule delete message job")
-				}
-
-				if !tsConfig.AutoDeleteMessage {
-					err = task.PauseTask(ctx, "delete_old_message", "teamspeak3")
-					if err != nil {
-						logger.Error().
-						Err(err).
-						Msg("Failed to pause delete old message task")
-					} else {
-						tsConfig.s.IsDeleteMessageTaskSuspend = true
-					}
-				}
-			}
-			return tsErr
-		},
+		Func: initTeamSpeak,
 	})
 
 	plugin_utils.AddDataBaseHandler(plugin_utils.DatabaseHandler{
@@ -626,7 +847,11 @@ func init() {
 	})
 }
 
-func initTeamSpeak(ctx context.Context) bool {
+// initTeamSpeak 从 tsConfigPath 读取服务器配置后调用 tsConfig.Connect 尝试连接服务器
+func initTeamSpeak(ctx context.Context, thebot *bot.Bot) error {
+	// 保存 bot 实例
+	botInstance = thebot
+
 	logger := zerolog.Ctx(ctx).
 		With().
 		Str("pluginName", "teamspeak3").
@@ -638,9 +863,26 @@ func initTeamSpeak(ctx context.Context) bool {
 	// 读取配置文件
 	err := readTeamspeakData(ctx)
 	if err != nil {
-		tsErr = fmt.Errorf("failed to read teamspeak config data: %w", err)
-		return false
+		logger.Error().
+			Err(err).
+			Str("path", tsConfigPath).
+			Msg("Failed to read teamspeak config data")
+		return fmt.Errorf("failed to read teamspeak config data: %w", err)
 	}
+
+	if tsConfig.s.ResetTicker == nil {
+		tsConfig.s.ResetTicker = make(chan bool)
+	}
+
+	if tsConfig.PollingInterval == 0 {
+		tsConfig.PollingInterval = 5
+	}
+
+	if tsConfig.DeleteTimeoutInMinute == 0 {
+		tsConfig.DeleteTimeoutInMinute = 10
+	}
+
+	tsConfig.RemovePinnedMessage(ctx)
 
 	logger.Info().
 		Int64("ChatID", tsConfig.GroupID).
@@ -652,16 +894,17 @@ func initTeamSpeak(ctx context.Context) bool {
 			Err(err).
 			Int64("ChatID", tsConfig.GroupID).
 			Msg("Failed to initialize TeamSpeak client")
-		return false
+		return fmt.Errorf("failed to initialize TeamSpeak client: %w", err)
 	}
 
 	logger.Info().
 		Int64("ChatID", tsConfig.GroupID).
 		Msg("Successfully initialized TeamSpeak")
 
-	return true
+	return nil
 }
 
+// readTeamspeakData 从 tsConfigPath 读取服务器配置并加载到 tsConfig 中
 func readTeamspeakData(ctx context.Context) error {
 	logger := zerolog.Ctx(ctx).
 		With().
@@ -702,6 +945,7 @@ func readTeamspeakData(ctx context.Context) error {
 	return err
 }
 
+// saveTeamspeakData 保存 tsConfig 配置到 tsConfigPath 文件中
 func saveTeamspeakData(ctx context.Context) error {
 	err := yaml.SaveYAML(tsConfigPath, &tsConfig)
 	if err != nil {
@@ -717,6 +961,7 @@ func saveTeamspeakData(ctx context.Context) error {
 	return nil
 }
 
+// showStatus 响应 `/ts3` 命令，显示用户列表或触发手动连接，可显示连接错误信息
 func showStatus(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -728,7 +973,7 @@ func showStatus(opts *handler_params.Message) error {
 	var pendingMessage string
 
 	// 正常运行就输出用户列表，否则发送错误信息
-	if tsConfig.s.IsSuccessInit && tsConfig.s.IsCanListening {
+	if tsConfig.s.IsCheckClientTaskScheduled && tsConfig.s.IsCheckClientTaskRunning {
 		onlineClients, err := tsConfig.c.Server.ClientList()
 		if err != nil {
 			logger.Error().
@@ -759,18 +1004,16 @@ func showStatus(opts *handler_params.Message) error {
 		timeoutCtx, cancel := context.WithTimeout(opts.Ctx, time.Second * 30)
 		err := tsConfig.Connect(timeoutCtx)
 		if err != nil {
-			pendingMessage = fmt.Sprintf("初始化 teamspeak 插件时发生了一些错误:\n<blockquote expandable>%s</blockquote>\n\n", err)
-			handlerErr.Addf("failed to reinit teamspeak plugin: %w", err)
-			if tsConfig.s.IsListening {
-				pendingMessage += "尝试重新初始化失败，您可以使用 /ts3 命令来尝试重新连接或等待自动重连"
+			pendingMessage = fmt.Sprintf("teamspeak 插件发生了一些错误:\n<blockquote expandable>%s</blockquote>\n\n", err)
+			if tsConfig.s.IsCheckClientTaskScheduled{
+				pendingMessage += "您可以使用 /ts3 命令来尝试重新连接或等待自动重连"
 			} else {
-				pendingMessage += "尝试重新初始化失败，由于监听服务未在运行，您需要手动使用 /ts3 命令来尝试重新连接"
+				pendingMessage += "尝试重新初始化失败，由于检查任务未在运行，您需要手动使用 /ts3 命令来尝试重新连接"
 			}
+			handlerErr.Addf("failed to reinit teamspeak plugin: %w", err)
 		} else {
-			if tsConfig.s.IsListening  {
+			if tsConfig.s.IsInRetryLoop {
 				tsConfig.s.ResetTicker <- true
-			} else {
-				go tsConfig.StartListening(opts.Ctx)
 			}
 			pendingMessage = "尝试重新初始化成功，现可正常运行"
 		}
@@ -806,6 +1049,7 @@ func showStatus(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
+// diffSlices 比较两个 OnlineClient 类型切片，返回新增和删除的字符串类型切片
 func diffSlices(before, now []OnlineClient) (added, removed []string) {
 	beforeMap := make(map[string]bool)
 	nowMap    := make(map[string]bool)
@@ -827,129 +1071,7 @@ func diffSlices(before, now []OnlineClient) (added, removed []string) {
 	return
 }
 
-func notifyClientChange(ctx context.Context, server *ServerConfig, add, remove []string) {
-	var pendingMessage string
-	logger := zerolog.Ctx(ctx).
-		With().
-		Str("pluginName", "teamspeak3").
-		Str(utils.GetCurrentFuncName()).
-		Logger()
-
-	if len(add) > 0 {
-		pendingMessage += fmt.Sprintln("以下用户进入了服务器:")
-		for _, nickname := range add {
-			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
-		}
-	}
-	if len(remove) > 0 {
-		pendingMessage += fmt.Sprintln("以下用户离开了服务器:")
-		for _, nickname := range remove {
-			pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
-		}
-	}
-
-	msg, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: server.GroupID,
-		Text:   pendingMessage,
-		ParseMode: models.ParseModeHTML,
-	})
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Int64("chatID", server.GroupID).
-			Str("content", "teamspeak user change notify").
-			Msg(flaterr.SendMessage.Str())
-	}
-
-	if tsConfig.AutoDeleteMessage {
-		if tsConfig.s.IsDeleteMessageTaskSuspend {
-			err = task.ResumeTask(ctx, "delete_old_message", "teamspeak3")
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Failed to resume delete old message task")
-			} else {
-				tsConfig.s.IsDeleteMessageTaskSuspend = false
-			}
-		}
-		tsConfig.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
-			Date: msg.Date,
-			ID:   msg.ID,
-		})
-	} else if !tsConfig.s.IsDeleteMessageTaskSuspend {
-		err = task.PauseTask(ctx, "delete_old_message", "teamspeak3")
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Msg("Failed to pause delete old message task")
-		} else {
-			tsConfig.s.IsDeleteMessageTaskSuspend = true
-			tsConfig.s.OldMessageID = []OldMessageID{}
-		}
-	}
-}
-
-func changePinnedMessage(ctx context.Context, server *ServerConfig, checkCount *int, online []OnlineClient, add, remove []string) {
-	logger := zerolog.Ctx(ctx).
-		With().
-		Str("pluginName", "teamspeak3").
-		Str(utils.GetCurrentFuncName()).
-		Logger()
-
-	// 没有新加入和离开用户，等待一阵子后再更新用户在线时间
-	if len(add) + len(remove) == 0 && *checkCount < (60 / tsConfig.PollingInterval) {
-		*checkCount++
-		return
-	} else {
-		*checkCount = 0
-	}
-
-	var pendingMessage string = fmt.Sprintf("%s | ", time.Now().Format("15:04"))
-
-	if len(online) > 0 {
-		pendingMessage += fmt.Sprintf("有 %d 位用户在线:\n<blockquote>", len(online))
-		for _, client := range online {
-			pendingMessage += fmt.Sprintf("[ %s ] 已在线 %.1f 分钟\n", client.Username, time.Since(client.JoinTime).Minutes())
-		}
-		pendingMessage += "</blockquote>\n"
-	} else {
-		pendingMessage += "没有用户在线\n\n"
-	}
-
-	if len(add) + len(remove) > 0 {
-		if len(add) > 0 {
-			pendingMessage += fmt.Sprintln("以下用户进入了服务器:")
-			for _, nickname := range add {
-				pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
-			}
-		}
-		if len(remove) > 0 {
-			pendingMessage += fmt.Sprintln("以下用户离开了服务器:")
-			for _, nickname := range remove {
-				pendingMessage += fmt.Sprintf("用户 [ %s ]\n", nickname)
-			}
-		}
-	}
-
-	if !server.s.IsMessagePinned {
-		pendingMessage += "<blockquote expandable>无法置顶用户列表消息，请检查机器人是否拥有对应的权限，您也可以手动置顶此消息</blockquote>"
-	}
-
-	_, err := botInstance.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID: server.GroupID,
-		MessageID: server.PinnedMessageID,
-		Text:   pendingMessage,
-		ParseMode: models.ParseModeHTML,
-	})
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Int64("chatID", server.GroupID).
-			Str("content", "teamspeak user change notify").
-			Msg(flaterr.EditMessageText.Str())
-	}
-}
-
+// teamspeakCallbackHandler 响应前缀为 "teamspeak" 的 callbackQuery 请求
 func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -961,8 +1083,9 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 	var handlerErr flaterr.MultErr
 
 	if contain.Int64(opts.CallbackQuery.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsConfig.GroupID)...) || contain.Int64(opts.CallbackQuery.From.ID, configs.BotConfig.AdminIDs...) {
-		var needEdit bool = true
-		var needSave bool = false
+		var needEdit     bool = true
+		var needSave     bool = false
+		var needEditTask bool = false
 
 		switch opts.CallbackQuery.Data {
 		case "teamspeak_pinmessage":
@@ -1005,10 +1128,36 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 			} else {
 				tsConfig.SendMessageMode = !tsConfig.SendMessageMode
 				needSave = true
+				needEditTask = true
 			}
 		case "teamspeak_sendmessage_autodelete":
 			tsConfig.AutoDeleteMessage = !tsConfig.AutoDeleteMessage
 			needSave = true
+			needEditTask = true
+		}
+
+		if needEditTask {
+			if tsConfig.s.IsDeleteMessageTaskScheduled {
+				if tsConfig.SendMessageMode && tsConfig.AutoDeleteMessage {
+					tsConfig.ResumeDeleteMessageTask(opts.Ctx)
+				} else {
+					tsConfig.PauseDeleteMessageTask(opts.Ctx)
+					tsConfig.s.OldMessageID = []OldMessageID{}
+				}
+			} else {
+				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.CallbackQuery.ID,
+					Text:            "您的操作已保存，但因为删除消息的任务没有添加成功，无法自动删除消息，请尝试重启机器人",
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "delete message task not scheduled").
+						Msg(flaterr.AnswerCallbackQuery.Str())
+					handlerErr.Addt(flaterr.AnswerCallbackQuery, "delete message task not scheduled", err)
+				}
+			}
 		}
 
 		if needEdit {
