@@ -403,6 +403,7 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 							Err(err).
 							Dict(utils.GetChatDict(&opts.CallbackQuery.Message.Message.Chat)).
 							Dict(utils.GetUserDict(&opts.CallbackQuery.From)).
+							Int("messageID", opts.CallbackQuery.Message.Message.ID).
 							Str("callbackQueryData", opts.CallbackQuery.Data).
 							Str("content", "unknown message from callbackQuery request to delete").
 							Msg(flaterr.DeleteMessage.Str())
