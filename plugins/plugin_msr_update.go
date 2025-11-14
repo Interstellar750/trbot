@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +27,8 @@ import (
 var msrConfigPath string = filepath.Join(configs.YAMLDatabaseDir, "msr_update/", configs.YAMLFileName)
 
 var msrConfig MSRUpdateConfig
+
+var msrCachedDir string = filepath.Join(configs.CacheDir, "msr_conver/")
 
 type MSRUpdateConfig struct {
 	lock sync.Mutex
@@ -120,6 +123,50 @@ type AlbumDetail struct {
 
 	// 暂时不需要
 	Songs []Song `json:"songs"`
+}
+
+func (ad *AlbumDetail) Escape() {
+	ad.Name = utils.IgnoreHTMLTags(strings.TrimSpace(ad.Name))
+	ad.Intro = utils.IgnoreHTMLTags(strings.Trim(ad.Intro, "\n"))
+}
+
+func (ad AlbumDetail) GetLandscapeCoverImage(ctx context.Context) (io.Reader, error) {
+	coverPath := filepath.Join(msrCachedDir, ad.CID + ".jpg")
+	_, err := os.Stat(coverPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(msrCachedDir, 0755)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create directory [%s] to cache cover image: %w", msrCachedDir, err)
+			}
+
+			resp, err := http.Get(ad.CoverDeURL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to download cover image: %w", err)
+			}
+			defer resp.Body.Close()
+
+			stickerfile, err := os.Create(coverPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create cover image file [%s]: %w", coverPath, err)
+			}
+			defer stickerfile.Close()
+
+			_, err = io.Copy(stickerfile, resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to writing data to cover image file [%s]: %w", coverPath, err)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to check cover image file [%s]: %w", coverPath, err)
+		}
+	}
+
+	data, err := os.Open(coverPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open cover image file [%s]: %w", coverPath, err)
+	}
+
+	return data, nil
 }
 
 type Song struct {
@@ -294,7 +341,7 @@ func MSRUpdateTask(ctx context.Context) (int, error) {
 		logger.Info().
 			Str("album", album.Name).
 			Str("albumID", album.CID).
-			Msg("new album found")
+			Msg("New album found")
 		detail, err := GetAlbumDetail(ctx, album.CID)
 		if err != nil {
 			logger.Err(err).
@@ -303,20 +350,36 @@ func MSRUpdateTask(ctx context.Context) (int, error) {
 				Msg("failed to get album detail")
 			return 1, fmt.Errorf(`failed to get new %s:"%s" album detail: %w`, album.CID, album.Name, err)
 		}
+
+		detail.Escape()
+
 		logger.Info().
 			Str("Name", detail.Name).
 			Str("Intro", detail.Intro).
 			Str("CoverDeURL", detail.CoverDeURL).
 			Msg("Album detail found")
 
+		// 把图片下载到本地再发出去
+		data, err := detail.GetLandscapeCoverImage(ctx)
+		if err != nil {
+			logger.Err(err).
+				Str("album", album.Name).
+				Str("albumID", album.CID).
+				Msg("failed to get album cover image")
+			return 1, fmt.Errorf(`failed to get new %s:"%s" album cover image: %w`, album.CID, album.Name, err)
+		}
+
 		_, err = msrConfig.botIns.SendPhoto(ctx, &bot.SendPhotoParams{
 			ChatID: msrConfig.ChannelID,
-			Photo: &models.InputFileString{ Data: detail.CoverDeURL },
+			Photo: &models.InputFileUpload{
+				Filename: fmt.Sprintf("%s.jpg", album.CID),
+				Data: data,
+			},
 			ParseMode: models.ParseModeHTML,
 			DisableNotification: msrConfig.SilentPost,
 			Caption: fmt.Sprintf(
 				"<b>%s</b>\n\n%s\n\nListen on\n<a href=\"https://monster-siren.hypergryph.com/m/music/%s\"><u>Monster Siren Records</u></a>",
-				strings.TrimSpace(detail.Name), strings.Trim(detail.Intro, "\n"), detail.Songs[0].CID,
+				detail.Name, detail.Intro, detail.Songs[0].CID,
 			),
 		})
 		if err != nil {
@@ -326,6 +389,7 @@ func MSRUpdateTask(ctx context.Context) (int, error) {
 				Msg("Failed to send new album")
 			return 1, fmt.Errorf(`failed to send new %s:"%s" album: %w`, album.CID, album.Name, err)
 		}
+
 		logger.Info().
 			Str("album", album.Name).
 			Str("albumID", album.CID).
