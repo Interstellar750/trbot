@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 	"trbot/utils"
@@ -312,10 +313,10 @@ func MSRUpdateTask(ctx context.Context) (int, error) {
 			ChatID: msrConfig.ChannelID,
 			Photo: &models.InputFileString{ Data: detail.CoverDeURL },
 			ParseMode: models.ParseModeHTML,
-			DisableNotification: true,
+			DisableNotification: msrConfig.SilentPost,
 			Caption: fmt.Sprintf(
 				"<b>%s</b>\n\n%s\n\nListen on\n<a href=\"https://monster-siren.hypergryph.com/m/music/%s\"><u>Monster Siren Records</u></a>",
-				detail.Name, detail.Intro, detail.Songs[0].CID,
+				strings.TrimSpace(detail.Name), strings.Trim(detail.Intro, "\n"), detail.Songs[0].CID,
 			),
 		})
 		if err != nil {
