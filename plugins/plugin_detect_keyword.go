@@ -1045,8 +1045,12 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Msg(flaterr.AnswerCallbackQuery.Str())
 			handlerErr.Addt(flaterr.AnswerCallbackQuery, "no permission to change group functions", err)
 		}
-	} else if opts.CallbackQuery.Data == "detectkw_g_switch" {
-		chat := KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID]
+		return handlerErr.Flat()
+	}
+
+	chat := KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID]
+
+	if opts.CallbackQuery.Data == "detectkw_g_switch" {
 		// 群组里的全局开关，是否允许群组内用户使用这个功能，优先级最高
 		chat.IsDisable = !chat.IsDisable
 		KeywordDataList.Chats[opts.CallbackQuery.Message.Message.Chat.ID] = chat
@@ -1069,43 +1073,45 @@ func groupManageCallbackHandler(opts *handler_params.CallbackQuery) error {
 					Msg(flaterr.AnswerCallbackQuery.Str())
 				handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to change group switch notice", err)
 			}
-		} else {
-			var buttons [][]models.InlineKeyboardButton
 
-			if chat.IsDisable {
-				buttons = [][]models.InlineKeyboardButton{
-					{{
-						Text:         "🔄 当前状态: 已禁用 ❌",
-						CallbackData: "detectkw_g_switch",
-					}},
-				}
-			} else {
-				buttons = [][]models.InlineKeyboardButton{
-					{{
-						Text: "设定关键词",
-						URL:  fmt.Sprintf("https://t.me/%s?start=detectkw-addgroup_%d", configs.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
-					}},
-					{{
-						Text:         "🔄 当前状态: 已启用 ✅",
-						CallbackData: "detectkw_g_switch",
-					}},
-				}
-			}
-
-			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
-				ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
-				MessageID:   opts.CallbackQuery.Message.Message.ID,
-				Text:        fmt.Sprintf("消息关键词检测\n%s\n\n当前群组中有 %d 个用户启用了此功能",utils.TextForTrueOrFalse(chat.IsDisable, "已为当前群组关闭关键词检测功能，已设定了关键词的用户将无法再收到此群组的提醒", "此功能允许用户设定一些关键词，当机器人检测到群组内的消息包含用户设定的关键词时，向用户发送提醒"), len(chat.UsersID)),
-				ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: buttons},
-			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "group function manager keyboard").
-					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addt(flaterr.EditMessageText, "group function manager keyboard", err)
-			}
+			return handlerErr.Flat()
 		}
+	}
+
+	var buttons [][]models.InlineKeyboardButton
+
+	if chat.IsDisable {
+		buttons = [][]models.InlineKeyboardButton{
+			{{
+				Text:         "🔄 当前状态: 已禁用 ❌",
+				CallbackData: "detectkw_g_switch",
+			}},
+		}
+	} else {
+		buttons = [][]models.InlineKeyboardButton{
+			{{
+				Text: "设定关键词",
+				URL:  fmt.Sprintf("https://t.me/%s?start=detectkw-addgroup_%d", configs.BotMe.Username, opts.CallbackQuery.Message.Message.Chat.ID),
+			}},
+			{{
+				Text:         "🔄 当前状态: 已启用 ✅",
+				CallbackData: "detectkw_g_switch",
+			}},
+		}
+	}
+
+	_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
+		ChatID:      opts.CallbackQuery.Message.Message.Chat.ID,
+		MessageID:   opts.CallbackQuery.Message.Message.ID,
+		Text:        fmt.Sprintf("消息关键词检测\n%s\n\n当前群组中有 %d 个用户启用了此功能",utils.TextForTrueOrFalse(chat.IsDisable, "已为当前群组关闭关键词检测功能，已设定了关键词的用户将无法再收到此群组的提醒", "此功能允许用户设定一些关键词，当机器人检测到群组内的消息包含用户设定的关键词时，向用户发送提醒"), len(chat.UsersID)),
+		ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: buttons},
+	})
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("content", "group function manager keyboard").
+			Msg(flaterr.EditMessageText.Str())
+		handlerErr.Addt(flaterr.EditMessageText, "group function manager keyboard", err)
 	}
 
 	return handlerErr.Flat()
