@@ -196,6 +196,30 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 			},
 		},
 		{
+			SlashCommand: "memstats",
+			MessageHandler: func(opts *handler_params.Message) error {
+				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+					ChatID:             opts.Message.Chat.ID,
+					Text:               utils.MemStats(),
+					ReplyParameters:    &models.ReplyParameters{ MessageID: opts.Message.ID },
+					ParseMode:          models.ParseModeHTML,
+					ReplyMarkup: &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
+						Text: "关闭",
+						CallbackData: "delete_this_message",
+					}}}},
+				})
+				if err != nil {
+					zerolog.Ctx(opts.Ctx).Error().
+						Err(err).
+						Str("command", "/memstats").
+						Str("content", "bot memory stats").
+						Msg(flaterr.SendMessage.Str())
+					return fmt.Errorf(flaterr.SendMessage.Fmt(), "bot bot memory stats", err)
+				}
+				return nil
+			},
+		},
+		{
 			SlashCommand: "cancel",
 			MessageHandler: func(opts *handler_params.Message) error {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{

@@ -305,6 +305,34 @@ func OutputVersionInfo() string {
 	)
 }
 
+func MemStats() string {
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	return fmt.Sprintln(
+		"<code>Goroutine: </code>", runtime.NumGoroutine(),
+
+	  "\n\n<code>Alloc:      </code>", humanize.IBytes(m.Alloc),
+		"\n<code>TotalAlloc: </code>", humanize.IBytes(m.TotalAlloc),
+		"\n<code>Sys:        </code>", humanize.IBytes(m.Sys),
+		"\n<code>Lookups:    </code>", m.Lookups,
+		"\n<code>Frees:      </code>", m.Frees,
+
+	  "\n\n<code>HeapAlloc:    </code>", humanize.IBytes(m.HeapAlloc),
+		"\n<code>HeapSys:      </code>", humanize.IBytes(m.HeapSys),
+		"\n<code>HeapIdle:     </code>", humanize.IBytes(m.HeapIdle),
+		"\n<code>HeapInuse:    </code>", humanize.IBytes(m.HeapInuse),
+		"\n<code>HeapReleased: </code>", humanize.IBytes(m.HeapReleased),
+		"\n<code>HeapObjects:  </code>", m.HeapObjects,
+
+	  "\n\n<code>StackInuse:  </code>", humanize.IBytes(m.StackInuse),
+		"\n<code>StackSys:    </code>", humanize.IBytes(m.StackSys),
+		"\n<code>MSpanInuse:  </code>", humanize.IBytes(m.MSpanInuse),
+		"\n<code>MSpanSys:    </code>", humanize.IBytes(m.MSpanSys),
+		"\n<code>MCacheInuse: </code>", humanize.IBytes(m.MCacheInuse),
+		"\n<code>MCacheSys:   </code>", humanize.IBytes(m.MCacheSys),
+	)
+}
+
 func TextBlockquoteMarkdown(text string, expandable bool) (out string) {
 	strs := strings.Split(text, "\n")
 	for i, str := range strs {
