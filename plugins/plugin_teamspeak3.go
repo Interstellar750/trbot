@@ -465,26 +465,27 @@ func (sc *ServerConfig) ScheduleDeleteMessageTask(ctx context.Context) error {
 		Group: "teamspeak3",
 		Job: job.NewFunctionJobWithDesc(
 			func(ctx context.Context) (int, error) {
-				var msgIDs []int
-				var newIDList []OldMessageID
+				var needDelMsgIDs []int
+				var keepMsgIDList []OldMessageID
+
 				for _, msg := range sc.s.OldMessageID {
 					if time.Now().Unix() > int64(msg.Date + sc.DeleteTimeoutInMinute * 60) {
-						msgIDs = append(msgIDs, msg.ID)
+						needDelMsgIDs = append(needDelMsgIDs, msg.ID)
 					} else {
-						newIDList = append(newIDList, msg)
+						keepMsgIDList = append(keepMsgIDList, msg)
 					}
 				}
-				sc.s.OldMessageID = newIDList
+				sc.s.OldMessageID = keepMsgIDList
 
-				if len(msgIDs) > 0 {
+				if len(needDelMsgIDs) > 0 {
 					_, err := botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-						ChatID: sc.GroupID,
-						MessageIDs: msgIDs,
+						ChatID:     sc.GroupID,
+						MessageIDs: needDelMsgIDs,
 					})
 					if err != nil {
 						logger.Error().
 							Err(err).
-							Ints("msgIDs", msgIDs).
+							Ints("msgIDs", needDelMsgIDs).
 							Int("deleteMessageMinute", sc.DeleteTimeoutInMinute).
 							Str("content", "teamspeak user change notify").
 							Msg(flaterr.DeleteMessage.Str())
@@ -558,7 +559,10 @@ func (sc *ServerConfig) RetryLoop(ctx context.Context) {
 		Logger()
 
 	sc.s.IsInRetryLoop = true
-	defer func() { sc.s.IsInRetryLoop = false }()
+	defer func() {
+		sc.s.IsInRetryLoop = false
+		logger.Info().Msg("reconnect loop exited")
+	}()
 	sc.s.RetryCount = 0
 
 	retryTicker := time.NewTicker(time.Second * 5)
@@ -609,25 +613,12 @@ func (sc *ServerConfig) RetryLoop(ctx context.Context) {
 						Str("content", "success reconnect to server notice").
 						Msg(flaterr.SendMessage.Str())
 				} else {
-					time.Sleep(time.Second * 5)
-					var deleteMessageIDs []int = []int{botMessage.ID}
-					if sc.s.ReconnectMessageID != 0 {
-						deleteMessageIDs = []int{botMessage.ID, sc.s.ReconnectMessageID}
-						sc.s.ReconnectMessageID = 0
-					}
-					_, err = botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-						ChatID:     sc.GroupID,
-						MessageIDs: deleteMessageIDs,
+					sc.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
+						Date: int(time.Now().Unix()),
+						ID:   botMessage.ID,
 					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Int64("chatID", sc.GroupID).
-							Ints("messageIDs", deleteMessageIDs).
-							Str("content", "success reconnect to server notice").
-							Msg(flaterr.DeleteMessages.Str())
-					}
 				}
+				return
 			}
 		}
 	}
