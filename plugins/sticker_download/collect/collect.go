@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"trbot/plugins/sticker_download/config"
 	"trbot/plugins/sticker_download/download"
 	"trbot/utils"
 	"trbot/utils/configs"
@@ -141,6 +143,51 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 		}
 	} else {
 		stickerSetName := strings.TrimPrefix(opts.CallbackQuery.Data, "c_")
+
+		// 有下划线开头即代表这是一个超出了长度的贴纸包，下划线后面的数据是一个 ID
+		// 解析这个 ID 并从 config.Config.OversizeSets 中拿到对应的贴纸包名称
+		if stickerSetName[0:1] == "_" {
+			setID, err := strconv.Atoi(strings.TrimPrefix(stickerSetName, "_"))
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Msg("Failed to parser oversize sticker set ID")
+				handlerErr.Addf("failed to parser oversize sticker set ID [%s]: %w", stickerSetName, err)
+				_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.CallbackQuery.ID,
+					Text:            "解析贴纸包 ID 失败，请重新尝试发送此贴纸再点击按钮",
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "failed to parser oversize sticker set ID notice").
+						Msg(flaterr.AnswerCallbackQuery.Str())
+					handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to parser oversize sticker set ID notice", err)
+				}
+				return handlerErr.Flat()
+			}
+			stickerSetName = config.Config.GetOversizeSetNameByID(setID)
+			if stickerSetName == "" {
+				logger.Error().
+					Int("setID", setID).
+					Msg("Failed to find oversize sticker set")
+				handlerErr.Addf("Failed to find oversize sticker set [%d]", setID)
+				_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.CallbackQuery.ID,
+					Text:            "未找到 ID 对应的贴纸包，请重新尝试发送此贴纸再点击按钮",
+					ShowAlert:       true,
+				})
+				if err != nil {
+					logger.Error().
+						Err(err).
+						Str("content", "no sticker set found for set ID notice").
+						Msg(flaterr.AnswerCallbackQuery.Str())
+					handlerErr.Addt(flaterr.AnswerCallbackQuery, "no sticker set found for set ID notice", err)
+				}
+				return handlerErr.Flat()
+			}
+		}
 
 		stickerSet, err := opts.Thebot.GetStickerSet(opts.Ctx, &bot.GetStickerSetParams{ Name: stickerSetName })
 		if err != nil {

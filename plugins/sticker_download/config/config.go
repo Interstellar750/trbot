@@ -31,6 +31,32 @@ type StickerConfigs struct {
 	LottieToPNGPath string `yaml:"LottieToPNGPath"`
 
 	TGSConvertFPS int `yaml:"TGSConvertFPS"`
+
+	OversizeSetCount int           `yaml:"OversizeSetCount"`
+	OversizeSets     []OversizeSet `yaml:"OversizeSets"`
+}
+
+func (sc *StickerConfigs) GetOversizeSetNameByID(id int) string {
+	for _, set := range sc.OversizeSets {
+		if set.SetID == id {
+			return set.SetName
+		}
+	}
+	return ""
+}
+
+func (sc *StickerConfigs) GetOversizeSetIDByName(name string) int {
+	for _, set := range sc.OversizeSets {
+		if set.SetName == name {
+			return set.SetID
+		}
+	}
+	return 0
+}
+
+type OversizeSet struct {
+	SetID   int    `yaml:"SetID"`
+	SetName string `yaml:"SetName"`
 }
 
 func ReadStickerConfig(ctx context.Context) error {

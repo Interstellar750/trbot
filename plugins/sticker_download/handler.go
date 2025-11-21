@@ -3,7 +3,9 @@ package sticker_download
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 	"trbot/database"
 	"trbot/database/db_struct"
 	"trbot/plugins/sticker_download/collect"
@@ -16,11 +18,14 @@ import (
 	"trbot/utils/flaterr"
 	"trbot/utils/handler_params"
 	"trbot/utils/plugin_utils"
+	"trbot/utils/task"
 	"trbot/utils/type/contain"
 	"trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/reugn/go-quartz/job"
+	"github.com/reugn/go-quartz/quartz"
 	"github.com/rs/zerolog"
 )
 
@@ -54,6 +59,22 @@ func Init() {
 			err := config.ReadStickerConfig(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to read sticker config: %w", err)
+			}
+
+			err = task.ScheduleTask(ctx, task.Task{
+				Name:    "save_sticker_config",
+				Group:   "sticker",
+				Job:     job.NewFunctionJobWithDesc(
+					func(ctx context.Context) (int, error) {
+						config.SaveStickerConfig(ctx)
+						return 0, nil
+					},
+					"Save sticker config every 10 minutes",
+				),
+				Trigger: quartz.NewSimpleTrigger(10 * time.Minute),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to add auto save sticker config task: %w", err)
 			}
 
 			if config.Config.AllowDownloadStickerSet || config.Config.UseCollcetSticker {
@@ -222,16 +243,30 @@ func stickerHandler(opts *handler_params.Message) error {
 			stickerFilePrefix = "sticker"
 		} else {
 			var button [][]models.InlineKeyboardButton
+			var suffix string = stickerData.StickerSetName
+			if len(stickerData.StickerSetName) > 62 {
+				id := config.Config.GetOversizeSetIDByName(stickerData.StickerSetName)
+				if id == 0 {
+					config.Config.OversizeSetCount++
+					config.Config.OversizeSets = append(config.Config.OversizeSets, config.OversizeSet{
+						SetName: stickerData.StickerSetName,
+						SetID:   config.Config.OversizeSetCount,
+					})
+					suffix = fmt.Sprintf("_%d", config.Config.OversizeSetCount)
+				} else {
+					suffix = fmt.Sprintf("_%d", id)
+				}
+			}
 
 			if config.Config.AllowDownloadStickerSet {
 				if config.Config.DisableConvert {
 					button = [][]models.InlineKeyboardButton{
-						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) }},
+						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", suffix) }},
 					}
 				} else {
 					button = [][]models.InlineKeyboardButton{
-						{{ Text: "下载转换后的贴纸包", CallbackData: fmt.Sprintf("S_%s", opts.Message.Sticker.SetName) }},
-						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", opts.Message.Sticker.SetName) }},
+						{{ Text: "下载转换后的贴纸包", CallbackData: fmt.Sprintf("S_%s", suffix) }},
+						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", suffix) }},
 					}
 				}
 				documentParams.Caption += fmt.Sprintf("<a href=\"https://t.me/addstickers/%s\">%s</a> 贴纸包中一共有 %d 个贴纸\n", stickerData.StickerSetName, stickerData.StickerSetTitle, stickerData.StickerCount)
@@ -241,7 +276,7 @@ func stickerHandler(opts *handler_params.Message) error {
 			}
 
 			if config.Config.UseCollcetSticker {
-				collect.AddButton(opts.Message.Sticker.SetName, stickerData.StickerCount, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
+				collect.AddButton(suffix, stickerData.StickerCount, contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...), &button)
 			}
 
 			// 仅在不为自定义贴纸时显示下载整个贴纸包按钮
@@ -322,6 +357,51 @@ func stickerPackCallbackHandler(opts *handler_params.CallbackQuery) error {
 	} else {
 		setName = strings.TrimPrefix(opts.CallbackQuery.Data, "s_")
 		needConvert = false
+	}
+
+	// 有下划线开头即代表这是一个超出了长度的贴纸包，下划线后面的数据是一个 ID
+	// 解析这个 ID 并从 config.Config.OversizeSets 中拿到对应的贴纸包名称
+	if setName[0:1] == "_" {
+		setID, err := strconv.Atoi(strings.TrimPrefix(setName, "_"))
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msg("Failed to parser oversize sticker set ID")
+			handlerErr.Addf("failed to parser oversize sticker set ID [%s]: %w", setName, err)
+			_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: opts.CallbackQuery.ID,
+				Text:            "解析贴纸包 ID 失败，请重新尝试发送此贴纸再点击按钮",
+				ShowAlert:       true,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "failed to parser oversize sticker set ID notice").
+					Msg(flaterr.AnswerCallbackQuery.Str())
+				handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to parser oversize sticker set ID notice", err)
+			}
+			return handlerErr.Flat()
+		}
+		setName = config.Config.GetOversizeSetNameByID(setID)
+		if setName == "" {
+			logger.Error().
+				Int("setID", setID).
+				Msg("Failed to find oversize sticker set")
+			handlerErr.Addf("failed to find oversize sticker set [%d]", setID)
+			_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: opts.CallbackQuery.ID,
+				Text:            "未找到 ID 对应的贴纸包，请重新尝试发送此贴纸再点击按钮",
+				ShowAlert:       true,
+			})
+			if err != nil {
+				logger.Error().
+					Err(err).
+					Str("content", "no sticker set found for set ID notice").
+					Msg(flaterr.AnswerCallbackQuery.Str())
+				handlerErr.Addt(flaterr.AnswerCallbackQuery, "no sticker set found for set ID notice", err)
+			}
+			return handlerErr.Flat()
+		}
 	}
 
 	if lock.Download.TryLock() {
@@ -542,17 +622,31 @@ func stickerLinkHandler(opts *handler_params.Message) error {
 				handlerErr.Addt(flaterr.SendMessage, "get sticker set info error", err)
 			}
 		} else {
+			var suffix string = stickerSet.Name
+			if len(stickerSet.Name) > 62 {
+				id := config.Config.GetOversizeSetIDByName(stickerSet.Name)
+				if id == 0 {
+					config.Config.OversizeSetCount++
+					config.Config.OversizeSets = append(config.Config.OversizeSets, config.OversizeSet{
+						SetName: stickerSet.Name,
+						SetID:   config.Config.OversizeSetCount,
+					})
+					suffix = fmt.Sprintf("_%d", config.Config.OversizeSetCount)
+				} else {
+					suffix = fmt.Sprintf("_%d", id)
+				}
+			}
 			var button [][]models.InlineKeyboardButton
 
 			if config.Config.AllowDownloadStickerSet {
 				if config.Config.DisableConvert {
 					button = [][]models.InlineKeyboardButton{
-						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) }},
+						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", suffix) }},
 					}
 				} else {
 					button = [][]models.InlineKeyboardButton{
-						{{ Text: "下载转换后的贴纸包", CallbackData: fmt.Sprintf("S_%s", stickerSet.Name) }},
-						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", stickerSet.Name) }},
+						{{ Text: "下载转换后的贴纸包", CallbackData: fmt.Sprintf("S_%s", suffix) }},
+						{{ Text: "下载整个贴纸包（不转换格式）", CallbackData: fmt.Sprintf("s_%s", suffix) }},
 					}
 				}
 			}
