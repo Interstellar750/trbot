@@ -12,7 +12,7 @@ import (
 // 如果 `out` 结构体中有字段没有导出（以大写开头），那这个字段不会被读取到
 //
 // If there is a field in the `out` structure that is not exported (starting with an uppercase letter), this field cannot be read.
-func LoadYAML(pathToFile string, out interface{}) error {
+func LoadYAML(pathToFile string, out any) error {
 	file, err := os.ReadFile(pathToFile)
 	if err == nil {
 		err = yaml.Unmarshal(file, out)
@@ -26,7 +26,7 @@ func LoadYAML(pathToFile string, out interface{}) error {
 // 如果 `data` 结构体中有字段没有导出（以大写开头），那这个字段不会被保存
 //
 // If there is a field in the `data` structure that is not exported (starting with an uppercase letter), this field cannot be save.
-func SaveYAML(pathToFile string, data interface{}) error {
+func SaveYAML(pathToFile string, data any) error {
 	out, err := yaml.Marshal(data)
 	if err == nil {
 		err = os.MkdirAll(filepath.Dir(pathToFile), 0755)

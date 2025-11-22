@@ -38,7 +38,7 @@ func InitDatabase(ctx context.Context) {
 
 	database, err = yaml_db.Initialize(ctx)
 	if err != nil {
-		logger.Error().
+		logger.Fatal().
 			Err(err).
 			Msg("Failed to initialize database")
 	}
