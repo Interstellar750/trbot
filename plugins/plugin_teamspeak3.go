@@ -213,12 +213,11 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 			Err(err).
 			Int("failedCount", sc.s.CheckFailedCount).
 			Msg("Failed to get online client")
-		// 连不上服务器直接尝试重连
 		if err.Error() == "not connected" {
+			// 连不上服务器直接暂停人物为并尝试重连
 			sc.PauseCheckClientTask(ctx, true)
-		}
-		// 不是连不上服务器，则累积到五次后再重连
-		if sc.s.CheckFailedCount >= 5 {
+		} else if sc.s.CheckFailedCount >= 5 {
+			// 不是连不上服务器，则累积到五次后再重连
 			sc.PauseCheckClientTask(ctx, true)
 			botMessage, err := botInstance.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: sc.GroupID,
@@ -231,7 +230,10 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 					Str("content", "failed to check online client 5 times, start auto reconnect").
 					Msg(flaterr.SendMessage.Str())
 			} else {
-				sc.s.ReconnectMessageID = botMessage.ID
+				sc.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
+					Date: int(time.Now().Unix()),
+					ID:   botMessage.ID,
+				})
 			}
 		}
 		return
@@ -848,8 +850,6 @@ type Status struct {
 	IsMessagePinned bool
 
 	ResetTicker (chan bool)
-
-	ReconnectMessageID int
 
 	IsInRetryLoop bool
 
