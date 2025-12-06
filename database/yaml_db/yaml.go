@@ -7,11 +7,12 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-	"trbot/database/db_struct"
-	"trbot/utils"
-	"trbot/utils/configs"
-	"trbot/utils/task"
-	"trbot/utils/yaml"
+
+	"trle5.xyz/gopkg/trbot/database/db_struct"
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/utils/task"
+	"trle5.xyz/gopkg/trbot/utils/yaml"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/reugn/go-quartz/job"

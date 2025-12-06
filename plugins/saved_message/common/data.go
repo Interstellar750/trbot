@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"trbot/utils"
-	"trbot/utils/configs"
-	"trbot/utils/yaml"
+
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/utils/yaml"
 
 	"github.com/rs/zerolog"
 )

@@ -3,10 +3,11 @@ package internal_plugin
 import (
 	"fmt"
 	"strings"
-	"trbot/utils"
-	"trbot/utils/flaterr"
-	"trbot/utils/handler_params"
-	"trbot/utils/plugin_utils"
+
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/flaterr"
+	"trle5.xyz/gopkg/trbot/utils/handler_params"
+	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

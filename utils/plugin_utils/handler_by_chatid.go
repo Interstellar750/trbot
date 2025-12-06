@@ -1,10 +1,10 @@
 package plugin_utils
 
 import (
-	"trbot/utils"
-	"trbot/utils/flaterr"
-	"trbot/utils/handler_params"
-	"trbot/utils/type/update_utils"
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/flaterr"
+	"trle5.xyz/gopkg/trbot/utils/handler_params"
+	"trle5.xyz/gopkg/trbot/utils/type/update_utils"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"

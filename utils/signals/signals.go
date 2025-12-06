@@ -4,8 +4,9 @@ import (
 	"context"
 	"os"
 	"time"
-	"trbot/database"
-	"trbot/utils/plugin_utils"
+
+	"trle5.xyz/gopkg/trbot/database"
+	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
 
 	"github.com/rs/zerolog"
 )

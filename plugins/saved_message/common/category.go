@@ -2,7 +2,8 @@ package common
 
 import (
 	"strings"
-	"trbot/utils/type/message_utils"
+
+	"trle5.xyz/gopkg/trbot/utils/type/message_utils"
 )
 
 var ResultCategorys = InlineCategorys{

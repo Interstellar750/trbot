@@ -1,6 +1,6 @@
 package plugin_utils
 
-import "trbot/utils/handler_params"
+import "trle5.xyz/gopkg/trbot/utils/handler_params"
 
 // 为了兼容性考虑，建议请处理好 CallbackDatePrefix 的长度，因为 CallbackQuery 有长度限制，为 64 个字符。
 // 例如贴纸包名的长度最大为 62 个字符，再使用一个符号来隔开内容时，实际上能使用的识别字符长度只有一个字符。

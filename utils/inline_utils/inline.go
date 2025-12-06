@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"trbot/utils/configs"
-	"trbot/utils/type/contain"
+
+	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/utils/type/contain"
 
 	"github.com/go-telegram/bot/models"
 )

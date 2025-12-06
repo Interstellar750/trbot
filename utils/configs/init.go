@@ -8,7 +8,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"trbot/utils/yaml"
+
+	"trle5.xyz/gopkg/trbot/utils/yaml"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"

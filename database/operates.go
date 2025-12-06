@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 
-	"trbot/database/db_struct"
+	"trle5.xyz/gopkg/trbot/database/db_struct"
 
 	"github.com/go-telegram/bot/models"
 )

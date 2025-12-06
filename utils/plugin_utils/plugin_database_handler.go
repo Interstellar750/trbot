@@ -2,7 +2,8 @@ package plugin_utils
 
 import (
 	"context"
-	"trbot/utils"
+
+	"trle5.xyz/gopkg/trbot/utils"
 
 	"github.com/rs/zerolog"
 )

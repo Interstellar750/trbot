@@ -8,7 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"trbot/plugins/sticker_download/config"
+
+	"trle5.xyz/gopkg/trbot/plugins/sticker_download/config"
 
 	"golang.org/x/image/webp"
 )

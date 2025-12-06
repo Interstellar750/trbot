@@ -2,9 +2,10 @@ package database
 
 import (
 	"context"
-	"trbot/database/db_struct"
-	"trbot/database/yaml_db"
-	"trbot/utils/task"
+
+	"trle5.xyz/gopkg/trbot/database/db_struct"
+	"trle5.xyz/gopkg/trbot/database/yaml_db"
+	"trle5.xyz/gopkg/trbot/utils/task"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/reugn/go-quartz/job"

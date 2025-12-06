@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"time"
 
-	"trbot/database"
-	"trbot/utils"
-	"trbot/utils/configs"
-	"trbot/utils/internal_plugin"
-	"trbot/utils/signals"
-	"trbot/utils/task"
+	"trle5.xyz/gopkg/trbot/database"
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/utils/internal_plugin"
+	"trle5.xyz/gopkg/trbot/utils/signals"
+	"trle5.xyz/gopkg/trbot/utils/task"
 
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"
@@ -23,7 +23,9 @@ func main() {
 		bot.WithDefaultHandler(defaultHandler),
 		bot.WithAllowedUpdates(configs.BotConfig.AllowedUpdates),
 		bot.WithErrorsHandler(func(err error){ logger.Error().Err(err).Msg("go-telegram/bot") }),
+		// bot.WithDebugHandler(func(format string, args ...any){ logger.Debug().Msgf(format, args...) }),
 		bot.WithSkipGetMe(),
+		// bot.WithDebug(),
 	}...)
 	if err != nil { logger.Fatal().Err(err).Msg("Failed to create bot instance") }
 

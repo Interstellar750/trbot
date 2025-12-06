@@ -6,11 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"trbot/utils/configs"
-	"trbot/utils/handler_params"
-	"trbot/utils/inline_utils"
-	"trbot/utils/plugin_utils"
-	"trbot/utils/yaml"
+
+	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/utils/handler_params"
+	"trle5.xyz/gopkg/trbot/utils/inline_utils"
+	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
+	"trle5.xyz/gopkg/trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

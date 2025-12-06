@@ -11,11 +11,12 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"trbot/utils"
-	"trbot/utils/configs"
-	"trbot/utils/plugin_utils"
-	"trbot/utils/task"
-	"trbot/utils/yaml"
+
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
+	"trle5.xyz/gopkg/trbot/utils/task"
+	"trle5.xyz/gopkg/trbot/utils/yaml"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

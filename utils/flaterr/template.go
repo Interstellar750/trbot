@@ -21,12 +21,12 @@ const (
 	ForwardMessage         Msg = "Failed to forward message"
 )
 
-// return message as string
+// Str return message as string
 func (m Msg) Str() string {
 	return string(m)
 }
 
-// return a format string contains %s and %w
+// Fmt return a format string contains %s and %w
 //
 // %s is error content, %w is for error
 //

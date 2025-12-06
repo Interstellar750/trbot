@@ -10,11 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"trbot/plugins/sticker_download/common"
-	"trbot/plugins/sticker_download/config"
-	"trbot/plugins/sticker_download/convert"
-	"trbot/utils"
-	"trbot/utils/flaterr"
+
+	"trle5.xyz/gopkg/trbot/plugins/sticker_download/common"
+	"trle5.xyz/gopkg/trbot/plugins/sticker_download/config"
+	"trle5.xyz/gopkg/trbot/plugins/sticker_download/convert"
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/flaterr"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"trbot/database/db_struct"
-	"trbot/utils"
-	"trbot/utils/configs"
+	"trle5.xyz/gopkg/trbot/database/db_struct"
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/configs"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/redis/go-redis/v9"

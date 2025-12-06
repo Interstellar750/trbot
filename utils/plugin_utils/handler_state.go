@@ -3,9 +3,10 @@ package plugin_utils
 import (
 	"errors"
 	"fmt"
-	"trbot/utils"
-	"trbot/utils/flaterr"
-	"trbot/utils/handler_params"
+
+	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/gopkg/trbot/utils/flaterr"
+	"trle5.xyz/gopkg/trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
