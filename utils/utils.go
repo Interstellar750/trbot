@@ -183,7 +183,7 @@ func GetMessageFromHyperLink(msg *models.Message, ParseMode models.ParseMode) st
 			senderLink = fmt.Sprintf("<a href=\"https://t.me/%s\">%s</a>", msg.SenderChat.Username, ShowChatName(msg.SenderChat))
 		} else if attr.IsFromLinkedChannel || attr.IsFromAnonymous || attr.IsHasSenderChat {
 			senderLink = fmt.Sprintf("<a href=\"https://t.me/c/%s\">%s</a>", RemoveIDPrefix(msg.SenderChat.ID), ShowChatName(msg.SenderChat))
-		} else  if msg.From != nil {
+		} else if msg.From != nil {
 			senderLink = fmt.Sprintf("<a href=\"https://t.me/@id%d\">%s</a>", msg.From.ID, ShowUserName(msg.From))
 		}
 	default:

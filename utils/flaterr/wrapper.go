@@ -2,88 +2,119 @@ package flaterr
 
 import (
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/rs/zerolog"
 )
 
-type ErrWrapper struct {
-	event        zerolog.Event
-	err          error
+type Wrapper struct {
+	event   *zerolog.Event
+	multErr *MultErr
 
-	flatErr     *MultErr
-	errForflat   error
+	isDiscard bool
 
-	errContent   string
-	msgTemplate  Msg
+	err error
 
-	mBool     map[string]bool
-	mInt      map[string]int
-	mInt64    map[string]int64
-	mFloat64  map[string]float64
-	mStr      map[string]string
+	fields
 }
 
+type fields struct {
+	mBool    map[string]bool
+	mInt     map[string]int
+	mInt64   map[string]int64
+	mFloat64 map[string]float64
+	mStr     map[string]string
+}
 
-func LogWithErr(zerolog *zerolog.Logger, mErr *MultErr) *ErrWrapper {
-	return &ErrWrapper{
-		event: *zerolog.Error(),
-		flatErr:  mErr,
-
-		mBool:    map[string]bool{},
-		mInt:     map[string]int{},
-		mInt64:   map[string]int64{},
-		mFloat64: map[string]float64{},
-		mStr:     map[string]string{},
+// NewWrapper 传入一个 zerolog.Event 和 MultErr, 返回一个 Wrapper 等待后续链式调用
+func NewWrapper(errEvent *zerolog.Event) *Wrapper {
+	return &Wrapper{
+		event:   errEvent,
+		multErr: &MultErr{},
 	}
 }
 
-// 传入 MultErr, 并返回一个 ErrWrapper 等待后续链式调用
-func Wrapper(handlerErr *MultErr) *ErrWrapper {
-	return &ErrWrapper{
-		flatErr:  handlerErr,
+// Flat 返回 multErr 中的 Flat 方法
+func (ew *Wrapper) Flat() error {
+	return ew.multErr.Flat()
+}
 
-		mBool:    map[string]bool{},
-		mInt:     map[string]int{},
-		mInt64:   map[string]int64{},
-		mFloat64: map[string]float64{},
-		mStr:     map[string]string{},
+// Err 记录错误等待后续链式调用
+func (ew *Wrapper) Err(err error) *Wrapper {
+	newEvent := *ew.event
+	return &Wrapper{
+		event:   newEvent.Err(err),
+		multErr: ew.multErr,
+		err:     err,
 	}
 }
 
-// 以错误模板发送日志和添加错误
-func (ew *ErrWrapper) Tpl(msg Msg) *ErrWrapper {
-	ew.msgTemplate = msg
-	return ew
+// ErrIf 如果 err 为 nil，则忽略后续的链式调用
+func (ew *Wrapper) ErrIf(err error) *Wrapper {
+	if err == nil {
+		return &Wrapper{ isDiscard: true }
+	}
+	newEvent := *ew.event
+	return &Wrapper{
+		event:   newEvent.Err(err),
+		multErr: ew.multErr,
+		err:     err,
+	}
 }
 
-// log 信息，错误信息
-func (ew *ErrWrapper) Msg(log string) *ErrWrapper {
-	ew.mStr["message"] = log
-	return ew
+// Msg 为错误的描述，作为 err 的前缀
+func (ew *Wrapper) Msg(msg string) {
+	if ew.isDiscard { return }
+
+	// ew.buildFields()
+	fieldStr := ew.buildFieldsString()
+
+	if msg != "" {
+		// 没有模板用 msg 和 error-wrapping
+		// ew.multErr.Addf("%s: %w", msg, ew.err)
+		ew.multErr.Addf("%s%s: %w", msg, fieldStr, ew.err)
+
+		// 按模板发日志
+		ew.event.Msg(msg)
+	} else {
+		// 什么都没有，直接塞到 multErr 里
+		ew.multErr.Add(ew.err)
+
+		// 直接发日志
+		ew.event.Send()
+	}
+
 }
 
-func (ew *ErrWrapper) Addf(format string, a ...any) *ErrWrapper {
-	ew.errForflat = fmt.Errorf(format, a...)
-	return ew
+func (ew *Wrapper) MsgT(tmpl Msg, cont string) {
+	if ew.isDiscard { return }
+
+	ew.buildFields()
+	ew.event = ew.event.Str("content", cont)
+
+	// 有模板用模板
+	ew.multErr.Addt(tmpl, cont, ew.err)
+
+	// 按模板发日志
+	ew.event.Msg(tmpl.Str())
 }
 
-// 错误内容 错误模板
-
-// 将字段注入 zerolog.Event 并返回一个空的函数
-func (ew *ErrWrapper) Done(){
-	// ew.event.Msg("")
-	if ew.errForflat != nil {
-		ew.flatErr.Add(ew.errForflat)
-	}
-	if ew.err != nil {
-		ew.event.Err(ew.err)
-	}
-	if ew.errContent != "" {
-		ew.event.Str("content", ew.errContent)
-	}
+func (ew *Wrapper) buildFields() {
 	for k, v := range ew.mBool    { ew.event.Bool(k, v) }
 	for k, v := range ew.mInt     { ew.event.Int(k, v) }
 	for k, v := range ew.mInt64   { ew.event.Int64(k, v) }
-	for k, v := range ew.mStr     { ew.event.Str(k, v) }
 	for k, v := range ew.mFloat64 { ew.event.Float64(k, v) }
+	for k, v := range ew.mStr     { ew.event.Str(k, v) }
+}
+
+func (ew *Wrapper) buildFieldsString() string {
+	var sb strings.Builder
+	sb.WriteString(` {"fields": {`)
+	for k, v := range ew.mBool    { ew.event.Bool(k, v);    sb.WriteString(fmt.Sprintf(`"%s": %v, `, k, v)) }
+	for k, v := range ew.mInt     { ew.event.Int(k, v);     sb.WriteString(fmt.Sprintf(`"%s": %v, `, k, v)) }
+	for k, v := range ew.mInt64   { ew.event.Int64(k, v);   sb.WriteString(fmt.Sprintf(`"%s": %v, `, k, v)) }
+	for k, v := range ew.mFloat64 { ew.event.Float64(k, v); sb.WriteString(fmt.Sprintf(`"%s": %v, `, k, v)) }
+	for k, v := range ew.mStr     { ew.event.Str(k, v);     sb.WriteString(fmt.Sprintf(`"%s": "%v", `, k, v)) }
+	return strings.TrimRight(sb.String(), ", ") + "}}"
 }

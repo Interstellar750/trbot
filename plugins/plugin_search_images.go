@@ -89,6 +89,7 @@ var searchURLs = []SearchEngines{
 	// },
 }
 
+// sendSearchLinks 用于响应 /searchlinks 命令
 func sendSearchLinks(opts *handler_params.Message) error {
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -159,8 +160,8 @@ func sendSearchLinks(opts *handler_params.Message) error {
 	return handlerErr.Flat()
 }
 
+// searchImageHandler 作为 ByMessageTypeHandler 自动处理图片
 func searchImageHandler(opts *handler_params.Message) error {
-
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
 		Str("pluginName", "search_images").
@@ -168,50 +169,30 @@ func searchImageHandler(opts *handler_params.Message) error {
 		Dict(utils.GetUserDict(opts.Message.From)).
 		Logger()
 
-	var handlerErr flaterr.MultErr
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Message)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Error when cache photo")
-		handlerErr.Addf("error when cache photo: %w", err)
+		wrap.Err(err).Str("path", photoPath).Msg("Error when cache photo")
 		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID: opts.Message.Chat.ID,
 			Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 			ParseMode: models.ParseModeHTML,
 		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "photo cache error").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "photo cache error", err)
-		}
-	} else {
-		// linkPreviewURL := imageBaseURL + photoPath
-		_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
-			ChatID: opts.Message.Chat.ID,
-			Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
-			ReplyMarkup: buildSearchLinksKeboard(photoPath),
-			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
-			// LinkPreviewOptions: &models.LinkPreviewOptions{
-			// 	URL: &linkPreviewURL,
-			// 	PreferSmallMedia: bot.True(),
-			// 	ShowAboveText: bot.True(),
-			// },
-		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "search images link buttons").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "search images link buttons", err)
-		}
+		wrap.ErrIf(err).MsgT(flaterr.SendMessage, "photo cache error")
+		return wrap.Flat()
 	}
 
-	return handlerErr.Flat()
+	_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
+		ChatID: opts.Message.Chat.ID,
+		Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
+		ReplyMarkup: buildSearchLinksKeboard(photoPath),
+		ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
+	})
+	wrap.ErrIf(err).MsgT(flaterr.SendMessage, "search images link buttons")
+
+	return wrap.Flat()
 }
 
 func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (string, error) {
@@ -220,6 +201,8 @@ func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (s
 		Str("pluginName", "search_images").
 		Str(utils.GetCurrentFuncName()).
 		Logger()
+
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	var photoFileName string = fmt.Sprintf("%d-%s.jpg", msg.From.ID, msg.Photo[len(msg.Photo)-1].FileID)
 	var photoFullPath string = filepath.Join(photoCachedDir, photoFileName)
@@ -232,60 +215,53 @@ func downloadPhoto(ctx context.Context, thebot *bot.Bot, msg *models.Message) (s
 				FileID: msg.Photo[len(msg.Photo)-1].FileID,
 			})
 			if err != nil {
-				logger.Error().
-					Err(err).
+				wrap.Err(err).
 					Str("fileID", msg.Photo[len(msg.Photo)-1].FileID).
-					Str("content", "photo file").
-					Msg(flaterr.GetFile.Str())
-				return "", fmt.Errorf(flaterr.GetFile.Fmt(), msg.Photo[len(msg.Photo)-1].FileID, err)
+					MsgT(flaterr.GetFile, "photo file")
+				return "", wrap.Flat()
 			} else {
 				// 组合链接下载图片源文件
 				resp, err := http.Get(thebot.FileDownloadLink(fileInfo))
 				if err != nil {
-					logger.Error().
-						Err(err).
+					wrap.Err(err).
 						Str("filePath", fileInfo.FilePath).
 						Msg("Failed to download photo file")
-					return "", fmt.Errorf("failed to download photo file [%s]: %w", fileInfo.FilePath, err)
+					return "", wrap.Flat()
 				}
 				defer resp.Body.Close()
 
 				// 创建目录
 				err = os.MkdirAll(photoCachedDir, 0755)
 				if err != nil {
-					logger.Error().
-						Err(err).
+					wrap.Err(err).
 						Str("photoCachedDir", photoCachedDir).
 						Msg("Failed to create directory to cache photo")
-					return "", fmt.Errorf("failed to create directory [%s] to cache photo: %w", photoCachedDir, err)
+					return "", wrap.Flat()
 				}
 
 				downloadedPhoto, err := os.Create(photoFullPath)
 				if err != nil {
-					logger.Error().
-						Err(err).
+					wrap.Err(err).
 						Str("photoFullPath", photoFullPath).
 						Msg("Failed to create photo file")
-					return "", fmt.Errorf("failed to create photo file [%s]: %w", photoFullPath, err)
+					return "", wrap.Flat()
 				}
 				defer downloadedPhoto.Close()
 
 				// 将下载的原图片写入空文件
 				_, err = io.Copy(downloadedPhoto, resp.Body)
 				if err != nil {
-					logger.Error().
-						Err(err).
+					wrap.Err(err).
 						Str("photoFullPath", photoFullPath).
 						Msg("Failed to writing photo data to file")
-					return "", fmt.Errorf("failed to writing photo data to file [%s]: %w", photoFullPath, err)
+					return "", wrap.Flat()
 				}
 			}
 		} else {
-			logger.Error().
-				Err(err).
+			wrap.Err(err).
 				Str("photoFullPath", photoFullPath).
 				Msg("Failed to read cached photo file info")
-			return "", fmt.Errorf("failed to read cached photo file [%s] info: %w", photoFullPath, err)
+			return "", wrap.Flat()
 		}
 	} else {
 		// 文件已存在，跳过下载
