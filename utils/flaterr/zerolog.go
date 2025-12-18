@@ -1,5 +1,9 @@
 package flaterr
 
+import (
+	"github.com/rs/zerolog"
+)
+
 
 func (ew *Wrapper) Bool(key string, val bool) *Wrapper {
 	if key != "" {
@@ -42,6 +46,24 @@ func (ew *Wrapper) Str(key string, val string) *Wrapper {
 		ew.event.Str(key, val)
 		if ew.mStr == nil { ew.mStr = map[string]string{} }
 		ew.mStr[key] = val
+	}
+	return ew
+}
+
+func (ew *Wrapper) Dict(key string, val *zerolog.Event) *Wrapper {
+	if key != "" {
+		ew.event.Dict(key, val)
+		if ew.mDict == nil { ew.mDict = map[string]*zerolog.Event{} }
+		ew.mDict[key] = val
+	}
+	return ew
+}
+
+func (ew *Wrapper) Ints(key string, val []int) *Wrapper {
+	if key != "" {
+		ew.event.Ints(key, val)
+		if ew.mInts == nil { ew.mInts = map[string][]int{} }
+		ew.mInts[key] = val
 	}
 	return ew
 }

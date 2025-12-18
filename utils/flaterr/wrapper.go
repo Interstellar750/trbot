@@ -2,7 +2,6 @@ package flaterr
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -25,6 +24,8 @@ type fields struct {
 	mInt64   map[string]int64
 	mFloat64 map[string]float64
 	mStr     map[string]string
+	mDict    map[string]*zerolog.Event
+	mInts    map[string][]int
 }
 
 // NewWrapper 传入一个 zerolog.Event 和 MultErr, 返回一个 Wrapper 等待后续链式调用
@@ -106,6 +107,8 @@ func (ew *Wrapper) buildFields() {
 	for k, v := range ew.mInt64   { ew.event.Int64(k, v) }
 	for k, v := range ew.mFloat64 { ew.event.Float64(k, v) }
 	for k, v := range ew.mStr     { ew.event.Str(k, v) }
+	for k, v := range ew.mDict    { ew.event.Dict(k, v) }
+	for k, v := range ew.mInts    { ew.event.Ints(k, v) }
 }
 
 func (ew *Wrapper) buildFieldsString() string {
@@ -116,5 +119,6 @@ func (ew *Wrapper) buildFieldsString() string {
 	for k, v := range ew.mInt64   { ew.event.Int64(k, v);   sb.WriteString(fmt.Sprintf(`"%s": %v, `, k, v)) }
 	for k, v := range ew.mFloat64 { ew.event.Float64(k, v); sb.WriteString(fmt.Sprintf(`"%s": %v, `, k, v)) }
 	for k, v := range ew.mStr     { ew.event.Str(k, v);     sb.WriteString(fmt.Sprintf(`"%s": "%v", `, k, v)) }
+	for k, v := range ew.mInts    { ew.event.Ints(k, v) }
 	return strings.TrimRight(sb.String(), ", ") + "}}"
 }

@@ -99,7 +99,7 @@ func sendSearchLinks(opts *handler_params.Message) error {
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
 
-	var handlerErr flaterr.MultErr
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	if opts.Message.ReplyToMessage == nil || opts.Message.ReplyToMessage.Photo == nil {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -107,57 +107,30 @@ func sendSearchLinks(opts *handler_params.Message) error {
 			Text:      "使用此命令回复一张图片来获得搜索链接",
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "need reply to a photo").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "need reply to a photo", err)
-		}
+		wrap.ErrIf(err).MsgT(flaterr.SendMessage, "need reply to a photo")
 	} else {
 		photoPath, err := downloadPhoto(opts.Ctx, opts.Thebot, opts.Message.ReplyToMessage)
 		if err != nil {
-			logger.Error().
-				Err(err).
-				Msg("Error when cache photo")
-			handlerErr.Addf("error when cache photo: %w", err)
+			wrap.Err(err).Msg("error when download photo")
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Message.Chat.ID,
 				Text:   fmt.Sprintf("缓存图片时发生错误: <blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error())),
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
 				ParseMode: models.ParseModeHTML,
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "photo cache error").
-					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addt(flaterr.SendMessage, "photo cache error", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.SendMessage, "photo cache error")
 		} else {
-			// linkPreviewURL := imageBaseURL + photoPath
 			_, err = opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Message.Chat.ID,
 				Text: "选择一个搜索图片的搜索引擎\n此功能灵感来源于 @soutubot",
 				ReplyMarkup: buildSearchLinksKeboard(photoPath),
 				ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ReplyToMessage.ID },
-				// LinkPreviewOptions: &models.LinkPreviewOptions{
-				// 	URL: &linkPreviewURL,
-				// 	PreferSmallMedia: bot.True(),
-				// 	ShowAboveText: bot.True(),
-				// },
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "search images link buttons").
-					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addt(flaterr.SendMessage, "search images link buttons", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.SendMessage, "search images link buttons")
 		}
 	}
 
-	return handlerErr.Flat()
+	return wrap.Flat()
 }
 
 // searchImageHandler 作为 ByMessageTypeHandler 自动处理图片
