@@ -427,7 +427,7 @@ func messageHandler(opts *handler_params.Message) {
 	// 判断是否为命令
 	if isProcessed, err := plugin_utils.RunCommandHandlers(opts); isProcessed {
 		if err != nil {
-			logger.
+			logger.Error().
 				Err(err).
 				Msg("Error when running command handler")
 		}

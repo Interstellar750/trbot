@@ -55,4 +55,5 @@ func (e *MultErr) Flat() error {
 		return errors.Join(e.Errors...)
 	}
 
-	return nil}
+	return nil
+}
