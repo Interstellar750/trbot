@@ -207,6 +207,9 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
+	sc.rw.Lock()
+	defer sc.rw.Unlock()
+
 	onlineClients, err := sc.c.Server.ClientList()
 	if err != nil {
 		sc.s.CheckFailedCount++
@@ -696,12 +699,6 @@ func (sc *ServerConfig) CheckPinnedMessage(ctx context.Context) {
 
 // IsPinnedMessageCanEdit 当 sc.PinnedMessageID 不为 0 时检查是否可以编辑被固定的消息
 func (sc *ServerConfig) IsPinnedMessageCanEdit(ctx context.Context) bool {
-	logger := zerolog.Ctx(ctx).
-		With().
-		Str("pluginName", "teamspeak3").
-		Str(utils.GetCurrentFuncName()).
-		Logger()
-
 	if sc.PinnedMessageID != 0 {
 		_, err := botInstance.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:    sc.GroupID,
@@ -713,14 +710,16 @@ func (sc *ServerConfig) IsPinnedMessageCanEdit(ctx context.Context) bool {
 				// 机器人重启的太快，导致消息文本相同，但实际上还是能编辑的
 				return true
 			}
-			logger.Error().
+			zerolog.Ctx(ctx).Error().
 				Err(err).
+				Str("pluginName", "teamspeak3").
+				Str(utils.GetCurrentFuncName()).
 				Int64("chatID", sc.GroupID).
 				Str("content", "start listen teamspeak user changes").
 				Msg(flaterr.EditMessageText.Str())
-		} else {
-			return true
+			return false
 		}
+		return true
 	}
 
 	return false
