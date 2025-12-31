@@ -138,7 +138,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 		Dict(utils.GetChatDict(&opts.Message.Chat)).
 		Logger()
 
-	var handlerErr flaterr.MultErr
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	if opts.Message.Chat.Type == models.ChatTypePrivate {
 		_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
@@ -146,13 +146,7 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 			Text:            "此功能被设计为仅在群组中可用",
 			ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "limit message only allows in group").
-				Msg(flaterr.SendMessage.Str())
-			handlerErr.Addt(flaterr.SendMessage, "limit message only allows in group", err)
-		}
+		wrap.ErrIf(err).MsgT(flaterr.SendMessage, "limit message only allows in group")
 	} else {
 		if utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.Message.Chat.ID, opts.Message.From.ID) {
 			thisChat := LimitMessageList[opts.Message.Chat.ID]
@@ -170,59 +164,30 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 					Text:   "Limit Message 菜单",
 					ReplyMarkup: buildMessageAllKB(thisChat),
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "limit message main menu").
-						Msg(flaterr.SendMessage.Str())
-					handlerErr.Addt(flaterr.SendMessage, "limit message main menu", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.SendMessage, "limit message main menu")
 				_, err = opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 					ChatID: opts.Message.Chat.ID,
 					MessageID: opts.Message.ID,
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "limit message command").
-						Msg(flaterr.DeleteMessage.Str())
-					handlerErr.Addt(flaterr.DeleteMessage, "limit message command", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.DeleteMessage, "limit message command")
 				if isNeedInit {
 				LimitMessageList[opts.Message.Chat.ID] = thisChat
 					err = SaveLimitMessageList(opts.Ctx)
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Msg("Failed to save limit message list after adding new chat")
-						handlerErr.Addf("failed to save limit message list after adding new chat: %w", err)
-					}
+					wrap.ErrIf(err).Msg("Failed to save limit message list after adding new chat")
 				}
 			} else {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID: opts.Message.Chat.ID,
 					Text:   "启用此功能前，请先将机器人设为管理员\n如果还是提示本消息，请检查机器人是否有删除消息的权限",
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "bot need be admin and have delete message permission").
-						Msg(flaterr.SendMessage.Str())
-					handlerErr.Addt(flaterr.SendMessage, "bot need be admin and have delete message permission", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.SendMessage, "bot need be admin and have delete message permission")
 			}
 		} else {
 			botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 				ChatID: opts.Message.Chat.ID,
 				Text:   "抱歉，您不是群组的管理员，无法为群组更改此功能",
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "non-admin can not change limit message config").
-					Msg(flaterr.SendMessage.Str())
-				handlerErr.Addt(flaterr.SendMessage, "non-admin can not change limit message config", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.SendMessage, "non-admin can not change limit message config")
 			time.Sleep(time.Second * 5)
 			_, err = opts.Thebot.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
 				ChatID: opts.Message.Chat.ID,
@@ -231,17 +196,11 @@ func SomeMessageOnlyHandler(opts *handler_params.Message) error {
 					botMessage.ID,
 				},
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "non-admin can not change limit message config").
-					Msg(flaterr.DeleteMessages.Str())
-				handlerErr.Addt(flaterr.DeleteMessages, "non-admin can not change limit message config", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.DeleteMessages, "non-admin can not change limit message config")
 		}
 	}
 
-	return handlerErr.Flat()
+	return wrap.Flat()
 }
 
 func DeleteNotAllowMessage(opts *handler_params.Message) error {
@@ -254,7 +213,7 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 		Int("messageID", opts.Message.ID).
 		Logger()
 
-	var handlerErr flaterr.MultErr
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	var deleteAction bool
 	var deleteHelp   string = "当前模式："
@@ -312,26 +271,17 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 						},
 					}}},
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "test mode delete message notification").
-						Msg(flaterr.SendMessage.Str())
-					handlerErr.Addt(flaterr.SendMessage, "test mode delete message notification", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.SendMessage, "test mode delete message notification")
 			} else if deleteAction {
 				_, err := opts.Thebot.DeleteMessage(opts.Ctx, &bot.DeleteMessageParams{
 					ChatID:    opts.Message.Chat.ID,
 					MessageID: opts.Message.ID,
 				})
 				if err != nil {
-					logger.Error().
-						Err(err).
+					wrap.Err(err).
 						Str("messageType", thisMsgType.Str()).
-						Str("content", "message trigger limit message rules").
 						Bool("IsLogicAnd", thisChat.IsLogicAnd).
-						Msg(flaterr.DeleteMessage.Str())
-					handlerErr.Addt(flaterr.DeleteMessage, "message trigger limit message rules", err)
+						MsgT(flaterr.DeleteMessage, "message trigger limit message rules")
 				} else {
 					logger.Info().
 						Str("messageType", thisMsgType.Str()).
@@ -341,7 +291,7 @@ func DeleteNotAllowMessage(opts *handler_params.Message) error {
 			}
 		}
 	}
-	return handlerErr.Flat()
+	return wrap.Flat()
 }
 
 func CheckMessageType(this, target message_utils.Message, IsWhiteList bool) (bool, string) {
@@ -574,7 +524,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 
-	var handlerErr flaterr.MultErr
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	if !utils.UserIsAdmin(opts.Ctx, opts.Thebot, opts.CallbackQuery.Message.Message.Chat.ID, opts.CallbackQuery.From.ID) {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -582,13 +532,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 			Text: "您没有权限修改此配置",
 			ShowAlert: true,
 		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "no permission to change limit message config").
-				Msg(flaterr.AnswerCallbackQuery.Str())
-			handlerErr.Addt(flaterr.AnswerCallbackQuery, "no permission to change limit message config", err)
-		}
+		wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "no permission to change limit message config")
 	} else {
 		thisChat := LimitMessageList[opts.CallbackQuery.Message.Message.Chat.ID]
 
@@ -598,23 +542,13 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 
 		switch opts.CallbackQuery.Data {
 		case "limitmsg_typekb":
-			// opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
-			// 	CallbackQueryID: opts.CallbackQuery.ID,
-			// 	Text: "已选择消息类型",
-			// })
 			_, err := opts.Thebot.EditMessageText(opts.Ctx, &bot.EditMessageTextParams{
 				ChatID: opts.CallbackQuery.Message.Message.Chat.ID,
 				MessageID: opts.CallbackQuery.Message.Message.ID,
 				Text: utils.TextForTrueOrFalse(thisChat.IsWhiteForType, "白名单模式", "黑名单模式") + ": " + utils.TextForTrueOrFalse(thisChat.IsWhiteForType, "仅允许发送选中的项目，其他消息将被删除", "将删除选中的项目"),
 				ReplyMarkup: buildMessageTypeKB(thisChat),
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "limit message type keyboard").
-					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addt(flaterr.EditMessageText, "limit message type keyboard", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.EditMessageText, "limit message type keyboard")
 		case "limitmsg_typekb_switchrule":
 			thisChat.IsWhiteForType = !thisChat.IsWhiteForType
 			needSavelimitMessageList = true
@@ -626,13 +560,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 				Text: utils.TextForTrueOrFalse(thisChat.IsWhiteForAttribute, "白名单模式", "黑名单模式") + ": " + utils.TextForTrueOrFalse(thisChat.IsWhiteForAttribute, "仅允许发送选中的项目，其他消息将被删除", "将删除选中的项目") + "\n有一些项目可能无法使用",
 				ReplyMarkup: buildMessageAttributeKB(thisChat),
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "limit message attribute keyboard").
-					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addt(flaterr.EditMessageText, "limit message attribute keyboard", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.EditMessageText, "limit message attribute keyboard")
 		case "limitmsg_attrkb_switchrule":
 			thisChat.IsWhiteForAttribute = !thisChat.IsWhiteForAttribute
 			needSavelimitMessageList = true
@@ -666,13 +594,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					CallbackData: "delete_this_message",
 				}}}},
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "test mode turned off notice").
-					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addt(flaterr.EditMessageText, "test mode turned off notice", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.EditMessageReplyMarkup, "test mode turned off notice")
 		default:
 			if strings.HasPrefix(opts.CallbackQuery.Data, "limitmsg_type_") {
 				needSavelimitMessageList = true
@@ -695,13 +617,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					MessageID: opts.CallbackQuery.Message.Message.ID,
 					ReplyMarkup: buildMessageTypeKB(thisChat),
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "limit message type keyboard").
-						Msg(flaterr.EditMessageReplyMarkup.Str())
-					handlerErr.Addt(flaterr.EditMessageReplyMarkup, "limit message type keyboard", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.EditMessageReplyMarkup, "limit message type keyboard")
 			} else if strings.HasPrefix(opts.CallbackQuery.Data, "limitmsg_attr_") {
 				needSavelimitMessageList = true
 				callbackField := strings.TrimPrefix(opts.CallbackQuery.Data, "limitmsg_attr_")
@@ -723,13 +639,7 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 					MessageID: opts.CallbackQuery.Message.Message.ID,
 					ReplyMarkup: buildMessageAttributeKB(thisChat),
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "limit message attribute keyboard").
-						Msg(flaterr.EditMessageReplyMarkup.Str())
-					handlerErr.Addt(flaterr.EditMessageReplyMarkup, "limit message attribute keyboard", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.EditMessageReplyMarkup, "limit message attribute keyboard")
 			}
 		}
 
@@ -737,22 +647,13 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 			LimitMessageList[opts.CallbackQuery.Message.Message.Chat.ID] = thisChat
 			err := SaveLimitMessageList(opts.Ctx)
 			if err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Failed to save limit message list")
-				handlerErr.Addf("failed to save limit message list: %w", err)
+				wrap.Err(err).Msg("Failed to save limit message list")
 				_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
 					CallbackQueryID: opts.CallbackQuery.ID,
 					Text:            "保存修改失败，请重试或联系机器人管理员\n" + err.Error(),
 					ShowAlert:       true,
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "failed to save limit message list notice").
-						Msg(flaterr.AnswerCallbackQuery.Str())
-					handlerErr.Addt(flaterr.AnswerCallbackQuery, "failed to save limit message list notice", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "failed to save limit message list notice")
 			}
 		}
 
@@ -767,17 +668,11 @@ func LimitMessageCallback(opts *handler_params.CallbackQuery) error {
 				Text:   "Limit Message 菜单",
 				ReplyMarkup: buildMessageAllKB(thisChat),
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "limit message main menu").
-					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addt(flaterr.EditMessageText, "limit message main menu", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.EditMessageText, "limit message main menu")
 		}
 	}
 
-	return handlerErr.Flat()
+	return wrap.Flat()
 }
 
 func buildLimitGroupList() {

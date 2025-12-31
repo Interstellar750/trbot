@@ -1145,7 +1145,7 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 		Str("callbackQueryData", opts.CallbackQuery.Data).
 		Logger()
 
-	var handlerErr flaterr.MultErr
+	wrap := flaterr.NewWrapper(logger.Error())
 
 	if contain.Int64(opts.CallbackQuery.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsConfig.GroupID)...) || contain.Int64(opts.CallbackQuery.From.ID, configs.BotConfig.AdminIDs...) {
 		var needEdit     bool = true
@@ -1161,13 +1161,7 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 					Text:            "您至少要保留一个检测用户变动的方式",
 					ShowAlert:       true,
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "at least need one notice method").
-						Msg(flaterr.AnswerCallbackQuery.Str())
-					handlerErr.Addt(flaterr.AnswerCallbackQuery, "at least need one notice method", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "at least need one notice method")
 			} else {
 				tsConfig.PinMessageMode = !tsConfig.PinMessageMode
 				needSave = true
@@ -1192,13 +1186,7 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 					Text:            "您至少要保留一个检测用户变动的方式",
 					ShowAlert:       true,
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "at least need one notice method").
-						Msg(flaterr.AnswerCallbackQuery.Str())
-					handlerErr.Addt(flaterr.AnswerCallbackQuery, "at least need one notice method", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "at least need one notice method")
 			} else {
 				tsConfig.SendMessageMode = !tsConfig.SendMessageMode
 				needSave = true
@@ -1224,13 +1212,7 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 					Text:            "您的操作已保存，但因为删除消息的任务没有添加成功，无法自动删除消息，请尝试重启机器人",
 					ShowAlert:       true,
 				})
-				if err != nil {
-					logger.Error().
-						Err(err).
-						Str("content", "delete message task not scheduled").
-						Msg(flaterr.AnswerCallbackQuery.Str())
-					handlerErr.Addt(flaterr.AnswerCallbackQuery, "delete message task not scheduled", err)
-				}
+				wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "delete message task not scheduled")
 			}
 		}
 
@@ -1241,23 +1223,12 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 				Text:      "选择通知用户变动的方式",
 				ReplyMarkup: tsConfig.BuildConfigKeyboard(),
 			})
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Str("content", "teamspeak manage keyboard").
-					Msg(flaterr.EditMessageText.Str())
-				handlerErr.Addt(flaterr.EditMessageText, "teamspeak manage keyboard", err)
-			}
+			wrap.ErrIf(err).MsgT(flaterr.EditMessageText, "teamspeak manage keyboard")
 		}
 
 		if needSave {
 			err := saveTeamspeakData(opts.Ctx)
-			if err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Failed to save teamspeak data")
-				handlerErr.Addf("failed to save teamspeak data: %w", err)
-			}
+			wrap.ErrIf(err).Msg("failed to save teamspeak data")
 		}
 	} else {
 		_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
@@ -1265,14 +1236,8 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 			Text:            "您没有权限修改此内容",
 			ShowAlert:       true,
 		})
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("content", "no permission to change teamspeak config").
-				Msg(flaterr.AnswerCallbackQuery.Str())
-			handlerErr.Addt(flaterr.AnswerCallbackQuery, "no permission to change teamspeak config", err)
-		}
+		wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "no permission to change teamspeak config")
 	}
 
-	return handlerErr.Flat()
+	return wrap.Flat()
 }
