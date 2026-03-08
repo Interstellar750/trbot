@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"trle5.xyz/gopkg/trbot/plugins/sticker_download/convert"
-	"trle5.xyz/gopkg/trbot/plugins/sticker_download/lock"
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/configs"
-	"trle5.xyz/gopkg/trbot/utils/flaterr"
-	"trle5.xyz/gopkg/trbot/utils/handler_params"
+	"trle5.xyz/trbot/plugins/sticker_download/convert"
+	"trle5.xyz/trbot/plugins/sticker_download/lock"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/configs"
+	"trle5.xyz/trbot/utils/flaterr"
+	"trle5.xyz/trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

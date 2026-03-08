@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"trle5.xyz/gopkg/trbot/utils/configs"
-	"trle5.xyz/gopkg/trbot/utils/type/contain"
-	"trle5.xyz/gopkg/trbot/utils/type/message_utils"
+	"trle5.xyz/trbot/utils/configs"
+	"trle5.xyz/trbot/utils/type/contain"
+	"trle5.xyz/trbot/utils/type/message_utils"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-telegram/bot"

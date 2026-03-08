@@ -9,12 +9,12 @@ else
     CHANGES := $(shell git status -s | wc -l)
 endif
 HOSTNAME := $(shell hostname)
-LDFLAGS  := -X 'trle5.xyz/gopkg/trbot/utils/configs.Commit=$(COMMIT)' \
-            -X 'trle5.xyz/gopkg/trbot/utils/configs.Branch=$(BRANCH)' \
-            -X 'trle5.xyz/gopkg/trbot/utils/configs.Version=$(VERSION)' \
-            -X 'trle5.xyz/gopkg/trbot/utils/configs.Changes=$(CHANGES)' \
-            -X 'trle5.xyz/gopkg/trbot/utils/configs.BuildAt=$(TIME)' \
-            -X 'trle5.xyz/gopkg/trbot/utils/configs.BuildOn=$(HOSTNAME)'
+LDFLAGS  := -X 'trle5.xyz/trbot/utils/configs.Commit=$(COMMIT)' \
+            -X 'trle5.xyz/trbot/utils/configs.Branch=$(BRANCH)' \
+            -X 'trle5.xyz/trbot/utils/configs.Version=$(VERSION)' \
+            -X 'trle5.xyz/trbot/utils/configs.Changes=$(CHANGES)' \
+            -X 'trle5.xyz/trbot/utils/configs.BuildAt=$(TIME)' \
+            -X 'trle5.xyz/trbot/utils/configs.BuildOn=$(HOSTNAME)'
 
 build:
 	go build -ldflags "$(LDFLAGS)"

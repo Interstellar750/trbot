@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"trle5.xyz/gopkg/trbot/utils/yaml"
+	"trle5.xyz/trbot/utils/yaml"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"trle5.xyz/gopkg/trbot/utils/origin_info"
-	"trle5.xyz/gopkg/trbot/utils/type/message_utils"
+	"trle5.xyz/trbot/utils/origin_info"
+	"trle5.xyz/trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

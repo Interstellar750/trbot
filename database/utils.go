@@ -1,10 +1,10 @@
 package database
 
 import (
-	"trle5.xyz/gopkg/trbot/database/db_struct"
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/handler_params"
-	"trle5.xyz/gopkg/trbot/utils/type/update_utils"
+	"trle5.xyz/trbot/database/db_struct"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/handler_params"
+	"trle5.xyz/trbot/utils/type/update_utils"
 
 	"github.com/rs/zerolog"
 )

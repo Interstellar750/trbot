@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"time"
 
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/configs"
-	"trle5.xyz/gopkg/trbot/utils/yaml"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/configs"
+	"trle5.xyz/trbot/utils/yaml"
 
 	"github.com/rs/zerolog"
 )

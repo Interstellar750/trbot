@@ -1,4 +1,4 @@
-module trle5.xyz/gopkg/trbot
+module trle5.xyz/trbot
 
 go 1.23.0
 

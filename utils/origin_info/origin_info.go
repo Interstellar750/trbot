@@ -3,8 +3,8 @@ package origin_info
 import (
 	"fmt"
 
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/type/message_utils"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/type/message_utils"
 
 	"github.com/go-telegram/bot/models"
 )

@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"time"
 
-	"trle5.xyz/gopkg/trbot/database"
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/configs"
-	"trle5.xyz/gopkg/trbot/utils/internal_plugin"
-	"trle5.xyz/gopkg/trbot/utils/signals"
-	"trle5.xyz/gopkg/trbot/utils/task"
+	"trle5.xyz/trbot/database"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/configs"
+	"trle5.xyz/trbot/utils/internal_plugin"
+	"trle5.xyz/trbot/utils/signals"
+	"trle5.xyz/trbot/utils/task"
 
 	"github.com/go-telegram/bot"
 	"github.com/rs/zerolog"

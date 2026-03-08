@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"trle5.xyz/gopkg/trbot/utils"
+	"trle5.xyz/trbot/utils"
 
 	"github.com/reugn/go-quartz/quartz"
 	"github.com/rs/zerolog"

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"trle5.xyz/gopkg/trbot/plugins/saved_message/channel"
-	"trle5.xyz/gopkg/trbot/plugins/saved_message/common"
-	"trle5.xyz/gopkg/trbot/plugins/saved_message/message_index"
-	"trle5.xyz/gopkg/trbot/plugins/saved_message/personal"
-	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
+	"trle5.xyz/trbot/plugins/saved_message/channel"
+	"trle5.xyz/trbot/plugins/saved_message/common"
+	"trle5.xyz/trbot/plugins/saved_message/message_index"
+	"trle5.xyz/trbot/plugins/saved_message/personal"
+	"trle5.xyz/trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/meilisearch/meilisearch-go"

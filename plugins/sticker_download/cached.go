@@ -3,9 +3,9 @@ package sticker_download
 import (
 	"os"
 
-	"trle5.xyz/gopkg/trbot/plugins/sticker_download/config"
-	"trle5.xyz/gopkg/trbot/utils/handler_params"
-	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
+	"trle5.xyz/trbot/plugins/sticker_download/config"
+	"trle5.xyz/trbot/utils/handler_params"
+	"trle5.xyz/trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

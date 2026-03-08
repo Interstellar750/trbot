@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"unicode/utf16"
 
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/configs"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/configs"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/meilisearch/meilisearch-go"

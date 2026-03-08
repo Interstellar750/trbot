@@ -3,7 +3,7 @@ package handler_params
 import (
 	"context"
 
-	"trle5.xyz/gopkg/trbot/database/db_struct"
+	"trle5.xyz/trbot/database/db_struct"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"

@@ -21,7 +21,7 @@ package plugins
 ```
 	package plugins
 
-	import "trle5.xyz/gopkg/trbot/plugins/sticker_downloader"
+	import "trle5.xyz/trbot/plugins/sticker_downloader"
 
 	func init() {
 		sticker_downloader.RegisterFunc()

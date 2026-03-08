@@ -1,7 +1,7 @@
 package plugin_utils
 
 import (
-	"trle5.xyz/gopkg/trbot/utils/handler_params"
+	"trle5.xyz/trbot/utils/handler_params"
 
 	"github.com/go-telegram/bot/models"
 )

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"trle5.xyz/gopkg/trbot/utils"
-	"trle5.xyz/gopkg/trbot/utils/flaterr"
-	"trle5.xyz/gopkg/trbot/utils/handler_params"
-	"trle5.xyz/gopkg/trbot/utils/plugin_utils"
+	"trle5.xyz/trbot/utils"
+	"trle5.xyz/trbot/utils/flaterr"
+	"trle5.xyz/trbot/utils/handler_params"
+	"trle5.xyz/trbot/utils/plugin_utils"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
