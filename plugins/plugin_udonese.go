@@ -585,7 +585,7 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 				Title:    "没有符合关键词的内容",
 				Description: fmt.Sprintf("没有找到包含 %s 的词或意思，若想查看添加方法，请点击这条内容", keywordFields),
 				InputMessageContent: &models.InputTextMessageContent{
-					MessageText: "没有这个词，使用 `udonese <词> <意思>` 来添加吧",
+					MessageText: "没有这个词，使用 `/udonese <词> <意思>` 来添加吧",
 					ParseMode: models.ParseModeMarkdownV1,
 				},
 			})
@@ -606,8 +606,8 @@ func udoneseInlineHandler(opts *handler_params.InlineQuery) []models.InlineQuery
 }
 
 func udoneseGroupHandler(opts *handler_params.Message) error {
-	// 不响应来自转发的命令和空文本
-	if opts.Message.ForwardOrigin != nil || len(opts.Fields) == 0 { return nil }
+	// 不响应空文本
+	if len(opts.Fields) == 0 { return nil }
 
 	logger := zerolog.Ctx(opts.Ctx).
 		With().
@@ -644,6 +644,9 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 	}
 
 	var needNotice bool
+
+	// 不让转发消息触发命令
+	if opts.Message.ForwardOrigin != nil { return nil }
 
 	if opts.Fields[0] == "sms" {
 		// 参数过少时就提示用法
@@ -701,7 +704,7 @@ func udoneseGroupHandler(opts *handler_params.Message) error {
 		// 属于可以添加的群组就发提示
 		botMessage, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 			ChatID:              opts.Message.Chat.ID,
-			Text:                "这个词还没有记录，使用 `udonese <词> <意思>` 来添加吧",
+			Text:                "这个词还没有记录，使用 `/udonese <词> <意思>` 来添加吧",
 			ParseMode:           models.ParseModeMarkdownV1,
 			DisableNotification: true,
 			ReplyParameters:     &models.ReplyParameters{ MessageID: opts.Message.ID },
