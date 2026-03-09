@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/go-telegram/bot"
-	"github.com/multiplay/go-ts3"
+	ts3 "github.com/jkoenig134/go-ts3"
 	"github.com/rs/zerolog"
 	"trle5.xyz/trbot/utils"
 	"trle5.xyz/trbot/utils/configs"
@@ -19,19 +19,17 @@ import (
 var tsConfig ServerConfig
 
 var tsConfigPath string = filepath.Join(configs.YAMLDatabaseDir, "teamspeak/", configs.YAMLFileName)
-var botNickName  string = "trbot_teamspeak_plugin"
+var botNickName  string
 
 var botInstance *bot.Bot
 
 type ServerConfig struct {
 	rw sync.RWMutex
-	c  *ts3.Client
+	c  ts3.TeamspeakHttpClient
 	s  Status
 
-	// get `Name` And `Password` in `TeamSpeak 3 Client` -> `Tools` -> `ServerQuery Login`
 	URL                    string `yaml:"URL"`
-	Name                   string `yaml:"Name"`
-	Password               string `yaml:"Password"`
+	API                    string `yaml:"API"`
 	GroupID                int64  `yaml:"GroupID"`
 	PollingInterval        int    `yaml:"PollingInterval"`
 	SendMessageMode        bool   `yaml:"SendMessageMode"`
@@ -41,6 +39,7 @@ type ServerConfig struct {
 	DeleteOldPinnedMessage bool   `yaml:"DeleteOldPinnedMessage"`
 	PinnedMessageID        int    `yaml:"PinnedMessageID"`
 }
+
 
 func Init() {
 	plugin_utils.AddInitializer(plugin_utils.Initializer{
@@ -149,8 +148,8 @@ func readTeamspeakData(ctx context.Context) error {
 				Str("path", tsConfigPath).
 				Msg("Not found teamspeak config file. Created new one")
 			err = yaml.SaveYAML(tsConfigPath, &ServerConfig{
-				PollingInterval: 10,
-				SendMessageMode: true,
+				PollingInterval:       10,
+				SendMessageMode:       true,
 				DeleteTimeoutInMinute: 10,
 			})
 			if err != nil {

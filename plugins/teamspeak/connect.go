@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-telegram/bot"
-	"github.com/multiplay/go-ts3"
+	ts3 "github.com/jkoenig134/go-ts3"
 	"github.com/rs/zerolog"
 	"trle5.xyz/trbot/utils"
 	"trle5.xyz/trbot/utils/flaterr"
@@ -26,29 +26,17 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 	defer sc.rw.Unlock()
 
 	// 如果服务器地址为空不允许重新启动
-	if sc.URL == "" {
+	if sc.URL == "" || sc.API == "" {
 		logger.Error().
 			Str("path", tsConfigPath).
-			Msg("No URL in config")
-		return fmt.Errorf("no URL in config")
-	}
-
-	if sc.c != nil {
-		logger.Info().Msg("Closing client...")
-		err = sc.c.Close()
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Str("path", tsConfigPath).
-				Msg("Failed to close client")
-		}
-		// 尽管它有时会返回错误，但可能还是会正常关闭，所以等一等，然后抛弃旧的客户端
-		time.Sleep(10 * time.Second)
-		sc.c = nil
+			Msg("No URL or API in config")
+		return fmt.Errorf("no URL API in config")
 	}
 
 	logger.Info().Msg("Starting client...")
-	sc.c, err = ts3.NewClient(sc.URL)
+
+	sc.c = ts3.NewClient(ts3.NewConfig(sc.URL, sc.API))
+	info, err := sc.c.Whoami()
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -57,24 +45,7 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to connnect to server: %w", err)
 	}
 
-	logger.Info().Msg("Checking credentials...")
-	// ServerQuery 账号名或密码为空也不允许重新启动
-	if sc.Name == "" || sc.Password == "" {
-		logger.Error().
-			Str("path", tsConfigPath).
-			Msg("No Name/Password in config")
-		return fmt.Errorf("no Name/Password in config")
-	}
-
-	logger.Info().Msg("Logining...")
-	err = sc.c.Login(sc.Name, sc.Password)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str("path", tsConfigPath).
-			Msg("Failed to login to server")
-		return fmt.Errorf("failed to login to server: %w", err)
-	}
+	botNickName = info.ClientUniqueIdentifier
 
 	logger.Info().Msg("Checking Group ID...")
 	// 检查要设定通知的群组 ID 是否存在
@@ -99,42 +70,8 @@ func (sc *ServerConfig) Connect(ctx context.Context) error {
 	logger.Info().
 		Str("version", v.Version).
 		Str("platform", v.Platform).
-		Int("build", v.Build).
+		Str("build", v.Build).
 		Msg("TeamSpeak server connected")
-
-	logger.Info().Msg("Switching virtual servers...")
-
-	// 切换默认虚拟服务器
-	err = sc.c.Use(1)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Failed to switch server")
-		return fmt.Errorf("failed to switch server: %w", err)
-	}
-
-	logger.Info().Msg("Checking nickname...")
-
-	// 改一下 bot 自己的 nickname，使得在检测用户列表时默认不显示自己
-	m, err := sc.c.Whoami()
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Failed to get bot info")
-		return fmt.Errorf("failed to get bot info: %w", err)
-	} else if m != nil && m.ClientName != botNickName {
-		logger.Info().Msg("Setting nickname...")
-		// 当 bot 自己的 nickname 不等于配置文件中的 nickname 时，才进行修改
-		err = sc.c.SetNick(botNickName)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Msg("Failed to set bot nickname")
-			return fmt.Errorf("failed to set nickname: %w", err)
-		}
-	}
-
-	logger.Info().Msg("Successfully connected!")
 
 	if !sc.s.IsCheckClientTaskScheduled {
 		err = sc.ScheduleCheckClientTask(ctx)
@@ -222,10 +159,16 @@ func (sc *ServerConfig) RetryLoop(ctx context.Context) {
 						Str("content", "success reconnect to server notice").
 						Msg(flaterr.SendMessage.Str())
 				} else {
-					sc.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
-						Date: int(time.Now().Unix()),
-						ID:   botMessage.ID,
-					})
+					sc.s.OldMessageID = append(tsConfig.s.OldMessageID,
+						OldMessageID{
+							Date: int(time.Now().Unix()),
+							ID:   botMessage.ID,
+						},
+						OldMessageID{
+							Date: int(time.Now().Unix()),
+							ID:   sc.s.RetryMsgID,
+						},
+					)
 				}
 				return
 			}

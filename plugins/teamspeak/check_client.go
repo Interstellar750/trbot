@@ -22,10 +22,14 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 		Str(utils.GetCurrentFuncName()).
 		Logger()
 
-	sc.rw.Lock()
-	defer sc.rw.Unlock()
+	// 仅在能立即锁定时继续操作，否则直接退出
+	if sc.rw.TryLock() {
+		defer sc.rw.Unlock()
+	} else {
+		return
+	}
 
-	onlineClients, err := sc.c.Server.ClientList()
+	onlineClients, err := sc.c.ClientList()
 	if err != nil {
 		sc.s.CheckFailedCount++
 		logger.Error().
@@ -49,30 +53,28 @@ func (sc *ServerConfig) CheckClient(ctx context.Context) {
 					Str("content", "failed to check online client 5 times, start auto reconnect").
 					Msg(flaterr.SendMessage.Str())
 			} else {
-				sc.s.OldMessageID = append(tsConfig.s.OldMessageID, OldMessageID{
-					Date: int(time.Now().Unix()),
-					ID:   botMessage.ID,
-				})
+				sc.s.RetryMsgID = botMessage.ID
 			}
 		}
 		return
-	} else {
+	} else if onlineClients != nil {
 		var nowOnlineClient []OnlineClient
 		sc.s.CheckFailedCount = 0 // 重置失败计数
-		for _, client := range onlineClients {
-			if client.Nickname == botNickName { continue }
+		for _, client := range *onlineClients {
+			if client.ClientNickname == botNickName { continue }
 
 			var isExist bool
 			for _, user := range sc.s.BeforeOnlineClient {
-				if user.Username == client.Nickname {
+				if user.DatabaseID == client.ClientDatabaseId {
 					nowOnlineClient = append(nowOnlineClient, user)
 					isExist = true
 				}
 			}
 			if !isExist {
 				nowOnlineClient = append(nowOnlineClient, OnlineClient{
-					Username: client.Nickname,
-					JoinTime: time.Now(),
+					Username:   client.ClientNickname,
+					DatabaseID: client.ClientDatabaseId,
+					JoinTime:   time.Now(),
 				})
 			}
 		}

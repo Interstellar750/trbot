@@ -14,52 +14,52 @@ import (
 	"trle5.xyz/trbot/utils/task"
 )
 
+func (sc *ServerConfig) DeleteMessage(ctx context.Context) (int, error) {
+	var needDelMsgIDs []int
+	var keepMsgIDList []OldMessageID
+
+	for _, msg := range sc.s.OldMessageID {
+		if time.Now().Unix() > int64(msg.Date + sc.DeleteTimeoutInMinute * 60) {
+			needDelMsgIDs = append(needDelMsgIDs, msg.ID)
+		} else {
+			keepMsgIDList = append(keepMsgIDList, msg)
+		}
+	}
+	sc.s.OldMessageID = keepMsgIDList
+
+	if len(needDelMsgIDs) > 0 {
+		_, err := botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     sc.GroupID,
+			MessageIDs: needDelMsgIDs,
+		})
+		if err != nil {
+			zerolog.Ctx(ctx).Error().
+				Err(err).
+				Ints("msgIDs", needDelMsgIDs).
+				Int("deleteMessageMinute", sc.DeleteTimeoutInMinute).
+				Str("content", "teamspeak user change notify").
+				Msg(flaterr.DeleteMessage.Str())
+			return 1, err
+		}
+	}
+	return 0, nil
+}
+
 // ScheduleDeleteMessageTask 创建定时删除旧通知信息的任务
 func (sc *ServerConfig) ScheduleDeleteMessageTask(ctx context.Context) error {
-	logger := zerolog.Ctx(ctx)
-
 	// 根据 sc.DeleteTimeoutInMinute 计划一个任务
 	// 定时检查 sc.s.OldMessageID 中是否有过期的消息，如果有则删除
 	err := task.ScheduleTask(ctx, task.Task{
 		Name:  fmt.Sprintf("delete_old_message_%d", sc.GroupID),
 		Group: "teamspeak3",
 		Job: job.NewFunctionJobWithDesc(
-			func(ctx context.Context) (int, error) {
-				var needDelMsgIDs []int
-				var keepMsgIDList []OldMessageID
-
-				for _, msg := range sc.s.OldMessageID {
-					if time.Now().Unix() > int64(msg.Date + sc.DeleteTimeoutInMinute * 60) {
-						needDelMsgIDs = append(needDelMsgIDs, msg.ID)
-					} else {
-						keepMsgIDList = append(keepMsgIDList, msg)
-					}
-				}
-				sc.s.OldMessageID = keepMsgIDList
-
-				if len(needDelMsgIDs) > 0 {
-					_, err := botInstance.DeleteMessages(ctx, &bot.DeleteMessagesParams{
-						ChatID:     sc.GroupID,
-						MessageIDs: needDelMsgIDs,
-					})
-					if err != nil {
-						logger.Error().
-							Err(err).
-							Ints("msgIDs", needDelMsgIDs).
-							Int("deleteMessageMinute", sc.DeleteTimeoutInMinute).
-							Str("content", "teamspeak user change notify").
-							Msg(flaterr.DeleteMessage.Str())
-						return 1, err
-					}
-				}
-				return 0, nil
-			},
+			sc.DeleteMessage,
 			"delete teamspeak user change notify message",
 		),
 		Trigger: quartz.NewSimpleTrigger(time.Minute * time.Duration(sc.DeleteTimeoutInMinute)),
 	})
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to schedule delete message job")
+		zerolog.Ctx(ctx).Error().Err(err).Msg("Failed to schedule delete message job")
 		return err
 	}
 

@@ -28,26 +28,24 @@ func showStatus(opts *handler_params.Message) error {
 
 	// 正常运行就输出用户列表，否则发送错误信息
 	if tsConfig.s.IsCheckClientTaskScheduled && tsConfig.s.IsCheckClientTaskRunning {
-		onlineClients, err := tsConfig.c.Server.ClientList()
+		// 这里可能要加锁？
+		onlineClients, err := tsConfig.c.ClientList()
 		if err != nil {
 			logger.Error().
 				Err(err).
 				Msg("Failed to get online client")
 			handlerErr.Addf("failed to get online client: %w", err)
 			pendingMessage = fmt.Sprintf("获取服务器用户列表时发生了一些错误:\n<blockquote expandable>%s</blockquote>", utils.IgnoreHTMLTags(err.Error()))
-		} else {
+		} else if onlineClients != nil {
 			pendingMessage += fmt.Sprintln("在线客户端:")
 			var userCount int
-			for _, client := range onlineClients {
-				if client.Nickname == botNickName {
+			for _, client := range *onlineClients {
+				if client.ClientNickname == botNickName {
 					// 统计用户数量时跳过此机器人
 					continue
 				}
-				pendingMessage += fmt.Sprintf("用户 [ %s ] ", client.Nickname)
+				pendingMessage += fmt.Sprintf("用户 [ %s ] ", client.ClientNickname)
 				userCount++
-				if client.OnlineClientExt != nil {
-					pendingMessage += fmt.Sprintf("在线时长 %d", *client.OnlineClientTimes.LastConnected)
-				}
 				pendingMessage += "\n"
 			}
 			if userCount == 0 {
@@ -77,10 +75,16 @@ func showStatus(opts *handler_params.Message) error {
 	var buttons models.ReplyMarkup
 	// 显示管理按钮
 	if opts.Message.Chat.ID == tsConfig.GroupID && contain.Int64(opts.Message.From.ID, utils.GetChatAdminIDs(opts.Ctx, opts.Thebot, tsConfig.GroupID)...) || contain.Int64(opts.Message.From.ID, configs.BotConfig.AdminIDs...) {
-		buttons = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
-			Text:         "管理此功能",
-			CallbackData: "teamspeak",
-		}}}}
+		buttons = &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{
+				Text:         "管理此功能",
+				CallbackData: "teamspeak",
+			}},
+			{{
+				Text:         "清理通知消息",
+				CallbackData: "teamspeak_clear",
+			}},
+		}}
 	}
 
 	// 发送消息
@@ -163,6 +167,41 @@ func teamspeakCallbackHandler(opts *handler_params.CallbackQuery) error {
 			tsConfig.AutoDeleteMessage = !tsConfig.AutoDeleteMessage
 			needSave = true
 			needEditTask = true
+		case "teamspeak_clear":
+			needEdit = false
+			var needDelMsgIDs []int
+
+			for _, msg := range tsConfig.s.OldMessageID {
+				needDelMsgIDs = append(needDelMsgIDs, msg.ID)
+			}
+
+			if len(needDelMsgIDs) > 0 {
+				_, err := botInstance.DeleteMessages(opts.Ctx, &bot.DeleteMessagesParams{
+					ChatID:     tsConfig.GroupID,
+					MessageIDs: needDelMsgIDs,
+				})
+				if err != nil {
+					_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+						CallbackQueryID: opts.CallbackQuery.ID,
+						Text:            fmt.Sprintln("删除旧的通知消息发生错误", err.Error()),
+						ShowAlert:       true,
+					})
+					wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "delete old message failed notice")
+				} else {
+					_, err = opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+						CallbackQueryID: opts.CallbackQuery.ID,
+						Text:            fmt.Sprintf("已删除 %d 条旧的通知消息", len(needDelMsgIDs)),
+					})
+					wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "delete old message success notice")
+				}
+			} else {
+				_, err := opts.Thebot.AnswerCallbackQuery(opts.Ctx, &bot.AnswerCallbackQueryParams{
+					CallbackQueryID: opts.CallbackQuery.ID,
+					Text:            "没有旧的通知消息",
+					ShowAlert:       true,
+				})
+				wrap.ErrIf(err).MsgT(flaterr.AnswerCallbackQuery, "no old messages notice")
+			}
 		}
 
 		if needEditTask {

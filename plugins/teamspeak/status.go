@@ -22,6 +22,8 @@ type Status struct {
 	IsDeleteMessageTaskRunning   bool
 
 	OldMessageID []OldMessageID
+
+	RetryMsgID int
 }
 
 type OldMessageID struct {
@@ -30,6 +32,7 @@ type OldMessageID struct {
 }
 
 type OnlineClient struct {
-	Username string
-	JoinTime time.Time
+	Username   string
+	DatabaseID int
+	JoinTime   time.Time
 }
