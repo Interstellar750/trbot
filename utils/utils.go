@@ -274,7 +274,11 @@ func GetUserOrSenderChatDict(msg *models.Message) (string, *zerolog.Event) {
 
 // 输出版本信息
 func OutputVersionInfo() string {
-	var gitURL string = "https://gitea.trle5.xyz/trle5/trbot/commit/"
+	var (
+		gitTagURL    = "https://gitea.trle5.xyz/trle5/trbot/src/tag/"
+		gitBranchURL = "https://gitea.trle5.xyz/trle5/trbot/src/branch/"
+		gitCommitURL = "https://gitea.trle5.xyz/trle5/trbot/commit/"
+	)
 	var m runtime.MemStats;
 	runtime.ReadMemStats(&m)
 	hostname, _ := os.Hostname()
@@ -284,9 +288,9 @@ func OutputVersionInfo() string {
 		info += fmt.Sprintf("<code>MemUsage:  </code>%s\n", humanize.IBytes(m.Sys))
 		info += fmt.Sprintf("<code>Goroutine: </code>%d\n", runtime.NumGoroutine())
 		info += fmt.Sprintf("<code>Uptime:    </code>%s\n", humanize.Time(configs.StartAt))
-		info += fmt.Sprintf("<code>Version:   </code>%s\n", configs.Version)
-		info += fmt.Sprintf("<code>Branch:    </code>%s\n", configs.Branch)
-		info += fmt.Sprintf("<code>Commit:    </code><a href=\"%s%s\">%s</a> (%s)\n", gitURL, configs.Commit, configs.Commit[:10], configs.Changes)
+		info += fmt.Sprintf("<code>Version:   </code><a href=\"%s%s\">%s</a>\n", gitTagURL, configs.Version, configs.Version)
+		info += fmt.Sprintf("<code>Branch:    </code><a href=\"%s%s\">%s</a>\n", gitBranchURL, configs.Branch, configs.Branch)
+		info += fmt.Sprintf("<code>Commit:    </code><a href=\"%s%s\">%s</a> (%s)\n", gitCommitURL, configs.Commit, configs.Commit[:10], configs.Changes)
 		info += fmt.Sprintf("<code>BuildOn:   </code>%s\n", configs.BuildOn)
 		info += fmt.Sprintf("<code>BuildAt:   </code><a href=\"%s%s\">%s</a>\n", "https://timestamp.online/timestamp/", configs.BuildAt, configs.BuildAt)
 		info += fmt.Sprintf("<code>Platform:  </code>%s / %s\n", runtime.GOOS, runtime.GOARCH)

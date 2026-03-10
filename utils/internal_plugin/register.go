@@ -106,7 +106,7 @@ func Register(ctx context.Context, thebot *bot.Bot) {
 			MessageHandler: func(opts *handler_params.Message) error {
 				_, err := opts.Thebot.SendMessage(opts.Ctx, &bot.SendMessageParams{
 					ChatID:          opts.Message.Chat.ID,
-					Text:            "您可以订阅测试频道以查看最近的更新更新内容",
+					Text:            "您可以订阅测试频道以查看最近的更新内容",
 					ReplyParameters: &models.ReplyParameters{ MessageID: opts.Message.ID },
 					ReplyMarkup:     &models.InlineKeyboardMarkup{ InlineKeyboard: [][]models.InlineKeyboardButton{{{
 						Text: "测试频道",
