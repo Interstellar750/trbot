@@ -329,6 +329,7 @@ func CollectStickerSet(opts *handler_params.CallbackQuery) error {
 						// 更新已收藏的贴纸包信息
 						collected.Title = stickerSet.Title
 						collected.MsgID = channelMessage.ID
+						collected.Count = stickerData.StickerCount
 					}
 
 					err = SaveCollectStickerList(opts.Ctx)
